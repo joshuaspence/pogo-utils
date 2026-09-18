@@ -2,13 +2,21 @@
  * The filters PGSharp saves for the nearby feed — which spawns it is looking for. Unlike a control's position,
  * which is a Java Float, each of these is stored as one JSON string; they are kept as objects here so every field
  * reads and diffs on its own, and JSON.stringify re-emits the compact string PGSharp wrote where they are put in the
- * backup. That re-emission goes field by field in source order, so the order below is part of the value and must not
- * be rearranged.
+ * backup.
+ *
+ * That re-emission goes field by field in source order, and spreading `baseFilter` pins each field where `baseFilter`
+ * puts it — overriding one sets its value, not its position — so `baseFilter` decides the order every filter is
+ * written in. Reordering it reorders all of them, which is why a field belongs there even where every filter but one
+ * leaves it alone: `onlyShiny` is declared false there so the shiny feeds reading true keep its place rather than
+ * appending it.
  */
 
 import { HISUI } from '../pokemon/pokedex.js';
 import Pokemon from '../pokemon/pokemon.js';
-import SHINY_HUNTING from '../filters/shiny-hunting.js';
+import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
+import SHINY_POKEMON from '../filters/shiny.js';
+import XXL_POKEMON from '../filters/xxl.js';
+import XXS_POKEMON from '../filters/xxs.js';
 
 /**
  * A filter's species list, checked, narrowed and collapsed to one entry per species. A form or a region the species
@@ -73,15 +81,20 @@ const baseFilter = {
   minIV: 0,
   minsta: 0,
   notif: false,
+  onlyShiny: false,
   priority: 1,
   size: 0,
 };
 
+// What any feed can ever show: the nearby feed reports wild spawns, so a species not in the game yet or one the wild
+// never turns up is a line PGSharp would never alert on. Every filter below starts from these.
+const NEARBY_FEED_FILTERS = [filterReleased, filterWildSpawns];
+
 // The predicates every shiny-hunting feed shares; a region or `filterRegional` is added to these per feed. Shared as a
 // list of predicates rather than a computed species list because `species` collapses to one entry per dex number: a
 // feed built off another's collapsed list would filter what the dedupe already dropped, losing a regional form whose
-// dex a plainer form had won. Each feed therefore filters `SHINY_HUNTING` afresh, collapsing last.
-const SHINY_HUNTING_FILTERS = [filterReleased, filterShinyEligible, filterWildSpawns];
+// dex a plainer form had won. Each feed therefore filters `SHINY_POKEMON` afresh, collapsing last.
+const SHINY_HUNTING_FILTERS = [...NEARBY_FEED_FILTERS, filterShinyEligible];
 
 const baseShinyHuntingFilter = {
   ...baseFilter,
@@ -92,39 +105,39 @@ export default [
   {
     ...baseShinyHuntingFilter,
     name: 'Shiny Hunting',
-    pokemons: species(SHINY_HUNTING, ...SHINY_HUNTING_FILTERS),
+    pokemons: species(SHINY_POKEMON, ...SHINY_HUNTING_FILTERS),
   },
   {
     ...baseShinyHuntingFilter,
     name: 'Shiny Hunting (Hisuian)',
     form: 3,
-    pokemons: species(SHINY_HUNTING, ...SHINY_HUNTING_FILTERS, filterRegion(HISUI)),
+    pokemons: species(SHINY_POKEMON, ...SHINY_HUNTING_FILTERS, filterRegion(HISUI)),
   },
   {
     ...baseShinyHuntingFilter,
     name: 'Regional Shiny Hunting',
-    pokemons: species(SHINY_HUNTING, ...SHINY_HUNTING_FILTERS, filterRegional),
+    pokemons: species(SHINY_POKEMON, ...SHINY_HUNTING_FILTERS, filterRegional),
   },
   {
-    checkAll: false,
-    level: 1,
-    lvmax: 36,
-    minIV: 100,
-    maxIV: 100,
-    onlyShiny: false,
-    attrMode: 0,
-    minatk: 0,
-    maxatk: 15,
-    mindef: 0,
-    maxdef: 15,
-    minsta: 0,
-    maxsta: 15,
-    gender: 0,
-    form: 0,
-    size: 0,
-    notif: true,
+    ...baseFilter,
     name: '100%',
     distance: 10,
+    maxIV: 100,
+    minIV: 100,
+    notif: true,
     priority: 0,
+    pokemons: species(PERFECT_IV_POKEMON, ...NEARBY_FEED_FILTERS),
+  },
+  {
+    ...baseFilter,
+    name: 'XXL',
+    size: 5,
+    pokemons: species(XXL_POKEMON, ...NEARBY_FEED_FILTERS),
+  },
+  {
+    ...baseFilter,
+    name: 'XXS',
+    size: 1,
+    pokemons: species(XXS_POKEMON, ...NEARBY_FEED_FILTERS),
   },
 ];
