@@ -12,7 +12,7 @@
  * hand-set shape rather than letting one entry per line stretch it out.
  */
 
-import POKEMON, { GALAR, HISUI, PALDEA } from './pokemon/pokedex.js';
+import POKEMON, { GALAR, HISUI, PALDEA } from '../pokemon/pokedex.js';
 
 // prettier-ignore
 export default new Set([
