@@ -217,6 +217,15 @@ const TRACKS = [
   { type: 'wild-area', label: 'Wild Area' },
 ];
 
+/**
+ * The class marking an event's type, so CSS can give each type its own colour (see the `.type-*` rules in events.css).
+ * Keyed off the stable `eventType` slug like the Tracks rows, not the human `heading`. Empty for a feed entry missing
+ * the field, in which case the colour consumers fall back to their default.
+ */
+function typeClass(ev) {
+  return ev.eventType ? ` type-${ev.eventType}` : '';
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
 
@@ -270,7 +279,7 @@ function isVisible(ev) {
 function card(ev, now) {
   const status = statusOf(ev, now);
   const dismissed = prefs.dismissed.has(ev.eventID);
-  const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}`);
+  const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}${typeClass(ev)}`);
 
   // A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button a
   // sibling rather than a child: an anchor may not contain interactive content.
@@ -372,7 +381,7 @@ function renderCards(now) {
 }
 
 function pill(ev, now) {
-  const node = el('a', `pill ${statusOf(ev, now).kind}`, ev.name);
+  const node = el('a', `pill ${statusOf(ev, now).kind}${typeClass(ev)}`, ev.name);
   node.href = ev.link;
   node.target = '_blank';
   node.rel = 'noopener';
@@ -563,7 +572,7 @@ function renderTracks(now) {
       const left = Math.max(it.startMs, rangeStartMs);
       const right = Math.min(it.endMs, rangeEndMs);
 
-      const bar = el('a', `bar ${statusOf(it.ev, now).kind}`, it.ev.name);
+      const bar = el('a', `bar ${statusOf(it.ev, now).kind}${typeClass(it.ev)}`, it.ev.name);
       bar.href = it.ev.link;
       bar.target = '_blank';
       bar.rel = 'noopener';

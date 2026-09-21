@@ -244,6 +244,124 @@ h2.group {
   opacity: 1;
 }
 
+/* Per-type colour palette. Each event type gets a distinctive hue in --type-color, set here so it inherits to the card
+   badge and applies directly to the calendar pill and timeline bar that carry the same class. Kept in CSS rather than JS
+   so the dark-mode overrides below sit beside the light values; the slugs are the feed's stable `eventType`, and a type
+   the feed adds later simply has no rule and falls back to the neutral default in each consumer. */
+.type-choose-your-path {
+  --type-color: #7c3aed;
+}
+
+.type-community-day {
+  --type-color: #16a34a;
+}
+
+.type-event {
+  --type-color: #2f6fed;
+}
+
+.type-go-battle-league {
+  --type-color: #dc2626;
+}
+
+.type-go-pass {
+  --type-color: #0891b2;
+}
+
+.type-max-battles {
+  --type-color: #4f46e5;
+}
+
+.type-max-mondays {
+  --type-color: #9333ea;
+}
+
+.type-raid-battles {
+  --type-color: #ea580c;
+}
+
+.type-raid-day {
+  --type-color: #b45309;
+}
+
+.type-raid-hour {
+  --type-color: #f97316;
+}
+
+.type-research {
+  --type-color: #0d9488;
+}
+
+.type-pokemon-spotlight-hour {
+  --type-color: #db2777;
+}
+
+.type-wild-area {
+  --type-color: #65a30d;
+}
+
+.type-season {
+  --type-color: #475569;
+}
+
+@media (prefers-color-scheme: dark) {
+  .type-choose-your-path {
+    --type-color: #a78bfa;
+  }
+
+  .type-community-day {
+    --type-color: #34d17b;
+  }
+
+  .type-event {
+    --type-color: #6ea8ff;
+  }
+
+  .type-go-battle-league {
+    --type-color: #f87171;
+  }
+
+  .type-go-pass {
+    --type-color: #22d3ee;
+  }
+
+  .type-max-battles {
+    --type-color: #818cf8;
+  }
+
+  .type-max-mondays {
+    --type-color: #c084fc;
+  }
+
+  .type-raid-battles {
+    --type-color: #fb923c;
+  }
+
+  .type-raid-day {
+    --type-color: #f59e0b;
+  }
+
+  .type-raid-hour {
+    --type-color: #fdba74;
+  }
+
+  .type-research {
+    --type-color: #2dd4bf;
+  }
+
+  .type-pokemon-spotlight-hour {
+    --type-color: #f472b6;
+  }
+
+  .type-wild-area {
+    --type-color: #a3e635;
+  }
+
+  .type-season {
+    --type-color: #94a3b8;
+  }
+}
+
 .card .thumb {
   width: 100%;
   height: 120px;
@@ -258,14 +376,17 @@ h2.group {
   padding: 12px 14px;
 }
 
+/* The type badge carries the event's type colour: coloured text on a faint tint of the same hue. --type-color is set on
+   the card (see the `.type-*` rules) and inherits down to here; a type with no colour falls back to the muted default. */
 .card .badge {
   align-self: flex-start;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
-  border: 1px solid var(--border);
+  color: var(--type-color, var(--muted));
+  background: color-mix(in srgb, var(--type-color, transparent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--type-color, var(--border)) 45%, transparent);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -408,13 +529,14 @@ footer a {
   color: var(--accent);
 }
 
-/* One pill per event-day, coloured by status like the card stripes. Ellipsis keeps a long name inside a narrow cell. */
+/* One pill per event-day, filled with its type colour so a crowded day reads by category at a glance. Ellipsis keeps a
+   long name inside a narrow cell. A type with no colour falls back to the neutral track blue. */
 .pill {
   display: block;
   overflow: hidden;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--track);
+  background: var(--type-color, var(--track));
   color: #fff;
   font-size: 11px;
   line-height: 1.25;
@@ -423,13 +545,9 @@ footer a {
   white-space: nowrap;
 }
 
-.pill.active {
-  background: var(--start);
-}
-
-.pill.ended,
-.pill.tbd {
-  background: var(--muted);
+/* Status no longer drives the fill, but a past event still reads as spent: dim it while keeping its type colour. */
+.pill.ended {
+  opacity: 0.55;
 }
 
 .pill:hover {
@@ -521,15 +639,15 @@ footer a {
   background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
 }
 
-/* One bar per event, coloured by status like the card stripes and calendar pills. Absolutely positioned within its
-   lane from the inline left/width/top the renderer computes. */
+/* One bar per event, filled with its type colour to match the calendar pills. Absolutely positioned within its lane
+   from the inline left/width/top the renderer computes. A type with no colour falls back to the neutral track blue. */
 .bar {
   position: absolute;
   display: block;
   overflow: hidden;
   padding: 0 7px;
   border-radius: 5px;
-  background: var(--track);
+  background: var(--type-color, var(--track));
   color: #fff;
   font-size: 11px;
   line-height: 22px;
@@ -539,13 +657,9 @@ footer a {
   box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
 }
 
-.bar.active {
-  background: var(--start);
-}
-
-.bar.ended,
-.bar.tbd {
-  background: var(--muted);
+/* A past event keeps its type colour but dims, matching the calendar pills. */
+.bar.ended {
+  opacity: 0.55;
 }
 
 .bar:hover {
