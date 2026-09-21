@@ -44,7 +44,7 @@ if (valid) {
  * of these is a misspelling the viewer would silently ignore, leaving a countryless entry the banner then complains
  * about — the very failure this pass moves forward to here.
  */
-const PGR_NS = 'https://joshuaspence.github.io/pokemon-go-gpx-routes/gpx/1';
+const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';
 const PGR_FIELDS = new Set(['country', 'city', 'variant']);
 const VARIANTS = new Set(['short', 'long']);
 

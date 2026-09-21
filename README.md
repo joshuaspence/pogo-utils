@@ -1,8 +1,8 @@
-# Pokémon GO GPX Routes
+# Pokémon GO Utilities
 
 A collection of GPX walking tracks and teleport waypoints for Pokémon GO, browsable on an interactive map.
 
-**➡️ [Open the map](https://joshuaspence.github.io/pokemon-go-gpx-routes/)**
+**➡️ [Open the map](https://joshuaspence.github.io/pogo-utils/)**
 
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored as `*.gpx` files under [`data/`](data), grouped by country — the
 files themselves are the source of truth. The viewer ([`index.html`](index.html), whose CSS and JavaScript live under

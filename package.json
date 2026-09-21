@@ -1,5 +1,5 @@
 {
-  "name": "pokemon-go-gpx-routes",
+  "name": "pogo-utils",
   "type": "module",
   "private": true,
   "scripts": {
