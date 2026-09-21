@@ -551,10 +551,22 @@ function renderTracks(now) {
   const byType = new Map(TRACKS.map((t) => [t.type, []]));
   let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
+  // Track types whose filter checkbox is unticked, so the whole row can be dropped rather than left as an empty ghost.
+  // Keyed by the checkbox's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
+  const filteredTypes = new Set();
+
   for (const ev of events) {
     const bucket = byType.get(ev.eventType);
 
-    if (!bucket || !isVisible(ev)) {
+    if (!bucket) {
+      continue;
+    }
+
+    if (prefs.hiddenTypes.has(ev.heading)) {
+      filteredTypes.add(ev.eventType);
+    }
+
+    if (!isVisible(ev)) {
       continue;
     }
 
@@ -595,6 +607,13 @@ function renderTracks(now) {
 
   for (const track of TRACKS) {
     const items = byType.get(track.type).sort((a, b) => a.startMs - b.startMs);
+
+    // A track the filter has switched off drops out entirely. Only when it is also empty, so a type sharing its row
+    // with a still-visible heading keeps the row and its visible events.
+    if (!items.length && filteredTypes.has(track.type)) {
+      continue;
+    }
+
     const lanes = packLanes(items);
     const rowH = Math.max(1, lanes) * (TRACK_BAR_H + TRACK_LANE_GAP) + TRACK_LANE_GAP;
 
