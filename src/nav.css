@@ -1,0 +1,38 @@
+/* The site's top tab bar, shared by both pages (the map viewer and the events calendar), so the two read as co-equal
+   destinations rather than one hanging off the other. The active tab is marked with aria-current="page", which doubles
+   as the styling hook. Uses the tokens from theme.css. */
+
+.topnav {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.topnav .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+
+.topnav .tab .ico {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.topnav .tab:hover {
+  color: var(--text);
+}
+
+.topnav .tab[aria-current='page'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}

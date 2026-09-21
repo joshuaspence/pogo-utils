@@ -5,15 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pokémon GO Events</title>
     <link rel="stylesheet" href="src/theme.css" />
+    <link rel="stylesheet" href="src/nav.css" />
     <link rel="stylesheet" href="src/events.css" />
   </head>
   <body>
+    <nav class="topnav">
+      <a class="tab" href="index.html"><span class="ico" aria-hidden="true">🗺️</span> Routes map</a>
+      <a class="tab" href="events.html" aria-current="page"
+        ><span class="ico" aria-hidden="true">📅</span> Events calendar</a
+      >
+    </nav>
     <header class="page">
-      <div class="titles">
-        <h1>Pokémon GO Events</h1>
-        <p class="sub" id="count">Loading events…</p>
-      </div>
-      <nav><a href="index.html">← GPX routes map</a></nav>
+      <h1>Pokémon GO Events</h1>
+      <p class="sub" id="count">Loading events…</p>
     </header>
 
     <section class="controls">

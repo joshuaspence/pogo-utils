@@ -14,11 +14,17 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  grid-template-rows: 100%;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
+}
+
+.app {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 0;
 }
 
 #sidebar {
@@ -44,20 +50,6 @@ header .sub {
   margin-top: 3px;
   font-size: 12px;
   color: var(--muted);
-}
-
-header .pages {
-  margin-top: 6px;
-  font-size: 12px;
-}
-
-header .pages a {
-  color: var(--track);
-  text-decoration: none;
-}
-
-header .pages a:hover {
-  text-decoration: underline;
 }
 
 .search {
@@ -352,7 +344,7 @@ footer a {
 }
 
 @media (width <= 720px) {
-  body {
+  .app {
     grid-template-columns: 1fr;
     grid-template-rows: 45% 55%;
   }

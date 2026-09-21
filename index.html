@@ -10,53 +10,59 @@
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
       crossorigin
     />
+    <link rel="stylesheet" href="src/nav.css" />
     <link rel="stylesheet" href="src/styles.css" />
   </head>
   <body>
-    <aside id="sidebar">
-      <header>
-        <h1>Pokémon GO GPX Routes</h1>
-        <div class="sub" id="count">Loading routes…</div>
-        <nav class="pages"><a href="events.html">Events calendar →</a></nav>
-      </header>
-      <div class="search">
-        <input id="filter" type="search" placeholder="Filter tracks & waypoints…" autocomplete="off" />
-      </div>
-      <div id="list"></div>
-      <details class="backup" id="backup">
-        <summary>PGSharp backup</summary>
-        <div class="body">
-          <p>
-            Build a partial PGSharp backup holding every route and waypoint on this map (and, if ticked, a fixed control
-            layout and feed filters) — nothing else. Import the downloaded file into PGSharp; your other settings are
-            left untouched.
-          </p>
-          <details class="subgroup">
-            <summary>Include controls &amp; filters</summary>
-            <div class="group">
-              <label class="opt"><input type="checkbox" id="resetIcon" checked /> Floating control</label>
-              <label class="opt"><input type="checkbox" id="resetSnipe1" checked /> Fast-snipe button</label>
-              <label class="opt"><input type="checkbox" id="resetSnipe2" checked /> Second fast-snipe button</label>
-              <label class="opt"><input type="checkbox" id="resetCdpos" checked /> Cooldown indicator</label>
-              <label class="opt"><input type="checkbox" id="resetScan" checked /> Nearby radar</label>
-              <label class="opt"><input type="checkbox" id="resetFeeds" checked /> Nearby feed filters</label>
-            </div>
-          </details>
-          <button id="backupRun" class="run" type="button">Generate &amp; download</button>
-          <div class="status" id="backupStatus"></div>
+    <nav class="topnav">
+      <a class="tab" href="index.html" aria-current="page"><span class="ico" aria-hidden="true">🗺️</span> Routes map</a>
+      <a class="tab" href="events.html"><span class="ico" aria-hidden="true">📅</span> Events calendar</a>
+    </nav>
+    <div class="app">
+      <aside id="sidebar">
+        <header>
+          <h1>Pokémon GO GPX Routes</h1>
+          <div class="sub" id="count">Loading routes…</div>
+        </header>
+        <div class="search">
+          <input id="filter" type="search" placeholder="Filter tracks & waypoints…" autocomplete="off" />
         </div>
-      </details>
-      <footer>
-        Map data ©
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-        contributors. Click a track or waypoint to zoom.
-      </footer>
-    </aside>
+        <div id="list"></div>
+        <details class="backup" id="backup">
+          <summary>PGSharp backup</summary>
+          <div class="body">
+            <p>
+              Build a partial PGSharp backup holding every route and waypoint on this map (and, if ticked, a fixed
+              control layout and feed filters) — nothing else. Import the downloaded file into PGSharp; your other
+              settings are left untouched.
+            </p>
+            <details class="subgroup">
+              <summary>Include controls &amp; filters</summary>
+              <div class="group">
+                <label class="opt"><input type="checkbox" id="resetIcon" checked /> Floating control</label>
+                <label class="opt"><input type="checkbox" id="resetSnipe1" checked /> Fast-snipe button</label>
+                <label class="opt"><input type="checkbox" id="resetSnipe2" checked /> Second fast-snipe button</label>
+                <label class="opt"><input type="checkbox" id="resetCdpos" checked /> Cooldown indicator</label>
+                <label class="opt"><input type="checkbox" id="resetScan" checked /> Nearby radar</label>
+                <label class="opt"><input type="checkbox" id="resetFeeds" checked /> Nearby feed filters</label>
+              </div>
+            </details>
+            <button id="backupRun" class="run" type="button">Generate &amp; download</button>
+            <div class="status" id="backupStatus"></div>
+          </div>
+        </details>
+        <footer>
+          Map data ©
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+          contributors. Click a track or waypoint to zoom.
+        </footer>
+      </aside>
 
-    <div class="map-wrap">
-      <div id="banner"></div>
-      <div id="toast"></div>
-      <div id="map"></div>
+      <div class="map-wrap">
+        <div id="banner"></div>
+        <div id="toast"></div>
+        <div id="map"></div>
+      </div>
     </div>
 
     <script

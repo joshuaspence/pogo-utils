@@ -14,14 +14,7 @@ body {
 }
 
 header.page {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 18px 22px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+  padding: 18px 22px 4px;
 }
 
 header.page h1 {
@@ -34,16 +27,6 @@ header.page .sub {
   margin: 3px 0 0;
   font-size: 12px;
   color: var(--muted);
-}
-
-header.page nav a {
-  font-size: 13px;
-  color: var(--track);
-  text-decoration: none;
-}
-
-header.page nav a:hover {
-  text-decoration: underline;
 }
 
 .controls {
