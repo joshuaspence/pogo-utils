@@ -22,6 +22,10 @@
     </header>
 
     <section class="controls">
+      <div class="viewtoggle" role="group" aria-label="View">
+        <button id="viewCards" type="button" class="active" aria-pressed="true">Cards</button>
+        <button id="viewCalendar" type="button" aria-pressed="false">Calendar</button>
+      </div>
       <input id="search" type="search" placeholder="Search events…" autocomplete="off" />
       <label class="toggle"><input type="checkbox" id="showPast" /> Show ended</label>
       <button id="refresh" type="button">Refresh</button>

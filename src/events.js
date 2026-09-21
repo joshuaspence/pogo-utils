@@ -2,6 +2,9 @@
  * The events calendar page. Fetches Leek Duck's event feed (through ScrapedDuck's JSON mirror) live in the browser and
  * renders current, upcoming and — on request — recently ended Pokémon GO events. Nothing is built or committed: the
  * feed is the source of truth read directly, the same way the map reads the GPX files rather than a baked-in copy.
+ *
+ * Two views over the same data: a card list grouped by status, and a month grid where each event shows on every day it
+ * covers. The view toggle switches between them; the search box, type filters and dismissals apply to both.
  */
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
@@ -13,6 +16,8 @@ const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/ev
  */
 const TICK_MS = 60_000;
 const REFETCH_EVERY = 10;
+
+const DAY_MS = 86_400_000;
 
 /**
  * Leek Duck gives times two ways. A naive datetime ("2026-09-21T06:00:00.000", no zone) is a *local* event — 6am
@@ -63,11 +68,15 @@ const els = {
   showPast: document.getElementById('showPast'),
   refresh: document.getElementById('refresh'),
   reset: document.getElementById('reset'),
+  viewCards: document.getElementById('viewCards'),
+  viewCalendar: document.getElementById('viewCalendar'),
   events: document.getElementById('events'),
 };
 
 let events = []; // normalised feed entries, sorted by start
 let tick = 0;
+let view = 'cards'; // 'cards' | 'calendar'
+let calMonth = null; // first-of-month Date the calendar view is showing; set lazily to the current month
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   month: 'short',
@@ -76,6 +85,12 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 });
 const relFmt = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
+
+// Weekday labels for the grid header, taken from a week that starts on a known Sunday (2023-01-01) so they follow the
+// user's locale without hard-coding English. The grid itself is Sunday-first.
+const weekdayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) => weekdayFmt.format(new Date(2023, 0, 1 + i)));
 
 function parseDate(s) {
   if (!s) {
@@ -84,6 +99,14 @@ function parseDate(s) {
 
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d, n) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
 
 /**
@@ -125,6 +148,28 @@ function statusOf(ev, now) {
   return { kind: 'active', at: ev.end };
 }
 
+/**
+ * The instant window an event occupies for the calendar's overlap tests. A dated event is [start, end]; a start with no
+ * end is a single-day marker on its start date rather than an open-ended band that would paint every following day; an
+ * end with no start is a single day at its end date. A dateless event has no window and never lands on the grid.
+ */
+function windowOf(ev) {
+  if (!ev.start && !ev.end) {
+    return null;
+  }
+
+  if (ev.start && ev.end) {
+    return [ev.start.getTime(), ev.end.getTime()];
+  }
+
+  const dayStart = startOfDay(ev.start ?? ev.end).getTime();
+  return [dayStart, dayStart + DAY_MS];
+}
+
+function overlaps(win, from, to) {
+  return win !== null && win[0] < to && win[1] > from;
+}
+
 const GROUPS = {
   active: 'Happening now',
   upcoming: 'Upcoming',
@@ -162,6 +207,23 @@ function timeRange(ev) {
   }
 
   return `Until ${dateFmt.format(ev.end)}`;
+}
+
+/**
+ * Whether an event survives the type-filter, dismissal and search-term filters. Shared by both views; the card view
+ * layers status/showPast filtering on top.
+ */
+function isVisible(ev) {
+  if (prefs.hiddenTypes.has(ev.heading)) {
+    return false;
+  }
+
+  if (prefs.dismissed.has(ev.eventID)) {
+    return false;
+  }
+
+  const term = els.search.value.trim().toLowerCase();
+  return !term || ev.name.toLowerCase().includes(term);
 }
 
 function card(ev, now) {
@@ -213,24 +275,13 @@ function card(ev, now) {
   return cardEl;
 }
 
-function render() {
-  const now = new Date();
-  const term = els.search.value.trim().toLowerCase();
+function renderCards(now) {
   const showPast = els.showPast.checked;
-
   const buckets = { active: [], upcoming: [], tbd: [], ended: [] };
   let shown = 0;
 
   for (const ev of events) {
-    if (prefs.hiddenTypes.has(ev.heading)) {
-      continue;
-    }
-
-    if (prefs.dismissed.has(ev.eventID)) {
-      continue;
-    }
-
-    if (term && !ev.name.toLowerCase().includes(term)) {
+    if (!isVisible(ev)) {
       continue;
     }
 
@@ -269,6 +320,125 @@ function render() {
 
   const suffix = prefs.dismissed.size ? ` · ${prefs.dismissed.size} dismissed` : '';
   els.count.textContent = shown ? `${shown} event${shown === 1 ? '' : 's'}${suffix}` : `No events to show${suffix}`;
+}
+
+function pill(ev, now) {
+  const node = el('a', `pill ${statusOf(ev, now).kind}`, ev.name);
+  node.href = ev.link;
+  node.target = '_blank';
+  node.rel = 'noopener';
+  node.title = `${ev.name} — ${timeRange(ev)}`;
+  return node;
+}
+
+// Up to this many pills per day before the rest collapse into a "+N more" line, so a crowded day cannot blow out the
+// row height.
+const PILLS_PER_DAY = 4;
+
+function renderCalendar(now) {
+  if (!calMonth) {
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  const year = calMonth.getFullYear();
+  const month = calMonth.getMonth();
+  const lead = new Date(year, month, 1).getDay(); // blank days before the 1st (Sunday-first)
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const weeks = Math.ceil((lead + daysInMonth) / 7);
+  const gridStart = new Date(year, month, 1 - lead);
+
+  const visible = events.filter(isVisible).map((ev) => ({ ev, win: windowOf(ev) }));
+
+  els.events.replaceChildren();
+
+  const bar = el('div', 'calbar');
+  const prev = el('button', 'navbtn', '‹');
+  const next = el('button', 'navbtn', '›');
+  const today = el('button', 'navbtn', 'Today');
+  prev.type = next.type = today.type = 'button';
+  prev.setAttribute('aria-label', 'Previous month');
+  next.setAttribute('aria-label', 'Next month');
+  prev.addEventListener('click', () => {
+    calMonth = new Date(year, month - 1, 1);
+    render();
+  });
+  next.addEventListener('click', () => {
+    calMonth = new Date(year, month + 1, 1);
+    render();
+  });
+  today.addEventListener('click', () => {
+    calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    render();
+  });
+  bar.append(prev, el('span', 'callabel', monthFmt.format(calMonth)), next, today);
+  els.events.append(bar);
+
+  const grid = el('div', 'cal');
+
+  for (const name of WEEKDAYS) {
+    grid.append(el('div', 'cal-wd', name));
+  }
+
+  const todayKey = startOfDay(now).getTime();
+
+  for (let i = 0; i < weeks * 7; i += 1) {
+    const day = addDays(gridStart, i);
+    const dayStart = day.getTime();
+    const cell = el('div', 'cal-day');
+
+    if (day.getMonth() !== month) {
+      cell.classList.add('other');
+    }
+
+    if (dayStart === todayKey) {
+      cell.classList.add('today');
+    }
+
+    cell.append(el('span', 'daynum', String(day.getDate())));
+
+    const onDay = visible.filter((v) => overlaps(v.win, dayStart, dayStart + DAY_MS));
+
+    for (const { ev } of onDay.slice(0, PILLS_PER_DAY)) {
+      cell.append(pill(ev, now));
+    }
+
+    if (onDay.length > PILLS_PER_DAY) {
+      cell.append(el('span', 'more', `+${onDay.length - PILLS_PER_DAY} more`));
+    }
+
+    grid.append(cell);
+  }
+
+  els.events.append(grid);
+
+  const monthStart = new Date(year, month, 1).getTime();
+  const monthEnd = new Date(year, month + 1, 1).getTime();
+  const inMonth = visible.filter((v) => overlaps(v.win, monthStart, monthEnd)).length;
+  els.count.textContent = `${monthFmt.format(calMonth)} · ${inMonth} event${inMonth === 1 ? '' : 's'}`;
+}
+
+function render() {
+  const now = new Date();
+
+  if (view === 'calendar') {
+    renderCalendar(now);
+  } else {
+    renderCards(now);
+  }
+}
+
+function setView(next) {
+  view = next;
+  const calendar = view === 'calendar';
+  els.viewCards.classList.toggle('active', !calendar);
+  els.viewCalendar.classList.toggle('active', calendar);
+  els.viewCards.setAttribute('aria-pressed', String(!calendar));
+  els.viewCalendar.setAttribute('aria-pressed', String(calendar));
+
+  // "Show ended" only means anything for the card buckets; the calendar shows a whole month regardless.
+  els.showPast.closest('.toggle').hidden = calendar;
+
+  render();
 }
 
 function normalise(raw) {
@@ -350,6 +520,8 @@ async function load() {
 els.search.addEventListener('input', render);
 els.showPast.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
+els.viewCards.addEventListener('click', () => setView('cards'));
+els.viewCalendar.addEventListener('click', () => setView('calendar'));
 
 els.reset.addEventListener('click', () => {
   prefs.hiddenTypes.clear();
