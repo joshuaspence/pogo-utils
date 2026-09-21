@@ -1,0 +1,62 @@
+[
+  {
+    "eventID": "pikachu-autumn-picnic-korea-2026",
+    "name": "Pikachu's Autumn Picnic 2026",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/news/pikachu-autumn-picnic-korea-2026",
+    "image": "https://lh3.googleusercontent.com/yZgyb4bT3ECDInztWuKr2ugZHNJNruyn1F5fFrVQLzFLm8t145C6ptiRN3iLdtaAs87ptKmB3mkdaZ9qAi_Eoe3C4h_Wy0zES6UKMQE8oBY",
+    "start": "2026-09-18T10:00:00.000",
+    "end": "2026-10-11T20:00:00.000"
+  },
+  {
+    "eventID": "event-apac-30th-anniversary-2026",
+    "name": "PokéXciting! — Pokémon 30th Anniversary",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
+    "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
+    "start": "2026-09-12T00:00:00.000",
+    "end": "2026-11-08T23:59:59.000"
+  },
+  {
+    "eventID": "european-space-agency-event",
+    "name": "Pokémon GO × European Space Agency",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/european-space-agency-event",
+    "image": "https://lh3.googleusercontent.com/7CITEYsKb4CAwdYOln7q7h5K6U1cIVu2cnWRbDZtixs10PkfYfHzPn5Iz9wwbMFE3bosgBEiKnZlEZJZmGiyl-YqYRKHlIL8d7VAzR4DjA",
+    "start": "2026-10-04T00:00:00.000",
+    "end": "2027-04-30T23:59:59.000"
+  },
+  {
+    "eventID": "pgo-pokemon-fossil-musuem-chicago-2026",
+    "name": "Pokémon Fossil Museum — Chicago",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/pgo-pokemon-fossil-musuem-chicago-2026",
+    "image": "https://lh3.googleusercontent.com/5ug325HquHSNySpTbA1Af1K0GtakFbBBRCL5SPTtP7zUqD0NIux-HBlZYBLLsnOjJJ4Eol4cBPJleuN-u6_mTRs8Jb3JFKxjh-Uz5_2xATo",
+    "start": "2026-05-22T09:00:00.000",
+    "end": "2027-04-11T21:00:00.000"
+  },
+  {
+    "eventID": "patterns-of-the-wild-2026",
+    "name": "Patterns of the Wild",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/patterns-of-the-wild-2026",
+    "image": "https://lh3.googleusercontent.com/LHsRwwQEAN3GxZ6e18YJdAXKKvkh_Xmthky9mx20Y4CLUnh1dvvhXFv1iVYW_BX-IhqDQjSwZS8vxVS8bLVhYShvL6hLFyn_relJvHFL",
+    "start": "2026-10-02T10:00:00.000",
+    "end": "2026-10-02T20:00:00.000"
+  },
+  {
+    "eventID": "dancing-in-the-moonlight-2026",
+    "name": "Dancing in the Moonlight",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/dancing-in-the-moonlight-2026",
+    "image": "https://lh3.googleusercontent.com/uj7A8M0A3vwux9SelWVwilTzwAX3gtrnNwAEHoK_3ehyvgBr1q_CMJlGfyOQv-ae_rCjt-S1Lcr2IkI861vahWxDU89VM4tzm-uqIw1S3s8k",
+    "start": "2026-09-23T10:00:00.000",
+    "end": "2026-09-27T23:59:00.000"
+  }
+]

@@ -1,13 +1,18 @@
 /**
  * The events calendar page. Fetches Leek Duck's event feed (through ScrapedDuck's JSON mirror) live in the browser and
- * renders current, upcoming and — on request — recently ended Pokémon GO events. Nothing is built or committed: the
- * feed is the source of truth read directly, the same way the map reads the GPX files rather than a baked-in copy.
+ * renders current, upcoming and — on request — recently ended Pokémon GO events. The feed is read directly, the same
+ * way the map reads the GPX files rather than a baked-in copy.
+ *
+ * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
+ * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
+ * event Leek Duck has not listed yet, say). Either source failing still renders the other.
  *
  * Two views over the same data: a card list grouped by status, and a month grid where each event shows on every day it
  * covers. The view toggle switches between them; the search box, type filters and dismissals apply to both.
  */
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
+const LOCAL_URL = 'data/events.json';
 
 /**
  * How often to recompute the "starts in…/ends in…" labels against the wall clock, and — every REFETCH_EVERY ticks —
@@ -233,13 +238,13 @@ function card(ev, now) {
   const dismissed = prefs.dismissed.has(ev.eventID);
   const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}`);
 
-  // A transparent overlay link makes the whole card open Leek Duck while keeping the dismiss button a sibling rather
-  // than a child: an anchor may not contain interactive content.
+  // A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button a
+  // sibling rather than a child: an anchor may not contain interactive content.
   const link = el('a', 'card-link');
   link.href = ev.link;
   link.target = '_blank';
   link.rel = 'noopener';
-  link.setAttribute('aria-label', `Open “${ev.name}” on Leek Duck`);
+  link.setAttribute('aria-label', `Open “${ev.name}”`);
   cardEl.append(link);
 
   // A dismissed card only appears while "Show hidden" is on; there the same corner button restores it rather than
@@ -501,30 +506,53 @@ function fillTypes() {
   }
 }
 
+async function fetchEvents(url) {
+  const res = await fetch(url, { cache: 'default' });
+
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}`);
+  }
+
+  const raw = await res.json();
+
+  if (!Array.isArray(raw)) {
+    throw new Error('not a list of events');
+  }
+
+  return raw;
+}
+
 async function load() {
   els.count.textContent = 'Loading events…';
 
-  try {
-    const res = await fetch(FEED_URL, { cache: 'default' });
+  // Fetch both sources concurrently and tolerate either failing: a dead feed still shows the repo events, and a
+  // missing local file still shows the feed.
+  const [feed, local] = await Promise.allSettled([fetchEvents(FEED_URL), fetchEvents(LOCAL_URL)]);
 
-    if (!res.ok) {
-      throw new Error(`${res.status} ${res.statusText}`);
-    }
-
-    const raw = await res.json();
-
-    if (!Array.isArray(raw)) {
-      throw new Error('feed is not a list of events');
-    }
-
-    events = normalise(raw).sort((a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity));
-    fillTypes();
-    render();
-  } catch (err) {
+  if (feed.status === 'rejected' && local.status === 'rejected') {
     events = [];
     els.events.replaceChildren();
-    els.count.textContent = `Could not load events: ${err.message}`;
+    els.count.textContent = `Could not load events: ${feed.reason.message}`;
+    return;
   }
+
+  // Key by eventID with the local pass last, so a repo entry overrides a feed event of the same ID rather than
+  // duplicating it.
+  const byId = new Map();
+
+  for (const e of feed.status === 'fulfilled' ? feed.value : []) {
+    byId.set(e.eventID, e);
+  }
+
+  for (const e of local.status === 'fulfilled' ? local.value : []) {
+    byId.set(e.eventID, e);
+  }
+
+  events = normalise([...byId.values()]).sort(
+    (a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity),
+  );
+  fillTypes();
+  render();
 }
 
 els.search.addEventListener('input', render);
