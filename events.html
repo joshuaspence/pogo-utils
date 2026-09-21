@@ -23,12 +23,14 @@
 
     <section class="controls">
       <input id="search" type="search" placeholder="Search events…" autocomplete="off" />
-      <select id="category" aria-label="Category">
-        <option value="">All categories</option>
-      </select>
       <label class="toggle"><input type="checkbox" id="showPast" /> Show ended</label>
       <button id="refresh" type="button">Refresh</button>
+      <button id="reset" type="button" class="ghost" title="Show every type again and restore dismissed events">
+        Reset
+      </button>
     </section>
+
+    <section class="type-filters" id="typeFilters" aria-label="Filter by event type"></section>
 
     <main id="events" aria-live="polite"></main>
 

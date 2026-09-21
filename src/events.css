@@ -42,8 +42,9 @@ header.page .sub {
   background: var(--panel);
 }
 
-.controls input[type='search'],
-.controls select {
+.controls input[type='search'] {
+  flex: 1 1 200px;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -52,13 +53,7 @@ header.page .sub {
   font-size: 13px;
 }
 
-.controls input[type='search'] {
-  flex: 1 1 200px;
-  min-width: 0;
-}
-
-.controls input:focus,
-.controls select:focus {
+.controls input[type='search']:focus {
   outline: 2px solid var(--track);
   outline-offset: -1px;
 }
@@ -87,6 +82,56 @@ header.page .sub {
   filter: brightness(1.05);
 }
 
+/* The Reset control is destructive-ish (it clears saved filters), so it reads as secondary rather than the accent
+   Refresh button beside it. */
+.controls button.ghost {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--border);
+}
+
+.controls button.ghost:hover {
+  filter: none;
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.type-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 22px 0;
+}
+
+.type-filters:empty {
+  display: none;
+}
+
+.type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.type-chip:hover {
+  border-color: var(--accent);
+}
+
+/* An unchecked type is dimmed rather than removed, so the reader can see what they have hidden and switch it back. */
+.type-chip.off {
+  opacity: 0.45;
+}
+
 main {
   max-width: 1100px;
   margin: 0 auto;
@@ -109,6 +154,7 @@ h2.group {
 }
 
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
@@ -125,6 +171,52 @@ h2.group {
 .card:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
+}
+
+/* A transparent overlay covering the whole card, so a click anywhere opens the event. The dismiss button sits above it
+   (higher z-index) and stays clickable. */
+.card-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 45%);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.card:hover .dismiss,
+.dismiss:focus-visible {
+  opacity: 1;
+}
+
+.dismiss:hover {
+  background: var(--accent);
+}
+
+/* Touch devices have no hover — always show the dismiss control there. */
+@media (hover: none) {
+  .dismiss {
+    opacity: 1;
+  }
 }
 
 /* A left accent stripe marks the event's state at a glance without a legend. */

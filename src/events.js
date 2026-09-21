@@ -22,12 +22,47 @@ const REFETCH_EVERY = 10;
  */
 const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 
+/**
+ * The type filters and per-event dismissals persist in localStorage so a reader's choices survive a reload. Types are
+ * stored as the *hidden* set rather than the visible one, so a category the feed adds later shows up by default instead
+ * of being silently filtered out by a stale allow-list. The Reset control clears the whole key.
+ */
+const STORE_KEY = 'pgo-events:prefs';
+
+function loadPrefs() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}');
+
+    return {
+      hiddenTypes: new Set(Array.isArray(parsed.hiddenTypes) ? parsed.hiddenTypes : []),
+      dismissed: new Set(Array.isArray(parsed.dismissed) ? parsed.dismissed : []),
+    };
+  } catch {
+    /* Unreadable or unavailable storage (private mode, disabled): start from a clean slate. */
+    return { hiddenTypes: new Set(), dismissed: new Set() };
+  }
+}
+
+const prefs = loadPrefs();
+
+function persist() {
+  try {
+    localStorage.setItem(
+      STORE_KEY,
+      JSON.stringify({ hiddenTypes: [...prefs.hiddenTypes], dismissed: [...prefs.dismissed] }),
+    );
+  } catch {
+    /* Storage may be unavailable; the filters still work for the rest of the session. */
+  }
+}
+
 const els = {
   count: document.getElementById('count'),
   search: document.getElementById('search'),
-  category: document.getElementById('category'),
+  typeFilters: document.getElementById('typeFilters'),
   showPast: document.getElementById('showPast'),
   refresh: document.getElementById('refresh'),
+  reset: document.getElementById('reset'),
   events: document.getElementById('events'),
 };
 
@@ -131,11 +166,29 @@ function timeRange(ev) {
 
 function card(ev, now) {
   const status = statusOf(ev, now);
+  const cardEl = el('article', `card ${status.kind}`);
 
-  const link = el('a', `card ${status.kind}`);
+  // A transparent overlay link makes the whole card open Leek Duck while keeping the dismiss button a sibling rather
+  // than a child: an anchor may not contain interactive content.
+  const link = el('a', 'card-link');
   link.href = ev.link;
   link.target = '_blank';
   link.rel = 'noopener';
+  link.setAttribute('aria-label', `Open “${ev.name}” on Leek Duck`);
+  cardEl.append(link);
+
+  const dismiss = el('button', 'dismiss', '×');
+  dismiss.type = 'button';
+  dismiss.title = 'Dismiss this event';
+  dismiss.setAttribute('aria-label', `Dismiss “${ev.name}”`);
+
+  dismiss.addEventListener('click', () => {
+    prefs.dismissed.add(ev.eventID);
+    persist();
+    render();
+  });
+
+  cardEl.append(dismiss);
 
   if (ev.image) {
     const img = el('img', 'thumb');
@@ -143,7 +196,7 @@ function card(ev, now) {
     img.alt = '';
     img.loading = 'lazy';
     img.addEventListener('error', () => img.remove());
-    link.append(img);
+    cardEl.append(img);
   }
 
   const body = el('div', 'body');
@@ -156,21 +209,24 @@ function card(ev, now) {
     body.append(el('p', 'rel', `${verb} ${relative(status.at, now)}`));
   }
 
-  link.append(body);
-  return link;
+  cardEl.append(body);
+  return cardEl;
 }
 
 function render() {
   const now = new Date();
   const term = els.search.value.trim().toLowerCase();
-  const category = els.category.value;
   const showPast = els.showPast.checked;
 
   const buckets = { active: [], upcoming: [], tbd: [], ended: [] };
   let shown = 0;
 
   for (const ev of events) {
-    if (category && ev.heading !== category) {
+    if (prefs.hiddenTypes.has(ev.heading)) {
+      continue;
+    }
+
+    if (prefs.dismissed.has(ev.eventID)) {
       continue;
     }
 
@@ -211,7 +267,8 @@ function render() {
     els.events.append(grid);
   }
 
-  els.count.textContent = shown ? `${shown} event${shown === 1 ? '' : 's'}` : 'No matching events';
+  const suffix = prefs.dismissed.size ? ` · ${prefs.dismissed.size} dismissed` : '';
+  els.count.textContent = shown ? `${shown} event${shown === 1 ? '' : 's'}${suffix}` : `No events to show${suffix}`;
 }
 
 function normalise(raw) {
@@ -228,16 +285,40 @@ function normalise(raw) {
   }));
 }
 
-function fillCategories() {
+/**
+ * Rebuild the per-type visibility checkboxes from the categories the feed currently carries. A box is checked when its
+ * type is not in the hidden set; toggling one updates that set, persists it and re-renders.
+ */
+function fillTypes() {
   const headings = [...new Set(events.map((e) => e.heading).filter(Boolean))].sort();
-  const current = els.category.value;
-  els.category.replaceChildren(new Option('All categories', ''));
+  els.typeFilters.replaceChildren();
 
-  for (const h of headings) {
-    els.category.append(new Option(h, h));
+  for (const heading of headings) {
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !prefs.hiddenTypes.has(heading);
+
+    const chip = el('label', 'type-chip');
+
+    if (!box.checked) {
+      chip.classList.add('off');
+    }
+
+    box.addEventListener('change', () => {
+      if (box.checked) {
+        prefs.hiddenTypes.delete(heading);
+      } else {
+        prefs.hiddenTypes.add(heading);
+      }
+
+      chip.classList.toggle('off', !box.checked);
+      persist();
+      render();
+    });
+
+    chip.append(box, document.createTextNode(` ${heading}`));
+    els.typeFilters.append(chip);
   }
-
-  els.category.value = current;
 }
 
 async function load() {
@@ -257,7 +338,7 @@ async function load() {
     }
 
     events = normalise(raw).sort((a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity));
-    fillCategories();
+    fillTypes();
     render();
   } catch (err) {
     events = [];
@@ -267,9 +348,22 @@ async function load() {
 }
 
 els.search.addEventListener('input', render);
-els.category.addEventListener('change', render);
 els.showPast.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
+
+els.reset.addEventListener('click', () => {
+  prefs.hiddenTypes.clear();
+  prefs.dismissed.clear();
+
+  try {
+    localStorage.removeItem(STORE_KEY);
+  } catch {
+    /* Nothing to clear if storage is unavailable. */
+  }
+
+  fillTypes();
+  render();
+});
 
 // Re-render every minute so relative labels stay honest, and re-fetch every tenth minute to catch new events. Also
 // re-fetch when the tab regains focus after being hidden a while, which is the common "come back to it" case.
