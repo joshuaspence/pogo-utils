@@ -10,14 +10,54 @@
     "end": "2026-10-11T20:00:00.000"
   },
   {
-    "eventID": "event-apac-30th-anniversary-2026",
-    "name": "PokéXciting! — Pokémon 30th Anniversary",
+    "eventID": "event-kuala-lumpur-30th-anniversary-2026",
+    "name": "PokéXciting! — Kuala Lumpur",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/event-kuala-lumpur-30th-anniversary-2026",
+    "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
+    "start": "2026-09-12T10:00:00.000",
+    "end": "2026-09-13T22:00:00.000"
+  },
+  {
+    "eventID": "event-taipei-30th-anniversary-2026",
+    "name": "PokéXciting! — Taipei",
     "eventType": "event",
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
     "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
-    "start": "2026-09-12T00:00:00.000",
-    "end": "2026-11-08T23:59:59.000"
+    "start": "2026-10-10T10:00:00.000",
+    "end": "2026-10-11T22:00:00.000"
+  },
+  {
+    "eventID": "event-singapore-30th-anniversary-2026",
+    "name": "PokéXciting! — Singapore",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
+    "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
+    "start": "2026-11-07T10:00:00.000",
+    "end": "2026-11-08T22:00:00.000"
+  },
+  {
+    "eventID": "event-manila-30th-anniversary-2027",
+    "name": "PokéXciting! — Manila",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
+    "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
+    "start": "2027-01-23T10:00:00.000",
+    "end": "2027-01-24T22:00:00.000"
+  },
+  {
+    "eventID": "event-bangkok-30th-anniversary-2027",
+    "name": "PokéXciting! — Bangkok",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
+    "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
+    "start": "2027-02-13T10:00:00.000",
+    "end": "2027-02-14T22:00:00.000"
   },
   {
     "eventID": "european-space-agency-event",
