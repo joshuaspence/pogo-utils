@@ -554,9 +554,28 @@ footer a {
   filter: brightness(1.08);
 }
 
+/* Overflow pills stay in the DOM but hidden, so revealing them is a pure class toggle rather than a re-render. */
+.cal-day .pill.overflow {
+  display: none;
+}
+
+.cal-day.expanded .pill.overflow {
+  display: block;
+}
+
+/* The "+N more" line is a button that toggles the day open; strip the native button chrome so it reads as text. */
 .more {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
   font-size: 10px;
   color: var(--muted);
+  cursor: pointer;
+}
+
+.more:hover {
+  text-decoration: underline;
 }
 
 @media (width <= 640px) {

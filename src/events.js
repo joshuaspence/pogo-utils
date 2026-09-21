@@ -393,6 +393,10 @@ function pill(ev, now) {
 // row height.
 const PILLS_PER_DAY = 4;
 
+// Day cells whose overflow pills the reader has expanded, keyed by day-start timestamp so the choice survives the
+// per-minute re-render that would otherwise rebuild the grid and collapse it.
+const expandedDays = new Set();
+
 function renderCalendar(now) {
   if (!calMonth) {
     calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -460,8 +464,40 @@ function renderCalendar(now) {
       cell.append(pill(ev, now));
     }
 
-    if (onDay.length > PILLS_PER_DAY) {
-      cell.append(el('span', 'more', `+${onDay.length - PILLS_PER_DAY} more`));
+    const hidden = onDay.slice(PILLS_PER_DAY);
+
+    if (hidden.length) {
+      for (const { ev } of hidden) {
+        const overflow = pill(ev, now);
+        overflow.classList.add('overflow');
+        cell.append(overflow);
+      }
+
+      const open = expandedDays.has(dayStart);
+      cell.classList.toggle('expanded', open);
+
+      const toggle = el('button', 'more');
+      toggle.type = 'button';
+
+      const label = (expanded) => {
+        toggle.textContent = expanded ? 'Show less' : `+${hidden.length} more`;
+        toggle.setAttribute('aria-expanded', String(expanded));
+      };
+
+      label(open);
+      toggle.addEventListener('click', () => {
+        const expanded = !cell.classList.contains('expanded');
+        cell.classList.toggle('expanded', expanded);
+
+        if (expanded) {
+          expandedDays.add(dayStart);
+        } else {
+          expandedDays.delete(dayStart);
+        }
+
+        label(expanded);
+      });
+      cell.append(toggle);
     }
 
     grid.append(cell);
