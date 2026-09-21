@@ -456,3 +456,111 @@ footer a {
     font-size: 10px;
   }
 }
+
+/* Tracks view: a Gantt-style timeline. Fixed category rows run down a left column that stays pinned while the day-scaled
+   timeline scrolls horizontally; each event is a bar positioned and sized by its date window, stacked into sub-lanes
+   where several overlap. --track-day (a day column's width) is set from JS so the gridline background matches the bar
+   positions it computes. */
+.tracks {
+  margin-top: 16px;
+}
+
+.tracks-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.tracks-inner {
+  display: grid;
+  position: relative;
+}
+
+.track-corner,
+.track-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.track-corner {
+  z-index: 4;
+  height: 28px;
+  color: var(--muted);
+}
+
+.track-axis {
+  position: relative;
+  height: 28px;
+  border-bottom: 1px solid var(--border);
+  background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
+}
+
+.axis-tick {
+  position: absolute;
+  top: 0;
+  height: 28px;
+  padding: 7px 0 0 4px;
+  border-left: 1px solid var(--muted);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.track-lane {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
+}
+
+/* One bar per event, coloured by status like the card stripes and calendar pills. Absolutely positioned within its
+   lane from the inline left/width/top the renderer computes. */
+.bar {
+  position: absolute;
+  display: block;
+  overflow: hidden;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: var(--track);
+  color: #fff;
+  font-size: 11px;
+  line-height: 22px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+}
+
+.bar.active {
+  background: var(--start);
+}
+
+.bar.ended,
+.bar.tbd {
+  background: var(--muted);
+}
+
+.bar:hover {
+  z-index: 2;
+  filter: brightness(1.08);
+}
+
+/* A vertical accent line marking today, spanning the whole grid (axis included). Sits above the lanes but below the
+   pinned labels, which have an opaque background and cover it once the timeline scrolls under them. */
+.track-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}

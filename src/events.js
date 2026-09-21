@@ -7,8 +7,9 @@
  * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
  * event Leek Duck has not listed yet, say). Either source failing still renders the other.
  *
- * Two views over the same data: a card list grouped by status, and a month grid where each event shows on every day it
- * covers. The view toggle switches between them; the search box, type filters and dismissals apply to both.
+ * Three views over the same data: a card list grouped by status, a month grid where each event shows on every day it
+ * covers, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a Gantt chart). The view
+ * toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
@@ -76,12 +77,13 @@ const els = {
   reset: document.getElementById('reset'),
   viewCards: document.getElementById('viewCards'),
   viewCalendar: document.getElementById('viewCalendar'),
+  viewTracks: document.getElementById('viewTracks'),
   events: document.getElementById('events'),
 };
 
 let events = []; // normalised feed entries, sorted by start
 let tick = 0;
-let view = 'cards'; // 'cards' | 'calendar'
+let view = 'cards'; // 'cards' | 'calendar' | 'tracks'
 let calMonth = null; // first-of-month Date the calendar view is showing; set lazily to the current month
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
@@ -92,6 +94,7 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
 });
 const relFmt = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
+const dayFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
 // Weekday labels for the grid header, taken from a week that starts on a known Sunday (2023-01-01) so they follow the
 // user's locale without hard-coding English. The grid itself is Sunday-first.
@@ -182,6 +185,26 @@ const GROUPS = {
   tbd: 'Date to be announced',
   ended: 'Recently ended',
 };
+
+/**
+ * The Tracks view's rows, in display order. Each is keyed by the feed's `eventType` (a stable slug) rather than its
+ * `heading`, so the match survives a wording change upstream. GO Battle League, GO Pass and Season are deliberately
+ * absent: an event of one of those types has no row here and so never lands on the timeline. The labels are ours where
+ * they read better than the feed's — "Events" for `event`, "Spotlight Hour" for `pokemon-spotlight-hour`.
+ */
+const TRACKS = [
+  { type: 'choose-your-path', label: 'Choose Your Path' },
+  { type: 'community-day', label: 'Community Day' },
+  { type: 'event', label: 'Events' },
+  { type: 'max-battles', label: 'Max Battles' },
+  { type: 'max-mondays', label: 'Max Mondays' },
+  { type: 'raid-battles', label: 'Raid Battles' },
+  { type: 'raid-day', label: 'Raid Day' },
+  { type: 'raid-hour', label: 'Raid Hour' },
+  { type: 'research', label: 'Research' },
+  { type: 'pokemon-spotlight-hour', label: 'Spotlight Hour' },
+  { type: 'wild-area', label: 'Wild Area' },
+];
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -432,11 +455,141 @@ function renderCalendar(now) {
   els.count.textContent = `${monthFmt.format(calMonth)} · ${inMonth} event${inMonth === 1 ? '' : 's'}`;
 }
 
+// Tracks view geometry. TRACK_DAY_PX is the single source for a day column's width: the JS positions bars in pixels
+// from it, and hands the same value to CSS as the --track-day custom property for the gridline background, so the two
+// cannot drift. The timeline runs from a couple of days before today to the latest event end, clamped to a sane span.
+const TRACK_DAY_PX = 40;
+const TRACK_BAR_H = 22;
+const TRACK_LANE_GAP = 4;
+const TRACK_LABEL_PX = 132;
+const TRACK_LEAD_DAYS = 2;
+const TRACK_MIN_DAYS = 30;
+const TRACK_MAX_DAYS = 120;
+
+/**
+ * Assign each item a `lane` — a sub-row within its track — by greedy interval partitioning: reuse the first lane whose
+ * previous bar has already ended, otherwise open a new one. Items must arrive sorted by start. Returns the lane count,
+ * which sets the track row's height so overlapping events stack instead of drawing over each other.
+ */
+function packLanes(items) {
+  const laneEnds = [];
+
+  for (const it of items) {
+    const free = laneEnds.findIndex((end) => end <= it.startMs);
+    const lane = free === -1 ? laneEnds.length : free;
+
+    laneEnds[lane] = it.endMs;
+    it.lane = lane;
+  }
+
+  return laneEnds.length;
+}
+
+function renderTracks(now) {
+  const rangeStart = addDays(startOfDay(now), -TRACK_LEAD_DAYS);
+  const rangeStartMs = rangeStart.getTime();
+
+  // Bucket visible, dated events by eventType. A type with no track (GO Battle League, GO Pass, Season) has no bucket,
+  // so it is dropped; an event ending before the window's left edge is skipped.
+  const byType = new Map(TRACKS.map((t) => [t.type, []]));
+  let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
+
+  for (const ev of events) {
+    const bucket = byType.get(ev.eventType);
+
+    if (!bucket || !isVisible(ev)) {
+      continue;
+    }
+
+    const win = windowOf(ev);
+
+    if (win === null || win[1] <= rangeStartMs) {
+      continue;
+    }
+
+    latestEnd = Math.max(latestEnd, win[1]);
+    bucket.push({ ev, startMs: win[0], endMs: win[1], lane: 0 });
+  }
+
+  const span = Math.min(TRACK_MAX_DAYS, Math.max(TRACK_MIN_DAYS, Math.ceil((latestEnd - rangeStartMs) / DAY_MS)));
+  const rangeEndMs = rangeStartMs + span * DAY_MS;
+  const width = span * TRACK_DAY_PX;
+
+  els.events.replaceChildren();
+
+  const inner = el('div', 'tracks-inner');
+  inner.style.gridTemplateColumns = `${TRACK_LABEL_PX}px ${width}px`;
+  inner.style.setProperty('--track-day', `${TRACK_DAY_PX}px`);
+
+  const corner = el('div', 'track-corner', 'Tracks');
+  const axis = el('div', 'track-axis');
+  axis.style.width = `${width}px`;
+
+  // One date label per week down the axis; the daily gridline comes from the CSS background, not a node per day.
+  for (let d = 0; d < span; d += 7) {
+    const tick = el('span', 'axis-tick', dayFmt.format(addDays(rangeStart, d)));
+    tick.style.left = `${d * TRACK_DAY_PX}px`;
+    axis.append(tick);
+  }
+
+  inner.append(corner, axis);
+
+  let shown = 0;
+
+  for (const track of TRACKS) {
+    const items = byType.get(track.type).sort((a, b) => a.startMs - b.startMs);
+    const lanes = packLanes(items);
+    const rowH = Math.max(1, lanes) * (TRACK_BAR_H + TRACK_LANE_GAP) + TRACK_LANE_GAP;
+
+    const label = el('div', 'track-label', track.label);
+    label.style.height = `${rowH}px`;
+
+    const lane = el('div', 'track-lane');
+    lane.style.width = `${width}px`;
+    lane.style.height = `${rowH}px`;
+
+    for (const it of items) {
+      const left = Math.max(it.startMs, rangeStartMs);
+      const right = Math.min(it.endMs, rangeEndMs);
+
+      const bar = el('a', `bar ${statusOf(it.ev, now).kind}`, it.ev.name);
+      bar.href = it.ev.link;
+      bar.target = '_blank';
+      bar.rel = 'noopener';
+      bar.title = `${it.ev.name} — ${timeRange(it.ev)}`;
+      bar.style.left = `${((left - rangeStartMs) / DAY_MS) * TRACK_DAY_PX}px`;
+      bar.style.width = `${Math.max(TRACK_DAY_PX / 2, ((right - left) / DAY_MS) * TRACK_DAY_PX)}px`;
+      bar.style.top = `${TRACK_LANE_GAP + it.lane * (TRACK_BAR_H + TRACK_LANE_GAP)}px`;
+      bar.style.height = `${TRACK_BAR_H}px`;
+      lane.append(bar);
+      shown += 1;
+    }
+
+    inner.append(label, lane);
+  }
+
+  const todayX = ((startOfDay(now).getTime() - rangeStartMs) / DAY_MS) * TRACK_DAY_PX;
+  const todayLine = el('div', 'track-today');
+  todayLine.style.left = `${TRACK_LABEL_PX + todayX}px`;
+  inner.append(todayLine);
+
+  const scroll = el('div', 'tracks-scroll');
+  scroll.append(inner);
+
+  const outer = el('div', 'tracks');
+  outer.append(scroll);
+  els.events.append(outer);
+
+  els.count.textContent = shown ? `${shown} event${shown === 1 ? '' : 's'} across the tracks` : 'No events to show';
+}
+
 function render() {
   const now = new Date();
 
   if (view === 'calendar') {
     renderCalendar(now);
+  } else if (view === 'tracks') {
+    renderTracks(now);
   } else {
     renderCards(now);
   }
@@ -444,14 +597,19 @@ function render() {
 
 function setView(next) {
   view = next;
-  const calendar = view === 'calendar';
-  els.viewCards.classList.toggle('active', !calendar);
-  els.viewCalendar.classList.toggle('active', calendar);
-  els.viewCards.setAttribute('aria-pressed', String(!calendar));
-  els.viewCalendar.setAttribute('aria-pressed', String(calendar));
 
-  // "Show ended" only means anything for the card buckets; the calendar shows a whole month regardless.
-  els.showPast.closest('.toggle').hidden = calendar;
+  for (const [name, btn] of [
+    ['cards', els.viewCards],
+    ['calendar', els.viewCalendar],
+    ['tracks', els.viewTracks],
+  ]) {
+    const on = view === name;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
+
+  // "Show ended" only means anything for the card buckets; the calendar and tracks views show a fixed window regardless.
+  els.showPast.closest('.toggle').hidden = view !== 'cards';
 
   render();
 }
@@ -561,6 +719,7 @@ els.showHidden.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
 els.viewCards.addEventListener('click', () => setView('cards'));
 els.viewCalendar.addEventListener('click', () => setView('calendar'));
+els.viewTracks.addEventListener('click', () => setView('tracks'));
 
 els.reset.addEventListener('click', () => {
   prefs.hiddenTypes.clear();
