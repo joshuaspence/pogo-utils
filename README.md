@@ -1,8 +1,13 @@
 # Pokémon GO Utilities
 
-A collection of GPX walking tracks and teleport waypoints for Pokémon GO, browsable on an interactive map.
+A collection of small, self-contained browser tools for Pokémon GO, served as static files on GitHub Pages and reached
+from a shared top tab bar:
 
-**➡️ [Open the map](https://joshuaspence.github.io/pogo-utils/)**
+- **Events** — a calendar of current and upcoming in-game events.
+- **Routes** — an interactive map of GPX walking tracks and teleport waypoints.
+- **PGSharp** — a backup builder that loads those routes into PGSharp as favourites.
+
+**➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored as `*.gpx` files under [`data/`](data), grouped by country — the
 files themselves are the source of truth. The viewer ([`index.html`](index.html), whose CSS and JavaScript live under
