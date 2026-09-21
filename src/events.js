@@ -46,7 +46,7 @@ const STORE_KEY = 'pgo-events:prefs';
  * the type checkboxes read them as off. Once any preference is saved the stored hidden set is authoritative, so
  * unticking one of these sticks; Reset returns to this default rather than to an empty set.
  */
-const DEFAULT_HIDDEN = ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays'];
+const DEFAULT_HIDDEN = ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays', 'Season'];
 
 function loadPrefs() {
   try {
@@ -199,8 +199,8 @@ const GROUPS = {
 
 /**
  * The Tracks view's rows, in display order. Each is keyed by the feed's `eventType` (a stable slug) rather than its
- * `heading`, so the match survives a wording change upstream. GO Battle League, GO Pass and Season are deliberately
- * absent: an event of one of those types has no row here and so never lands on the timeline. The labels are ours where
+ * `heading`, so the match survives a wording change upstream. GO Battle League and GO Pass are deliberately absent: an
+ * event of one of those types has no row here and so never lands on the timeline. The labels are ours where
  * they read better than the feed's — "Events" for `event`, "Spotlight Hour" for `pokemon-spotlight-hour`.
  */
 const TRACKS = [
@@ -214,6 +214,7 @@ const TRACKS = [
   { type: 'raid-hour', label: 'Raid Hour' },
   { type: 'regional-events', label: 'Regional Events' },
   { type: 'research', label: 'Research' },
+  { type: 'season', label: 'Season' },
   { type: 'pokemon-spotlight-hour', label: 'Spotlight Hour' },
   { type: 'wild-area', label: 'Wild Area' },
 ];
@@ -546,8 +547,8 @@ function renderTracks(now) {
   const rangeStart = addDays(startOfDay(now), -TRACK_LEAD_DAYS);
   const rangeStartMs = rangeStart.getTime();
 
-  // Bucket visible, dated events by eventType. A type with no track (GO Battle League, GO Pass, Season) has no bucket,
-  // so it is dropped; an event ending before the window's left edge is skipped.
+  // Bucket visible, dated events by eventType. A type with no track (GO Battle League, GO Pass) has no bucket, so it
+  // is dropped; an event ending before the window's left edge is skipped.
   const byType = new Map(TRACKS.map((t) => [t.type, []]));
   let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
