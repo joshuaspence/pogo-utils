@@ -40,17 +40,28 @@ const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
  */
 const STORE_KEY = 'pgo-events:prefs';
 
+/**
+ * Recurring hourly-cadence types hidden on a first visit — they fire every week and crowd the feed, so the default view
+ * leads with the events a reader is more likely to plan around. Keyed by `heading`, the currency of `hiddenTypes`, so
+ * the type checkboxes read them as off. Once any preference is saved the stored hidden set is authoritative, so
+ * unticking one of these sticks; Reset returns to this default rather than to an empty set.
+ */
+const DEFAULT_HIDDEN = ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays'];
+
 function loadPrefs() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) ?? '{}');
+    const stored = localStorage.getItem(STORE_KEY);
+    const parsed = JSON.parse(stored ?? '{}');
 
     return {
-      hiddenTypes: new Set(Array.isArray(parsed.hiddenTypes) ? parsed.hiddenTypes : []),
+      hiddenTypes: new Set(
+        stored === null ? DEFAULT_HIDDEN : Array.isArray(parsed.hiddenTypes) ? parsed.hiddenTypes : [],
+      ),
       dismissed: new Set(Array.isArray(parsed.dismissed) ? parsed.dismissed : []),
     };
   } catch {
-    /* Unreadable or unavailable storage (private mode, disabled): start from a clean slate. */
-    return { hiddenTypes: new Set(), dismissed: new Set() };
+    /* Unreadable or unavailable storage (private mode, disabled): fall back to the first-visit defaults. */
+    return { hiddenTypes: new Set(DEFAULT_HIDDEN), dismissed: new Set() };
   }
 }
 
@@ -722,7 +733,7 @@ els.viewCalendar.addEventListener('click', () => setView('calendar'));
 els.viewTracks.addEventListener('click', () => setView('tracks'));
 
 els.reset.addEventListener('click', () => {
-  prefs.hiddenTypes.clear();
+  prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
   prefs.dismissed.clear();
 
   try {
