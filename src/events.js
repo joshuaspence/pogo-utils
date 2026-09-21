@@ -66,6 +66,7 @@ const els = {
   search: document.getElementById('search'),
   typeFilters: document.getElementById('typeFilters'),
   showPast: document.getElementById('showPast'),
+  showHidden: document.getElementById('showHidden'),
   refresh: document.getElementById('refresh'),
   reset: document.getElementById('reset'),
   viewCards: document.getElementById('viewCards'),
@@ -211,14 +212,15 @@ function timeRange(ev) {
 
 /**
  * Whether an event survives the type-filter, dismissal and search-term filters. Shared by both views; the card view
- * layers status/showPast filtering on top.
+ * layers status/showPast filtering on top. A dismissed event stays hidden unless "Show hidden" is ticked, which mirrors
+ * how "Show ended" reveals past events — the choice is a temporary reveal, not a change to the saved dismissal.
  */
 function isVisible(ev) {
   if (prefs.hiddenTypes.has(ev.heading)) {
     return false;
   }
 
-  if (prefs.dismissed.has(ev.eventID)) {
+  if (prefs.dismissed.has(ev.eventID) && !els.showHidden.checked) {
     return false;
   }
 
@@ -228,7 +230,8 @@ function isVisible(ev) {
 
 function card(ev, now) {
   const status = statusOf(ev, now);
-  const cardEl = el('article', `card ${status.kind}`);
+  const dismissed = prefs.dismissed.has(ev.eventID);
+  const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}`);
 
   // A transparent overlay link makes the whole card open Leek Duck while keeping the dismiss button a sibling rather
   // than a child: an anchor may not contain interactive content.
@@ -239,13 +242,20 @@ function card(ev, now) {
   link.setAttribute('aria-label', `Open “${ev.name}” on Leek Duck`);
   cardEl.append(link);
 
-  const dismiss = el('button', 'dismiss', '×');
+  // A dismissed card only appears while "Show hidden" is on; there the same corner button restores it rather than
+  // dismissing it again.
+  const dismiss = el('button', 'dismiss', dismissed ? '↩' : '×');
   dismiss.type = 'button';
-  dismiss.title = 'Dismiss this event';
-  dismiss.setAttribute('aria-label', `Dismiss “${ev.name}”`);
+  dismiss.title = dismissed ? 'Restore this event' : 'Dismiss this event';
+  dismiss.setAttribute('aria-label', `${dismissed ? 'Restore' : 'Dismiss'} “${ev.name}”`);
 
   dismiss.addEventListener('click', () => {
-    prefs.dismissed.add(ev.eventID);
+    if (dismissed) {
+      prefs.dismissed.delete(ev.eventID);
+    } else {
+      prefs.dismissed.add(ev.eventID);
+    }
+
     persist();
     render();
   });
@@ -519,6 +529,7 @@ async function load() {
 
 els.search.addEventListener('input', render);
 els.showPast.addEventListener('change', render);
+els.showHidden.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
 els.viewCards.addEventListener('click', () => setView('cards'));
 els.viewCalendar.addEventListener('click', () => setView('calendar'));

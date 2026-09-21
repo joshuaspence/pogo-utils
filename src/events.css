@@ -233,6 +233,17 @@ h2.group {
   border-left: 4px solid var(--border);
 }
 
+/* A dismissed card is only ever visible while "Show hidden" is on. Dim it and keep its restore button on-screen (rather
+   than hover-only) so the reader can tell it is hidden and bring it back. */
+.card.dismissed {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.card.dismissed .dismiss {
+  opacity: 1;
+}
+
 .card .thumb {
   width: 100%;
   height: 120px;
