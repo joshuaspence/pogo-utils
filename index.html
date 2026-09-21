@@ -17,6 +17,7 @@
     <nav class="topnav">
       <a class="tab" href="index.html" aria-current="page"><span class="ico" aria-hidden="true">🗺️</span> Routes map</a>
       <a class="tab" href="events.html"><span class="ico" aria-hidden="true">📅</span> Events calendar</a>
+      <a class="tab" href="pgsharp.html"><span class="ico" aria-hidden="true">💾</span> PGSharp backup</a>
     </nav>
     <div class="app">
       <aside id="sidebar">
@@ -28,29 +29,6 @@
           <input id="filter" type="search" placeholder="Filter tracks & waypoints…" autocomplete="off" />
         </div>
         <div id="list"></div>
-        <details class="backup" id="backup">
-          <summary>PGSharp backup</summary>
-          <div class="body">
-            <p>
-              Build a partial PGSharp backup holding every route and waypoint on this map (and, if ticked, a fixed
-              control layout and feed filters) — nothing else. Import the downloaded file into PGSharp; your other
-              settings are left untouched.
-            </p>
-            <details class="subgroup">
-              <summary>Include controls &amp; filters</summary>
-              <div class="group">
-                <label class="opt"><input type="checkbox" id="resetIcon" checked /> Floating control</label>
-                <label class="opt"><input type="checkbox" id="resetSnipe1" checked /> Fast-snipe button</label>
-                <label class="opt"><input type="checkbox" id="resetSnipe2" checked /> Second fast-snipe button</label>
-                <label class="opt"><input type="checkbox" id="resetCdpos" checked /> Cooldown indicator</label>
-                <label class="opt"><input type="checkbox" id="resetScan" checked /> Nearby radar</label>
-                <label class="opt"><input type="checkbox" id="resetFeeds" checked /> Nearby feed filters</label>
-              </div>
-            </details>
-            <button id="backupRun" class="run" type="button">Generate &amp; download</button>
-            <div class="status" id="backupStatus"></div>
-          </div>
-        </details>
         <footer>
           Map data ©
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
@@ -70,13 +48,6 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin
     ></script>
-    <script
-      defer
-      src="https://unpkg.com/tz-lookup@6.1.25/tz.js"
-      integrity="sha256-kGhSJZ0hV/qA1E6qjBcKtzGuZJegoKBmRSt5pDElyNQ="
-      crossorigin
-    ></script>
     <script type="module" src="src/app.js"></script>
-    <script type="module" src="src/pgsharp/backup.js"></script>
   </body>
 </html>

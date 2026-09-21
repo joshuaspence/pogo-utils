@@ -66,12 +66,12 @@ added again.
 
 ## Import into PGSharp
 
-The map's **PGSharp backup** panel (in the sidebar) builds a _partial_ `PGSData.dat` containing only every route and
-waypoint here — plus, if ticked, a fixed control layout (floating control, fast-snipe buttons, cooldown indicator,
-nearby radar) and the nearby feed's filter list (`Shiny Hunting` and `100%`). No existing backup is needed: click
-**Generate & download**, then import the file into PGSharp to add them as favourites. Because the file holds only those
-keys, importing it leaves the rest of your PGSharp profile as it was. Everything runs in the browser. The favourite
-encoding is a client-side port of [`pgsedit`](https://github.com/joshuaspence/pgsedit).
+The **PGSharp backup** page ([`pgsharp.html`](pgsharp.html), reached from the top tab bar) builds a _partial_
+`PGSData.dat` containing only every route and waypoint here — plus, if ticked, a fixed control layout (floating control,
+fast-snipe buttons, cooldown indicator, nearby radar) and the nearby feed's filter list (`Shiny Hunting` and `100%`). No
+existing backup is needed: click **Generate & download**, then import the file into PGSharp to add them as favourites.
+Because the file holds only those keys, importing it leaves the rest of your PGSharp profile as it was. Everything runs
+in the browser. The favourite encoding is a client-side port of [`pgsedit`](https://github.com/joshuaspence/pgsedit).
 
 Every favourite is named with its country's flag in front — `🇳🇱 Amsterdam, Netherlands`, `🇯🇵 Ueno Park, Tokyo, Japan` —
 matching PGSharp's own hot places (`🇺🇸 Pier 39, California, USA`). The favourite format has no icon field, so the flag
@@ -81,4 +81,4 @@ build rather than importing unflagged. Both lists still sort by the name itself,
 Each waypoint also carries the IANA timezone its coordinates fall in (`Europe/Madrid`), read from the boundary data in
 [`tz-lookup`](https://github.com/darkskyapp/tz-lookup) — a zone name belongs to a polygon, so no offset calculation can
 stand in for it. Routes have no timezone field, matching PGSharp. If that script does not load, the backup is written
-without timezones and the panel says how many were left out; PGSharp accepts entries either way.
+without timezones and the page says how many were left out; PGSharp accepts entries either way.
