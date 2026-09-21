@@ -6,8 +6,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/news/pikachu-autumn-picnic-korea-2026",
     "image": "https://lh3.googleusercontent.com/yZgyb4bT3ECDInztWuKr2ugZHNJNruyn1F5fFrVQLzFLm8t145C6ptiRN3iLdtaAs87ptKmB3mkdaZ9qAi_Eoe3C4h_Wy0zES6UKMQE8oBY",
-    "start": "2026-09-18T10:00:00.000",
-    "end": "2026-10-11T20:00:00.000"
+    "start": "2026-09-18T01:00:00.000Z",
+    "end": "2026-10-11T11:00:00.000Z"
   },
   {
     "eventID": "event-kuala-lumpur-30th-anniversary-2026",
@@ -16,8 +16,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/event-kuala-lumpur-30th-anniversary-2026",
     "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
-    "start": "2026-09-12T10:00:00.000",
-    "end": "2026-09-13T22:00:00.000"
+    "start": "2026-09-12T02:00:00.000Z",
+    "end": "2026-09-13T14:00:00.000Z"
   },
   {
     "eventID": "event-taipei-30th-anniversary-2026",
@@ -26,8 +26,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
     "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
-    "start": "2026-10-10T10:00:00.000",
-    "end": "2026-10-11T22:00:00.000"
+    "start": "2026-10-10T02:00:00.000Z",
+    "end": "2026-10-11T14:00:00.000Z"
   },
   {
     "eventID": "event-singapore-30th-anniversary-2026",
@@ -36,8 +36,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
     "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
-    "start": "2026-11-07T10:00:00.000",
-    "end": "2026-11-08T22:00:00.000"
+    "start": "2026-11-07T02:00:00.000Z",
+    "end": "2026-11-08T14:00:00.000Z"
   },
   {
     "eventID": "event-manila-30th-anniversary-2027",
@@ -46,8 +46,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
     "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
-    "start": "2027-01-23T10:00:00.000",
-    "end": "2027-01-24T22:00:00.000"
+    "start": "2027-01-23T02:00:00.000Z",
+    "end": "2027-01-24T14:00:00.000Z"
   },
   {
     "eventID": "event-bangkok-30th-anniversary-2027",
@@ -56,8 +56,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/event-apac-30th-anniversary-2026",
     "image": "https://lh3.googleusercontent.com/JeRu4g5duzaVNIBOkkkNArX1ciAZ1n4QaB699nrXh4wuKXgs8UV16dsizwt0Ci9q15ksRq9150vamFJK2ulbT7Gt552-2UdFy86eLUA4Ag",
-    "start": "2027-02-13T10:00:00.000",
-    "end": "2027-02-14T22:00:00.000"
+    "start": "2027-02-13T03:00:00.000Z",
+    "end": "2027-02-14T15:00:00.000Z"
   },
   {
     "eventID": "european-space-agency-event",
@@ -76,8 +76,8 @@
     "heading": "Event",
     "link": "https://pokemongo.com/en/news/pgo-pokemon-fossil-musuem-chicago-2026",
     "image": "https://lh3.googleusercontent.com/5ug325HquHSNySpTbA1Af1K0GtakFbBBRCL5SPTtP7zUqD0NIux-HBlZYBLLsnOjJJ4Eol4cBPJleuN-u6_mTRs8Jb3JFKxjh-Uz5_2xATo",
-    "start": "2026-05-22T09:00:00.000",
-    "end": "2027-04-11T21:00:00.000"
+    "start": "2026-05-22T14:00:00.000Z",
+    "end": "2027-04-12T02:00:00.000Z"
   },
   {
     "eventID": "patterns-of-the-wild-2026",
@@ -98,5 +98,59 @@
     "image": "https://lh3.googleusercontent.com/uj7A8M0A3vwux9SelWVwilTzwAX3gtrnNwAEHoK_3ehyvgBr1q_CMJlGfyOQv-ae_rCjt-S1Lcr2IkI861vahWxDU89VM4tzm-uqIw1S3s8k",
     "start": "2026-09-23T10:00:00.000",
     "end": "2026-09-27T23:59:00.000"
+  },
+  {
+    "eventID": "citysafari-boston-2026",
+    "name": "Pokémon GO City Safari: Boston",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/boston",
+    "start": "2026-09-26T14:00:00.000Z",
+    "end": "2026-09-27T22:00:00.000Z"
+  },
+  {
+    "eventID": "citysafari-brisbane-2026",
+    "name": "Pokémon GO City Safari: Brisbane",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/brisbane",
+    "start": "2026-09-26T00:00:00.000Z",
+    "end": "2026-09-27T08:00:00.000Z"
+  },
+  {
+    "eventID": "citysafari-lisbon-2026",
+    "name": "Pokémon GO City Safari: Lisbon",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/lisbon",
+    "start": "2026-09-26T09:00:00.000Z",
+    "end": "2026-09-27T17:00:00.000Z"
+  },
+  {
+    "eventID": "citysafari-marseille-2026",
+    "name": "Pokémon GO City Safari: Marseille",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/marseille",
+    "start": "2026-09-26T08:00:00.000Z",
+    "end": "2026-09-27T16:00:00.000Z"
+  },
+  {
+    "eventID": "citysafari-munich-2026",
+    "name": "Pokémon GO City Safari: Munich",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/munich",
+    "start": "2026-09-26T08:00:00.000Z",
+    "end": "2026-09-27T16:00:00.000Z"
+  },
+  {
+    "eventID": "citysafari-rio-de-janeiro-2026",
+    "name": "Pokémon GO City Safari: Rio de Janeiro",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/rio-de-janeiro",
+    "start": "2026-09-26T13:00:00.000Z",
+    "end": "2026-09-27T21:00:00.000Z"
   }
 ]
