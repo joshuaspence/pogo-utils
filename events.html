@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pokémon GO Events</title>
+    <link rel="stylesheet" href="src/theme.css" />
+    <link rel="stylesheet" href="src/events.css" />
+  </head>
+  <body>
+    <header class="page">
+      <div class="titles">
+        <h1>Pokémon GO Events</h1>
+        <p class="sub" id="count">Loading events…</p>
+      </div>
+      <nav><a href="index.html">← GPX routes map</a></nav>
+    </header>
+
+    <section class="controls">
+      <input id="search" type="search" placeholder="Search events…" autocomplete="off" />
+      <select id="category" aria-label="Category">
+        <option value="">All categories</option>
+      </select>
+      <label class="toggle"><input type="checkbox" id="showPast" /> Show ended</label>
+      <button id="refresh" type="button">Refresh</button>
+    </section>
+
+    <main id="events" aria-live="polite"></main>
+
+    <footer>
+      <p>
+        Event data from
+        <a href="https://leekduck.com/events/" target="_blank" rel="noopener">Leek Duck</a>
+        via
+        <a href="https://github.com/bigfoott/ScrapedDuck" target="_blank" rel="noopener">ScrapedDuck</a>, fetched live
+        in your browser. Times are shown in your device's local timezone.
+      </p>
+      <p>This site is unofficial. Click an event to open its Leek Duck page.</p>
+    </footer>
+
+    <script type="module" src="src/events.js"></script>
+  </body>
+</html>

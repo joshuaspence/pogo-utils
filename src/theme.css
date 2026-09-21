@@ -1,0 +1,32 @@
+/* Shared colour tokens for both pages: the map viewer (styles.css) and the events calendar (events.css). Kept in one
+   place so the light and dark palettes cannot drift between them. */
+
+:root {
+  --bg: #f7f8fa;
+  --panel: #fff;
+  --border: #e2e5ea;
+  --text: #1c1f26;
+  --muted: #6b7280;
+  --accent: #e3350d; /* Poké-red */
+  --accent-soft: #fdecea;
+  --track: #2f6fed;
+  --start: #16a34a;
+  --end: #e3350d;
+  --city: #d97706;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12141a;
+    --panel: #1a1d25;
+    --border: #2a2e38;
+    --text: #e7e9ee;
+    --muted: #9aa1ad;
+    --accent: #ff5a3c;
+    --accent-soft: #3a1f1a;
+    --track: #6ea8ff;
+    --start: #34d17b;
+    --end: #ff5a3c;
+    --city: #f59e0b;
+  }
+}
