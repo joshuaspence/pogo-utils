@@ -376,17 +376,17 @@ h2.group {
   padding: 12px 14px;
 }
 
-/* The type badge carries the event's type colour: coloured text on a faint tint of the same hue. --type-color is set on
-   the card (see the `.type-*` rules) and inherits down to here; a type with no colour falls back to the muted default. */
+/* The type badge is filled with the event's type colour, matching the calendar pills and timeline bars so a type reads
+   the same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
+   a type with no colour falls back to the neutral track blue, as the pills and bars do. */
 .card .badge {
   align-self: flex-start;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--type-color, var(--muted));
-  background: color-mix(in srgb, var(--type-color, transparent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--type-color, var(--border)) 45%, transparent);
+  color: #fff;
+  background: var(--type-color, var(--track));
   border-radius: 999px;
   padding: 2px 8px;
 }
