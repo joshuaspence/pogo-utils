@@ -212,6 +212,7 @@ const TRACKS = [
   { type: 'raid-battles', label: 'Raid Battles' },
   { type: 'raid-day', label: 'Raid Day' },
   { type: 'raid-hour', label: 'Raid Hour' },
+  { type: 'regional-events', label: 'Regional Events' },
   { type: 'research', label: 'Research' },
   { type: 'pokemon-spotlight-hour', label: 'Spotlight Hour' },
   { type: 'wild-area', label: 'Wild Area' },

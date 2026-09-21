@@ -288,6 +288,10 @@ h2.group {
   --type-color: #f97316;
 }
 
+.type-regional-events {
+  --type-color: #c026d3;
+}
+
 .type-research {
   --type-color: #0d9488;
 }
@@ -343,6 +347,10 @@ h2.group {
 
   .type-raid-hour {
     --type-color: #fdba74;
+  }
+
+  .type-regional-events {
+    --type-color: #e879f9;
   }
 
   .type-research {
