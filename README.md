@@ -10,13 +10,13 @@ from a shared top tab bar:
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored as `*.gpx` files under [`data/`](data), grouped by country — the
-files themselves are the source of truth. The viewer ([`index.html`](index.html), whose CSS and JavaScript live under
-[`src/`](src)) reads them directly, so to run it locally serve the repository over HTTP (the files are loaded via
+files themselves are the source of truth. The Routes viewer ([`routes.html`](routes.html), whose CSS and JavaScript live
+under [`src/`](src)) reads them directly, so to run it locally serve the repository over HTTP (the files are loaded via
 `fetch`):
 
 ```sh
 python3 -m http.server
-# then open http://localhost:8000/
+# then open http://localhost:8000/routes.html
 ```
 
 Static hosting cannot list a directory, so the viewer is handed the paths in [`gpx.json`](gpx.json). That file is
