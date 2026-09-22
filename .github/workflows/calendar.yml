@@ -11,7 +11,7 @@ on:
     paths:
       - '.github/workflows/calendar.yml'
       - 'data/events.json'
-      - 'gpx-events.json'
+      - 'entries-by-event.json'
       - 'scripts/build-ics.mjs'
       - 'src/recurring-types.js'
   workflow_dispatch: {}
