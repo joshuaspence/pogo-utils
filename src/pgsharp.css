@@ -39,10 +39,18 @@ header.page h1 {
   font-size: 13px;
 }
 
+/* The form is one object, so it reads as one surface on the page rather than as text floating on the background — the
+   same panel, border and resting elevation the cards and calendar cells carry on the events page. The gutter stays on
+   the container above, which keeps the panel off the screen edge on a narrow viewport. */
 .backup .body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
   color: var(--text);
 }
 
