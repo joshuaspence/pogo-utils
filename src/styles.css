@@ -156,12 +156,30 @@ header .sub {
 .route {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 8px;
   padding: 7px 18px;
   cursor: pointer;
   font-size: 13px;
   border-left: 3px solid transparent;
+}
+
+/* The map draws a track as a blue line and a waypoint as an orange dot, and these are the very tokens app.js hands
+   Leaflet for them, so each row wears its own marker instead of leaving the reader to click and find out which it is. */
+.route::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--track);
+}
+
+.route.city::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--city);
 }
 
 .route:hover {
@@ -174,10 +192,13 @@ header .sub {
   font-weight: 600;
 }
 
+/* Pushed to the right edge from here rather than by `space-between` on the row, which would spread the free space either
+   side of the name and leave it floating away from the marker that belongs to it. */
 .route .end {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   white-space: nowrap;
 }
 
