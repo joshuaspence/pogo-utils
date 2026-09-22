@@ -673,8 +673,8 @@ async function init() {
     return;
   }
 
-  // Started alongside the GPX files rather than ahead of them: the names are labels, and 59 fetches need not queue
-  // behind one.
+  // Started alongside the GPX files rather than ahead of them: the names are only labels, so every file fetch would
+  // otherwise queue behind this one.
   const names = loadEventNames();
 
   // One bad file does not hide the others, but it is still reported.
