@@ -40,6 +40,18 @@ after the next.
   the query was null either way and the check could not have failed however broken the page was. Assert the node exists
   before asserting anything about it, and confirm a probe can fail: block the request with `Network.setBlockedURLs` and
   watch the banner appear before trusting its absence.
+- **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.js` holds the
+  Leaflet map in a `const`, so `Runtime.evaluate` finds only the `<div id="map">` and answers
+  `map.getZoom is not a function`. Send a `Page.addScriptToEvaluateOnNewDocument` that defines a setter for `window.L`
+  and wraps the prototype methods in question: it runs before the deferred module, so it sees every call, and stashing
+  `this` on the first one leaves the instance reachable from every later probe. Recording arguments that way is what
+  found the deep-link zoom bug — `_resetView` was reached with zoom 12 and the map still finished at 2.147, which ruled
+  out the call never happening and pointed at what undid it afterwards.
+- **A view that lands can still be taken away.** Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels
+  as a CSS transition and applies the move at its end, from the centre and zoom captured when it began; `setView` stops
+  a pan but not that. So a second view change issued in the same tick wins and then loses, several hundred milliseconds
+  later. Probe the map after the transitions have settled rather than straight after the call, or the broken case reads
+  as fixed.
 - **Kill both by port, never by a pattern you have just typed.** Both processes are named by one — `fuser -k 8931/tcp`
   for the server, `fuser -k 9222/tcp` for Chrome — which matches on the listening socket, so it cannot match the shell
   running it. `pkill -f 'debugging-port=9222'` can and does: it kills that shell, surfacing as a bare exit 144 with no
