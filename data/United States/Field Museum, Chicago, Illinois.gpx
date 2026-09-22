@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
+     version="1.1"
+     creator="https://github.com/joshuaspence/pogo-utils">
+  <wpt lat="41.866214" lon="-87.617001">
+    <name>Field Museum</name>
+    <extensions>
+      <pgr:city>Chicago, Illinois</pgr:city>
+      <pgr:country>United States</pgr:country>
+    </extensions>
+  </wpt>
+  <trk>
+    <name>Field Museum</name>
+    <extensions>
+      <pgr:city>Chicago, Illinois</pgr:city>
+      <pgr:country>United States</pgr:country>
+    </extensions>
+    <trkseg>
+      <trkpt lat="41.866539" lon="-87.618206"/>
+      <trkpt lat="41.866539" lon="-87.617915"/>
+      <trkpt lat="41.866539" lon="-87.617624"/>
+      <trkpt lat="41.866539" lon="-87.617333"/>
+      <trkpt lat="41.866539" lon="-87.617042"/>
+      <trkpt lat="41.866539" lon="-87.616751"/>
+      <trkpt lat="41.866539" lon="-87.616460"/>
+      <trkpt lat="41.866539" lon="-87.616169"/>
+      <trkpt lat="41.866539" lon="-87.615878"/>
+      <trkpt lat="41.866323" lon="-87.615878"/>
+      <trkpt lat="41.866108" lon="-87.615878"/>
+      <trkpt lat="41.865892" lon="-87.615878"/>
+      <trkpt lat="41.865892" lon="-87.616169"/>
+      <trkpt lat="41.865892" lon="-87.616460"/>
+      <trkpt lat="41.865892" lon="-87.616751"/>
+      <trkpt lat="41.865892" lon="-87.617042"/>
+      <trkpt lat="41.865892" lon="-87.617333"/>
+      <trkpt lat="41.865892" lon="-87.617624"/>
+      <trkpt lat="41.865892" lon="-87.617915"/>
+      <trkpt lat="41.865892" lon="-87.618206"/>
+      <trkpt lat="41.866108" lon="-87.618206"/>
+      <trkpt lat="41.866323" lon="-87.618206"/>
+      <trkpt lat="41.866539" lon="-87.618206"/>
+    </trkseg>
+  </trk>
+</gpx>
