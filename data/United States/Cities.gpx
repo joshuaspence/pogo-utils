@@ -27,12 +27,6 @@
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
-  <wpt lat="39.954647" lon="-75.164452">
-    <name>Philadelphia, PA</name>
-    <extensions>
-      <pgr:country>United States</pgr:country>
-    </extensions>
-  </wpt>
   <wpt lat="37.785583" lon="-122.415337">
     <name>San Francisco, CA</name>
     <extensions>
