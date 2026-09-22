@@ -25,9 +25,12 @@ after the next.
   which scales down to an unreadable few hundred pixels wide. Pass an explicit height instead.
 - **Match the class names, not the rendered text.** `text-transform: uppercase` does not touch `textContent`, so a
   sidebar row reading `JAPAN` is `Japan` to `includes('JAPAN')`.
-- **Never `pkill -f` a pattern you have just typed.** `pkill -f 'debugging-port=9222'` matches its own command line and
-  kills the shell running it, which surfaces as a bare exit 144 with no output and nothing actually stopped. Collect the
-  PIDs with `pgrep`, skip `$$` and `$PPID`, then `kill` them — or put the patterns in a script file.
+- **Kill both by port, never by a pattern you have just typed.** Both processes are named by one — `fuser -k 8931/tcp`
+  for the server, `fuser -k 9222/tcp` for Chrome — which matches on the listening socket, so it cannot match the shell
+  running it. `pkill -f 'debugging-port=9222'` can and does: it kills that shell, surfacing as a bare exit 144 with no
+  output and nothing actually stopped. Moving the patterns into a `teardown.sh` does not save you either, because the
+  heredoc writing the file puts them in the same shell's `argv`, so the `pgrep` inside the script matches its own
+  parent, which skipping `$$` alone will not catch.
 
 ## Cross-checking `src/pokemon/pokedex.js` against the web
 
