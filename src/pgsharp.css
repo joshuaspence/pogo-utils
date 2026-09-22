@@ -66,6 +66,9 @@ header.page h1 {
   gap: 6px;
 }
 
+/* A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only ever
+   heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full contrast,
+   an accent on hover and a focus ring tell the two apart. */
 .backup details.subgroup > summary {
   cursor: pointer;
   user-select: none;
@@ -77,11 +80,17 @@ header.page h1 {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--text);
 }
 
 .backup details.subgroup > summary:hover {
-  color: var(--text);
+  color: var(--accent);
+}
+
+.backup details.subgroup > summary:focus-visible {
+  outline: 2px solid var(--track);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .backup details.subgroup > summary::-webkit-details-marker {
