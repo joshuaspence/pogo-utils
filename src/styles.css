@@ -406,3 +406,14 @@ footer a {
     display: none;
   }
 }
+
+/* A reader who has asked the operating system for less movement still gets the layout, colour and elevation — only the
+   swinging chevron, the fading copy button and the toast's slide go, each becoming an instant change of state instead. */
+@media (prefers-reduced-motion: reduce) {
+  .continent .chev,
+  .country .chev,
+  .route .copy,
+  #toast {
+    transition: none;
+  }
+}
