@@ -1,6 +1,6 @@
 [
   {
-    "eventID": "pgo-pokemon-fossil-musuem-chicago-2026",
+    "eventID": "pokemon-fossil-museum-chicago-2026",
     "name": "Pokémon Fossil Museum — Chicago",
     "eventType": "regional-events",
     "heading": "Regional Events",
@@ -10,7 +10,7 @@
     "end": "2027-04-12T02:00:00.000Z"
   },
   {
-    "eventID": "event-kuala-lumpur-30th-anniversary-2026",
+    "eventID": "30th-anniversary-kuala-lumpur-2026",
     "name": "PokéXciting! — Kuala Lumpur",
     "eventType": "regional-events",
     "heading": "Regional Events",
@@ -110,7 +110,7 @@
     "end": "2026-10-02T20:00:00.000"
   },
   {
-    "eventID": "european-space-agency-event",
+    "eventID": "european-space-agency-2026",
     "name": "Pokémon GO × European Space Agency",
     "eventType": "regional-events",
     "heading": "Regional Events",
@@ -120,7 +120,7 @@
     "end": "2027-04-30T23:59:59.000"
   },
   {
-    "eventID": "event-taipei-30th-anniversary-2026",
+    "eventID": "30th-anniversary-taipei-2026",
     "name": "PokéXciting! — Taipei",
     "eventType": "regional-events",
     "heading": "Regional Events",
@@ -130,7 +130,7 @@
     "end": "2026-10-11T14:00:00.000Z"
   },
   {
-    "eventID": "event-singapore-30th-anniversary-2026",
+    "eventID": "30th-anniversary-singapore-2026",
     "name": "PokéXciting! — Singapore",
     "eventType": "regional-events",
     "heading": "Regional Events",
@@ -140,7 +140,7 @@
     "end": "2026-11-08T14:00:00.000Z"
   },
   {
-    "eventID": "event-manila-30th-anniversary-2027",
+    "eventID": "30th-anniversary-manila-2027",
     "name": "PokéXciting! — Manila",
     "eventType": "regional-events",
     "heading": "Regional Events",
@@ -150,7 +150,7 @@
     "end": "2027-01-24T14:00:00.000Z"
   },
   {
-    "eventID": "event-bangkok-30th-anniversary-2027",
+    "eventID": "30th-anniversary-bangkok-2027",
     "name": "PokéXciting! — Bangkok",
     "eventType": "regional-events",
     "heading": "Regional Events",
