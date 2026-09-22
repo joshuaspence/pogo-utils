@@ -139,3 +139,16 @@ Each waypoint also carries the IANA timezone its coordinates fall in (`Europe/Ma
 [`tz-lookup`](https://github.com/darkskyapp/tz-lookup) — a zone name belongs to a polygon, so no offset calculation can
 stand in for it. Routes have no timezone field, matching PGSharp. If that script does not load, the backup is written
 without timezones and the page says how many were left out; PGSharp accepts entries either way.
+
+## Prior art
+
+The Events page began as a look at three sites covering the same ground, each worth visiting in its own right:
+
+| Site                                                           | What it is                                                                        |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [PGO Calendar](https://vivific.github.io/pgocalendar/)         | A calendar of current and upcoming events.                                        |
+| [Event Board](https://hydrorx1.github.io/POGO-Event-Timezone/) | The same events read against a world clock, and it publishes iCalendar feeds too. |
+| [SWFLJOHN](https://swfljohn.com)                               | Events and GPX routes on one site — the pair of things this repository holds.     |
+
+The last two are built on the same [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) mirror of Leek Duck as the
+Events page here, so an event missing from one is usually missing from all three.
