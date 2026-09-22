@@ -9,6 +9,26 @@
 - **Commit to `master`.** Single maintainer, linear history, so work lands on `master` directly. Create a branch only
   when asked for one.
 
+## Checking the pages in a browser
+
+There is no test suite, and `npm run lint` says nothing about whether a page looks right or a class reaches the element
+it was written for. Serve the repository with `python3 -m http.server` and drive headless Chrome over the DevTools
+Protocol from Python `websockets` — no Playwright or Puppeteer package is installed, though Playwright's browser
+binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything assertable: a computed colour, a
+`getBoundingClientRect().left` on two elements that should share an edge, a class present after one render and absent
+after the next.
+
+- **Send `Network.setCacheDisabled` before navigating.** Chrome serves the CSS and JS it already has, so a re-run after
+  an edit reports the _old_ file. This looked exactly like every change having failed — a `::before` with no background,
+  a count of zero, `box-shadow: none` — when all of them were in fact fine.
+- **Screenshot the viewport, not the page.** `captureBeyondViewport` on a long page returns something like 1400×5983,
+  which scales down to an unreadable few hundred pixels wide. Pass an explicit height instead.
+- **Match the class names, not the rendered text.** `text-transform: uppercase` does not touch `textContent`, so a
+  sidebar row reading `JAPAN` is `Japan` to `includes('JAPAN')`.
+- **Never `pkill -f` a pattern you have just typed.** `pkill -f 'debugging-port=9222'` matches its own command line and
+  kills the shell running it, which surfaces as a bare exit 144 with no output and nothing actually stopped. Collect the
+  PIDs with `pgrep`, skip `$$` and `$PPID`, then `kill` them — or put the patterns in a script file.
+
 ## Cross-checking `src/pokemon/pokedex.js` against the web
 
 Three sources cover a variant's `released` and `shinyEligible` state. Each has a demonstrated failure mode, so take a
