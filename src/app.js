@@ -198,7 +198,7 @@ async function loadGpxFile(file) {
     });
   }
 
-  // A listed file holding neither is a defect too: something is in gpx.json that has nothing to show.
+  // A listed file holding neither is a defect too: something is in gpx-paths.json that has nothing to show.
   if (routes.length === 0 && waypoints.length === 0) {
     throw new Error('has no <trk> or <wpt>');
   }
@@ -659,7 +659,7 @@ async function init() {
     files = await loadManifest();
   } catch (e) {
     showBanner(
-      `<b>Could not read <code>gpx.json</code> — ${e.message}.</b><br>` +
+      `<b>Could not read <code>gpx-paths.json</code> — ${e.message}.</b><br>` +
         'This page reads the route list and the <code>.gpx</code> files over HTTP, ' +
         'so it needs to be served rather than opened directly from disk. Try:<br>' +
         '<code>python3 -m http.server</code> then open ' +

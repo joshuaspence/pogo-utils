@@ -5,8 +5,8 @@
  *
  * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
  * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
- * event Leek Duck has not listed yet, say). Either source failing still renders the other. A third, `gpx-events.json`,
- * says which events have routes here, so a card can link through to them on the map.
+ * event Leek Duck has not listed yet, say). Either source failing still renders the other. A third,
+ * `entries-by-event.json`, says which events have routes here, so a card can link through to them on the map.
  *
  * Three views over the same data: a card list grouped by status, a month grid where each event shows on every day it
  * covers, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a Gantt chart). The view
@@ -21,7 +21,7 @@ const LOCAL_URL = 'data/events.json';
  * `<pgr:event>` fields, which is the only record of that association. Reading it from the GPX files instead would mean
  * fetching all 59 of them to find that one carries an event.
  */
-const INDEX_URL = 'gpx-events.json';
+const INDEX_URL = 'entries-by-event.json';
 let routeIndex = {};
 
 /**

@@ -1,8 +1,9 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
  * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is
- * one the viewer knows (src/countries.js); and that gpx.json and gpx-events.json, the two files that tell the pages what
- * the repository holds, still agree with it. `--write` regenerates the latter, which is derived from the same pass.
+ * one the viewer knows (src/countries.js); and that gpx-paths.json and entries-by-event.json, the two files that tell
+ * the pages what the repository holds, still agree with it. `--write` regenerates the latter, which is derived from the
+ * same pass.
  *
  * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
@@ -77,8 +78,8 @@ let entryCount = 0;
 
 /**
  * How many routes and waypoints each event has, by `eventID`. Filled as the entries are walked below rather than by a
- * second pass, so what gets written to gpx-events.json cannot describe a file differently from the checks that just
- * validated it.
+ * second pass, so what gets written to entries-by-event.json cannot describe a file differently from the checks that
+ * just validated it.
  */
 const eventIndex = new Map();
 
@@ -183,50 +184,54 @@ if (problems.length === beforePgr) {
 }
 
 /**
- * Static hosting cannot list a directory, so the viewer is handed its paths in `gpx.json`. Nothing else notices
+ * Static hosting cannot list a directory, so the viewer is handed its paths in `gpx-paths.json`. Nothing else notices
  * when that file falls out of step with the repository, and the failure is silent in the worst way: a route that
  * is perfectly good GPX, and that this script has just validated, simply never appears on the map.
+ *
+ * Named once here because the name reaches four messages below, and a rename that updates three of them would leave the
+ * script blaming a file that no longer exists.
  */
-const listed = JSON.parse(readFileSync('gpx.json', 'utf8'));
+const PATHS_FILE = 'gpx-paths.json';
+const listed = JSON.parse(readFileSync(PATHS_FILE, 'utf8'));
 const unlisted = files.filter((file) => !listed.includes(file));
 const phantom = listed.filter((file) => !files.includes(file));
 
 for (const file of unlisted) {
-  problems.push(`${file}: tracked but missing from gpx.json — the map will not show it`);
+  problems.push(`${file}: tracked but missing from ${PATHS_FILE} — the map will not show it`);
 }
 
 for (const file of phantom) {
-  problems.push(`${file}: listed in gpx.json but not tracked — the map will fail to fetch it`);
+  problems.push(`${file}: listed in ${PATHS_FILE} but not tracked — the map will fail to fetch it`);
 }
 
 if (unlisted.length || phantom.length) {
   problems.push('Regenerate it with the command in the README.');
 } else {
-  console.log(`gpx.json lists all ${listed.length} files.`);
+  console.log(`${PATHS_FILE} lists all ${listed.length} files.`);
 }
 
 /**
  * The events page links through to an event's routes, and the only record of which event an entry belongs to is a
- * `<pgr:event>` inside a GPX file. Finding that by fetching all of them would cost the page 59 requests and 190 KB to
- * learn that one file has an event, so the association is precomputed here into gpx-events.json — the same bargain
- * gpx.json strikes, and it falls out of step the same silent way, hence the same check.
+ * `<pgr:event>` inside a GPX file. Finding that would cost the page a fetch of every one of them to learn that a
+ * handful carry an event at all, so the association is precomputed here into entries-by-event.json — the same bargain
+ * gpx-paths.json strikes, and it falls out of step the same silent way, hence the same check.
  *
  * Keys are sorted so that two runs over the same repository produce the same bytes, and the file is only written once
  * everything above has passed: an index naming an event that does not exist would be worse than a stale one.
  */
-const INDEX_PATH = 'gpx-events.json';
+const EVENTS_FILE = 'entries-by-event.json';
 const sorted = [...eventIndex].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 const expected = `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`;
 
 if (writeIndex && problems.length) {
-  problems.push(`Refusing to write ${INDEX_PATH} from files that do not validate.`);
+  problems.push(`Refusing to write ${EVENTS_FILE} from files that do not validate.`);
 } else if (writeIndex) {
-  writeFileSync(INDEX_PATH, expected);
-  console.log(`Wrote ${INDEX_PATH} — ${eventIndex.size} event(s) with entries.`);
-} else if (readFileSync(INDEX_PATH, 'utf8') !== expected) {
-  problems.push(`${INDEX_PATH}: out of step with the <pgr:event> fields — regenerate it with \`pnpm lint:xml:fix\`.`);
+  writeFileSync(EVENTS_FILE, expected);
+  console.log(`Wrote ${EVENTS_FILE} — ${eventIndex.size} event(s) with entries.`);
+} else if (readFileSync(EVENTS_FILE, 'utf8') !== expected) {
+  problems.push(`${EVENTS_FILE}: out of step with the <pgr:event> fields — regenerate it with \`pnpm lint:xml:fix\`.`);
 } else {
-  console.log(`${INDEX_PATH} lists ${eventIndex.size} event(s) with entries.`);
+  console.log(`${EVENTS_FILE} lists ${eventIndex.size} event(s) with entries.`);
 }
 
 if (problems.length === 0) {

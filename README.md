@@ -19,21 +19,21 @@ python3 -m http.server
 # then open http://localhost:8000/routes.html
 ```
 
-Static hosting cannot list a directory, so the viewer is handed the paths in [`gpx.json`](gpx.json). That file is
-generated rather than kept by hand — regenerate it after adding or removing a `.gpx`:
+Static hosting cannot list a directory, so the viewer is handed the paths in [`gpx-paths.json`](gpx-paths.json). That
+file is generated rather than kept by hand — regenerate it after adding or removing a `.gpx`:
 
 ```sh
-git ls-files -z '*.gpx' | tr '\0' '\n' | jq --raw-input --slurp 'split("\n") | map(select(length > 0))' > gpx.json
+git ls-files -z '*.gpx' | tr '\0' '\n' | jq --raw-input --slurp 'split("\n") | map(select(length > 0))' > gpx-paths.json
 ```
 
 Nothing but the paths comes from it. Each listed file is read for what it holds: a `<trk>` becomes a track and a `<wpt>`
 becomes a waypoint, so which directory a file sits in decides nothing.
 
-[`gpx-events.json`](gpx-events.json) is generated for the same kind of reason. The Events page links through to an
-event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a GPX file — finding
-those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and waypoints it has,
-and is written by the same script that validates the files, so a stale index fails `pnpm lint` instead of quietly
-mislabelling a card:
+[`entries-by-event.json`](entries-by-event.json) is generated for the same kind of reason. The Events page links through
+to an event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a GPX file —
+finding those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and waypoints
+it has, and is written by the same script that validates the files, so a stale index fails `pnpm lint` instead of
+quietly mislabelling a card:
 
 ```sh
 pnpm lint:xml:fix

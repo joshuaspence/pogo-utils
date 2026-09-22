@@ -170,7 +170,7 @@ async function buildRepoFavourites() {
   try {
     files = await loadManifest();
   } catch (e) {
-    throw new Error(`gpx.json: ${e.message}`, { cause: e });
+    throw new Error(`gpx-paths.json: ${e.message}`, { cause: e });
   }
 
   const texts = await Promise.all(

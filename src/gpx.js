@@ -6,7 +6,7 @@
  */
 
 export async function loadManifest() {
-  const res = await fetch('gpx.json');
+  const res = await fetch('gpx-paths.json');
 
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
