@@ -437,6 +437,17 @@ h2.group {
   color: var(--muted);
 }
 
+/* An event starting or ending within the day is the most actionable line on the card, so it takes the accent instead of
+   reading the same muted grey as one 200 days out. `SOON_MS` in events.js sets the threshold this class marks. */
+.card .rel.soon {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.card .rel.soon::before {
+  content: '⏳ ';
+}
+
 footer {
   max-width: var(--content-w);
   margin: 0 auto;

@@ -26,6 +26,13 @@ const REFETCH_EVERY = 10;
 const DAY_MS = 86_400_000;
 
 /**
+ * How near an event's start or end has to be for the card's relative label to read as urgent — the `soon` class, which
+ * the stylesheet paints in the accent colour rather than the muted grey a distant date gets. A day covers the "today or
+ * tonight" window a reader would actually change their plans over.
+ */
+const SOON_MS = DAY_MS;
+
+/**
  * Leek Duck gives times two ways. A naive datetime ("2026-09-21T06:00:00.000", no zone) is a *local* event — 6am
  * wherever you are, the same wall-clock in every timezone — which the browser's Date parses in local time. A datetime
  * with a trailing Z ("…T20:00:00.000Z") is one absolute instant worldwide (e.g. GO Battle League rotations), which Date
@@ -329,7 +336,11 @@ function card(ev, now) {
 
   if (status.at) {
     const verb = status.kind === 'upcoming' ? 'Starts' : status.kind === 'ended' ? 'Ended' : 'Ends';
-    body.append(el('p', 'rel', `${verb} ${relative(status.at, now)}`));
+
+    // An event already over is never urgent however recently it ended, so only a pending edge takes the accent.
+    const soon = status.kind !== 'ended' && status.at - now < SOON_MS;
+
+    body.append(el('p', `rel${soon ? ' soon' : ''}`, `${verb} ${relative(status.at, now)}`));
   }
 
   cardEl.append(body);
