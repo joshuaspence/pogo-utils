@@ -906,6 +906,37 @@ async function load() {
   render();
 }
 
+/**
+ * A link from the Routes page arrives as `events.html#event=<eventID>`, and lands by searching for that event's name.
+ * Reusing the search box rather than scrolling to the card leaves the reader somewhere they recognise: the term is
+ * visible in the box, and emptying it is how they already know to get the other 59 cards back.
+ *
+ * The event is always there to find — the linter rejects a `<pgr:event>` naming an ID that data/events.json does not
+ * carry, so a chip cannot point at one this page has never heard of.
+ */
+function focusHashEvent() {
+  const id = new URLSearchParams(location.hash.slice(1)).get('event');
+  const match = id && events.find((e) => e.eventID === id);
+
+  if (!match) {
+    return;
+  }
+
+  /**
+   * Unhide its type, or a reader with that filter off would follow the link and be shown nothing at all — four types
+   * start hidden. Not persisted: this is for the one arrival, not a standing change to what they chose to see. A card
+   * they dismissed individually stays dismissed, which is a decision about that event rather than a blanket rule.
+   */
+  prefs.hiddenTypes.delete(match.heading);
+  fillTypes();
+
+  els.search.value = match.name;
+  render();
+}
+
+// Also on hashchange, so the back button and a link followed from this page behave like a fresh arrival.
+window.addEventListener('hashchange', focusHashEvent);
+
 els.search.addEventListener('input', render);
 els.showPast.addEventListener('change', render);
 els.showHidden.addEventListener('change', render);
@@ -946,4 +977,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-load();
+// Only the first load lands a fragment: a ten-minute re-fetch calling this would overwrite whatever the reader has since
+// typed into the search box.
+load().then(focusHashEvent);
