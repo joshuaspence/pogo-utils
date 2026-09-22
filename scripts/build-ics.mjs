@@ -5,7 +5,8 @@
  * They exist because a calendar subscription is a URL a calendar app fetches by itself. Google Calendar cannot run
  * events.html's JavaScript, so the merge the browser does live — ScrapedDuck's mirror of Leek Duck, overridden by
  * data/events.json where an `eventID` is in both — has to be done ahead of time and the result committed as a static
- * file. gpx-events.json puts the same "2 routes · 1 waypoint" line into an event's description as it puts on its card.
+ * file. entries-by-event.json puts the same "2 routes · 1 waypoint" line into an event's description as it puts on
+ * its card.
  *
  * Nothing here reads the clock. The output is a pure function of those three inputs, so after a run `git diff --quiet`
  * answers exactly "has the event data moved?" — which is how the workflow decides whether there is anything to commit,
@@ -21,7 +22,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_PATH = 'data/events.json';
-const INDEX_PATH = 'gpx-events.json';
+const INDEX_PATH = 'entries-by-event.json';
 
 /**
  * Where the pages are served from. A calendar app shows an event's description far away from this site, so the links

@@ -103,8 +103,8 @@ node scripts/build-ics.mjs
 ```
 
 The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
-[`gpx-events.json`](gpx-events.json) — so an unchanged pair of files after a run means the event data has not moved.
-That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
+[`entries-by-event.json`](entries-by-event.json) — so an unchanged pair of files after a run means the event data has
+not moved. That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
 [`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the two feeds
 only when they differ, and passes without a commit when they do not. Note that GitHub disables a scheduled workflow
 after 60 days without a commit to the repository; re-enable it from the Actions tab if the feeds ever go stale.
