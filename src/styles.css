@@ -128,6 +128,21 @@ header .sub {
   color: var(--accent);
 }
 
+/* How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent names
+   and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows there, and
+   the count follows the filter (see the input handler in app.js) so it never contradicts what is on screen. */
+.continent .gcount,
+.country .gcount {
+  margin-left: auto;
+  padding: 1px 7px;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.6;
+}
+
 .continent .chev {
   font-size: 9px;
   transition: transform 0.15s;

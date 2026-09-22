@@ -347,6 +347,13 @@ function buildRouteRow(entry) {
   return el;
 }
 
+/** An empty count badge for a group header. `applyFilter` puts the number in and keeps it current. */
+function groupCount() {
+  const el = document.createElement('span');
+  el.className = 'gcount';
+  return el;
+}
+
 function buildCityRow(c, country) {
   const el = document.createElement('div');
   el.className = 'route city';
@@ -415,7 +422,7 @@ function buildSidebar() {
     cchev.textContent = '▾';
     const clabel = document.createElement('span');
     clabel.textContent = continent;
-    chead.append(cchev, clabel);
+    chead.append(cchev, clabel, groupCount());
     chead.addEventListener('click', () => cg.classList.toggle('collapsed'));
     cg.appendChild(chead);
     const citems = document.createElement('div');
@@ -432,7 +439,7 @@ function buildSidebar() {
       chev.textContent = '▾';
       const label = document.createElement('span');
       label.textContent = country;
-      head.append(chev, label);
+      head.append(chev, label, groupCount());
       head.addEventListener('click', () => group.classList.toggle('collapsed'));
       group.appendChild(head);
       const items = document.createElement('div');
@@ -449,31 +456,42 @@ function buildSidebar() {
     cg.appendChild(citems);
     listEl.appendChild(cg);
   }
+
+  applyFilter();
 }
 
-filterEl.addEventListener('input', () => {
+filterEl.addEventListener('input', applyFilter);
+
+/**
+ * Hide the entries the filter box excludes, then hide the groups left holding nothing; while searching, auto-expand
+ * those that do have matches so the results are visible, and with no query collapse everything.
+ *
+ * Each header's count is written from the same pass, so the number on a collapsed group is what opening it would show
+ * rather than what the group held before the reader typed. That is also why buildSidebar() ends by calling this: it
+ * leaves the badges empty and lets the one place that counts fill them.
+ */
+function applyFilter() {
   const q = filterEl.value.trim().toLowerCase();
-  document.querySelectorAll('.route').forEach((el) => {
+
+  for (const el of document.querySelectorAll('.route')) {
     const hit = !q || el.dataset.name.includes(q) || el.dataset.country.toLowerCase().includes(q);
     el.classList.toggle('hidden', !hit);
-  });
+  }
 
-  /**
-   * Hide groups with no matches; while searching, auto-expand those that have matches so the results are visible. With
-   * no query, collapse everything.
-   */
-  document.querySelectorAll('.country-group').forEach((group) => {
-    const anyVisible = [...group.querySelectorAll('.route')].some((r) => !r.classList.contains('hidden'));
-    group.classList.toggle('hidden', !anyVisible);
-    group.classList.toggle('collapsed', q ? !anyVisible : true);
-  });
+  /* A country group and a continent group behave alike — both count the rows still showing anywhere beneath them — so
+     one pass serves for either level of the tree. */
+  const settle = (groupClass, headClass) => {
+    for (const group of document.querySelectorAll(groupClass)) {
+      const shown = group.querySelectorAll('.route:not(.hidden)').length;
+      group.classList.toggle('hidden', !shown);
+      group.classList.toggle('collapsed', q ? !shown : true);
+      group.querySelector(`${headClass} .gcount`).textContent = String(shown);
+    }
+  };
 
-  document.querySelectorAll('.continent-group').forEach((cg) => {
-    const anyVisible = [...cg.querySelectorAll('.country-group')].some((g) => !g.classList.contains('hidden'));
-    cg.classList.toggle('hidden', !anyVisible);
-    cg.classList.toggle('collapsed', q ? !anyVisible : true);
-  });
-});
+  settle('.country-group', '.country');
+  settle('.continent-group', '.continent');
+}
 
 function showBanner(html) {
   bannerEl.innerHTML = html;
