@@ -45,11 +45,12 @@ of a label:
 </trk>
 ```
 
-GPX 1.1 has no element for a locality, a country or a short/long variant, so those three live in the `pgr` namespace
-declared on `<gpx>`. `<pgr:city>` is the locality the place sits in, including its region — it is absent when the name
-is itself the place (`Melbourne`, `Boston, MA`). `<pgr:variant>` is `short`/`long`, and only for routes that come as a
-pair. `<name>` and `<pgr:country>` are required; the viewer names any file missing either instead of guessing from the
-path.
+GPX 1.1 has no element for a locality, a country, a short/long variant or an event, so those four live in the `pgr`
+namespace declared on `<gpx>`. `<pgr:city>` is the locality the place sits in, including its region — it is absent when
+the name is itself the place (`Melbourne`, `Boston, MA`). `<pgr:variant>` is `short`/`long`, and only for routes that
+come as a pair. `<pgr:event>` names the event the entry was added for, by the `eventID` it has in
+[`data/events.json`](data/events.json), and is absent for a place that stands on its own. `<name>` and `<pgr:country>`
+are required; the viewer names any file missing either instead of guessing from the path.
 
 Every file is real GPX 1.1 and is checked against the schema on each push, using the copy of it vendored at
 [`resources/gpx.xsd`](resources/gpx.xsd). That check, and the HTML, CSS and JavaScript linters, run together:
@@ -62,7 +63,8 @@ pnpm lint
 The schema pass reaches the GPX itself, not the `pgr` fields: GPX declares `<extensions>` as any element from another
 namespace, processed leniently, so a misspelled `<pgr:contry>` sails through it. A second pass closes that gap by
 reading each file the way the viewer does — every `<trk>` and `<wpt>` must carry a non-empty `<pgr:country>`, a
-`<pgr:variant>` is only ever `short` or `long`, and a `pgr` element with no matching field (that `<pgr:contry>`) is
+`<pgr:variant>` is only ever `short` or `long`, a `<pgr:event>` must name an `eventID` that
+[`data/events.json`](data/events.json) actually has, and a `pgr` element with no matching field (that `<pgr:contry>`) is
 reported as the typo it is.
 
 One caveat: an editor that does not model foreign extensions drops the whole `<extensions>` block when it exports.

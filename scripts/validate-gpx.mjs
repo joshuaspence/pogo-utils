@@ -45,8 +45,18 @@ if (valid) {
  * about — the very failure this pass moves forward to here.
  */
 const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';
-const PGR_FIELDS = new Set(['country', 'city', 'variant']);
+const PGR_FIELDS = new Set(['country', 'city', 'variant', 'event']);
 const VARIANTS = new Set(['short', 'long']);
+
+// Spelled out of PGR_FIELDS rather than beside it, so adding a field cannot leave the message naming the old set.
+const PGR_EXPECTED = [...PGR_FIELDS].join(', ').replace(/, (?=[^,]*$)/, ' or ');
+
+/**
+ * The events an entry may point at, by `eventID` (data/events.json). An entry naming an event that is not there is the
+ * same silent failure as a country missing from COUNTRIES: nothing downstream reads the field yet, so a typo or an
+ * event renamed out from under it would sit in the file unnoticed.
+ */
+const EVENT_IDS = new Set(JSON.parse(readFileSync('data/events.json', 'utf8')).map((event) => event.eventID));
 
 /**
  * The element children of `el`, in document order. `childNodes` carries the whitespace between tags too, so the
@@ -100,7 +110,7 @@ for (const { fileName, contents } of sources) {
        * is not ours to judge — the viewer leaves it be, and so does this.
        */
       if (field.namespaceURI === PGR_NS && !PGR_FIELDS.has(name)) {
-        report(fileName, field, `<${field.tagName}> is not a pgr field — expected country, city or variant`);
+        report(fileName, field, `<${field.tagName}> is not a pgr field — expected ${PGR_EXPECTED}`);
         continue;
       }
 
@@ -115,6 +125,8 @@ for (const { fileName, contents } of sources) {
         report(fileName, field, `<${field.tagName}> is empty`);
       } else if (name === 'variant' && !VARIANTS.has(text)) {
         report(fileName, field, `<${field.tagName}> is "${text}" — expected short or long`);
+      } else if (name === 'event' && !EVENT_IDS.has(text)) {
+        report(fileName, field, `<${field.tagName}> is "${text}" — not an eventID in data/events.json`);
       } else if (name === 'country' && !Object.hasOwn(COUNTRIES, text)) {
         /**
          * The viewer groups by continent and flags each favourite from this table (src/countries.js); a country missing

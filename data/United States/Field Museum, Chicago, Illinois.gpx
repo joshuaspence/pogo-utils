@@ -8,6 +8,7 @@
     <extensions>
       <pgr:city>Chicago, Illinois</pgr:city>
       <pgr:country>United States</pgr:country>
+      <pgr:event>pgo-pokemon-fossil-musuem-chicago-2026</pgr:event>
     </extensions>
   </wpt>
   <trk>
@@ -15,6 +16,7 @@
     <extensions>
       <pgr:city>Chicago, Illinois</pgr:city>
       <pgr:country>United States</pgr:country>
+      <pgr:event>pgo-pokemon-fossil-musuem-chicago-2026</pgr:event>
     </extensions>
     <trkseg>
       <trkpt lat="41.866539" lon="-87.618206"/>
