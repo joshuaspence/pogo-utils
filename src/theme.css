@@ -17,6 +17,11 @@
   --start: #16a34a;
   --end: #e3350d;
   --city: #d97706;
+
+  /* Resting and lifted elevation. A shadow that reads on a near-white page disappears on a dark one, so the two modes
+     carry their own alphas rather than one value tuned for whichever mode was looked at last. */
+  --shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-lift: 0 6px 16px rgb(0 0 0 / 12%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,5 +37,7 @@
     --start: #34d17b;
     --end: #ff5a3c;
     --city: #f59e0b;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-lift: 0 8px 20px rgb(0 0 0 / 55%);
   }
 }
