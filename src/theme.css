@@ -22,6 +22,10 @@
      carry their own alphas rather than one value tuned for whichever mode was looked at last. */
   --shadow: 0 1px 2px rgb(0 0 0 / 5%);
   --shadow-lift: 0 6px 16px rgb(0 0 0 / 12%);
+
+  /* A ticked checkbox is otherwise the browser's own blue — the one colour on these pages coming from outside the
+     palette. Inherited, so the per-type filter chips on the events page still override it with their own hue. */
+  accent-color: var(--track);
 }
 
 @media (prefers-color-scheme: dark) {
