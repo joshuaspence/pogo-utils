@@ -35,6 +35,11 @@ after the next.
   which scales down to an unreadable few hundred pixels wide. Pass an explicit height instead.
 - **Match the class names, not the rendered text.** `text-transform: uppercase` does not touch `textContent`, so a
   sidebar row reading `JAPAN` is `Japan` to `includes('JAPAN')`.
+- **A selector that matches nothing reads as a pass.** `document.querySelector('.banner')?.textContent ?? 'NO BANNER'`
+  reported no error banner on a page whose manifest fetch had been blocked outright — the markup is `id="banner"`, so
+  the query was null either way and the check could not have failed however broken the page was. Assert the node exists
+  before asserting anything about it, and confirm a probe can fail: block the request with `Network.setBlockedURLs` and
+  watch the banner appear before trusting its absence.
 - **Kill both by port, never by a pattern you have just typed.** Both processes are named by one — `fuser -k 8931/tcp`
   for the server, `fuser -k 9222/tcp` for Chrome — which matches on the listening socket, so it cannot match the shell
   running it. `pkill -f 'debugging-port=9222'` can and does: it kills that shell, surfacing as a bare exit 144 with no
