@@ -199,6 +199,14 @@ header .sub {
   background: var(--city);
 }
 
+/* An entry added for an event is drawn in --event on the map, whichever of the two kinds it is, so its marker follows:
+   the shape still says line or dot, and the colour says where it came from. Keyed off the event line the row already
+   carries rather than a second class saying the same thing, and placed after `.route.city` because the two selectors
+   have equal specificity and a waypoint's row matches both. */
+.route:has(.eventline)::before {
+  background: var(--event);
+}
+
 .route:hover {
   background: var(--bg);
 }
@@ -282,19 +290,22 @@ header .sub {
   line-height: 1;
 }
 
+/* Wears --event, which is what makes that colour on the map legible without a legend: the one row naming an event is
+   also the one whose marker changed hue. The tinted fill is mixed from the same token rather than held as a second
+   `--event-soft`, since --accent-soft exists only because --accent is wanted at two strengths in a dozen places. */
 .route .event {
   display: inline-block;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--event) 14%, var(--panel));
+  color: var(--event);
   font-size: 11px;
   text-decoration: none;
 }
 
 .route .event:hover,
 .route .event:focus-visible {
-  background: var(--accent);
+  background: var(--event);
   color: var(--panel);
 }
 

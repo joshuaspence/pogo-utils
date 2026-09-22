@@ -233,6 +233,26 @@ function buildPopup(name, detail, copyLabel, onCopy) {
 }
 
 /**
+ * How an unselected line and dot are drawn. Both the layer's creation and the deselect that returns it here read these,
+ * so the two cannot come to disagree about what "not selected" looks like — which matters now that the colour is a
+ * decision rather than a constant: an entry added for an event is drawn in --event, and the sidebar row mirrors it (see
+ * `.route::before` in styles.css).
+ */
+function routeStyle(route) {
+  return { color: cssVar(route.event ? '--event' : '--track'), weight: 2, opacity: 0.55 };
+}
+
+function cityStyle(place) {
+  return {
+    radius: 5,
+    color: '#fff',
+    weight: 2,
+    fillColor: cssVar(place.event ? '--event' : '--city'),
+    fillOpacity: 1,
+  };
+}
+
+/**
  * Return the active route to its resting style, drop its start/end markers and un-highlight its row. Mirrors
  * deselectCity, so selecting either kind can clear the other with a single call.
  */
@@ -241,7 +261,7 @@ function deselectRoute() {
     return;
   }
 
-  active.line.setStyle({ color: cssVar('--track'), weight: 2, opacity: 0.55 });
+  active.line.setStyle(routeStyle(active));
   active.line.bringToBack();
   clearMarkers(active);
   active.el.classList.remove('active');
@@ -287,7 +307,7 @@ function deselectCity() {
     return;
   }
 
-  activeCity.marker.setStyle({ radius: 5, fillColor: cssVar('--city') });
+  activeCity.marker.setStyle(cityStyle(activeCity));
   activeCity.el.classList.remove('active');
   activeCity = null;
 }
@@ -665,11 +685,7 @@ async function init() {
     const { text, routes, waypoints } = res.value;
 
     for (const route of routes) {
-      const line = L.polyline(route.latlngs, {
-        color: cssVar('--track'),
-        weight: 2,
-        opacity: 0.55,
-      }).addTo(map);
+      const line = L.polyline(route.latlngs, routeStyle(route)).addTo(map);
       const entry = {
         ...route,
         file,
@@ -683,13 +699,7 @@ async function init() {
     }
 
     for (const place of waypoints) {
-      const marker = L.circleMarker(place.coords, {
-        radius: 5,
-        color: '#fff',
-        weight: 2,
-        fillColor: cssVar('--city'),
-        fillOpacity: 1,
-      }).addTo(map);
+      const marker = L.circleMarker(place.coords, cityStyle(place)).addTo(map);
       marker.bindTooltip(place.name);
       const entry = { ...place, marker };
       marker.on('click', () => selectCity(entry, { pan: false }));

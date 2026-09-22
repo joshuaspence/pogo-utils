@@ -510,15 +510,16 @@ h2.group .gcount {
 /* Lifted above the overlay link that makes the whole card open the event's source page (`.card-link`, z-index 1), the
    same way the dismiss button is — without it the overlay swallows the click and this link can never be followed. It is
    sized to its own text so the rest of the line still opens the source page, and wears the chip the Routes sidebar gives
-   the other end of this pair, so the two directions of the same link look alike. */
+   the other end of this pair, so the two directions of the same link look alike. Its --event hue is the colour those
+   routes are actually drawn in over there, which is the point of using it here rather than the accent. */
 .card .routes {
   position: relative;
   z-index: 2;
   align-self: start;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--event) 14%, var(--panel));
+  color: var(--event);
   font-size: 11px;
   text-decoration: none;
 }
@@ -529,7 +530,7 @@ h2.group .gcount {
 
 .card .routes:hover,
 .card .routes:focus-visible {
-  background: var(--accent);
+  background: var(--event);
   color: var(--panel);
 }
 

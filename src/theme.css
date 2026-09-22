@@ -18,6 +18,11 @@
   --end: #e3350d;
   --city: #d97706;
 
+  /* An entry added for an event takes this instead of --track or --city, so which of the map's lines and dots came from
+     a real-world event reads without clicking any of them. Far enough round the wheel from both to tell a 2px line
+     apart from a --track one, and from --accent so that "belongs to an event" cannot be mistaken for "selected". */
+  --event: #a21caf;
+
   /* Resting and lifted elevation. A shadow that reads on a near-white page disappears on a dark one, so the two modes
      carry their own alphas rather than one value tuned for whichever mode was looked at last. */
   --shadow: 0 1px 2px rgb(0 0 0 / 5%);
@@ -41,6 +46,7 @@
     --start: #34d17b;
     --end: #ff5a3c;
     --city: #f59e0b;
+    --event: #e879f9;
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-lift: 0 8px 20px rgb(0 0 0 / 55%);
   }
