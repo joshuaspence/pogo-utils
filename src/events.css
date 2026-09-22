@@ -159,12 +159,44 @@ main {
 }
 
 h2.group {
-  margin: 24px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 28px 0 12px;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
+}
+
+/* A hairline running out to the right margin makes each bucket read as a section rather than as a faint floating label.
+   On the pseudo-element so no extra node is rendered per group. */
+h2.group::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Running events are what a reader came for, so that one heading takes the accent while the rest stay muted. */
+h2.group.group-active {
+  color: var(--accent);
+}
+
+h2.group.group-active::after {
+  background: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+/* The bucket's size, so "Upcoming" says how much is in it without the reader counting cards. Letter-spacing is reset
+   because the digits inherit the heading's tracking, which spaces a number oddly. */
+h2.group .gcount {
+  padding: 1px 7px;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0;
+  opacity: 0.75;
 }
 
 .grid {

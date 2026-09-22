@@ -380,7 +380,12 @@ function renderCards(now) {
       continue;
     }
 
-    els.events.append(el('h2', 'group', label));
+    // The bucket's kind rides along on the heading so the stylesheet can pick out the running events; the count saves
+    // the reader tallying cards to see how big a bucket is.
+    const heading = el('h2', `group group-${kind}`, label);
+    heading.append(el('span', 'gcount', String(list.length)));
+    els.events.append(heading);
+
     const grid = el('div', 'grid');
 
     for (const ev of list) {
@@ -390,8 +395,17 @@ function renderCards(now) {
     els.events.append(grid);
   }
 
-  const suffix = prefs.dismissed.size ? ` · ${prefs.dismissed.size} dismissed` : '';
-  els.count.textContent = shown ? `${shown} event${shown === 1 ? '' : 's'}${suffix}` : `No events to show${suffix}`;
+  const parts = [shown ? `${shown} event${shown === 1 ? '' : 's'}` : 'No events to show'];
+
+  if (buckets.active.length) {
+    parts.push(`${buckets.active.length} happening now`);
+  }
+
+  if (prefs.dismissed.size) {
+    parts.push(`${prefs.dismissed.size} dismissed`);
+  }
+
+  els.count.textContent = parts.join(' · ');
 }
 
 function pill(ev, now) {
