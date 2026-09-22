@@ -1,7 +1,8 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
  * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is
- * one the viewer knows (src/countries.js); and that gpx.json still lists exactly the files the viewer should fetch.
+ * one the viewer knows (src/countries.js); and that gpx.json and gpx-events.json, the two files that tell the pages what
+ * the repository holds, still agree with it. `--write` regenerates the latter, which is derived from the same pass.
  *
  * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
@@ -10,8 +11,11 @@
 import COUNTRIES from '../src/countries.js';
 import { DOMParser } from '@xmldom/xmldom';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { validateXML } from 'xmllint-wasm';
+
+// `--write` regenerates the event index rather than checking it, the way `prettier --write` is to `prettier --check`.
+const writeIndex = process.argv.includes('--write');
 
 const files = execFileSync('git', ['ls-files', '-z', '*.gpx'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const sources = files.map((fileName) => ({ fileName, contents: readFileSync(fileName, 'utf8') }));
@@ -71,6 +75,13 @@ const report = (fileName, el, message) =>
 const beforePgr = problems.length;
 let entryCount = 0;
 
+/**
+ * How many routes and waypoints each event has, by `eventID`. Filled as the entries are walked below rather than by a
+ * second pass, so what gets written to gpx-events.json cannot describe a file differently from the checks that just
+ * validated it.
+ */
+const eventIndex = new Map();
+
 for (const { fileName, contents } of sources) {
   let doc;
 
@@ -101,6 +112,7 @@ for (const { fileName, contents } of sources) {
     entryCount++;
     const ext = elementChildren(entry).find((child) => child.localName === 'extensions');
     const counts = {};
+    let eventId = null;
 
     for (const field of ext ? elementChildren(ext) : []) {
       const name = field.localName;
@@ -120,6 +132,10 @@ for (const { fileName, contents } of sources) {
 
       counts[name] = (counts[name] || 0) + 1;
       const text = field.textContent.trim();
+
+      if (name === 'event' && text) {
+        eventId = text;
+      }
 
       if (!text) {
         report(fileName, field, `<${field.tagName}> is empty`);
@@ -149,6 +165,16 @@ for (const { fileName, contents } of sources) {
     if (!counts.country) {
       report(fileName, entry, `<${entry.localName}> has no <pgr:country>`);
     }
+
+    /**
+     * Tally the entry against its event, splitting the two kinds by element the way the viewer does — the events page
+     * counts routes and waypoints separately, so an index that merged them could not label a card.
+     */
+    if (eventId) {
+      const tally = eventIndex.get(eventId) || { routes: 0, waypoints: 0 };
+      tally[entry.localName === 'trk' ? 'routes' : 'waypoints'] += 1;
+      eventIndex.set(eventId, tally);
+    }
   }
 }
 
@@ -177,6 +203,30 @@ if (unlisted.length || phantom.length) {
   problems.push('Regenerate it with the command in the README.');
 } else {
   console.log(`gpx.json lists all ${listed.length} files.`);
+}
+
+/**
+ * The events page links through to an event's routes, and the only record of which event an entry belongs to is a
+ * `<pgr:event>` inside a GPX file. Finding that by fetching all of them would cost the page 59 requests and 190 KB to
+ * learn that one file has an event, so the association is precomputed here into gpx-events.json — the same bargain
+ * gpx.json strikes, and it falls out of step the same silent way, hence the same check.
+ *
+ * Keys are sorted so that two runs over the same repository produce the same bytes, and the file is only written once
+ * everything above has passed: an index naming an event that does not exist would be worse than a stale one.
+ */
+const INDEX_PATH = 'gpx-events.json';
+const sorted = [...eventIndex].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+const expected = `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`;
+
+if (writeIndex && problems.length) {
+  problems.push(`Refusing to write ${INDEX_PATH} from files that do not validate.`);
+} else if (writeIndex) {
+  writeFileSync(INDEX_PATH, expected);
+  console.log(`Wrote ${INDEX_PATH} — ${eventIndex.size} event(s) with entries.`);
+} else if (readFileSync(INDEX_PATH, 'utf8') !== expected) {
+  problems.push(`${INDEX_PATH}: out of step with the <pgr:event> fields — regenerate it with \`pnpm lint:xml:fix\`.`);
+} else {
+  console.log(`${INDEX_PATH} lists ${eventIndex.size} event(s) with entries.`);
 }
 
 if (problems.length === 0) {

@@ -6,13 +6,14 @@
     "lint": "npm-run-all --continue-on-error --parallel --print-label lint:css lint:html lint:js lint:prettier lint:xml",
     "lint:css": "stylelint '**/*.css'",
     "lint:css:fix": "stylelint --fix '**/*.css'",
-    "lint:fix": "npm-run-all --print-label --serial lint:css:fix lint:js:fix lint:prettier:fix",
+    "lint:fix": "npm-run-all --print-label --serial lint:xml:fix lint:css:fix lint:js:fix lint:prettier:fix",
     "lint:html": "html-validate '**/*.html'",
     "lint:js": "eslint .",
     "lint:js:fix": "eslint --fix .",
     "lint:prettier": "prettier --check .",
     "lint:prettier:fix": "prettier --write .",
-    "lint:xml": "node scripts/validate-gpx.mjs"
+    "lint:xml": "node scripts/validate-gpx.mjs",
+    "lint:xml:fix": "node scripts/validate-gpx.mjs --write"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

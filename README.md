@@ -29,6 +29,16 @@ git ls-files -z '*.gpx' | tr '\0' '\n' | jq --raw-input --slurp 'split("\n") | m
 Nothing but the paths comes from it. Each listed file is read for what it holds: a `<trk>` becomes a track and a `<wpt>`
 becomes a waypoint, so which directory a file sits in decides nothing.
 
+[`gpx-events.json`](gpx-events.json) is generated for the same kind of reason. The Events page links through to an
+event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a GPX file — finding
+those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and waypoints it has,
+and is written by the same script that validates the files, so a stale index fails `pnpm lint` instead of quietly
+mislabelling a card:
+
+```sh
+pnpm lint:xml:fix
+```
+
 ## File format
 
 Each entry keeps its place name in `<name>` and everything else in separate fields, so nothing has to be split back out
