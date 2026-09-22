@@ -303,6 +303,7 @@ header .sub {
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
+  box-shadow: var(--shadow-lift);
   transition:
     opacity 0.18s,
     transform 0.18s;
@@ -349,7 +350,7 @@ footer a {
   padding: 12px 16px;
   font-size: 13px;
   line-height: 1.5;
-  box-shadow: 0 6px 24px rgb(0 0 0 / 15%);
+  box-shadow: var(--shadow-lift);
 }
 
 #banner code {
