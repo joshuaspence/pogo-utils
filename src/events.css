@@ -360,7 +360,7 @@ h2.group .gcount {
   --type-color: #f97316;
 }
 
-.type-regional-events {
+.type-regional-event {
   --type-color: #c026d3;
 }
 
@@ -421,7 +421,7 @@ h2.group .gcount {
     --type-color: #fdba74;
   }
 
-  .type-regional-events {
+  .type-regional-event {
     --type-color: #e879f9;
   }
 
