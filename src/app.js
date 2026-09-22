@@ -611,12 +611,14 @@ function appendFailures(heading, failures) {
  * Nothing is hidden. Filtering the sidebar down to the event would read as the search box having been used, leaving the
  * reader to work out how to get the other 79 rows back; selecting is enough to answer "which one is it" and leaves the
  * page in a state they already know how to leave.
+ *
+ * Returns whether it moved the map, which is what lets init() fit everything only when no event claimed the view.
  */
 function focusHashEvent() {
   const id = new URLSearchParams(location.hash.slice(1)).get('event');
 
   if (!id) {
-    return;
+    return false;
   }
 
   const routes = store.filter((s) => s.event === id);
@@ -625,7 +627,7 @@ function focusHashEvent() {
   // Said out loud rather than silently ignored: the link came from somewhere, so landing nowhere needs explaining.
   if (routes.length === 0 && places.length === 0) {
     toast(`Nothing here was added for “${eventNames.get(id) || id}”`);
-    return;
+    return false;
   }
 
   if (routes.length) {
@@ -640,6 +642,8 @@ function focusHashEvent() {
   if (layers.length > 1) {
     map.fitBounds(L.featureGroup(layers).getBounds(), { padding: [24, 24], maxZoom: 16 });
   }
+
+  return true;
 }
 
 // Also on hashchange, so a link followed from this page — or the back button — lands the same way as a fresh load.
@@ -724,11 +728,16 @@ async function init() {
     return;
   }
 
-  const all = L.featureGroup([...store.map((s) => s.line), ...cityStore.map((c) => c.marker)]);
-  map.fitBounds(all.getBounds(), { padding: [16, 16] });
-
-  // Last, so that the fit to everything above does not immediately undo the fit to one event.
-  focusHashEvent();
+  /**
+   * One fit or the other, never both. Leaflet animates a zoom of less than `zoomAnimationThreshold` levels as a CSS
+   * transition and defers the move itself to its end; `setView` stops a pan but not that, so fitting the world first
+   * and the event second left the transition to finish afterwards and restore the world — the event's own view landed
+   * and was then silently undone. Ordering cannot fix that, so only fit everything when no event asked for a view.
+   */
+  if (!focusHashEvent()) {
+    const all = L.featureGroup([...store.map((s) => s.line), ...cityStore.map((c) => c.marker)]);
+    map.fitBounds(all.getBounds(), { padding: [16, 16] });
+  }
 }
 
 init();
