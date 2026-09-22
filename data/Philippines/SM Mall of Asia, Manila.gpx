@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
+     version="1.1"
+     creator="https://github.com/joshuaspence/pogo-utils">
+  <wpt lat="14.535067" lon="120.982153">
+    <name>SM Mall of Asia</name>
+    <extensions>
+      <pgr:city>Manila</pgr:city>
+      <pgr:country>Philippines</pgr:country>
+      <pgr:event>30th-anniversary-manila-2027</pgr:event>
+    </extensions>
+  </wpt>
+</gpx>

@@ -40,6 +40,7 @@ export default {
   'North Korea': { code: 'KP', continent: 'Asia' },
   'Norway': { code: 'NO', continent: 'Europe' },
   'Peru': { code: 'PE', continent: 'South America' },
+  'Philippines': { code: 'PH', continent: 'Asia' },
   'Portugal': { code: 'PT', continent: 'Europe' },
   'Romania': { code: 'RO', continent: 'Europe' },
   'Russia': { code: 'RU', continent: 'Europe' },
