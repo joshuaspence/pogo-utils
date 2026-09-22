@@ -18,9 +18,19 @@ binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything 
 `getBoundingClientRect().left` on two elements that should share an edge, a class present after one render and absent
 after the next.
 
+- **Run `chrome-headless-shell`, not `chrome`.**
+  `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell` serves the
+  protocol fine. The full browser beside it, `chromium-1208/chrome-linux64/chrome`, prints
+  `DevTools listening on ws://…` and then dies of a trace/breakpoint trap with `--headless=new`, so the port is gone by
+  the time you connect.
 - **Send `Network.setCacheDisabled` before navigating.** Chrome serves the CSS and JS it already has, so a re-run after
   an edit reports the _old_ file. This looked exactly like every change having failed — a `::before` with no background,
   a count of zero, `box-shadow: none` — when all of them were in fact fine.
+- **Navigate via `about:blank` before a URL that differs only by fragment.** `routes.html#event=…` from `routes.html` is
+  a same-document navigation: the page does not reload, so the previous run's JavaScript stays live and nothing you have
+  edited since is even loaded. Testing fragment handling that way reported it doing nothing at all, because the build
+  under test was the one from before the handler existed. Disabling the cache does not help — there is no request to
+  make.
 - **Screenshot the viewport, not the page.** `captureBeyondViewport` on a long page returns something like 1400×5983,
   which scales down to an unreadable few hundred pixels wide. Pass an explicit height instead.
 - **Match the class names, not the rendered text.** `text-transform: uppercase` does not touch `textContent`, so a
