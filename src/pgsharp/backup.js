@@ -314,6 +314,16 @@ for (const el of optEls) {
 
 updateTally();
 
+/**
+ * The five options above nudge one button back to a known position; this one hands PGSharp a whole filter list, which it
+ * takes in place of the profile's own rather than alongside it. That is the only entry here that can lose the reader
+ * something they set up, so it says so — with the count parsed back out of the value that will actually be written, so
+ * adding a filter to filters.js cannot leave a stale number in the markup.
+ */
+const feedCount = JSON.parse(CONTROL_RESETS.resetFeeds.hlfeeds).length;
+document.getElementById('feedNote').textContent =
+  `Replaces every feed filter in the profile with these ${feedCount} rather than adding to them.`;
+
 function downloadBytes(bytes, name) {
   const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);

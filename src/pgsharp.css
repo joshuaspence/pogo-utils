@@ -134,6 +134,15 @@ header.page h1 {
   cursor: pointer;
 }
 
+/* Belongs to the option directly above it, so it is indented past that checkbox to sit under the label's text and pulled
+   up out of the column's 6px gap — otherwise it floats between two options with nothing saying which one it qualifies. */
+.backup .note {
+  margin: -2px 0 0 24px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 .backup button.run {
   align-self: flex-start;
   padding: 9px 14px;
