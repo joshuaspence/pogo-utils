@@ -110,6 +110,23 @@ header.page h1 {
   margin-top: 8px;
 }
 
+/* How many of the options below are ticked — the same pill the routes sidebar counts a collapsed group with, for the
+   same reason: collapsing the list closes it over six boxes that are ticked, and the button writes every one of them. */
+.backup .tally {
+  padding: 1px 7px;
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
+/* Nothing ticked writes nothing, which is the one state worth saying in words rather than as a 0. */
+.backup .tally.off {
+  color: var(--muted);
+}
+
 .backup label.opt {
   display: flex;
   align-items: center;

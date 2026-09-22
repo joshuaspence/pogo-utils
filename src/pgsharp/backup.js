@@ -291,6 +291,29 @@ function backupStatus(msg, kind) {
   backupStatusEl.className = 'status' + (kind ? ' ' + kind : '');
 }
 
+/**
+ * The options, read off the same object the click handler looks them up in rather than a second list of ids here — add a
+ * control to CONTROL_RESETS and it is counted without touching this.
+ */
+const optEls = Object.keys(CONTROL_RESETS).map((id) => document.getElementById(id));
+const optTallyEl = document.getElementById('optTally');
+
+/**
+ * Say on the summary how many options the button will write, so collapsing the list leaves a number behind rather than a
+ * label that gives no sign anything under it is ticked.
+ */
+function updateTally() {
+  const on = optEls.filter((el) => el.checked).length;
+  optTallyEl.textContent = on ? `${on} of ${optEls.length}` : 'none';
+  optTallyEl.classList.toggle('off', !on);
+}
+
+for (const el of optEls) {
+  el.addEventListener('change', updateTally);
+}
+
+updateTally();
+
 function downloadBytes(bytes, name) {
   const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
