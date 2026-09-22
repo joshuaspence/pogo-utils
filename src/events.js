@@ -33,6 +33,13 @@ const DAY_MS = 86_400_000;
 const SOON_MS = DAY_MS;
 
 /**
+ * The largest per-card delay step in the grid's entry animation, in card positions. Past this the cards share the last
+ * step instead of stretching the stagger further, so a bucket of sixty does not leave its tail arriving a second and a
+ * half late.
+ */
+const STAGGER_MAX = 14;
+
+/**
  * Leek Duck gives times two ways. A naive datetime ("2026-09-21T06:00:00.000", no zone) is a *local* event — 6am
  * wherever you are, the same wall-clock in every timezone — which the browser's Date parses in local time. A datetime
  * with a trailing Z ("…T20:00:00.000Z") is one absolute instant worldwide (e.g. GO Battle League rotations), which Date
@@ -101,6 +108,10 @@ const els = {
 
 let events = []; // normalised feed entries, sorted by start
 let tick = 0;
+
+// Whether the next render is the one that follows a fetch, which is the only one that plays the cards' entry animation.
+// render() also runs every minute to keep the relative labels honest, and animating those would be a twitch.
+let entering = false;
 let view = 'cards'; // 'cards' | 'calendar' | 'tracks'
 let calMonth = null; // first-of-month Date the calendar view is showing; set lazily to the current month
 
@@ -386,10 +397,12 @@ function renderCards(now) {
     heading.append(el('span', 'gcount', String(list.length)));
     els.events.append(heading);
 
-    const grid = el('div', 'grid');
+    const grid = el('div', `grid${entering ? ' enter' : ''}`);
 
-    for (const ev of list) {
-      grid.append(card(ev, now));
+    for (const [i, ev] of list.entries()) {
+      const node = card(ev, now);
+      node.style.setProperty('--i', String(Math.min(i, STAGGER_MAX)));
+      grid.append(node);
     }
 
     els.events.append(grid);
@@ -696,6 +709,9 @@ function render() {
   } else {
     renderCards(now);
   }
+
+  // Spent by whichever view just drew, so the animation plays once per fetch rather than on every minute's re-render.
+  entering = false;
 }
 
 function setView(next) {
@@ -824,6 +840,7 @@ async function load() {
   events = normalise([...byId.values()]).sort(
     (a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity),
   );
+  entering = true;
   fillTypes();
   render();
 }

@@ -205,6 +205,23 @@ h2.group .gcount {
   gap: 12px;
 }
 
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Cards fade up in sequence as a grid arrives, which gives the list a direction to be read in. Only on the render that
+   follows a fetch — the renderer adds `enter` just then, because render() also runs every minute to keep the relative
+   labels honest and replaying this on every tick would be a twitch, not a flourish. `--i` is the card's position in its
+   grid, capped by the renderer so a long bucket's last card is not left waiting. `backwards` holds the card invisible
+   through its delay rather than letting it show, vanish and fade in again. */
+.grid.enter .card {
+  animation: card-in 0.32s ease-out backwards;
+  animation-delay: calc(var(--i, 0) * 25ms);
+}
+
 .card {
   position: relative;
   display: flex;
@@ -430,6 +447,13 @@ h2.group .gcount {
   height: 120px;
   object-fit: cover;
   background: var(--bg);
+  transition: transform 0.3s ease-out;
+}
+
+/* A slow push in on the artwork answers the hover without moving any text. The card already clips its overflow, so the
+   image grows into the frame rather than past it. */
+.card:hover .thumb {
+  transform: scale(1.04);
 }
 
 .card .body {
@@ -773,4 +797,23 @@ footer a {
   width: 2px;
   background: var(--accent);
   pointer-events: none;
+}
+
+/* Everything decorative above is movement, and a reader who has asked the operating system for less of it wants the
+   layout, colour and elevation without any of it. The colour-coding and the urgency accent stay: neither moves. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card .thumb,
+  .dismiss {
+    transition: none;
+  }
+
+  .card:hover,
+  .card:hover .thumb {
+    transform: none;
+  }
+
+  .grid.enter .card {
+    animation: none;
+  }
 }
