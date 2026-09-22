@@ -1,0 +1,51 @@
+---
+name: 'Calendar'
+
+on:
+  # Roughly the refresh interval the feeds themselves advertise. A calendar app polls on its own schedule — Google's is
+  # usually slower than this — so there is nothing to gain from rebuilding more often.
+  schedule:
+    - cron: '20 */6 * * *'
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/calendar.yml'
+      - 'data/events.json'
+      - 'gpx-events.json'
+      - 'scripts/build-ics.mjs'
+      - 'src/recurring-types.js'
+  workflow_dispatch: {}
+
+permissions:
+  contents: 'write'
+
+# Never two at once, and never cancelled part-way: a cancelled run is one that may have written the files and not
+# pushed them.
+concurrency:
+  group: 'calendar'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 'Rebuild the feeds'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: 'actions/checkout@v7'
+      - uses: 'pnpm/setup@v2'
+        with:
+          cache: true
+      - run: 'node scripts/build-ics.mjs'
+      - name: 'Commit'
+        # The generator reads no clock, so an unchanged working tree means the event data has not moved and there is
+        # nothing to say. Only then is this a no-op rather than a commit every six hours.
+        run: |
+          if git diff --quiet -- events.ics events-all.ics; then
+            echo 'The feeds already match the event data.'
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add events.ics events-all.ics
+          git commit --message 'Rebuild the calendar feeds'
+          git push

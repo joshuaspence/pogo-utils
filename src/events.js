@@ -13,6 +13,8 @@
  * toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
+import RECURRING_TYPES from './recurring-types.js';
+
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_URL = 'data/events.json';
 
@@ -65,11 +67,11 @@ const STORE_KEY = 'pgo-events:prefs';
 
 /**
  * Recurring hourly-cadence types hidden on a first visit — they fire every week and crowd the feed, so the default view
- * leads with the events a reader is more likely to plan around. Keyed by `heading`, the currency of `hiddenTypes`, so
+ * leads with the events a reader is more likely to plan around. They are `heading`s, the currency of `hiddenTypes`, so
  * the type checkboxes read them as off. Once any preference is saved the stored hidden set is authoritative, so
  * unticking one of these sticks; Reset returns to this default rather than to an empty set.
  */
-const DEFAULT_HIDDEN = ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays', 'Season'];
+const DEFAULT_HIDDEN = RECURRING_TYPES;
 
 function loadPrefs() {
   try {
