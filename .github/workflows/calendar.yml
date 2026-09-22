@@ -1,0 +1,49 @@
+---
+name: 'Calendar'
+
+on:
+  # Roughly the refresh interval the feeds themselves advertise. A calendar app polls on its own schedule — Google's is
+  # usually slower than this — so there is nothing to gain from rebuilding more often.
+  schedule:
+    - cron: '20 */6 * * *'
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/calendar.yml'
+      - 'data/events.json'
+      - 'gpx-events.json'
+      - 'scripts/build-ics.mjs'
+      - 'src/recurring-types.js'
+  workflow_dispatch: {}
+
+permissions:
+  contents: 'write'
+
+# Never two at once, and never cancelled part-way: a cancelled run is one that may have written the files and not
+# pushed them.
+concurrency:
+  group: 'calendar'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 'Rebuild the feeds'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: 'actions/checkout@v7'
+      - uses: 'pnpm/setup@v2'
+        with:
+          cache: true
+      - run: 'node scripts/build-ics.mjs'
+
+      # Commits and pushes only when the two feeds actually differ, which is the whole point of the generator reading
+      # no clock: an unchanged pair means the event data has not moved, and the run passes without a commit rather
+      # than landing fresh timestamps every six hours. `file_pattern` is both what gets added and what that check
+      # looks at, so nothing else in the tree can ride along. Authored as the bot as well as committed by it, because
+      # on a scheduled run the actor the action would otherwise credit is whoever last touched the repository.
+      - name: 'Commit'
+        uses: 'stefanzweifel/git-auto-commit-action@v7'
+        with:
+          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
+          commit_message: 'Rebuild the calendar feeds'
+          file_pattern: '*.ics'

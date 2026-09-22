@@ -1,4 +1,6 @@
 /entries-by-event.json linguist-generated
+/events-all.ics -text linguist-generated
+/events.ics -text linguist-generated
 /gpx-paths.json linguist-generated
 /pnpm-lock.yaml linguist-generated
 /resources/gpx.xsd linguist-vendored

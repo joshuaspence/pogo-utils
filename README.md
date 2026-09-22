@@ -3,7 +3,7 @@
 A collection of small, self-contained browser tools for Pokémon GO, served as static files on GitHub Pages and reached
 from a shared top tab bar:
 
-- **Events** — a calendar of current and upcoming in-game events.
+- **Events** — a calendar of current and upcoming in-game events, also published as a calendar subscription.
 - **Routes** — an interactive map of GPX walking tracks and teleport waypoints.
 - **PGSharp** — a backup builder that loads those routes into PGSharp as favourites.
 
@@ -80,6 +80,39 @@ reported as the typo it is.
 One caveat: an editor that does not model foreign extensions drops the whole `<extensions>` block when it exports.
 gpx.studio is one, so a route re-exported from there comes back without its city, country and variant, and needs them
 added again.
+
+## Calendar subscription
+
+The same events are published as two iCalendar feeds, so they can be subscribed to rather than read here:
+
+| Feed                                                                         | Holds                                                                             |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| [`events.ics`](https://joshuaspence.github.io/pogo-utils/events.ics)         | What the Events page shows by default.                                            |
+| [`events-all.ics`](https://joshuaspence.github.io/pogo-utils/events-all.ics) | Every dated event, Spotlight Hours, Raid Hours, Max Mondays and Seasons included. |
+
+In Google Calendar, that is **Other calendars → + → From URL**; iOS and Outlook take the same URL. Google re-fetches a
+subscribed URL on its own schedule, typically somewhere between a few hours and a day, so a newly announced event does
+not appear there as promptly as it does on the page.
+
+A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does live has to happen
+ahead of time. [`scripts/build-ics.mjs`](scripts/build-ics.mjs) does it and writes both files, and the
+[Calendar workflow](.github/workflows/calendar.yml) runs it every six hours and commits the result:
+
+```sh
+node scripts/build-ics.mjs
+```
+
+The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
+[`gpx-events.json`](gpx-events.json) — so an unchanged pair of files after a run means the event data has not moved.
+That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
+[`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the two feeds
+only when they differ, and passes without a commit when they do not. Note that GitHub disables a scheduled workflow
+after 60 days without a commit to the repository; re-enable it from the Actions tab if the feeds ever go stale.
+
+An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
+exactly an iCalendar floating time, so they land at the same wall-clock hour in whatever timezone your calendar is set
+to. The ones that are a single worldwide instant (GO Battle League rotations, most regional events) are written as UTC
+and convert to your zone as you would expect.
 
 ## Import into PGSharp
 
