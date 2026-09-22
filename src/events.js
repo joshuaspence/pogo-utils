@@ -221,11 +221,12 @@ const TRACKS = [
 
 /**
  * The class marking an event's type, so CSS can give each type its own colour (see the `.type-*` rules in events.css).
- * Keyed off the stable `eventType` slug like the Tracks rows, not the human `heading`. Empty for a feed entry missing
- * the field, in which case the colour consumers fall back to their default.
+ * Takes the stable `eventType` slug like the Tracks rows, not the human `heading`. Empty for a feed entry missing the
+ * field, in which case the colour consumers fall back to their default. Worn by the card, the calendar pill, the
+ * timeline bar and the filter chip alike, which is what keeps one type reading the same colour in all four.
  */
-function typeClass(ev) {
-  return ev.eventType ? ` type-${ev.eventType}` : '';
+function typeClass(eventType) {
+  return eventType ? ` type-${eventType}` : '';
 }
 
 function el(tag, className, text) {
@@ -281,7 +282,7 @@ function isVisible(ev) {
 function card(ev, now) {
   const status = statusOf(ev, now);
   const dismissed = prefs.dismissed.has(ev.eventID);
-  const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}${typeClass(ev)}`);
+  const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}${typeClass(ev.eventType)}`);
 
   // A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button a
   // sibling rather than a child: an anchor may not contain interactive content.
@@ -383,7 +384,7 @@ function renderCards(now) {
 }
 
 function pill(ev, now) {
-  const node = el('a', `pill ${statusOf(ev, now).kind}${typeClass(ev)}`, ev.name);
+  const node = el('a', `pill ${statusOf(ev, now).kind}${typeClass(ev.eventType)}`, ev.name);
   node.href = ev.link;
   node.target = '_blank';
   node.rel = 'noopener';
@@ -629,7 +630,7 @@ function renderTracks(now) {
       const left = Math.max(it.startMs, rangeStartMs);
       const right = Math.min(it.endMs, rangeEndMs);
 
-      const bar = el('a', `bar ${statusOf(it.ev, now).kind}${typeClass(it.ev)}`, it.ev.name);
+      const bar = el('a', `bar ${statusOf(it.ev, now).kind}${typeClass(it.ev.eventType)}`, it.ev.name);
       bar.href = it.ev.link;
       bar.target = '_blank';
       bar.rel = 'noopener';
@@ -708,17 +709,29 @@ function normalise(raw) {
 /**
  * Rebuild the per-type visibility checkboxes from the categories the feed currently carries. A box is checked when its
  * type is not in the hidden set; toggling one updates that set, persists it and re-renders.
+ *
+ * Each chip also wears its type's colour class, which turns the row into the legend for the colour-coded cards, pills
+ * and bars. That needs the `eventType` slug the colours are keyed by, while the filters themselves are keyed by the
+ * human `heading` — so the pairing is read off the events rather than kept as a second list that could drift out of step
+ * with the feed.
  */
 function fillTypes() {
-  const headings = [...new Set(events.map((e) => e.heading).filter(Boolean))].sort();
+  const slugs = new Map();
+
+  for (const e of events) {
+    if (e.heading && !slugs.has(e.heading)) {
+      slugs.set(e.heading, e.eventType);
+    }
+  }
+
   els.typeFilters.replaceChildren();
 
-  for (const heading of headings) {
+  for (const heading of [...slugs.keys()].sort()) {
     const box = document.createElement('input');
     box.type = 'checkbox';
     box.checked = !prefs.hiddenTypes.has(heading);
 
-    const chip = el('label', 'type-chip');
+    const chip = el('label', `type-chip${typeClass(slugs.get(heading))}`);
 
     if (!box.checked) {
       chip.classList.add('off');

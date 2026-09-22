@@ -121,14 +121,21 @@ header.page .sub {
   display: none;
 }
 
+/* Each chip wears its own type's colour — a tinted fill, a matching border and a tick in the same hue — which makes this
+   row the legend for the three colour-coded views below it. The chip carries the same `.type-*` class the cards, pills
+   and bars do, so --type-color inherits here and one palette serves all four; a type with no colour falls back to the
+   muted grey, which is what the row looked like throughout. */
 .type-chip {
+  --chip-color: var(--type-color, var(--muted));
+
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 11px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--chip-color) 40%, var(--border));
   border-radius: 999px;
-  background: var(--panel);
+  background: color-mix(in srgb, var(--chip-color) 10%, var(--panel));
+  accent-color: var(--chip-color);
   color: var(--text);
   font-size: 12px;
   cursor: pointer;
@@ -136,7 +143,8 @@ header.page .sub {
 }
 
 .type-chip:hover {
-  border-color: var(--accent);
+  border-color: var(--chip-color);
+  background: color-mix(in srgb, var(--chip-color) 20%, var(--panel));
 }
 
 /* An unchecked type is dimmed rather than removed, so the reader can see what they have hidden and switch it back. */
