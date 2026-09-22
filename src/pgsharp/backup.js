@@ -7,6 +7,7 @@
  */
 
 import COUNTRIES from '../countries.js';
+import { GPX_PATHS } from '../generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from '../gpx.js';
 import { JavaSer } from '../java-serialization.js';
 import { CONTROL_RESETS } from './controls.js';
@@ -170,7 +171,7 @@ async function buildRepoFavourites() {
   try {
     files = await loadManifest();
   } catch (e) {
-    throw new Error(`gpx-paths.json: ${e.message}`, { cause: e });
+    throw new Error(`${GPX_PATHS}: ${e.message}`, { cause: e });
   }
 
   const texts = await Promise.all(

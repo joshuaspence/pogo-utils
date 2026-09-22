@@ -1,4 +1,5 @@
 import COUNTRIES from './countries.js';
+import { GPX_PATHS } from './generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
 
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -659,7 +660,7 @@ async function init() {
     files = await loadManifest();
   } catch (e) {
     showBanner(
-      `<b>Could not read <code>gpx-paths.json</code> — ${e.message}.</b><br>` +
+      `<b>Could not read <code>${GPX_PATHS}</code> — ${e.message}.</b><br>` +
         'This page reads the route list and the <code>.gpx</code> files over HTTP, ' +
         'so it needs to be served rather than opened directly from disk. Try:<br>' +
         '<code>python3 -m http.server</code> then open ' +

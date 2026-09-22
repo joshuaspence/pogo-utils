@@ -10,6 +10,7 @@
  */
 
 import COUNTRIES from '../src/countries.js';
+import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.js';
 import { DOMParser } from '@xmldom/xmldom';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -184,54 +185,51 @@ if (problems.length === beforePgr) {
 }
 
 /**
- * Static hosting cannot list a directory, so the viewer is handed its paths in `gpx-paths.json`. Nothing else notices
- * when that file falls out of step with the repository, and the failure is silent in the worst way: a route that
- * is perfectly good GPX, and that this script has just validated, simply never appears on the map.
- *
- * Named once here because the name reaches four messages below, and a rename that updates three of them would leave the
- * script blaming a file that no longer exists.
+ * Static hosting cannot list a directory, so the viewer is handed its paths in GPX_PATHS. Nothing else notices when
+ * that file falls out of step with the repository, and the failure is silent in the worst way: a route that is
+ * perfectly good GPX, and that this script has just validated, simply never appears on the map.
  */
-const PATHS_FILE = 'gpx-paths.json';
-const listed = JSON.parse(readFileSync(PATHS_FILE, 'utf8'));
+const listed = JSON.parse(readFileSync(GPX_PATHS, 'utf8'));
 const unlisted = files.filter((file) => !listed.includes(file));
 const phantom = listed.filter((file) => !files.includes(file));
 
 for (const file of unlisted) {
-  problems.push(`${file}: tracked but missing from ${PATHS_FILE} — the map will not show it`);
+  problems.push(`${file}: tracked but missing from ${GPX_PATHS} — the map will not show it`);
 }
 
 for (const file of phantom) {
-  problems.push(`${file}: listed in ${PATHS_FILE} but not tracked — the map will fail to fetch it`);
+  problems.push(`${file}: listed in ${GPX_PATHS} but not tracked — the map will fail to fetch it`);
 }
 
 if (unlisted.length || phantom.length) {
   problems.push('Regenerate it with the command in the README.');
 } else {
-  console.log(`${PATHS_FILE} lists all ${listed.length} files.`);
+  console.log(`${GPX_PATHS} lists all ${listed.length} files.`);
 }
 
 /**
  * The events page links through to an event's routes, and the only record of which event an entry belongs to is a
  * `<pgr:event>` inside a GPX file. Finding that would cost the page a fetch of every one of them to learn that a
- * handful carry an event at all, so the association is precomputed here into entries-by-event.json — the same bargain
- * gpx-paths.json strikes, and it falls out of step the same silent way, hence the same check.
+ * handful carry an event at all, so the association is precomputed here into ENTRIES_BY_EVENT — the same bargain
+ * GPX_PATHS strikes, and it falls out of step the same silent way, hence the same check.
  *
  * Keys are sorted so that two runs over the same repository produce the same bytes, and the file is only written once
  * everything above has passed: an index naming an event that does not exist would be worse than a stale one.
  */
-const EVENTS_FILE = 'entries-by-event.json';
 const sorted = [...eventIndex].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 const expected = `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`;
 
 if (writeIndex && problems.length) {
-  problems.push(`Refusing to write ${EVENTS_FILE} from files that do not validate.`);
+  problems.push(`Refusing to write ${ENTRIES_BY_EVENT} from files that do not validate.`);
 } else if (writeIndex) {
-  writeFileSync(EVENTS_FILE, expected);
-  console.log(`Wrote ${EVENTS_FILE} — ${eventIndex.size} event(s) with entries.`);
-} else if (readFileSync(EVENTS_FILE, 'utf8') !== expected) {
-  problems.push(`${EVENTS_FILE}: out of step with the <pgr:event> fields — regenerate it with \`pnpm lint:xml:fix\`.`);
+  writeFileSync(ENTRIES_BY_EVENT, expected);
+  console.log(`Wrote ${ENTRIES_BY_EVENT} — ${eventIndex.size} event(s) with entries.`);
+} else if (readFileSync(ENTRIES_BY_EVENT, 'utf8') !== expected) {
+  problems.push(
+    `${ENTRIES_BY_EVENT}: out of step with the <pgr:event> fields — regenerate it with \`pnpm lint:xml:fix\`.`,
+  );
 } else {
-  console.log(`${EVENTS_FILE} lists ${eventIndex.size} event(s) with entries.`);
+  console.log(`${ENTRIES_BY_EVENT} lists ${eventIndex.size} event(s) with entries.`);
 }
 
 if (problems.length === 0) {

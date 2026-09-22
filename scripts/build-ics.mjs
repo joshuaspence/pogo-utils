@@ -17,12 +17,12 @@
  * files are committed, and a run that cannot see the feed has nothing better to say than what is already there.
  */
 
+import { ENTRIES_BY_EVENT } from '../src/generated.js';
 import RECURRING_TYPES from '../src/recurring-types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_PATH = 'data/events.json';
-const INDEX_PATH = 'entries-by-event.json';
 
 /**
  * Where the pages are served from. A calendar app shows an event's description far away from this site, so the links
@@ -231,7 +231,7 @@ async function fetchFeed(url) {
 
 const feed = await fetchFeed(FEED_URL);
 const local = JSON.parse(readFileSync(LOCAL_PATH, 'utf8'));
-const index = JSON.parse(readFileSync(INDEX_PATH, 'utf8'));
+const index = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
 
 // Keyed by eventID with the local pass last, so a repo entry overrides a feed event of the same ID rather than
 // duplicating it — the merge src/events.js does, in the same order.

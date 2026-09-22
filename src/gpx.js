@@ -5,8 +5,10 @@
  * rather than each parsing it their own way.
  */
 
+import { GPX_PATHS } from './generated.js';
+
 export async function loadManifest() {
-  const res = await fetch('gpx-paths.json');
+  const res = await fetch(GPX_PATHS);
 
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);

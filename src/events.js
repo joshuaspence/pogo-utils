@@ -13,17 +13,14 @@
  * toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
+import { ENTRIES_BY_EVENT } from './generated.js';
 import RECURRING_TYPES from './recurring-types.js';
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_URL = 'data/events.json';
 
-/**
- * How many routes and waypoints each event has here, by `eventID` — the index scripts/validate-gpx.mjs derives from the
- * `<pgr:event>` fields, which is the only record of that association. Reading it from the GPX files instead would mean
- * fetching all 59 of them to find that one carries an event.
- */
-const INDEX_URL = 'entries-by-event.json';
+// How many routes and waypoints each event has here, by `eventID`, once the index has loaded. Empty until then, and it
+// stays empty if that fetch fails — see load(), which tolerates any one of the three sources going missing.
 let routeIndex = {};
 
 /**
@@ -858,7 +855,7 @@ async function fetchEvents(url) {
 }
 
 async function fetchRouteIndex() {
-  const res = await fetch(INDEX_URL);
+  const res = await fetch(ENTRIES_BY_EVENT);
 
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
