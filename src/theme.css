@@ -2,6 +2,10 @@
    place so the light and dark palettes cannot drift between them. */
 
 :root {
+  /* The palette below follows prefers-color-scheme, so tell the browser to switch the parts of the page it paints
+     itself on the same preference: an unticked checkbox and a scrollbar would otherwise stay light on the dark page. */
+  color-scheme: light dark;
+
   --bg: #f7f8fa;
   --panel: #fff;
   --border: #e2e5ea;
