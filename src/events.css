@@ -13,18 +13,27 @@ body {
   line-height: 1.4;
 }
 
+/* The header, controls, filters, cards and footer all share one content column, so the page reads with a single left
+   edge rather than a title hanging further out than the cards it heads. `--content-w` holds that width in one place
+   because the sticky controls bar has to reproduce it as padding rather than as a max-width. */
+:root {
+  --content-w: 1100px;
+}
+
 header.page {
-  padding: 18px 22px 4px;
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 20px 22px 6px;
 }
 
 header.page h1 {
   margin: 0;
-  font-size: 20px;
-  letter-spacing: -0.01em;
+  font-size: 26px;
+  letter-spacing: -0.02em;
 }
 
 header.page .sub {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   font-size: 12px;
   color: var(--muted);
 }
@@ -37,7 +46,10 @@ header.page .sub {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 12px 22px;
+
+  /* Full-bleed, because it carries the sticky background and bottom rule across the whole viewport — so it lines its
+     contents up with the content column through padding instead of a max-width. */
+  padding: 12px max(22px, calc((100% - var(--content-w)) / 2));
   border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
@@ -100,7 +112,7 @@ header.page .sub {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-width: 1100px;
+  max-width: var(--content-w);
   margin: 0 auto;
   padding: 12px 22px 0;
 }
@@ -133,7 +145,7 @@ header.page .sub {
 }
 
 main {
-  max-width: 1100px;
+  max-width: var(--content-w);
   margin: 0 auto;
   padding: 8px 22px 40px;
 }
@@ -418,7 +430,7 @@ h2.group {
 }
 
 footer {
-  max-width: 1100px;
+  max-width: var(--content-w);
   margin: 0 auto;
   padding: 16px 22px 32px;
   border-top: 1px solid var(--border);
