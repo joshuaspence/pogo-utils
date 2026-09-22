@@ -110,9 +110,16 @@ only when they differ, and passes without a commit when they do not. Note that G
 after 60 days without a commit to the repository; re-enable it from the Actions tab if the feeds ever go stale.
 
 An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
-exactly an iCalendar floating time, so they land at the same wall-clock hour in whatever timezone your calendar is set
-to. The ones that are a single worldwide instant (GO Battle League rotations, most regional events) are written as UTC
-and convert to your zone as you would expect.
+exactly an iCalendar floating time: a `DTSTART` carrying neither a `TZID` nor a trailing `Z`. The ones that are a single
+worldwide instant (GO Battle League rotations, most regional events) are written as UTC and convert to your zone as you
+would expect.
+
+Floating time is where calendar apps differ, and it is worth knowing which one you are using. Apple Calendar and
+Thunderbird implement it, and show a local event at the hour it says. Google Calendar does not: with no calendar-level
+timezone in the file to anchor them to, it reads those times as UTC, so a 2pm Community Day arrives at 2pm UTC rather
+than 2pm where you are. Pinning them with `X-WR-TIMEZONE` would fix that for one timezone and break it for every
+subscriber outside that zone, so the feeds leave them floating — correct by the spec, and correct in a reader that
+follows it.
 
 ## Import into PGSharp
 
