@@ -5,7 +5,8 @@
  *
  * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
  * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
- * event Leek Duck has not listed yet, say). Either source failing still renders the other.
+ * event Leek Duck has not listed yet, say). Either source failing still renders the other. A third, `gpx-events.json`,
+ * says which events have routes here, so a card can link through to them on the map.
  *
  * Three views over the same data: a card list grouped by status, a month grid where each event shows on every day it
  * covers, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a Gantt chart). The view
@@ -14,6 +15,14 @@
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_URL = 'data/events.json';
+
+/**
+ * How many routes and waypoints each event has here, by `eventID` — the index scripts/validate-gpx.mjs derives from the
+ * `<pgr:event>` fields, which is the only record of that association. Reading it from the GPX files instead would mean
+ * fetching all 59 of them to find that one carries an event.
+ */
+const INDEX_URL = 'gpx-events.json';
+let routeIndex = {};
 
 /**
  * How often to recompute the "starts in…/ends in…" labels against the wall clock, and — every REFETCH_EVERY ticks —
@@ -297,6 +306,24 @@ function isVisible(ev) {
   return !term || ev.name.toLowerCase().includes(term);
 }
 
+/**
+ * "2 routes · 1 waypoint" — each kind the event has, pluralised. A kind it has none of is left out rather than written
+ * as a zero, so an event with only a waypoint does not advertise the routes it lacks.
+ */
+function routeSummary({ routes, waypoints }) {
+  const parts = [];
+
+  if (routes) {
+    parts.push(`${routes} route${routes === 1 ? '' : 's'}`);
+  }
+
+  if (waypoints) {
+    parts.push(`${waypoints} waypoint${waypoints === 1 ? '' : 's'}`);
+  }
+
+  return parts.join(' · ');
+}
+
 function card(ev, now) {
   const status = statusOf(ev, now);
   const dismissed = prefs.dismissed.has(ev.eventID);
@@ -352,6 +379,23 @@ function card(ev, now) {
     const soon = status.kind !== 'ended' && status.at - now < SOON_MS;
 
     body.append(el('p', `rel${soon ? ' soon' : ''}`, `${verb} ${relative(status.at, now)}`));
+  }
+
+  /**
+   * What this repository added for the event, linking through to it on the map. Last, so that the absolute dates and the
+   * relative ones stay together above it. The fragment is what lands the link on the entry rather than on a page of 81
+   * rows. The stylesheet puts the Routes tab's own glyph in front, so the destination is named the same way twice; the
+   * accessible name says it in words instead.
+   */
+  const here = routeIndex[ev.eventID];
+
+  if (here) {
+    const summary = routeSummary(here);
+    const mapLink = el('a', 'routes', summary);
+    mapLink.href = `routes.html#event=${encodeURIComponent(ev.eventID)}`;
+    mapLink.title = 'Show on the Routes map';
+    mapLink.setAttribute('aria-label', `Show ${summary} for “${ev.name}” on the Routes map`);
+    body.append(mapLink);
   }
 
   cardEl.append(body);
@@ -811,12 +855,29 @@ async function fetchEvents(url) {
   return raw;
 }
 
+async function fetchRouteIndex() {
+  const res = await fetch(INDEX_URL);
+
+  if (!res.ok) {
+    throw new Error(`${res.status} ${res.statusText}`);
+  }
+
+  return res.json();
+}
+
 async function load() {
   els.count.textContent = 'Loading events…';
 
-  // Fetch both sources concurrently and tolerate either failing: a dead feed still shows the repo events, and a
-  // missing local file still shows the feed.
-  const [feed, local] = await Promise.allSettled([fetchEvents(FEED_URL), fetchEvents(LOCAL_URL)]);
+  /**
+   * Fetch all three sources concurrently and tolerate any failing: a dead feed still shows the repo events, a missing
+   * local file still shows the feed, and a missing index costs the cards their link through to the map and nothing else.
+   */
+  const [feed, local, index] = await Promise.allSettled([
+    fetchEvents(FEED_URL),
+    fetchEvents(LOCAL_URL),
+    fetchRouteIndex(),
+  ]);
+  routeIndex = index.status === 'fulfilled' ? index.value : {};
 
   if (feed.status === 'rejected' && local.status === 'rejected') {
     events = [];

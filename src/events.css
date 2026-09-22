@@ -507,6 +507,32 @@ h2.group .gcount {
   content: '⏳ ';
 }
 
+/* Lifted above the overlay link that makes the whole card open the event's source page (`.card-link`, z-index 1), the
+   same way the dismiss button is — without it the overlay swallows the click and this link can never be followed. It is
+   sized to its own text so the rest of the line still opens the source page, and wears the chip the Routes sidebar gives
+   the other end of this pair, so the two directions of the same link look alike. */
+.card .routes {
+  position: relative;
+  z-index: 2;
+  align-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.card .routes::before {
+  content: '🗺️ ';
+}
+
+.card .routes:hover,
+.card .routes:focus-visible {
+  background: var(--accent);
+  color: var(--panel);
+}
+
 footer {
   max-width: var(--content-w);
   margin: 0 auto;
