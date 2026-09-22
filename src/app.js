@@ -582,6 +582,48 @@ function appendFailures(heading, failures) {
   bannerEl.style.display = 'block';
 }
 
+/**
+ * A link from the Events page arrives as `routes.html#event=<eventID>`, and this is what lands it on the right entry:
+ * the first of that event's entries is selected exactly as clicking its row would — expanding the groups above it,
+ * scrolling it into view and fitting the map — and the view is then widened to the rest of them.
+ *
+ * Nothing is hidden. Filtering the sidebar down to the event would read as the search box having been used, leaving the
+ * reader to work out how to get the other 79 rows back; selecting is enough to answer "which one is it" and leaves the
+ * page in a state they already know how to leave.
+ */
+function focusHashEvent() {
+  const id = new URLSearchParams(location.hash.slice(1)).get('event');
+
+  if (!id) {
+    return;
+  }
+
+  const routes = store.filter((s) => s.event === id);
+  const places = cityStore.filter((c) => c.event === id);
+
+  // Said out loud rather than silently ignored: the link came from somewhere, so landing nowhere needs explaining.
+  if (routes.length === 0 && places.length === 0) {
+    toast(`Nothing here was added for “${eventNames.get(id) || id}”`);
+    return;
+  }
+
+  if (routes.length) {
+    selectRoute(routes[0]);
+  } else {
+    selectCity(places[0]);
+  }
+
+  const layers = [...routes.map((s) => s.line), ...places.map((c) => c.marker)];
+
+  // An event with more than one entry: widen from the one just selected to the whole set, so none of it is off screen.
+  if (layers.length > 1) {
+    map.fitBounds(L.featureGroup(layers).getBounds(), { padding: [24, 24], maxZoom: 16 });
+  }
+}
+
+// Also on hashchange, so a link followed from this page — or the back button — lands the same way as a fresh load.
+window.addEventListener('hashchange', focusHashEvent);
+
 async function init() {
   const unreachable = [];
   const rejected = [];
@@ -673,6 +715,9 @@ async function init() {
 
   const all = L.featureGroup([...store.map((s) => s.line), ...cityStore.map((c) => c.marker)]);
   map.fitBounds(all.getBounds(), { padding: [16, 16] });
+
+  // Last, so that the fit to everything above does not immediately undo the fit to one event.
+  focusHashEvent();
 }
 
 init();
