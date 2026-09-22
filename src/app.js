@@ -19,8 +19,8 @@ const filterEl = document.getElementById('filter');
 const bannerEl = document.getElementById('banner');
 const toastEl = document.getElementById('toast');
 
-const store = []; // { name, country, variant, file, gpx, latlngs, line, el, markers, distance }
-const cityStore = []; // { name, country, coords:[lat,lon], coordStr, marker, el }
+const store = []; // { name, country, variant, event, file, gpx, latlngs, line, el, markers, distance }
+const cityStore = []; // { name, country, event, coords:[lat,lon], coordStr, marker, el }
 let active = null;
 let activeCity = null;
 let toastTimer = null;
@@ -122,10 +122,10 @@ class FetchError extends Error {}
  * read these files (see parseGpxFavourites), so the two now agree about what a file contains instead of the viewer
  * being told separately.
  *
- * Name, locality, country and variant all come from the file's own metadata; an entry missing what it needs is rejected
- * rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. The variant stays
- * optional — it is empty for a route with no short/long counterpart. The whole file text is returned once,
- * for the copy button to hand over.
+ * Name, locality, country, variant and event all come from the file's own metadata; an entry missing what it needs is
+ * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant
+ * and event stay optional — empty for a route with no short/long counterpart and for a place that stands on its own. The
+ * whole file text is returned once, for the copy button to hand over.
  */
 async function loadGpxFile(file) {
   let res;
@@ -172,6 +172,7 @@ async function loadGpxFile(file) {
       name: placeName(trk),
       country: entryCountry(trk),
       variant: extText(trk, 'variant') || '',
+      event: extText(trk, 'event') || '',
     });
   }
 
@@ -193,6 +194,7 @@ async function loadGpxFile(file) {
       name: placeName(w),
       coords: [lat, lon],
       coordStr: `${latStr},${lonStr}`,
+      event: extText(w, 'event') || '',
     });
   }
 
@@ -319,12 +321,59 @@ async function copyCoords(c, btn) {
   toast(ok ? `Copied ${c.name} coordinates to clipboard` : 'Copy failed');
 }
 
+/**
+ * The name to show for a `<pgr:event>`, which the files record only by `eventID`. data/events.json is where that name
+ * lives — the same file validate-gpx.mjs checks those IDs against — and it is read once into here.
+ */
+const eventNames = new Map();
+
+/**
+ * A fetch that fails leaves the map empty and every entry naming its event by ID. That reads well enough
+ * (`pokemon-fossil-museum-chicago-2026`) and the link still goes to the right place, so a missing calendar is not worth
+ * withholding a page of routes over.
+ */
+async function loadEventNames() {
+  try {
+    const res = await fetch('data/events.json');
+
+    if (!res.ok) {
+      throw new Error(`${res.status} ${res.statusText}`.trim());
+    }
+
+    for (const event of await res.json()) {
+      eventNames.set(event.eventID, event.name);
+    }
+  } catch (e) {
+    console.error(`data/events.json: ${e.message} — entries will name their event by ID`);
+  }
+}
+
+/**
+ * The event an entry was added for, as a link through to it on the Events page. It takes a line of its own rather than
+ * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for a
+ * name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
+ * its text; the click is stopped short of the row, which would otherwise select the entry as the page unloads.
+ */
+function buildEventLine(event) {
+  const line = document.createElement('span');
+  line.className = 'eventline';
+  const link = document.createElement('a');
+  link.className = 'event';
+  link.href = `events.html#event=${encodeURIComponent(event)}`;
+  link.textContent = eventNames.get(event) || event;
+  link.title = 'Show this event on the Events page';
+  link.addEventListener('click', (e) => e.stopPropagation());
+  line.appendChild(link);
+  return line;
+}
+
 function buildRouteRow(entry) {
   const el = document.createElement('div');
   el.className = 'route';
   el.dataset.country = entry.country;
   el.dataset.name = entry.name.toLowerCase();
   const label = document.createElement('span');
+  label.className = 'name';
   label.textContent = entry.name;
   const end = document.createElement('span');
   end.className = 'end';
@@ -342,6 +391,11 @@ function buildRouteRow(entry) {
   });
   end.append(meta, copyBtn);
   el.append(label, end);
+
+  if (entry.event) {
+    el.append(buildEventLine(entry.event));
+  }
+
   el.addEventListener('click', () => selectRoute(entry));
   entry.el = el;
   return el;
@@ -360,6 +414,7 @@ function buildCityRow(c, country) {
   el.dataset.country = country;
   el.dataset.name = c.name.toLowerCase();
   const label = document.createElement('span');
+  label.className = 'name';
   label.textContent = c.name;
   const end = document.createElement('span');
   end.className = 'end';
@@ -374,6 +429,11 @@ function buildCityRow(c, country) {
   });
   end.append(copyBtn);
   el.append(label, end);
+
+  if (c.event) {
+    el.append(buildEventLine(c.event));
+  }
+
   el.addEventListener('click', () => selectCity(c));
   c.el = el;
   return el;
@@ -546,6 +606,10 @@ async function init() {
     return;
   }
 
+  // Started alongside the GPX files rather than ahead of them: the names are labels, and 59 fetches need not queue
+  // behind one.
+  const names = loadEventNames();
+
   // One bad file does not hide the others, but it is still reported.
   const results = await Promise.allSettled(files.map((file) => loadGpxFile(file)));
   results.forEach((res, i) => {
@@ -591,6 +655,7 @@ async function init() {
     }
   });
 
+  await names;
   buildSidebar();
 
   if (unreachable.length) {

@@ -261,6 +261,43 @@ header .sub {
   opacity: 1;
 }
 
+/* Only a row carrying an event wraps, and the name is given a basis of zero within it so that it cannot push the
+   distance and the Copy button down as well — the second line is for the event alone. Asking for the wrap on every row
+   moved that pair onto its own line on 29 of the 80 rows here, none of which have an event. */
+.route:has(.eventline) {
+  flex-wrap: wrap;
+}
+
+.route:has(.eventline) .name {
+  flex: 1 1 0;
+}
+
+/* Takes a line of its own — `flex-basis` on the span is what wraps it there — and indents by the marker plus its gap so
+   it starts under the name rather than under the marker. The span carries the width so the link inside stays as wide as
+   its text: were the link itself the full-width item, clicking the empty space beside it would leave the page instead of
+   selecting the entry, which is what clicking anywhere else on the row does. */
+.route .eventline {
+  flex-basis: 100%;
+  margin-left: 16px;
+  line-height: 1;
+}
+
+.route .event {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.route .event:hover,
+.route .event:focus-visible {
+  background: var(--accent);
+  color: var(--panel);
+}
+
 .route.hidden {
   display: none;
 }
