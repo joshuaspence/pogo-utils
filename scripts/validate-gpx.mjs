@@ -1,9 +1,9 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
- * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is
- * one the viewer knows (src/countries.js); and that gpx-paths.json and entries-by-event.json, the two files that tell
- * the pages what the repository holds, still agree with it. `--write` regenerates the latter, which is derived from the
- * same pass.
+ * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is one
+ * the viewer knows, with nothing in that table the files never name (src/countries.js); and that gpx-paths.json and
+ * entries-by-event.json, the two files that tell the pages what the repository holds, still agree with it. `--write`
+ * regenerates the latter, which is derived from the same pass.
  *
  * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
@@ -84,6 +84,9 @@ let entryCount = 0;
  */
 const eventIndex = new Map();
 
+// Which countries the files actually name, for the reverse check on COUNTRIES below.
+const usedCountries = new Set();
+
 for (const { fileName, contents } of sources) {
   let doc;
 
@@ -139,6 +142,10 @@ for (const { fileName, contents } of sources) {
         eventId = text;
       }
 
+      if (name === 'country' && text) {
+        usedCountries.add(text);
+      }
+
       if (!text) {
         report(fileName, field, `<${field.tagName}> is empty`);
       } else if (name === 'variant' && !VARIANTS.has(text)) {
@@ -182,6 +189,21 @@ for (const { fileName, contents } of sources) {
 
 if (problems.length === beforePgr) {
   console.log(`${entryCount} entries carry the pgr fields the viewer needs.`);
+}
+
+/**
+ * The other direction of the COUNTRIES check above: an entry in that table no file names. Nothing reaches it except
+ * through a `<pgr:country>` read out of a file, so such an entry is unreachable — a leftover from a route since
+ * removed, or one added for a route that never arrived. Either way the table says it is the countries in use.
+ */
+const unusedCountries = Object.keys(COUNTRIES).filter((country) => !usedCountries.has(country));
+
+for (const country of unusedCountries) {
+  problems.push(`src/countries.js: "${country}" is in COUNTRIES but no file names it — remove it, or add its route`);
+}
+
+if (unusedCountries.length === 0) {
+  console.log(`src/countries.js lists exactly the ${Object.keys(COUNTRIES).length} countries in use.`);
 }
 
 /**
