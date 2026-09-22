@@ -95,6 +95,7 @@ header .sub {
 
 .country:hover {
   color: var(--text);
+  background: var(--bg);
 }
 
 .country .chev {
@@ -126,6 +127,7 @@ header .sub {
 
 .continent:hover {
   color: var(--accent);
+  background: var(--bg);
 }
 
 /* How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent names
