@@ -14,20 +14,28 @@ body {
   line-height: 1.4;
 }
 
+/* The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
+   at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need. */
+:root {
+  --content-w: 640px;
+}
+
 header.page {
-  padding: 18px 22px 4px;
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 20px 22px 6px;
 }
 
 header.page h1 {
   margin: 0;
-  font-size: 20px;
-  letter-spacing: -0.01em;
+  font-size: 26px;
+  letter-spacing: -0.02em;
 }
 
 .backup {
-  max-width: 640px;
+  max-width: var(--content-w);
   margin: 0 auto;
-  padding: 16px 22px 40px;
+  padding: 8px 22px 40px;
   font-size: 13px;
 }
 
