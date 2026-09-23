@@ -242,8 +242,9 @@ for (const ev of [...feed, ...local]) {
 }
 
 /**
- * An event with no date at all is announced but unscheduled ("date to be announced"), and there is nothing to put on a
- * calendar for it. Sorted by start so the file reads in order and a diff between two runs stays local to what moved.
+ * An event with no date at all ("date unknown" on the events page) has nothing to put on a calendar, whether its dates
+ * are still unannounced or went missing between Leek Duck and us. Sorted by start so the file reads in order and a diff
+ * between two runs stays local to what moved.
  *
  * The comparison is over the raw strings, by code unit rather than through localeCompare: a zoned time and a floating
  * one have no shared instant to sort by, and collation varies with the ICU build, which would churn the committed

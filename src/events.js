@@ -1,7 +1,7 @@
 /**
  * The events calendar page. Fetches Leek Duck's event feed (through ScrapedDuck's JSON mirror) live in the browser and
- * renders current, upcoming and — on request — recently ended Pokémon GO events. The feed is read directly, the same
- * way the map reads the GPX files rather than a baked-in copy.
+ * renders current, upcoming and — on request — recently ended or undated Pokémon GO events. The feed is read directly,
+ * the same way the map reads the GPX files rather than a baked-in copy.
  *
  * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
  * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
@@ -109,6 +109,7 @@ const els = {
   search: document.getElementById('search'),
   typeFilters: document.getElementById('typeFilters'),
   showPast: document.getElementById('showPast'),
+  showUndated: document.getElementById('showUndated'),
   showHidden: document.getElementById('showHidden'),
   refresh: document.getElementById('refresh'),
   reset: document.getElementById('reset'),
@@ -180,7 +181,15 @@ function relative(target, now) {
 
 /**
  * Where an event sits relative to now. `active` covers both a running window and one that has started with no end.
- * `tbd` is an announced event with no date yet — the feed leaves both `start` and `end` null for these.
+ * `tbd` is an event the feed carries with no date at all, both `start` and `end` null.
+ *
+ * That is rarely the announced-but-unscheduled event it sounds like. ScrapedDuck reads an event's identity off Leek
+ * Duck's event list but joins its dates in from `leekduck.com/feeds/events.json`, and that feed drops an event days
+ * before the list page does, so everything under the list's "Recently ended" divider reaches us dateless. On 2026-09-24
+ * the feed's five dateless events were exactly that divider's five, among them
+ * `gbl-twilight-trails_great-league_ultra-league-mega-edition_willpower-cup-great-league-edition`, which Leek Duck's own
+ * page dates 15 to 22 September. So `tbd` mostly means an event already over whose dates went missing on the way here —
+ * which is why renderCards() keeps the bucket behind a toggle rather than showing it by default.
  */
 function statusOf(ev, now) {
   if (!ev.start && !ev.end) {
@@ -223,7 +232,7 @@ function overlaps(win, from, to) {
 const GROUPS = {
   active: 'Happening now',
   upcoming: 'Upcoming',
-  tbd: 'Date to be announced',
+  tbd: 'Date unknown',
   ended: 'Recently ended',
 };
 
@@ -275,7 +284,7 @@ function el(tag, className, text) {
 
 function timeRange(ev) {
   if (!ev.start && !ev.end) {
-    return 'Date to be announced';
+    return 'Date unknown';
   }
 
   const local = ev.start && !ev.startHasZone ? ' (your local time)' : '';
@@ -407,6 +416,7 @@ function card(ev, now) {
 
 function renderCards(now) {
   const showPast = els.showPast.checked;
+  const showUndated = els.showUndated.checked;
   const buckets = { active: [], upcoming: [], tbd: [], ended: [] };
   let shown = 0;
 
@@ -417,7 +427,9 @@ function renderCards(now) {
 
     const kind = statusOf(ev, now).kind;
 
-    if (kind === 'ended' && !showPast) {
+    // The two opt-in buckets: an event that is over, and one the feed gave no date for. Neither is something a reader
+    // can plan around, and an undated event is more often a gap on the way here than one genuinely waiting on a date.
+    if ((kind === 'ended' && !showPast) || (kind === 'tbd' && !showUndated)) {
       continue;
     }
 
@@ -774,8 +786,11 @@ function setView(next) {
     btn.setAttribute('aria-pressed', String(on));
   }
 
-  // "Show ended" only means anything for the card buckets; the calendar and tracks views show a fixed window regardless.
-  els.showPast.closest('.toggle').hidden = view !== 'cards';
+  // Both bucket reveals only mean anything for the cards: the calendar and tracks views show a fixed window regardless,
+  // and neither can draw a dateless event in the first place — windowOf() gives it no window to place.
+  for (const box of [els.showPast, els.showUndated]) {
+    box.closest('.toggle').hidden = view !== 'cards';
+  }
 
   render();
 }
@@ -942,6 +957,7 @@ window.addEventListener('hashchange', focusHashEvent);
 
 els.search.addEventListener('input', render);
 els.showPast.addEventListener('change', render);
+els.showUndated.addEventListener('change', render);
 els.showHidden.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
 els.viewCards.addEventListener('click', () => setView('cards'));
