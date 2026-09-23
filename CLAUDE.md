@@ -6,8 +6,25 @@
   `worktree.baseRef` is `head`, so it will not contain unpushed commits.
 - **Commit staged changes.** Staged work is finished work. Stage the paths you touched rather than the whole tree, so a
   commit carries your change and nothing else.
-- **Commit to `master`.** Single maintainer, linear history, so work lands on `master` directly. Create a branch only
-  when asked for one.
+
+## Landing a change
+
+Which route a change takes turns on whether it changes what the code _does_ or only what it is _told_.
+
+- **A data change lands on `master` directly.** A species added to or removed from a filter (`src/filters/*.js`), a
+  `.gpx` file and the index regenerated beside it, an event in `data/events.json`, a country in `src/countries.js`, a
+  `released` or `shinyEligible` flag in `src/pokemon/pokedex.js` — the lists this repository exists to hold. Single
+  maintainer and linear history, so these need no branch and no review: the entry is the whole of the change, and
+  `pnpm lint` already says whether it is well-formed and whether the generated files still agree with it.
+- **A feature or a logic change needs a pull request.** Anything that changes behaviour rather than content: a new page
+  or control, a rendering, filtering or sorting rule, the shape of a file the pages read, a script, a workflow, a
+  refactor. Branch, push, and open it against `master`.
+- **Open the pull request ready for review, not as a draft.** A draft says the work is not finished, and there is
+  nothing here that wants parking half-done — a PR exists to be read and merged. Open it when it is ready, and if it is
+  not ready yet, leave it unopened.
+- **A change that is both is a logic change.** Adding a species to a filter is data; changing how that filter decides
+  what to include, even in the same commit as an entry, is not. Where the two are genuinely mixed, the pull request
+  covers both rather than the data half going round it.
 
 ## Checking the pages in a browser
 
