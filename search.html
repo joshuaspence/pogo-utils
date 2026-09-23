@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pokémon GO Search Strings</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="src/theme.css" />
+    <link rel="stylesheet" href="src/nav.css" />
+    <link rel="stylesheet" href="src/search.css" />
+  </head>
+  <body>
+    <nav class="topnav">
+      <a class="tab" href="events.html"><span class="ico" aria-hidden="true">📅</span> Events</a>
+      <a class="tab" href="routes.html"><span class="ico" aria-hidden="true">🗺️</span> Routes</a>
+      <a class="tab" href="search.html" aria-current="page"><span class="ico" aria-hidden="true">🔎</span> Search</a>
+      <a class="tab" href="pgsharp.html"><span class="ico" aria-hidden="true">💾</span> PGSharp</a>
+    </nav>
+    <header class="page">
+      <h1>Pokémon GO Search Strings</h1>
+      <p class="sub">
+        Build a string for the game's own search box. Click a chip once to require it, twice to rule it out.
+      </p>
+    </header>
+
+    <main class="builder">
+      <!-- Sticky, because the string is what the page is for: it stays in view while you are twenty chips down the
+           page changing what it says. aria-live announces each rewrite to a screen reader, which would otherwise be
+           told nothing at all as the chips below it are clicked. -->
+      <section class="output" aria-label="The search string">
+        <div class="string">
+          <code id="query" aria-live="polite">&nbsp;</code>
+          <button id="copy" type="button" class="copy">Copy</button>
+        </div>
+        <div class="meta">
+          <span id="count" class="count"></span>
+          <button id="clear" type="button" class="ghost">Clear</button>
+        </div>
+        <p class="caveat" id="caveat" hidden>
+          This mixes <code>,</code> and <code>&amp;</code>, and the game's search has no brackets to say which binds
+          first. Check it matches what you meant before trusting it on a mass transfer.
+        </p>
+      </section>
+
+      <section class="panel" aria-labelledby="presetsLabel">
+        <h2 class="label" id="presetsLabel">Start from</h2>
+        <div class="presets" id="presets"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="nameLabel">
+        <h2 class="label" id="nameLabel">Name or species</h2>
+        <input id="text" type="search" placeholder="pikachu, eevee" autocomplete="off" spellcheck="false" />
+        <p class="help">Partial names match, so <code>char</code> finds Charmander and Charizard. Commas mean any.</p>
+      </section>
+
+      <div class="groups" id="groups"></div>
+
+      <section class="panel" aria-labelledby="rangesLabel">
+        <h2 class="label" id="rangesLabel">Ranges</h2>
+        <div class="ranges" id="ranges"></div>
+        <p class="help">A box left empty falls back to that range's own limit, so one end is enough.</p>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        The syntax is Pokémon GO's own, as typed into the search box on the Pokémon storage screen. Everything runs in
+        your browser, and the link updates as you build so a string can be shared or bookmarked.
+      </p>
+      <p>This site is unofficial.</p>
+    </footer>
+
+    <script type="module" src="src/search/builder.js"></script>
+  </body>
+</html>

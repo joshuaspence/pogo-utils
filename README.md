@@ -5,6 +5,7 @@ from a shared top tab bar:
 
 - **Events** — a calendar of current and upcoming in-game events, also published as a calendar subscription.
 - **Routes** — an interactive map of GPX walking tracks and teleport waypoints.
+- **Search** — a builder for the strings the game's own Pokémon search box takes.
 - **PGSharp** — a backup builder that loads those routes into PGSharp as favourites.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
@@ -120,6 +121,22 @@ timezone in the file to anchor them to, it reads those times as UTC, so a 2pm Co
 than 2pm where you are. Pinning them with `X-WR-TIMEZONE` would fix that for one timezone and break it for every
 subscriber outside that zone, so the feeds leave them floating — correct by the spec, and correct in a reader that
 follows it.
+
+## Search strings
+
+The **Search** page ([`search.html`](search.html)) builds a string for the search box on the game's Pokémon storage
+screen. Chips are three-state — click once to require a term, again to rule it out, again to drop it — and the string is
+written live, with a link that carries the choices so one can be shared or bookmarked.
+
+The terms live in one table, [`src/search/terms.js`](src/search/terms.js), and the page is rendered from it, so adding
+or correcting one is a single line. [`src/search/query.js`](src/search/query.js) turns the state into the string and
+holds no DOM, which is where to look to check what the builder actually writes.
+
+Two things the composition decides, since neither is obvious. Terms picked within a group are OR'd (`fire,water`) while
+terms ruled out are each negated and AND'd (`!fire&!water`) — `!fire,!water` would match everything, since everything is
+either not Fire or not Water. And Pokémon GO's search has no brackets, so a string mixing `,` and `&` cannot say which
+binds first; the builder writes its clauses in a fixed order and says so on the page when the question can arise, rather
+than picking a reading on your behalf.
 
 ## Import into PGSharp
 

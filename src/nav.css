@@ -9,9 +9,23 @@
   padding: 0 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+
+  /* Four tabs no longer fit a phone, and a bar that merely overflows drops the last one off the edge with no way to
+     reach it — the tab was there and simply could not be got to. Scrolling keeps every tab reachable at any width. The
+     scrollbar is hidden because the bar is 48px tall and a horizontal one eats a quarter of that; the tabs are wide
+     enough to be an obvious swipe target without it. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topnav::-webkit-scrollbar {
+  display: none;
 }
 
 .topnav .tab {
+  /* Without this a tab shrinks to fit rather than overflowing, which trades the one tab that cannot be reached for
+     four that are squeezed. */
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -35,4 +49,17 @@
 .topnav .tab[aria-current='page'] {
   color: var(--accent);
   border-bottom-color: var(--accent);
+}
+
+/* Tighten the tabs on a narrow screen so the four of them fit without scrolling wherever they can. Below roughly a
+   430px viewport they still cannot, which is what the scrolling above is for. */
+@media (width <= 560px) {
+  .topnav {
+    padding: 0 4px;
+  }
+
+  .topnav .tab {
+    gap: 6px;
+    padding: 13px 12px;
+  }
 }
