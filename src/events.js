@@ -63,12 +63,16 @@ const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 const STORE_KEY = 'pgo-events:prefs';
 
 /**
- * Recurring hourly-cadence types hidden on a first visit — they fire every week and crowd the feed, so the default view
- * leads with the events a reader is more likely to plan around. They are `heading`s, the currency of `hiddenTypes`, so
- * the type checkboxes read them as off. Once any preference is saved the stored hidden set is authoritative, so
- * unticking one of these sticks; Reset returns to this default rather than to an empty set.
+ * The types hidden on a first visit, so the default view leads with the events a reader is more likely to plan around:
+ * the recurring ones, which fire every week and crowd the feed, plus three that describe a standing state rather than
+ * somewhere to be at a time — a GO Battle League rotation, a GO Pass and Choose Your Path. They are `heading`s, the
+ * currency of `hiddenTypes`, so the type checkboxes read them as off. Once any preference is saved the stored hidden set
+ * is authoritative, so unticking one of these sticks; Reset returns to this default rather than to an empty set.
+ *
+ * The three extras stay out of RECURRING_TYPES because that list also says which types the trimmed calendar feed
+ * (events.ics) leaves out, and each of these is a dated one-off worth keeping in a subscription.
  */
-const DEFAULT_HIDDEN = RECURRING_TYPES;
+const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle League', 'GO Pass'];
 
 function loadPrefs() {
   try {
@@ -922,7 +926,7 @@ function focusHashEvent() {
   }
 
   /**
-   * Unhide its type, or a reader with that filter off would follow the link and be shown nothing at all — four types
+   * Unhide its type, or a reader with that filter off would follow the link and be shown nothing at all — seven types
    * start hidden. Not persisted: this is for the one arrival, not a standing change to what they chose to see. A card
    * they dismissed individually stays dismissed, which is a decision about that event rather than a blanket rule.
    */
