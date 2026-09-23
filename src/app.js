@@ -22,8 +22,12 @@ const toastEl = document.getElementById('toast');
 
 const store = []; // { name, country, variant, event, file, gpx, latlngs, line, el, markers, distance }
 const cityStore = []; // { name, country, event, coords:[lat,lon], coordStr, marker, el }
-let active = null;
-let activeCity = null;
+/**
+ * What is selected, as lists rather than one of each: a link from the Events page names an event, not an entry, and an
+ * event can have been given several routes and waypoints — all of which are selected together (see focusHashEvent).
+ */
+const activeRoutes = [];
+const activeCities = [];
 let toastTimer = null;
 
 function toast(msg) {
@@ -253,26 +257,31 @@ function cityStyle(place) {
   };
 }
 
-/**
- * Return the active route to its resting style, drop its start/end markers and un-highlight its row. Mirrors
- * deselectCity, so selecting either kind can clear the other with a single call.
- */
-function deselectRoute() {
-  if (!active) {
-    return;
+/** Return every selected route and waypoint to its resting style, drop its markers and un-highlight its row. */
+function clearSelection() {
+  for (const entry of activeRoutes) {
+    entry.line.setStyle(routeStyle(entry));
+    entry.line.bringToBack();
+    clearMarkers(entry);
+    entry.el.classList.remove('active');
   }
 
-  active.line.setStyle(routeStyle(active));
-  active.line.bringToBack();
-  clearMarkers(active);
-  active.el.classList.remove('active');
-  active = null;
+  for (const c of activeCities) {
+    c.marker.setStyle(cityStyle(c));
+    c.el.classList.remove('active');
+  }
+
+  activeRoutes.length = 0;
+  activeCities.length = 0;
 }
 
-function selectRoute(entry, { pan = true } = {}) {
-  deselectCity();
-  deselectRoute();
-  active = entry;
+/**
+ * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever else
+ * is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
+ * focusHashEvent calls it once per entry instead, so an event's whole set is selected at once.
+ */
+function highlightRoute(entry) {
+  activeRoutes.push(entry);
   entry.el.classList.add('active');
   entry.line.setStyle({ color: cssVar('--accent'), weight: 4, opacity: 1 });
   entry.line.bringToFront();
@@ -292,32 +301,11 @@ function selectRoute(entry, { pan = true } = {}) {
 
   const detail = `${entry.country} · ${entry.latlngs.length} points · ${fmtDist(entry.distance)}`;
   entry.line.bindPopup(buildPopup(entry.name, detail, 'Copy GPX', (btn) => copyRoute(entry, btn)));
-
-  if (pan) {
-    map.fitBounds(entry.line.getBounds(), { padding: [24, 24], maxZoom: 17 });
-    entry.line.openPopup();
-  }
-
-  entry.el.closest('.country-group')?.classList.remove('collapsed');
-  entry.el.closest('.continent-group')?.classList.remove('collapsed');
-  entry.el.scrollIntoView({ block: 'nearest' });
 }
 
-function deselectCity() {
-  if (!activeCity) {
-    return;
-  }
-
-  activeCity.marker.setStyle(cityStyle(activeCity));
-  activeCity.el.classList.remove('active');
-  activeCity = null;
-}
-
-function selectCity(c, { pan = true } = {}) {
-  // Clear any active route selection so only one thing is highlighted.
-  deselectRoute();
-  deselectCity();
-  activeCity = c;
+/** Mirrors highlightRoute for a waypoint. */
+function highlightCity(c) {
+  activeCities.push(c);
   c.el.classList.add('active');
   c.marker.setStyle({ radius: 8, fillColor: cssVar('--accent') });
   c.marker.bringToFront();
@@ -325,15 +313,44 @@ function selectCity(c, { pan = true } = {}) {
   c.marker.bindPopup(
     buildPopup(c.name, `${c.country} · ${c.coordStr}`, 'Copy coordinates', (btn) => copyCoords(c, btn)),
   );
+}
+
+/**
+ * Open the groups above every row given, then scroll the first of them into view. Several rows can be selected at once
+ * and only one place can be scrolled to, so the first stands for the rest — which the groups now being open is what
+ * makes reachable, rather than leaving the reader to guess which countries to expand.
+ */
+function revealRows(els) {
+  for (const el of els) {
+    el.closest('.country-group')?.classList.remove('collapsed');
+    el.closest('.continent-group')?.classList.remove('collapsed');
+  }
+
+  els[0]?.scrollIntoView({ block: 'nearest' });
+}
+
+function selectRoute(entry, { pan = true } = {}) {
+  clearSelection();
+  highlightRoute(entry);
+
+  if (pan) {
+    map.fitBounds(entry.line.getBounds(), { padding: [24, 24], maxZoom: 17 });
+    entry.line.openPopup();
+  }
+
+  revealRows([entry.el]);
+}
+
+function selectCity(c, { pan = true } = {}) {
+  clearSelection();
+  highlightCity(c);
 
   if (pan) {
     map.setView(c.coords, Math.max(map.getZoom(), 12));
     c.marker.openPopup();
   }
 
-  c.el.closest('.country-group')?.classList.remove('collapsed');
-  c.el.closest('.continent-group')?.classList.remove('collapsed');
-  c.el.scrollIntoView({ block: 'nearest' });
+  revealRows([c.el]);
 }
 
 async function copyCoords(c, btn) {
@@ -604,13 +621,13 @@ function appendFailures(heading, failures) {
 }
 
 /**
- * A link from the Events page arrives as `routes.html#event=<eventID>`, and this is what lands it on the right entry:
- * the first of that event's entries is selected exactly as clicking its row would — expanding the groups above it,
- * scrolling it into view and fitting the map — and the view is then widened to the rest of them.
+ * A link from the Events page arrives as `routes.html#event=<eventID>`, and this is what lands it on that event's
+ * entries — every route and waypoint added for it, not one of them. All of them are selected together: highlighted on
+ * the map, their rows marked and the groups above them opened, with the map fitted to the whole set.
  *
  * Nothing is hidden. Filtering the sidebar down to the event would read as the search box having been used, leaving the
- * reader to work out how to get the other 79 rows back; selecting is enough to answer "which one is it" and leaves the
- * page in a state they already know how to leave.
+ * reader to work out how to get the other 79 rows back; selecting is enough to answer "which ones are they" and leaves
+ * the page in a state they already know how to leave.
  *
  * Returns whether it moved the map, which is what lets init() fit everything only when no event claimed the view.
  */
@@ -623,25 +640,40 @@ function focusHashEvent() {
 
   const routes = store.filter((s) => s.event === id);
   const places = cityStore.filter((c) => c.event === id);
+  const name = eventNames.get(id) || id;
 
   // Said out loud rather than silently ignored: the link came from somewhere, so landing nowhere needs explaining.
   if (routes.length === 0 && places.length === 0) {
-    toast(`Nothing here was added for “${eventNames.get(id) || id}”`);
+    toast(`Nothing here was added for “${name}”`);
     return false;
   }
 
-  if (routes.length) {
-    selectRoute(routes[0]);
-  } else {
-    selectCity(places[0]);
+  /* A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set needs
+     what follows, where no one of them can own the view or be the one the popup names. */
+  if (routes.length + places.length === 1) {
+    if (routes.length) {
+      selectRoute(routes[0]);
+    } else {
+      selectCity(places[0]);
+    }
+
+    return true;
   }
 
+  clearSelection();
+  routes.forEach((s) => highlightRoute(s));
+  places.forEach((c) => highlightCity(c));
+  revealRows([...routes, ...places].map((entry) => entry.el));
+
+  /* One fit, not two. Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels as a CSS transition and
+     applies the move at its end, from the view captured when it began — so selecting an entry with its own pan and then
+     widening to the set landed the wide view and had it silently undone a moment later. Fitting once, here, is the only
+     ordering that cannot be taken away. */
   const layers = [...routes.map((s) => s.line), ...places.map((c) => c.marker)];
+  map.fitBounds(L.featureGroup(layers).getBounds(), { padding: [24, 24], maxZoom: 16 });
 
-  // An event with more than one entry: widen from the one just selected to the whole set, so none of it is off screen.
-  if (layers.length > 1) {
-    map.fitBounds(L.featureGroup(layers).getBounds(), { padding: [24, 24], maxZoom: 16 });
-  }
+  // No popup: one would name a single entry and so contradict the point of selecting all of them. The count says it.
+  toast(`Selected all ${layers.length} entries added for “${name}”`);
 
   return true;
 }
