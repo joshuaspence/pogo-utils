@@ -43,6 +43,11 @@ after the next.
 - **Send `Network.setCacheDisabled` before navigating.** Chrome serves the CSS and JS it already has, so a re-run after
   an edit reports the _old_ file. This looked exactly like every change having failed — a `::before` with no background,
   a count of zero, `box-shadow: none` — when all of them were in fact fine.
+- **`Network.setCacheDisabled` does nothing until `Network.enable` has been sent.** The command is accepted either way
+  and answers with an empty result, so the run looks right and quietly serves the stylesheet it already had. A nav.css
+  edit read back as not applied — `overflow-x` still `visible`, the same measurements to the pixel — which looks exactly
+  like a rule that does not match rather than a file that was never fetched. Enable the domain first, and treat
+  measurements identical to the previous run as the symptom.
 - **Navigate via `about:blank` before a URL that differs only by fragment.** `routes.html#event=…` from `routes.html` is
   a same-document navigation: the page does not reload, so the previous run's JavaScript stays live and nothing you have
   edited since is even loaded. Testing fragment handling that way reported it doing nothing at all, because the build

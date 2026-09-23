@@ -1,0 +1,428 @@
+/* The search-string builder. Shares the colour tokens in theme.css and the tab bar in nav.css with the other pages;
+   everything below is this page's own.
+
+   The page has one job — show the string it is building — so the layout is built around keeping that string in view
+   while the controls that change it scroll past underneath. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.4;
+}
+
+/* Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
+   four, which reads as a list rather than as a palette. */
+:root {
+  --content-w: 880px;
+
+  /* A group's hue is turned into its chip colour here rather than at each use, so light and dark each state their
+     lightness once. A hue picked for a white background is muddy on a dark one and a hue picked for dark is neon on
+     white, which is why this is two declarations and not one. */
+  --chip-s: 60%;
+  --chip-l: 40%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chip-s: 55%;
+    --chip-l: 68%;
+  }
+}
+
+header.page {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 20px 22px 6px;
+}
+
+header.page h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+header.page .sub {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.builder {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 8px 22px 40px;
+  font-size: 13px;
+}
+
+/* The string itself. Sticky under the tab bar, which is 48px of it — a value nav.css sets in padding and font size
+   rather than as a number, so it is measured here rather than shared as a token neither file would own. */
+.output {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lift);
+}
+
+/* The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
+   as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
+   disappear under an edge rather than surfacing for 14px first. */
+.output::after {
+  content: '';
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 14px;
+  background: var(--bg);
+}
+
+.output .string {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+/* The string is code and is read character by character — an l against a 1 decides whether a search works — so it is
+   set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search string
+   invites copying half of it. */
+.output code#query {
+  flex: 1;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre;
+  user-select: all;
+}
+
+/* Nothing built yet is a state worth showing as words rather than as an empty box the reader wonders about. */
+.output code#query.empty {
+  color: var(--muted);
+  user-select: none;
+}
+
+.output button.copy {
+  padding: 0 18px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.output button.copy:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+/* With nothing to copy the button is furniture, not an action refused: a faded fill of the accent red reads as a
+   broken button, where an outline reads as one waiting for something to do. */
+.output button.copy:disabled {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+  cursor: default;
+}
+
+/* Held for a moment after a copy, so the click is acknowledged where the reader is already looking rather than in a
+   banner somewhere else on the page. */
+.output button.copy.done {
+  border-color: var(--start);
+  background: var(--start);
+}
+
+.output .meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.output button.ghost {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.output button.ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The one thing the builder cannot decide for the reader, so it is the one thing on the page painted as a warning. */
+.output .caveat {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--city);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--city) 12%, var(--panel));
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.output .caveat code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.panel,
+.group {
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+/* The same uppercase muted section label the events page and the routes sidebar use, so a heading reads as a heading
+   across the site rather than as this page's own idea. */
+.label {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.help {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.help code,
+.presets code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+#text {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+#text:focus-visible,
+.range input:focus-visible {
+  outline: 2px solid var(--track);
+  outline-offset: 1px;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.presets button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.presets button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.presets button .note {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.presets button:hover .note {
+  color: inherit;
+}
+
+/* Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
+   empty and makes the reader scroll past sixty chips to reach the ranges. */
+.groups {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  align-items: start;
+}
+
+.groups .group {
+  margin: 0;
+}
+
+.group .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+/* A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
+   came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
+   Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice. */
+.chip {
+  --chip: hsl(var(--hue) var(--chip-s) var(--chip-l));
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chip:hover {
+  border-color: var(--chip);
+  color: var(--text);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--track);
+  outline-offset: 2px;
+}
+
+.chip[data-state='in'] {
+  border-color: var(--chip);
+  background: color-mix(in srgb, var(--chip) 16%, var(--panel));
+  color: var(--text);
+  font-weight: 600;
+}
+
+.chip[data-state='out'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
+   who cannot see the difference between a red chip and a teal one. */
+.chip .state {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.chip[data-state='off'] .state {
+  opacity: 0.35;
+}
+
+.ranges {
+  display: grid;
+  gap: 10px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.range .name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.range input {
+  width: 68px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: right;
+}
+
+.range .dash {
+  color: var(--muted);
+}
+
+/* A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
+   does but looks like an empty box until you read the numbers in it. */
+.range.set input:not(:placeholder-shown) {
+  border-color: var(--track);
+  color: var(--text);
+  font-weight: 600;
+}
+
+footer {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 0 22px 40px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+footer p {
+  margin: 0 0 6px;
+}
+
+@media (width <= 560px) {
+  .output {
+    border-radius: 0;
+    margin-inline: -22px;
+    padding-inline: 22px;
+  }
+
+  .output .string {
+    flex-direction: column;
+  }
+
+  .output button.copy {
+    padding: 9px 18px;
+  }
+}
