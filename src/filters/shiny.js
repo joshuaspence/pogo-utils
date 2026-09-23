@@ -30,7 +30,6 @@ export default new Set([
   POKEMON.MOLTRES.region(GALAR),
 
   // Generation 2
-  POKEMON.TYPHLOSION.region(HISUI),
   POKEMON.CHINCHOU, POKEMON.LANTURN,
   POKEMON.SLOWKING.region(GALAR),
   ...POKEMON.UNOWN.forms('A', 'B', 'C', 'D', 'E', 'F', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'EXCLAMATION_MARK', 'QUESTION_MARK'),
@@ -117,7 +116,6 @@ export default new Set([
   ...POKEMON.GENESECT.forms('SHOCK_DRIVE', 'BURN_DRIVE', 'CHILL_DRIVE', 'DOUSE_DRIVE'),
 
   // Generation 6
-  POKEMON.BUNNELBY, POKEMON.DIGGERSBY,
   ...[
     POKEMON.SCATTERBUG,
     POKEMON.SPEWPA,
