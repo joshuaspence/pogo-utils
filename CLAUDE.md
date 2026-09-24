@@ -62,6 +62,17 @@ after the next.
   the query was null either way and the check could not have failed however broken the page was. Assert the node exists
   before asserting anything about it, and confirm a probe can fail: block the request with `Network.setBlockedURLs` and
   watch the banner appear before trusting its absence.
+- **A layering bug needs the pixels; `elementFromPoint` will not find it.** Hit-testing does not follow the paint
+  promotion `opacity` causes, so the calendar's dimmed neighbouring-month cell — which really did paint over the bars
+  crossing into it — was hit-tested as the bar every time, both with the fix and with it reverted. The probe answered 0
+  either way and so said nothing. `Page.captureScreenshot` and a small PNG decoder read what was actually painted: the
+  bar over the dimmed columns came back rgb(220 136 230) against rgb(192 38 211) for the same bar a column later, and 0
+  channels apart once fixed. Its other trap is that `elementFromPoint` answers null for a coordinate outside the
+  viewport, and these grids are taller than the window — 21 of 43 bars were below the fold and counted as failures.
+- **Measure widths in characters, not bytes, before believing a line is too long.** `awk 'length > 120'` counts bytes,
+  so every comment carrying an em-dash reads three columns over per dash and a compliant line is reported as a
+  violation. Four of these comments looked too long and only two were. Use `len()` on text decoded as UTF-8, and check
+  what the diff actually adds rather than the whole file: plenty of lines already sit at 121.
 - **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.js` holds the
   Leaflet map in a `const`, so `Runtime.evaluate` finds only the `<div id="map">` and answers
   `map.getZoom is not a function`. Send a `Page.addScriptToEvaluateOnNewDocument` that defines a setter for `window.L`
