@@ -387,9 +387,10 @@ function timeRange(ev) {
 }
 
 /**
- * Whether an event survives the type-filter, dismissal and search-term filters. Shared by both views; the card view
- * layers status/showPast filtering on top. A dismissed event stays hidden unless "Show hidden" is ticked, which mirrors
- * how "Show ended" reveals past events — the choice is a temporary reveal, not a change to the saved dismissal.
+ * Whether an event survives the type-filter, dismissal and search-term filters — the ones that mean "I do not want to
+ * see this", so every view honours them. The status reveals are isRevealed()'s, layered on top of this. A dismissed
+ * event stays hidden unless "Show hidden" is ticked, which mirrors how "Show ended" reveals past events — the choice is
+ * a temporary reveal, not a change to the saved dismissal.
  */
 function isVisible(ev) {
   if (prefs.hiddenTypes.has(ev.heading)) {
@@ -402,6 +403,20 @@ function isVisible(ev) {
 
   const term = els.search.value.trim().toLowerCase();
   return !term || ev.name.toLowerCase().includes(term);
+}
+
+/**
+ * Whether the reader has revealed the status bucket this event falls in. The two opt-in buckets are an event that is
+ * over and one the feed gave no date for: neither is something a reader can plan around, and an undated event is more
+ * often a gap on the way here than one genuinely waiting on a date.
+ *
+ * Shared with newlyVisible() so the new count can only ever be a subset of the total the cards view writes beside it. A
+ * header reporting more new events than events contradicts itself, and so does any count at all above "No events to
+ * show" — which a search term matching only undated events is enough to produce.
+ */
+function isRevealed(ev, now) {
+  const kind = statusOf(ev, now).kind;
+  return (kind !== 'ended' || els.showPast.checked) && (kind !== 'tbd' || els.showUndated.checked);
 }
 
 /**
@@ -421,15 +436,16 @@ function isNew(ev) {
 }
 
 /**
- * The events the reader is being told are new: unacknowledged, and among those their filters admit. Scoped to
- * isVisible() so the count leaves out what they have said they do not want — a dismissal, a search term, or a hidden
- * type, which after isNew() has already refused the recurring ones means the rest of DEFAULT_HIDDEN and anything they
- * have unticked since.
+ * The events the reader is being told are new: unacknowledged, and among those their filters admit. Both filters, so
+ * the count leaves out everything they have said they do not want — a dismissal, a search term, a hidden type, which
+ * after isNew() has already refused the recurring ones means the rest of DEFAULT_HIDDEN and anything they have unticked
+ * since, and the ended and undated buckets they have not revealed.
  *
- * Which is narrower than "drawn on screen", deliberately: see the Mark all as seen handler.
+ * Which is exactly the population the cards view draws, and neither narrower nor wider than what the other two draw:
+ * see the Mark all as seen handler.
  */
-function newlyVisible() {
-  return events.filter((ev) => isNew(ev) && isVisible(ev));
+function newlyVisible(now) {
+  return events.filter((ev) => isNew(ev) && isVisible(ev) && isRevealed(ev, now));
 }
 
 /**
@@ -575,25 +591,15 @@ function card(ev, now) {
 }
 
 function renderCards(now) {
-  const showPast = els.showPast.checked;
-  const showUndated = els.showUndated.checked;
   const buckets = { active: [], upcoming: [], tbd: [], ended: [] };
   let shown = 0;
 
   for (const ev of events) {
-    if (!isVisible(ev)) {
+    if (!isVisible(ev) || !isRevealed(ev, now)) {
       continue;
     }
 
-    const kind = statusOf(ev, now).kind;
-
-    // The two opt-in buckets: an event that is over, and one the feed gave no date for. Neither is something a reader
-    // can plan around, and an undated event is more often a gap on the way here than one genuinely waiting on a date.
-    if ((kind === 'ended' && !showPast) || (kind === 'tbd' && !showUndated)) {
-      continue;
-    }
-
-    buckets[kind].push(ev);
+    buckets[statusOf(ev, now).kind].push(ev);
     shown += 1;
   }
 
@@ -946,7 +952,7 @@ function render() {
    * thing in every one of them — a calendar or tracks bar can only mark a new event, so the header is where clearing
    * lives.
    */
-  const newly = newlyVisible().length;
+  const newly = newlyVisible(now).length;
   els.newly.hidden = newly === 0;
   els.newCount.textContent = `${newly} new event${newly === 1 ? '' : 's'}`;
 
@@ -1144,15 +1150,21 @@ els.showHidden.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
 
 /**
- * Acknowledge exactly the events the header just reported, so the number always falls to zero. Both are isVisible() —
- * the reader's own filters — rather than what any one view draws: the calendar shows a single month and the cards
- * split by status behind Show ended and Show undated, so a count matching the marks on screen is not a property the
- * three views can share. Showing a hidden type months later does therefore surface a batch of marks, which is right —
- * those events genuinely are ones the reader has never been shown, and this clears them in one press. Showing a
- * recurring one surfaces nothing, since isNew() refuses those whatever is ticked.
+ * Acknowledge exactly the events the header just reported, so the number always falls to zero.
+ *
+ * That population is what the cards view draws, which the other two cannot match: the calendar paints one month at a
+ * time, and the tracks only the types TRACKS has a row for, over a bounded window. So the count agrees with the marks
+ * on screen in the cards view and in neither of the others, in both directions — a new event in next month is counted
+ * before the calendar reaches it, and a new event that has ended is ringed in a past month without being counted. Cards
+ * is the one worth making exact, because it is the only view whose own total sits in the same header: a number larger
+ * than the one beside it reads as a contradiction, where a ring nothing announces reads as a detail.
+ *
+ * Revealing a hidden type months later does therefore surface a batch of marks, which is right — those events genuinely
+ * are ones the reader has never been shown, and this clears them in one press. Revealing a recurring one surfaces
+ * nothing, since isNew() refuses those whatever is ticked.
  */
 els.markSeen.addEventListener('click', () => {
-  for (const ev of newlyVisible()) {
+  for (const ev of newlyVisible(new Date())) {
     prefs.seen.add(ev.eventID);
   }
 
