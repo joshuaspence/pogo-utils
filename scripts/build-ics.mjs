@@ -1,8 +1,7 @@
 /**
- * Builds the iCalendar feeds the Events page links to: `events.ics`, holding what that page shows by default, and
- * `events-all.ics`, holding every dated event including the weekly-cadence ones.
+ * Builds `events.ics`, the iCalendar feed the Events page links to, holding what that page shows by default.
  *
- * They exist because a calendar subscription is a URL a calendar app fetches by itself. Google Calendar cannot run
+ * It exists because a calendar subscription is a URL a calendar app fetches by itself. Google Calendar cannot run
  * events.html's JavaScript, so the merge the browser does live — ScrapedDuck's mirror of Leek Duck, overridden by
  * data/events.json where an `eventID` is in both — has to be done ahead of time and the result committed as a static
  * file. entries-by-event.json puts the same "2 routes · 1 waypoint" line into an event's description as it puts on its
@@ -42,24 +41,11 @@ const REFRESH = 'PT6H';
 
 const RECURRING = new Set(RECURRING_TYPES);
 
-/**
- * The two feeds, each a filter over the same merged list. The trimmed one is the default because it is the one worth
- * subscribing to; the full one is there so nothing is silently dropped for a reader who does want every Raid Hour.
- */
-const FEEDS = [
-  {
-    file: 'events.ics',
-    name: 'Pokémon GO Events',
-    description: 'Current and upcoming Pokémon GO events, without the weekly hourly-cadence ones.',
-    include: (ev) => !RECURRING.has(ev.heading),
-  },
-  {
-    file: 'events-all.ics',
-    name: 'Pokémon GO Events (everything)',
-    description: 'Every current and upcoming Pokémon GO event, Spotlight Hours and Raid Hours included.',
-    include: () => true,
-  },
-];
+const FEED = {
+  file: 'events.ics',
+  name: 'Pokémon GO Events',
+  description: 'Current and upcoming Pokémon GO events, without the weekly hourly-cadence ones.',
+};
 
 /**
  * Leek Duck gives times two ways, and the distinction is the one thing a static file must not lose. A naive datetime
@@ -255,8 +241,7 @@ const dated = [...byId.values()]
   .filter((ev) => icsDate(ev.start) ?? icsDate(ev.end))
   .sort((a, b) => order(a.start ?? '', b.start ?? '') || order(a.eventID, b.eventID));
 
-for (const spec of FEEDS) {
-  const events = dated.filter(spec.include);
-  writeFileSync(spec.file, calendar(spec, events, index));
-  console.log(`${spec.file}: ${events.length} events`);
-}
+const events = dated.filter((ev) => !RECURRING.has(ev.heading));
+
+writeFileSync(FEED.file, calendar(FEED, events, index));
+console.log(`${FEED.file}: ${events.length} events`);
