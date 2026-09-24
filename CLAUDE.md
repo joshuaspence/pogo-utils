@@ -62,6 +62,13 @@ after the next.
   the query was null either way and the check could not have failed however broken the page was. Assert the node exists
   before asserting anything about it, and confirm a probe can fail: block the request with `Network.setBlockedURLs` and
   watch the banner appear before trusting its absence.
+- **`el.hidden` answers the attribute, not the layout.** It reads `true` however visible the element is, so a probe
+  asserting it cannot see the one way hiding actually fails: the UA stylesheet's `[hidden] {display: none}` loses to any
+  author `display` on the same element. `.newly {display: flex}` is one, so five suites in a row reported
+  `#newly hidden=True` while **Mark all as seen** sat on screen at 100×18 and answered `elementFromPoint` with its own
+  id — including on every page load, since the markup ships hidden with an empty count. Every element the JavaScript
+  toggles `hidden` needs a paired `[hidden] {display: none}` beside whatever `display` it was given, and the probe has
+  to read `getComputedStyle().display`, the element's own `getBoundingClientRect()` and what is painted at its centre.
 - **A layering bug needs the pixels; `elementFromPoint` will not find it.** Hit-testing does not follow the paint
   promotion `opacity` causes, so the calendar's dimmed neighbouring-month cell — which really did paint over the bars
   crossing into it — was hit-tested as the bar every time, both with the fix and with it reverted. The probe answered 0
