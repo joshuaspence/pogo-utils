@@ -32,8 +32,9 @@ python3 .claude/skills/find-missing-events/scripts/compare_sources.py
 ```
 
 Run it from the checkout root; it takes about half a minute. It walks the **whole** news archive — 223 articles back to
-mid-2025 when this was written, not just the front page — reads the in-person index and the feed, and reports the
-articles that no source names and that have not yet finished, each with its closest candidates by name.
+mid-2025 when this was written, not just the front page — reads the in-person index and the feed, and reports what no
+source accounts for as two lists: events that look missing, and articles that look like they change an event we already
+carry. Each row carries the closest names the sources hold, scored.
 
 Two things about that walk are worth knowing, because both have already cost a run its answer.
 
@@ -50,33 +51,38 @@ slugs from these same announcements.
 
 ## Triage what the script leaves you
 
-The script has already dropped the two large classes that are not gaps: articles whose own prose names no date later
-than today, and articles naming no dates at all. That filter is worth understanding, because it is what makes a
-223-article archive readable — an announcement that is still worth acting on has to say so itself, since a long-running
-event must name how long it runs while a Community Day can only name its one weekend. It is the article's own words that
-decide, not `datePublished`, which dates the press release and is routinely months out in either direction.
+The report has two lists, and they are there for opposite reasons.
 
-Its residue is the 29-odd articles naming no date at all. An event announcement always gives dates, so these are
-features, mechanics and rename notices — but a date the parser failed to read would land there too, so look in that
-group before concluding a specific suspected event is genuinely absent.
+**"Announced, unaccounted for, and not yet over"** is the discovery list. Everything an article's own prose dates into
+the future and no source names. That date filter is what makes a 223-article archive readable — an announcement worth
+acting on has to say so itself, since a long-running event must state how long it runs while a Community Day can only
+name its one weekend. The article's words decide, not `datePublished`, which dates the press release and is routinely
+months out in either direction.
 
-What reaches you divides three ways, and only the third is worth reporting.
+**"Undated, but naming something we hold"** is the correction list, and it exists because the date filter has one blind
+spot it cannot close: an article that _changes_ an event gives no new date. "The event will be rescheduled to a later
+date" names nothing, so a postponement is invisible to a filter built on future dates — which is exactly backwards,
+because an update is worse than a gap. A gap omits an event; an update makes one we already publish wrong, and the
+`.ics` feeds have already told subscribers when to turn up. So an undated article naming an event a source holds is
+surfaced on a second, orthogonal signal: not _is this ahead of us_ but _does this touch something of ours_. Read these
+for whether the dates we carry still hold. This list is ordered newest first and its tail is weak matches — a "GO Pass:
+March" note scoring 0.50 against "GO Pass: September" — so it thins out as you go down rather than needing to be read
+entire.
+
+What reaches you in the discovery list divides two ways, and only the second is worth adding.
 
 **It is not a regional event.** A ticketing update, a "Know Before You GO" venue guide, a "Save the Date", patch notes,
 a GO Battle League rotation note, a season, a global event the feed simply names differently — none of these belong in
 `data/events.json`. Check the candidate list first: a score near 1.00 usually means the feed or the local file already
 has the event under other wording, which is a match the script declined to assert rather than a gap.
 
-**It is an event we already carry, and the article changes it.** This is the case a slug match hides, so it is worth
-looking for deliberately. An update article can postpone an event for a storm, extend a partnership by five months, or
-close ticket sales — and the entry then advertises dates that are wrong rather than merely absent, which is worse,
-because the `.ics` feeds have already told subscribers to turn up. When an article names an event a source already has,
-read it anyway and ask whether it _changes_ that event's dates.
-
 **It is an announced regional or in-person event that nothing here names.** Report these. A campus event, a mall tour, a
 partnership with a venue or an airline, a city-specific celebration.
 
-Two shapes recur and neither is one-article-one-event, so resolve them by reading rather than by counting:
+A date the parser failed to read would be filtered out silently, so the counts at the end of the report are printed for
+a reason: before concluding that a specific event you suspected is genuinely absent, check it is not sitting in them.
+
+Neither list is one-article-one-event, so resolve both by reading rather than by counting:
 
 - **One article, several events.** A City Safari announcement covers three European cities; a "Save the Date" covers
   three GO Tour stops; a mall tour lists eleven venue windows across three countries. Some of those may already be

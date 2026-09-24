@@ -20,6 +20,11 @@ its own prose names: see `latest_date_named`. That cuts roughly two hundred unma
 human decision, and it cuts them on what the announcement says rather than on a keyword list that would miss whatever
 Niantic partners with next.
 
+That filter has one blind spot, and it is reported separately rather than patched: an article that *changes* an event
+gives no new date — "rescheduled to a later date" — so it names no future date by construction. An undated article whose
+headline names an event a source already holds is therefore surfaced too, since it cannot be discovered by date and is
+worse than a gap when real: a gap omits an event, an update makes one already in the published `.ics` feeds wrong.
+
 Matching is deliberately split in two. An exact slug hit is reported as a match because Leek Duck derives its own slugs
 from these same announcements, so a news slug equal to a ScrapedDuck `eventID` is the same event with near certainty.
 Everything else is reported *with candidates* rather than guessed at: the remaining pairs need judgement this script has
@@ -166,6 +171,13 @@ def parse_in_person(html):
     ]
 
 
+def candidates_for(headline, candidates):
+    """The few events a headline most plausibly refers to, best first, or nothing if none is close enough."""
+    scored = sorted(((containment(name, headline), source, event_id, name) for source, event_id, name in candidates))
+
+    return [candidate for candidate in scored[::-1][:3] if candidate[0] >= CANDIDATE_FLOOR]
+
+
 def runs_until(slug):
     """The furthest-future date an unmatched article's prose names, or `None` if it names none."""
     html = article_html(slug)
@@ -201,7 +213,15 @@ def main():
 
     live = [item for item in unmatched if until[item[0]] is not None and until[item[0]] >= today]
     ended = sum(1 for slug, _, _ in unmatched if until[slug] is not None and until[slug] < today)
-    undated = sum(1 for slug, _, _ in unmatched if until[slug] is None)
+    undated = [item for item in unmatched if until[item[0]] is None]
+
+    # An undated article naming an event a source already holds is the one thing the date filter cannot see, and the
+    # most urgent thing in the archive: an update says "rescheduled to a later date" and gives no date, so it names no
+    # future date by construction and would be counted away with the feature notes. That is the wrong way round, because
+    # it does not merely omit an event — it makes one we already publish wrong, and the `.ics` feeds have already gone
+    # out. City Safari Boston was postponed for a storm two days before the date `data/events.json` still advertised,
+    # and its article names no date at all. Matching what we hold is the orthogonal signal that finds it.
+    updates = [(item, found) for item in undated if (found := candidates_for(item[1], candidates))]
 
     print(
         f'{len(news)} articles archived at {NEWS_URL} ({news[-1][2]} to {news[0][2]}), '
@@ -209,7 +229,7 @@ def main():
     )
     print(
         f'{len(news) - len(unmatched)} accounted for by slug. Of the {len(unmatched)} left, {ended} name only past '
-        f'dates and {undated} name none at all, leaving {len(live)} to decide.\n'
+        f'dates and {len(undated)} name none at all, leaving {len(live)} to decide.\n'
     )
 
     print(f'## Announced, unaccounted for, and not yet over ({len(live)}) — decide each one\n')
@@ -217,15 +237,23 @@ def main():
     for slug, headline, published in sorted(live, key=lambda item: until[item[0]], reverse=True):
         print(f'  {slug}  (published {published}, prose runs to {until[slug]})\n    {headline}')
 
-        scored = sorted(
-            ((containment(name, headline), source, event_id, name) for source, event_id, name in candidates),
-            reverse=True,
-        )
-
-        for score, source, event_id, name in [c for c in scored[:3] if c[0] >= CANDIDATE_FLOOR]:
+        for score, source, event_id, name in candidates_for(headline, candidates):
             print(f'    ?  {score:.2f} {source}: {event_id} | {name}')
 
         print()
+
+    print(f'## Undated, but naming something we hold ({len(updates)}) — has it been changed?\n')
+
+    for (slug, headline, published), found in sorted(updates, key=lambda entry: entry[0][2], reverse=True):
+        print(f'  {slug}  (published {published}, names no date)\n    {headline}')
+
+        for score, source, event_id, name in found:
+            print(f'    !  {score:.2f} {source}: {event_id} | {name}')
+
+        print()
+
+    if not updates:
+        print('  Nothing — no undated article names an event a source carries.\n')
 
     listings = [listing for listing in in_person if listing[3] >= today and listing[0] not in known]
 
@@ -239,10 +267,10 @@ def main():
               '  expected state, not a failure.\n')
 
     print(
-        f'Filtered out: {ended} unmatched articles whose prose names only past dates, and {undated} naming no date at '
-        f'all. An event announcement always gives its dates, so the second group is features and mechanics — but a '
-        f'date this script failed to parse would also land there, so look in it before concluding a suspected event is '
-        f'absent.'
+        f'Filtered out: {ended} unmatched articles whose prose names only past dates, and '
+        f'{len(undated) - len(updates)} naming neither a date nor an event we hold. An event announcement always gives '
+        f'its dates, so the second group is features and mechanics — but a date this script failed to parse would also '
+        f'land there, so look in it before concluding a suspected event is absent.'
     )
 
 
