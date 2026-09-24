@@ -95,6 +95,9 @@ const LEGACY_SETS = ['hiddenTypes', 'dismissed'];
  */
 const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle League', 'GO Pass'];
 
+// The same list as a set, for the per-event lookups isNew() and settleSeen() do over every event on every render.
+const RECURRING = new Set(RECURRING_TYPES);
+
 /**
  * One stored set, or null where its key has never been written. Null rather than an empty set because the two mean
  * different things to `hiddenTypes`, and unreadable storage (private mode, disabled) is the same as never written.
@@ -406,16 +409,22 @@ function isVisible(ev) {
  * published date — an entry is `eventID`, `name`, `heading`, `eventType`, `link`, `image`, `start` and `end`, and
  * nothing else — so "new" can only mean "an ID this browser has not recorded seeing", a per-reader fact anyway.
  *
+ * A recurring type is never new, whoever is looking and whatever they have ticked. Each occurrence carries its own
+ * dated ID — `pokemonspotlighthour2026-09-24` — so a weekly Spotlight Hour arrives unrecognised every week and would
+ * mark itself for ever. Coming round on schedule is the whole of what those types do, and a mark that fires on schedule
+ * reports nothing. That is why settleSeen() stores none of them either: no question is left for the set to answer.
+ *
  * Nothing is new before the first feed has settled the seen set, so a slow fetch cannot flash badges over every card.
  */
 function isNew(ev) {
-  return prefs.seen !== null && !prefs.seen.has(ev.eventID);
+  return prefs.seen !== null && !RECURRING.has(ev.heading) && !prefs.seen.has(ev.eventID);
 }
 
 /**
  * The events the reader is being told are new: unacknowledged, and among those their filters admit. Scoped to
- * isVisible() so the count leaves out what they have said they do not want — the types hidden by default are the
- * recurring ones, and they mint a fresh ID every week that would otherwise hold the number permanently above zero.
+ * isVisible() so the count leaves out what they have said they do not want — a dismissal, a search term, or a hidden
+ * type, which after isNew() has already refused the recurring ones means the rest of DEFAULT_HIDDEN and anything they
+ * have unticked since.
  *
  * Which is narrower than "drawn on screen", deliberately: see the Mark all as seen handler.
  */
@@ -431,6 +440,10 @@ function newlyVisible() {
  * the feed has dropped are forgotten, which cannot resurrect a mark because every occurrence carries its own dated ID —
  * `raidhour20260930`, `october-communityday2026` — so a forgotten one never comes round again.
  *
+ * The recurring types are left out of both halves, because isNew() can never mark one: they are a fifth of the feed, so
+ * storing them would turn a fifth of the set over every week to answer a question nothing asks. Leaving them out of
+ * `ids` is also what drops the ones already stored, since the prune keeps only what `ids` holds.
+ *
  * Both halves are skipped when the feed gave us nothing, which load() tolerates: seeding from an empty feed would mark
  * the whole of the next good one new, and pruning against it would forget every ID the reader had acknowledged.
  */
@@ -439,7 +452,7 @@ function settleSeen() {
     return;
   }
 
-  const ids = new Set(events.map((ev) => ev.eventID));
+  const ids = new Set(events.filter((ev) => !RECURRING.has(ev.heading)).map((ev) => ev.eventID));
   prefs.seen = prefs.seen === null ? ids : new Set([...prefs.seen].filter((id) => ids.has(id)));
   persist('seen');
 }
@@ -1134,8 +1147,9 @@ els.refresh.addEventListener('click', load);
  * Acknowledge exactly the events the header just reported, so the number always falls to zero. Both are isVisible() —
  * the reader's own filters — rather than what any one view draws: the calendar shows a single month and the cards
  * split by status behind Show ended and Show undated, so a count matching the marks on screen is not a property the
- * three views can share. Unticking a hidden type months later does therefore surface a batch of marks, which is right —
- * those events genuinely are ones the reader has never been shown, and this clears them in one press.
+ * three views can share. Showing a hidden type months later does therefore surface a batch of marks, which is right —
+ * those events genuinely are ones the reader has never been shown, and this clears them in one press. Showing a
+ * recurring one surfaces nothing, since isNew() refuses those whatever is ticked.
  */
 els.markSeen.addEventListener('click', () => {
   for (const ev of newlyVisible()) {
