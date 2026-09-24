@@ -503,6 +503,29 @@ function card(ev, now) {
   link.target = '_blank';
   link.rel = 'noopener';
   link.setAttribute('aria-label', `Open “${ev.name}”`);
+
+  /**
+   * Opening the event acknowledges it, so the mark goes with the click. `target="_blank"` leaves the reader on this
+   * page, so a card they have just gone and read would otherwise still be announcing itself as new when they come back
+   * to this tab — and the one gesture that proves they have seen it is the one that left it marked.
+   *
+   * `auxclick` as well as `click` because a middle click, which over a list like this is how a reader opens something
+   * in a background tab without losing their place, fires only the second of the two.
+   */
+  const acknowledge = (e) => {
+    // The left and middle buttons are the two that open the link. Chrome reports a right click as an `auxclick` too,
+    // and that opens a menu rather than the event.
+    if (e.button > 1 || !isNew(ev)) {
+      return;
+    }
+
+    prefs.seen.add(ev.eventID);
+    persist('seen');
+    render();
+  };
+
+  link.addEventListener('click', acknowledge);
+  link.addEventListener('auxclick', acknowledge);
   cardEl.append(link);
 
   // A dismissed card only appears while "Show hidden" is on; there the same corner button restores it rather than
