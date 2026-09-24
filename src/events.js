@@ -58,9 +58,22 @@ const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 /**
  * The type filters and per-event dismissals persist in localStorage so a reader's choices survive a reload. Types are
  * stored as the *hidden* set rather than the visible one, so a category the feed adds later shows up by default instead
- * of being silently filtered out by a stale allow-list. The Reset control clears the whole key.
+ * of being silently filtered out by a stale allow-list. The Reset control clears every key.
+ *
+ * One key per set rather than one object holding all of them, so each carries its own absent-versus-empty distinction
+ * and writing one cannot decide another. `hiddenTypes` needs that: absent means a first visit and so DEFAULT_HIDDEN,
+ * where empty means a reader who unticked everything, and in a shared object saving any one set would settle that
+ * question for all of them.
+ *
+ * The property names are the ones `prefs` uses, which is what lets persist() take a name alone.
  */
-const STORE_KEY = 'pgo-events:prefs';
+const KEYS = {
+  hiddenTypes: 'pgo-events:hidden-types',
+  dismissed: 'pgo-events:dismissed',
+};
+
+// The single object these keys replaced, read once to carry an existing reader's choices across — see migrateLegacy().
+const LEGACY_KEY = 'pgo-events:prefs';
 
 /**
  * The types hidden on a first visit, so the default view leads with the events a reader is more likely to plan around:
@@ -74,31 +87,66 @@ const STORE_KEY = 'pgo-events:prefs';
  */
 const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle League', 'GO Pass'];
 
-function loadPrefs() {
+/**
+ * One stored set, or null where its key has never been written. Null rather than an empty set because the two mean
+ * different things to `hiddenTypes`, and unreadable storage (private mode, disabled) is the same as never written.
+ */
+function readSet(key) {
   try {
-    const stored = localStorage.getItem(STORE_KEY);
-    const parsed = JSON.parse(stored ?? '{}');
-
-    return {
-      hiddenTypes: new Set(
-        stored === null ? DEFAULT_HIDDEN : Array.isArray(parsed.hiddenTypes) ? parsed.hiddenTypes : [],
-      ),
-      dismissed: new Set(Array.isArray(parsed.dismissed) ? parsed.dismissed : []),
-    };
+    const stored = localStorage.getItem(key);
+    const parsed = stored === null ? null : JSON.parse(stored);
+    return Array.isArray(parsed) ? new Set(parsed) : null;
   } catch {
-    /* Unreadable or unavailable storage (private mode, disabled): fall back to the first-visit defaults. */
-    return { hiddenTypes: new Set(DEFAULT_HIDDEN), dismissed: new Set() };
+    return null;
   }
+}
+
+/**
+ * Carry a reader's choices over from the single object the separate keys replaced, then drop it, so the old shape is
+ * known to this one function rather than to every read. Both sets are written even when empty, because an absent key
+ * would otherwise read as a first visit and hand back the default hidden types to someone who had unticked them.
+ *
+ * A value that will not parse is left in place rather than deleted: it is data we could not read, and the defaults
+ * apply meanwhile exactly as they would for a first visit.
+ */
+function migrateLegacy() {
+  try {
+    const stored = localStorage.getItem(LEGACY_KEY);
+
+    if (stored === null) {
+      return;
+    }
+
+    const parsed = JSON.parse(stored);
+
+    for (const name of Object.keys(KEYS)) {
+      localStorage.setItem(KEYS[name], JSON.stringify(Array.isArray(parsed?.[name]) ? parsed[name] : []));
+    }
+
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* Nothing to carry over, or storage is unavailable. */
+  }
+}
+
+function loadPrefs() {
+  migrateLegacy();
+
+  return {
+    hiddenTypes: readSet(KEYS.hiddenTypes) ?? new Set(DEFAULT_HIDDEN),
+    dismissed: readSet(KEYS.dismissed) ?? new Set(),
+  };
 }
 
 const prefs = loadPrefs();
 
-function persist() {
+/**
+ * Write one set back, named rather than keyed so a call site cannot pair a key with the wrong set, and one at a time so
+ * ticking a type filter does not rewrite the dismissals beside it.
+ */
+function persist(name) {
   try {
-    localStorage.setItem(
-      STORE_KEY,
-      JSON.stringify({ hiddenTypes: [...prefs.hiddenTypes], dismissed: [...prefs.dismissed] }),
-    );
+    localStorage.setItem(KEYS[name], JSON.stringify([...prefs[name]]));
   } catch {
     /* Storage may be unavailable; the filters still work for the rest of the session. */
   }
@@ -385,7 +433,7 @@ function card(ev, now) {
       prefs.dismissed.add(ev.eventID);
     }
 
-    persist();
+    persist('dismissed');
     render();
   });
 
@@ -876,7 +924,7 @@ function fillTypes() {
       }
 
       chip.classList.toggle('off', !box.checked);
-      persist();
+      persist('hiddenTypes');
       render();
     });
 
@@ -997,7 +1045,9 @@ els.reset.addEventListener('click', () => {
   prefs.dismissed.clear();
 
   try {
-    localStorage.removeItem(STORE_KEY);
+    for (const key of Object.values(KEYS)) {
+      localStorage.removeItem(key);
+    }
   } catch {
     /* Nothing to clear if storage is unavailable. */
   }
