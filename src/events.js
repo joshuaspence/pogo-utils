@@ -68,12 +68,17 @@ const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
  * The property names are the ones `prefs` uses, which is what lets persist() take a name alone.
  */
 const KEYS = {
-  hiddenTypes: 'pgo-events:hidden-types',
-  dismissed: 'pgo-events:dismissed',
-  seen: 'pgo-events:seen',
+  hiddenTypes: 'events:hidden-types',
+  dismissed: 'events:dismissed',
+  seen: 'events:seen',
 };
 
-// The single object these keys replaced, read once to carry an existing reader's choices across — see migrateLegacy().
+/**
+ * The single object these keys replaced, read once to carry an existing reader's choices across — see migrateLegacy().
+ *
+ * It keeps the `pgo-` prefix the others have dropped because this one is not ours to name: it is the key sitting in
+ * readers' browsers already, and spelling it any other way finds nothing and silently discards their choices.
+ */
 const LEGACY_KEY = 'pgo-events:prefs';
 
 /**
