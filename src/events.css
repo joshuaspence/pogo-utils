@@ -47,6 +47,15 @@ header.page .sub {
   gap: 8px;
 }
 
+/* The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
+   none}`, so the `hidden` the page sets whenever the count is zero would lay the line out regardless — leaving Mark all
+   as seen on screen with nothing to mark, and on every page load, since the markup ships hidden with an empty count.
+   Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a
+   media query gives `.newly`. */
+.newly[hidden] {
+  display: none;
+}
+
 .newly .new-count {
   color: var(--accent);
   font-weight: 600;
