@@ -732,4 +732,38 @@ DESCRIPTION:Regional Event\nhttps://pokemongo.com/en/news/event-apac-30th-a
 URL:https://pokemongo.com/en/news/event-apac-30th-anniversary-2026
 CATEGORIES:Regional Event
 END:VEVENT
+BEGIN:VEVENT
+UID:pokemon-go-tour-alola-kaohsiung-2027@pogo-utils.joshuaspence.github.io
+DTSTAMP:20270218T160000Z
+DTSTART:20270218T160000Z
+DTEND:20270221T155959Z
+SUMMARY:Pokémon GO Tour: Alola - Kaohsiung 2027
+DESCRIPTION:Pokémon GO Tour\nhttps://leekduck.com/events/pokemon-go-tour-a
+ lola-kaohsiung-2027/
+URL:https://leekduck.com/events/pokemon-go-tour-alola-kaohsiung-2027/
+CATEGORIES:Pokémon GO Tour
+END:VEVENT
+BEGIN:VEVENT
+UID:pokemon-go-tour-alola-los-angeles-2027@pogo-utils.joshuaspence.github.i
+ o
+DTSTAMP:20270219T080000Z
+DTSTART:20270219T080000Z
+DTEND:20270222T075959Z
+SUMMARY:Pokémon GO Tour: Alola - Los Angeles 2027
+DESCRIPTION:Pokémon GO Tour\nhttps://leekduck.com/events/pokemon-go-tour-a
+ lola-los-angeles-2027/
+URL:https://leekduck.com/events/pokemon-go-tour-alola-los-angeles-2027/
+CATEGORIES:Pokémon GO Tour
+END:VEVENT
+BEGIN:VEVENT
+UID:pokemon-go-tour-alola-global-2027@pogo-utils.joshuaspence.github.io
+DTSTAMP:20270227T000000Z
+DTSTART:20270227T000000
+DTEND:20270228T235959
+SUMMARY:Pokémon GO Tour: Alola - Global 2027
+DESCRIPTION:Pokémon GO Tour\nhttps://leekduck.com/events/pokemon-go-tour-a
+ lola-global-2027/
+URL:https://leekduck.com/events/pokemon-go-tour-alola-global-2027/
+CATEGORIES:Pokémon GO Tour
+END:VEVENT
 END:VCALENDAR
