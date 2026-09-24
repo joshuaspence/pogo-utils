@@ -63,7 +63,7 @@ months out in either direction.
 spot it cannot close: an article that _changes_ an event gives no new date. "The event will be rescheduled to a later
 date" names nothing, so a postponement is invisible to a filter built on future dates — which is exactly backwards,
 because an update is worse than a gap. A gap omits an event; an update makes one we already publish wrong, and the
-`.ics` feeds have already told subscribers when to turn up. So an undated article naming an event a source holds is
+`events.ics` feed has already told subscribers when to turn up. So an undated article naming an event a source holds is
 surfaced on a second, orthogonal signal: not _is this ahead of us_ but _does this touch something of ours_. Read these
 for whether the dates we carry still hold. This list is ordered newest first and its tail is weak matches — a "GO Pass:
 March" note scoring 0.50 against "GO Pass: September" — so it thins out as you go down rather than needing to be read
@@ -116,8 +116,8 @@ and why — that is how the maintainer checks your triage rather than just your 
 
 **Lead with anything already published that is now wrong.** A missing event is an omission the maintainer can add
 whenever they read your report; an entry whose dates an article has since changed is actively telling calendar
-subscribers to turn up at the wrong time, and the `.ics` files in this repository have already gone out. Put that first
-and say so, rather than letting it sit in a list of proposals ordered by date.
+subscribers to turn up at the wrong time, and the `events.ics` this repository publishes has already gone out. Put that
+first and say so, rather than letting it sit in a list of proposals ordered by date.
 
 An entry takes this shape, and only `name`, `start` and `end` are yours to judge:
 

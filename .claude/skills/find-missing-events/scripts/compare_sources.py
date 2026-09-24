@@ -23,7 +23,7 @@ Niantic partners with next.
 That filter has one blind spot, and it is reported separately rather than patched: an article that *changes* an event
 gives no new date — "rescheduled to a later date" — so it names no future date by construction. An undated article whose
 headline names an event a source already holds is therefore surfaced too, since it cannot be discovered by date and is
-worse than a gap when real: a gap omits an event, an update makes one already in the published `.ics` feeds wrong.
+worse than a gap when real: a gap omits an event, an update makes one already in the published `events.ics` wrong.
 
 Matching is deliberately split in two. An exact slug hit is reported as a match because Leek Duck derives its own slugs
 from these same announcements, so a news slug equal to a ScrapedDuck `eventID` is the same event with near certainty.
@@ -218,9 +218,9 @@ def main():
     # An undated article naming an event a source already holds is the one thing the date filter cannot see, and the
     # most urgent thing in the archive: an update says "rescheduled to a later date" and gives no date, so it names no
     # future date by construction and would be counted away with the feature notes. That is the wrong way round, because
-    # it does not merely omit an event — it makes one we already publish wrong, and the `.ics` feeds have already gone
-    # out. City Safari Boston was postponed for a storm two days before the date `data/events.json` still advertised,
-    # and its article names no date at all. Matching what we hold is the orthogonal signal that finds it.
+    # it does not merely omit an event — it makes one we already publish wrong, and the generated `events.ics` has
+    # already gone out. City Safari Boston was postponed for a storm two days before the date `data/events.json` still
+    # advertised, and its article names no date at all. Matching what we hold is the signal that finds it.
     updates = [(item, found) for item in undated if (found := candidates_for(item[1], candidates))]
 
     print(
