@@ -72,7 +72,10 @@ after the next.
 - **Measure widths in characters, not bytes, before believing a line is too long.** `awk 'length > 120'` counts bytes,
   so every comment carrying an em-dash reads three columns over per dash and a compliant line is reported as a
   violation. Four of these comments looked too long and only two were. Use `len()` on text decoded as UTF-8, and check
-  what the diff actually adds rather than the whole file: plenty of lines already sit at 121.
+  what the diff actually adds rather than the whole file: thirteen lines already sit at 121. Measuring is not optional,
+  because nothing else does it — `prettier.config.mjs` sets `printWidth: 120` and Prettier reflows code and Markdown
+  prose to it, but never a `/* */` or `//` comment, so `pnpm lint` is silent on an over-long one. That is how those
+  thirteen got in, and how sixteen more nearly went in with the new-event marker.
 - **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.js` holds the
   Leaflet map in a `const`, so `Runtime.evaluate` finds only the `<div id="map">` and answers
   `map.getZoom is not a function`. Send a `Page.addScriptToEvaluateOnNewDocument` that defines a setter for `window.L`

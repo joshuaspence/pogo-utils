@@ -38,6 +38,38 @@ header.page .sub {
   color: var(--muted);
 }
 
+/* How many events have arrived since this browser last acknowledged them, and the only control that clears them. Its
+   own line beside the count rather than inside it, because each of the three views writes that line itself and this
+   has to read the same in all of them — a calendar or tracks bar can mark a new event but has no room for a control. */
+.newly {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.newly .new-count {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Quieter than the accent buttons in the controls bar below, which is a different band of the page: this sits in 12px
+   muted text and should read as a footnote to the count it follows, not compete with Refresh. */
+.newly button {
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.newly button:hover,
+.newly button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .controls {
   position: sticky;
   top: 0;
@@ -289,6 +321,35 @@ h2.group .gcount {
   .dismiss {
     opacity: 1;
   }
+}
+
+/* An event that has arrived since the reader last acknowledged the page. It takes the corner opposite the dismiss
+   button and the same elevation, because the card's overlay link covers everything below z-index 2 and would swallow
+   the click.
+
+   What it does not borrow is that button's reveal-on-hover: a mark nobody sees until they point at the card cannot do
+   the one job it has. So it stays visible, and reads as a label that happens to be clickable rather than a control. */
+.new-mark {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  padding: 2px 7px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.new-mark:hover,
+.new-mark:focus-visible {
+  filter: brightness(1.1);
 }
 
 /* A left accent stripe marks the event's state at a glance without a legend. */
@@ -743,6 +804,27 @@ footer a {
 /* A past event keeps its type colour but dims, matching the cards and the timeline bars. */
 .cal-bar.ended {
   opacity: 0.55;
+}
+
+/* An event that has arrived since the reader last acknowledged the page, on both bar kinds. A ring rather than a badge
+   or a leading dot because it costs no label width, and these labels have none to spare — a third of them already
+   ellipsise at desktop width and half do on a phone.
+
+   Two rings, because one cannot work: the accent against the fifteen type colours measures 1.04 to 1.28 contrast in
+   both themes, which is no ring at all. The page colour is the only value that clears every type colour (2.80 worst in
+   light, 6.13 in dark), so it goes inside — and the accent then sits outside it, against the page, where it measures
+   4.39 and 5.91. The drop shadow is repeated because a `box-shadow` declaration replaces the list rather than adds to
+   it.
+
+   One pixel of page colour and two of accent, in that order, because the whole ring has to fit the 2px row gap the bars
+   are packed with: wider and it laps over the bar in the row above. A single pixel is all the separation the contrast
+   measurement needs, and spending the rest on the accent is what makes the ring visible at all. */
+.cal-bar.new,
+.bar.new {
+  box-shadow:
+    0 0 0 1px var(--bg),
+    0 0 0 3px var(--accent),
+    0 1px 2px rgb(0 0 0 / 20%);
 }
 
 .cal-bar:hover {

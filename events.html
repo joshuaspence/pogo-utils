@@ -19,6 +19,18 @@
     <header class="page">
       <h1>Pokémon GO Events</h1>
       <p class="sub" id="count">Loading events…</p>
+
+      <!--
+        How many events have appeared since this browser last acknowledged them, and the one control that clears them
+        all. Its own line rather than part of #count because all three views write that one themselves, and this says
+        the same thing in each of them. Hidden until there is a number to report.
+      -->
+      <p class="sub newly" id="newly" hidden>
+        <span class="new-count" id="newCount"></span>
+        <button id="markSeen" type="button" class="ghost" title="Stop marking these events as new">
+          Mark all as seen
+        </button>
+      </p>
     </header>
 
     <section class="controls">
@@ -32,7 +44,12 @@
       <label class="toggle"><input type="checkbox" id="showUndated" /> Show undated</label>
       <label class="toggle"><input type="checkbox" id="showHidden" /> Show hidden</label>
       <button id="refresh" type="button">Refresh</button>
-      <button id="reset" type="button" class="ghost" title="Show every type again and restore dismissed events">
+      <button
+        id="reset"
+        type="button"
+        class="ghost"
+        title="Show every type again, restore dismissed events and clear the new marks"
+      >
         Reset
       </button>
     </section>
