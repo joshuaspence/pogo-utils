@@ -18,39 +18,60 @@ The Events page merges two sources, and this skill audits the gap between them a
   `regional-event` — a type ScrapedDuck never emits, registered locally in `src/events.js` — because what Leek Duck
   systematically omits is the region-locked, in-person kind: City Safari, a campus festival, a mall tour, a national
   partnership.
-- **`pokemongo.com/en/news`** is the source of truth for what has been announced, and is what this skill reads.
+- **`pokemongo.com`** is the source of truth for what has been announced, and is what this skill reads: the news
+  archive, and the in-person events index beside it.
 
 So the job is narrow: find the **regional or in-person events** that Niantic has announced and neither source names, and
-offer to add them. That narrowness is the point — the news list is mostly content the feed already has, and widening the
-net past regional events fills the report with noise the maintainer has to re-reject every run.
+offer to add them. That narrowness is the point — the news archive is mostly content the feed already has, and widening
+the net past regional events fills the report with noise the maintainer has to re-reject every run.
 
-## Read the two sources before deciding anything
+## Read the sources before deciding anything
 
 ```sh
 python3 .claude/skills/find-missing-events/scripts/compare_sources.py
 ```
 
-Run it from the checkout root. It fetches the news list and the feed, reads `data/events.json`, and splits the 30 listed
-articles into ones a source already names by slug and ones nothing accounts for, each with its closest candidates by
-name and its publish date.
+Run it from the checkout root; it takes about half a minute. It walks the **whole** news archive — 223 articles back to
+mid-2025 when this was written, not just the front page — reads the in-person index and the feed, and reports the
+articles that no source names and that have not yet finished, each with its closest candidates by name.
 
-Trust the matched half and spend your attention on the unmatched half. Slug equality is reliable because Leek Duck
-derives its slugs from these same announcements, so roughly a third of the list matches outright.
+Two things about that walk are worth knowing, because both have already cost a run its answer.
 
-## Triage the unmatched list
+- **The archive paginates on `?nr=<offset>`, and the plausible-looking `?no=<offset>` is silently ignored**, answering
+  with the newest thirty however large you make it. A walk using `no` looks like it paginated and in fact reads page one
+  over and over.
+- **Reaching past the front page is the whole game for this skill.** The events this repository exists to hold are the
+  long ones — an airline partnership, a national-trust season, a nine-stop tour, a six-month mall tour — and those are
+  announced months ahead, so they are off the front page while still running. Four such events were live and invisible
+  to a front-page audit. If you find yourself reading only the latest thirty articles, you are auditing the wrong set.
 
-Most unmatched articles are not gaps. Three things put one there, and only the third is worth reporting.
+Trust the matched half and spend your attention on what is left. Slug equality is reliable because Leek Duck derives its
+slugs from these same announcements.
 
-**The event has already ended.** This is the most common and the easiest to get wrong, because the feed drops an event
-the moment it is over — when this was checked, the earliest `end` in the whole feed was that same day, and nothing
-earlier was in it at all. So every past event on the news page is permanently unmatched by construction, and a report
-that does not filter them re-raises the same dozen stale events forever. The publish date in the report is your first
-filter; the article's own dates settle it.
+## Triage what the script leaves you
+
+The script has already dropped the two large classes that are not gaps: articles whose own prose names no date later
+than today, and articles naming no dates at all. That filter is worth understanding, because it is what makes a
+223-article archive readable — an announcement that is still worth acting on has to say so itself, since a long-running
+event must name how long it runs while a Community Day can only name its one weekend. It is the article's own words that
+decide, not `datePublished`, which dates the press release and is routinely months out in either direction.
+
+Its residue is the 29-odd articles naming no date at all. An event announcement always gives dates, so these are
+features, mechanics and rename notices — but a date the parser failed to read would land there too, so look in that
+group before concluding a specific suspected event is genuinely absent.
+
+What reaches you divides three ways, and only the third is worth reporting.
 
 **It is not a regional event.** A ticketing update, a "Know Before You GO" venue guide, a "Save the Date", patch notes,
-a GO Battle League rotation note, a global event the feed simply names differently — none of these belong in
+a GO Battle League rotation note, a season, a global event the feed simply names differently — none of these belong in
 `data/events.json`. Check the candidate list first: a score near 1.00 usually means the feed or the local file already
 has the event under other wording, which is a match the script declined to assert rather than a gap.
+
+**It is an event we already carry, and the article changes it.** This is the case a slug match hides, so it is worth
+looking for deliberately. An update article can postpone an event for a storm, extend a partnership by five months, or
+close ticket sales — and the entry then advertises dates that are wrong rather than merely absent, which is worse,
+because the `.ics` feeds have already told subscribers to turn up. When an article names an event a source already has,
+read it anyway and ask whether it _changes_ that event's dates.
 
 **It is an announced regional or in-person event that nothing here names.** Report these. A campus event, a mall tour, a
 partnership with a venue or an airline, a city-specific celebration.
@@ -58,7 +79,7 @@ partnership with a venue or an airline, a city-specific celebration.
 Two shapes recur and neither is one-article-one-event, so resolve them by reading rather than by counting:
 
 - **One article, several events.** A City Safari announcement covers three European cities; a "Save the Date" covers
-  three GO Tour stops; a mall tour lists a dozen venue windows across five countries. Some of those may already be
+  three GO Tour stops; a mall tour lists eleven venue windows across three countries. Some of those may already be
   present and some not.
 - **Several articles, one event.** An announcement, a venue guide and a ticketing update are three articles about the
   same event.
@@ -70,12 +91,15 @@ python3 .claude/skills/find-missing-events/scripts/read_article.py <slug>
 ```
 
 This prints the article's `headline`, `link` and `image` — the last taken from its structured data, which is where
-existing entries' image URLs come from character for character, so never retype one — and then the prose.
+existing entries' image URLs come from character for character, so never retype one — then the date the script read, and
+then the prose. It exits with an error on a slug that does not exist, which is worth trusting: `/en/news/<slug>` returns
+a real 404, unlike the rest of the site, where an unknown path serves the app shell with status 200.
 
-Read the prose for the dates, because they are only ever there. `datePublished` is when the announcement went up, not
-when the event runs, and the two are often weeks apart. What you are looking for reads like
-`Monday, September 28, at 10:00 a.m. to Thursday, October 1, 2026, at 8:00 p.m. local time`. Note the trap in that
-example: the start line often omits the year, which you take from the end.
+**Read the prose for the dates rather than taking the `runs until:` line.** That line is the crude furthest-date-named
+signal the triage filter runs on — good enough to decide whether an article is worth your time, and not good enough to
+put in a commit, since it cannot tell a start from an end or an event date from a mention of next season. What you are
+looking for reads like `Monday, September 28, at 10:00 a.m. to Thursday, October 1, 2026, at 8:00 p.m. local time`. Note
+the trap in that example: the start often omits the year, which you take from the end.
 
 ## Report before writing
 
@@ -83,6 +107,11 @@ Say what you found and what you are proposing, then wait. Date extraction from p
 wrong, and a misread date is much cheaper to catch in a proposal than in a commit. Give, for each proposed event, the
 article it came from and the exact JSON entry you would insert, and say plainly which unmatched articles you rejected
 and why — that is how the maintainer checks your triage rather than just your parsing.
+
+**Lead with anything already published that is now wrong.** A missing event is an omission the maintainer can add
+whenever they read your report; an entry whose dates an article has since changed is actively telling calendar
+subscribers to turn up at the wrong time, and the `.ics` files in this repository have already gone out. Put that first
+and say so, rather than letting it sit in a list of proposals ordered by date.
 
 An entry takes this shape, and only `name`, `start` and `end` are yours to judge:
 
@@ -115,24 +144,30 @@ An entry takes this shape, and only `name`, `start` and `end` are yours to judge
 ### Choosing between a floating time and a UTC instant
 
 This distinction is load-bearing: it decides what a subscriber's calendar shows, and the wrong one shifts an event by
-hours. The rule follows from what the time actually means.
+hours. **What settles it is how many time zones the event spans, not whether the announcement gives clock times** — and
+not the phrase "local time", which appears in single-city announcements too and so distinguishes nothing.
 
 - **An event in one place is one worldwide instant**, so convert its local wall clock to UTC and write a trailing `Z`.
-  Every single-location entry in the file does this: Brisbane, Kuala Lumpur and Korea all start at `10:00` local, and
-  all three are stored as the UTC instant that equals.
-- **An event that runs "local time" everywhere is a floating time**, so write the wall clock with no zone and no `Z` —
-  `2026-10-02T10:00:00.000`. 10am wherever the reader is, which is what the announcement means and what an iCalendar
-  floating time expresses.
+  Brisbane, Marseille, Munich, Lisbon, Rio and Boston all start at `10:00` local on the same day and are stored as six
+  different instants — `T00:00`, `T08:00`, `T08:00`, `T09:00`, `T13:00`, `T14:00` — which is the rule visible in the
+  data.
+- **An event running in several zones at once is a floating time**, so write the wall clock with no zone and no `Z`:
+  `2026-10-02T10:00:00.000`. 10am wherever the reader is, which is what such an announcement means and what an iCalendar
+  floating time expresses. Three entries are like this and all three are multi-country.
 
-A single-city event's announcement also says "local time", so the phrase alone does not settle it. Ask instead whether
-the event happens in one place or everywhere.
+So a mall tour across three countries takes floating times even though it names exact hours, and a one-city festival
+takes instants even though it says "local time".
+
+**For an event given as whole days, end at the last moment of the final day rather than midnight of the next**, or a
+calendar draws an extra day. The file writes this two ways — `2026-09-27T23:59:00.000` and `2027-04-30T23:59:59.000` —
+so either passes; prefer `23:59:59.000` as the more exact of the two.
 
 ## Writing and landing the change
 
 Once the proposal is approved:
 
 1. **Insert each entry in `start` order.** The file is sorted by `start` ascending and nothing enforces it, so keep it
-   that way by hand.
+   that way by hand — including after correcting an existing entry's dates, which can move it.
 2. **Run `npx prettier --write data/events.json`.** `pnpm lint` checks this file's formatting and will fail on it
    otherwise.
 3. **Run `pnpm lint`** to confirm nothing else broke.
