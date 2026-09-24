@@ -120,6 +120,15 @@ header.page .sub {
   cursor: pointer;
 }
 
+/* The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
+   none}`, so the `hidden` setView() puts on these two labels outside the cards view laid them out regardless — leaving
+   Show ended and Show undated on screen in the calendar and tracks views, where neither reveals anything. Keyed on
+   `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
+   query gives them. */
+.controls .toggle[hidden] {
+  display: none;
+}
+
 .controls button {
   padding: 8px 12px;
   border: 1px solid var(--accent);
