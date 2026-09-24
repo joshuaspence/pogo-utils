@@ -70,10 +70,18 @@ const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 const KEYS = {
   hiddenTypes: 'pgo-events:hidden-types',
   dismissed: 'pgo-events:dismissed',
+  seen: 'pgo-events:seen',
 };
 
 // The single object these keys replaced, read once to carry an existing reader's choices across — see migrateLegacy().
 const LEGACY_KEY = 'pgo-events:prefs';
+
+/**
+ * The sets that object carried, and so all migrateLegacy() can bring across. `seen` is deliberately not among them: it
+ * has no legacy value, and writing it empty would say a reader who has been here for months has seen nothing, marking
+ * every event on the page new. Left absent instead, it seeds from the feed like a first visit — see settleSeen().
+ */
+const LEGACY_SETS = ['hiddenTypes', 'dismissed'];
 
 /**
  * The types hidden on a first visit, so the default view leads with the events a reader is more likely to plan around:
@@ -119,7 +127,7 @@ function migrateLegacy() {
 
     const parsed = JSON.parse(stored);
 
-    for (const name of Object.keys(KEYS)) {
+    for (const name of LEGACY_SETS) {
       localStorage.setItem(KEYS[name], JSON.stringify(Array.isArray(parsed?.[name]) ? parsed[name] : []));
     }
 
@@ -135,6 +143,9 @@ function loadPrefs() {
   return {
     hiddenTypes: readSet(KEYS.hiddenTypes) ?? new Set(DEFAULT_HIDDEN),
     dismissed: readSet(KEYS.dismissed) ?? new Set(),
+
+    // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
+    seen: readSet(KEYS.seen),
   };
 }
 
@@ -154,6 +165,9 @@ function persist(name) {
 
 const els = {
   count: document.getElementById('count'),
+  newly: document.getElementById('newly'),
+  newCount: document.getElementById('newCount'),
+  markSeen: document.getElementById('markSeen'),
   search: document.getElementById('search'),
   typeFilters: document.getElementById('typeFilters'),
   showPast: document.getElementById('showPast'),
@@ -388,6 +402,49 @@ function isVisible(ev) {
 }
 
 /**
+ * Whether the event has turned up since the reader last acknowledged what was on the page. The feed carries no
+ * published date — an entry is `eventID`, `name`, `heading`, `eventType`, `link`, `image`, `start` and `end`, and
+ * nothing else — so "new" can only mean "an ID this browser has not recorded seeing", a per-reader fact anyway.
+ *
+ * Nothing is new before the first feed has settled the seen set, so a slow fetch cannot flash badges over every card.
+ */
+function isNew(ev) {
+  return prefs.seen !== null && !prefs.seen.has(ev.eventID);
+}
+
+/**
+ * The events the reader is being told are new: unacknowledged, and among those their filters admit. Scoped to
+ * isVisible() so the count leaves out what they have said they do not want — the types hidden by default are the
+ * recurring ones, and they mint a fresh ID every week that would otherwise hold the number permanently above zero.
+ *
+ * Which is narrower than "drawn on screen", deliberately: see the Mark all as seen handler.
+ */
+function newlyVisible() {
+  return events.filter((ev) => isNew(ev) && isVisible(ev));
+}
+
+/**
+ * Settle the seen set against the feed, once per fetch.
+ *
+ * A first visit seeds it with everything on offer rather than marking all of it new: forty badges say no more than none
+ * do, and the point of the mark is the difference from what you last looked at, which on a first visit is nothing. IDs
+ * the feed has dropped are forgotten, which cannot resurrect a mark because every occurrence carries its own dated ID —
+ * `raidhour20260930`, `october-communityday2026` — so a forgotten one never comes round again.
+ *
+ * Both halves are skipped when the feed gave us nothing, which load() tolerates: seeding from an empty feed would mark
+ * the whole of the next good one new, and pruning against it would forget every ID the reader had acknowledged.
+ */
+function settleSeen() {
+  if (!events.length) {
+    return;
+  }
+
+  const ids = new Set(events.map((ev) => ev.eventID));
+  prefs.seen = prefs.seen === null ? ids : new Set([...prefs.seen].filter((id) => ids.has(id)));
+  persist('seen');
+}
+
+/**
  * "2 routes · 1 waypoint" — each kind the event has, pluralised. A kind it has none of is left out rather than written
  * as a zero, so an event with only a waypoint does not advertise the routes it lacks.
  */
@@ -438,6 +495,27 @@ function card(ev, now) {
   });
 
   cardEl.append(dismiss);
+
+  /**
+   * The mark for an event that has appeared since the reader last acknowledged the page, and the button that clears it.
+   * A sibling of the overlay link for the same reason the dismiss button is one: that link covers the card and would
+   * swallow the click. It takes the opposite corner, so the card's two controls read as a pair — and the left edge is
+   * already the status stripe.
+   */
+  if (isNew(ev)) {
+    const mark = el('button', 'new-mark', 'New');
+    mark.type = 'button';
+    mark.title = 'Mark as seen';
+    mark.setAttribute('aria-label', `Mark “${ev.name}” as seen`);
+
+    mark.addEventListener('click', () => {
+      prefs.seen.add(ev.eventID);
+      persist('seen');
+      render();
+    });
+
+    cardEl.append(mark);
+  }
 
   if (ev.image) {
     const img = el('img', 'thumb');
@@ -563,6 +641,10 @@ function calBar(ev, now, [first, last], { contLeft, contRight }) {
   node.style.gridColumn = `${first + 1} / span ${last - first + 1}`;
   node.classList.toggle('cont-left', contLeft);
   node.classList.toggle('cont-right', contRight);
+
+  // A ring, not a badge: there is no room for a control in eleven pixels, so a bar says an event is new and the header
+  // carries the only way to clear it.
+  node.classList.toggle('new', isNew(ev));
   node.href = ev.link;
   node.target = '_blank';
   node.rel = 'noopener';
@@ -804,6 +886,7 @@ function renderTracks(now) {
       const right = Math.min(it.endMs, rangeEndMs);
 
       const bar = el('a', `bar ${statusOf(it.ev, now).kind}${typeClass(it.ev.eventType)}`, it.ev.name);
+      bar.classList.toggle('new', isNew(it.ev));
       bar.href = it.ev.link;
       bar.target = '_blank';
       bar.rel = 'noopener';
@@ -844,6 +927,15 @@ function render() {
   } else {
     renderCards(now);
   }
+
+  /**
+   * Here rather than in each view's own count line, because all three write that themselves and this says the same
+   * thing in every one of them — a calendar or tracks bar can only mark a new event, so the header is where clearing
+   * lives.
+   */
+  const newly = newlyVisible().length;
+  els.newly.hidden = newly === 0;
+  els.newCount.textContent = `${newly} new event${newly === 1 ? '' : 's'}`;
 
   // Spent by whichever view just drew, so the animation plays once per fetch rather than on every minute's re-render.
   entering = false;
@@ -995,6 +1087,7 @@ async function load() {
   events = normalise([...byId.values()]).sort(
     (a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity),
   );
+  settleSeen();
   entering = true;
   fillTypes();
   render();
@@ -1036,6 +1129,22 @@ els.showPast.addEventListener('change', render);
 els.showUndated.addEventListener('change', render);
 els.showHidden.addEventListener('change', render);
 els.refresh.addEventListener('click', load);
+
+/**
+ * Acknowledge exactly the events the header just reported, so the number always falls to zero. Both are isVisible() —
+ * the reader's own filters — rather than what any one view draws: the calendar shows a single month and the cards
+ * split by status behind Show ended and Show undated, so a count matching the marks on screen is not a property the
+ * three views can share. Unticking a hidden type months later does therefore surface a batch of marks, which is right —
+ * those events genuinely are ones the reader has never been shown, and this clears them in one press.
+ */
+els.markSeen.addEventListener('click', () => {
+  for (const ev of newlyVisible()) {
+    prefs.seen.add(ev.eventID);
+  }
+
+  persist('seen');
+  render();
+});
 els.viewCards.addEventListener('click', () => setView('cards'));
 els.viewCalendar.addEventListener('click', () => setView('calendar'));
 els.viewTracks.addEventListener('click', () => setView('tracks'));
@@ -1043,6 +1152,10 @@ els.viewTracks.addEventListener('click', () => setView('tracks'));
 els.reset.addEventListener('click', () => {
   prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
   prefs.dismissed.clear();
+
+  // Back to not knowing, which settleSeen() then reads as a first visit and seeds from the feed. Clearing it to empty
+  // instead would mark every event on the page new, and a Reset is a return to the defaults, not an announcement.
+  prefs.seen = null;
 
   try {
     for (const key of Object.values(KEYS)) {
@@ -1052,6 +1165,7 @@ els.reset.addEventListener('click', () => {
     /* Nothing to clear if storage is unavailable. */
   }
 
+  settleSeen();
   fillTypes();
   render();
 });
