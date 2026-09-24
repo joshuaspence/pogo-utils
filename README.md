@@ -84,19 +84,17 @@ added again.
 
 ## Calendar subscription
 
-The same events are published as two iCalendar feeds, so they can be subscribed to rather than read here:
-
-| Feed                                                                         | Holds                                                                             |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| [`events.ics`](https://joshuaspence.github.io/pogo-utils/events.ics)         | What the Events page shows by default.                                            |
-| [`events-all.ics`](https://joshuaspence.github.io/pogo-utils/events-all.ics) | Every dated event, Spotlight Hours, Raid Hours, Max Mondays and Seasons included. |
+The same events are published as an iCalendar feed,
+[`events.ics`](https://joshuaspence.github.io/pogo-utils/events.ics), so they can be subscribed to rather than read
+here. It holds what the Events page shows by default: every dated event other than the weekly-cadence ones, so
+subscribing does not put a Spotlight Hour and a Raid Hour into every week of your calendar.
 
 In Google Calendar, that is **Other calendars → + → From URL**; iOS and Outlook take the same URL. Google re-fetches a
 subscribed URL on its own schedule, typically somewhere between a few hours and a day, so a newly announced event does
 not appear there as promptly as it does on the page.
 
 A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does live has to happen
-ahead of time. [`scripts/build-ics.mjs`](scripts/build-ics.mjs) does it and writes both files, and the
+ahead of time. [`scripts/build-ics.mjs`](scripts/build-ics.mjs) does it, and the
 [Calendar workflow](.github/workflows/calendar.yml) runs it every six hours and commits the result:
 
 ```sh
@@ -104,11 +102,11 @@ node scripts/build-ics.mjs
 ```
 
 The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
-[`entries-by-event.json`](entries-by-event.json) — so an unchanged pair of files after a run means the event data has
-not moved. That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
-[`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the two feeds
-only when they differ, and passes without a commit when they do not. Note that GitHub disables a scheduled workflow
-after 60 days without a commit to the repository; re-enable it from the Actions tab if the feeds ever go stale.
+[`entries-by-event.json`](entries-by-event.json) — so an unchanged file after a run means the event data has not moved.
+That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
+[`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the feed only
+when it differs, and passes without a commit when it does not. Note that GitHub disables a scheduled workflow after 60
+days without a commit to the repository; re-enable it from the Actions tab if the feed ever goes stale.
 
 An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
 exactly an iCalendar floating time: a `DTSTART` carrying neither a `TZID` nor a trailing `Z`. The ones that are a single
@@ -119,7 +117,7 @@ Floating time is where calendar apps differ, and it is worth knowing which one y
 Thunderbird implement it, and show a local event at the hour it says. Google Calendar does not: with no calendar-level
 timezone in the file to anchor them to, it reads those times as UTC, so a 2pm Community Day arrives at 2pm UTC rather
 than 2pm where you are. Pinning them with `X-WR-TIMEZONE` would fix that for one timezone and break it for every
-subscriber outside that zone, so the feeds leave them floating — correct by the spec, and correct in a reader that
+subscriber outside that zone, so the feed leaves them floating — correct by the spec, and correct in a reader that
 follows it.
 
 ## Search strings
