@@ -130,9 +130,11 @@ header .sub {
   background: var(--bg);
 }
 
-/* How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent names
-   and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows there, and
-   the count follows the filter (see the input handler in app.js) so it never contradicts what is on screen. */
+/**
+ * How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent names
+ * and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows there, and
+ * the count follows the filter (see the input handler in app.js) so it never contradicts what is on screen.
+ */
 .continent .gcount,
 .country .gcount {
   margin-left: auto;
@@ -180,8 +182,10 @@ header .sub {
   border-left: 3px solid transparent;
 }
 
-/* The map draws a track as a blue line and a waypoint as an orange dot, and these are the very tokens app.js hands
-   Leaflet for them, so each row wears its own marker instead of leaving the reader to click and find out which it is. */
+/**
+ * The map draws a track as a blue line and a waypoint as an orange dot, and these are the very tokens app.js hands
+ * Leaflet for them, so each row wears its own marker instead of leaving the reader to click and find out which it is.
+ */
 .route::before {
   content: '';
   flex: none;
@@ -199,10 +203,12 @@ header .sub {
   background: var(--city);
 }
 
-/* An entry added for an event is drawn in --event on the map, whichever of the two kinds it is, so its marker follows:
-   the shape still says line or dot, and the colour says where it came from. Keyed off the event line the row already
-   carries rather than a second class saying the same thing, and placed after `.route.city` because the two selectors
-   have equal specificity and a waypoint's row matches both. */
+/**
+ * An entry added for an event is drawn in --event on the map, whichever of the two kinds it is, so its marker follows:
+ * the shape still says line or dot, and the colour says where it came from. Keyed off the event line the row already
+ * carries rather than a second class saying the same thing, and placed after `.route.city` because the two selectors
+ * have equal specificity and a waypoint's row matches both.
+ */
 .route:has(.eventline)::before {
   background: var(--event);
 }
@@ -217,8 +223,10 @@ header .sub {
   font-weight: 600;
 }
 
-/* Pushed to the right edge from here rather than by `space-between` on the row, which would spread the free space either
-   side of the name and leave it floating away from the marker that belongs to it. */
+/**
+ * Pushed to the right edge from here rather than by `space-between` on the row, which would spread the free space either
+ * side of the name and leave it floating away from the marker that belongs to it.
+ */
 .route .end {
   display: flex;
   align-items: center;
@@ -269,9 +277,11 @@ header .sub {
   opacity: 1;
 }
 
-/* Only a row carrying an event wraps, and the name is given a basis of zero within it so that it cannot push the
-   distance and the Copy button down as well — the second line is for the event alone. Asking for the wrap on every row
-   moved that pair onto its own line on 29 of the 80 rows here, none of which have an event. */
+/**
+ * Only a row carrying an event wraps, and the name is given a basis of zero within it so that it cannot push the
+ * distance and the Copy button down as well — the second line is for the event alone. Asking for the wrap on every row
+ * moved that pair onto its own line on 29 of the 80 rows here, none of which have an event.
+ */
 .route:has(.eventline) {
   flex-wrap: wrap;
 }
@@ -280,19 +290,23 @@ header .sub {
   flex: 1 1 0;
 }
 
-/* Takes a line of its own — `flex-basis` on the span is what wraps it there — and indents by the marker plus its gap so
-   it starts under the name rather than under the marker. The span carries the width so the link inside stays as wide as
-   its text: were the link itself the full-width item, clicking the empty space beside it would leave the page instead of
-   selecting the entry, which is what clicking anywhere else on the row does. */
+/**
+ * Takes a line of its own — `flex-basis` on the span is what wraps it there — and indents by the marker plus its gap so
+ * it starts under the name rather than under the marker. The span carries the width so the link inside stays as wide as
+ * its text: were the link itself the full-width item, clicking the empty space beside it would leave the page instead of
+ * selecting the entry, which is what clicking anywhere else on the row does.
+ */
 .route .eventline {
   flex-basis: 100%;
   margin-left: 16px;
   line-height: 1;
 }
 
-/* Wears --event, which is what makes that colour on the map legible without a legend: the one row naming an event is
-   also the one whose marker changed hue. The tinted fill is mixed from the same token rather than held as a second
-   `--event-soft`, since --accent-soft exists only because --accent is wanted at two strengths in a dozen places. */
+/**
+ * Wears --event, which is what makes that colour on the map legible without a legend: the one row naming an event is
+ * also the one whose marker changed hue. The tinted fill is mixed from the same token rather than held as a second
+ * `--event-soft`, since --accent-soft exists only because --accent is wanted at two strengths in a dozen places.
+ */
 .route .event {
   display: inline-block;
   padding: 2px 7px;
@@ -436,8 +450,10 @@ footer a {
     grid-template-rows: 45% 55%;
   }
 
-  /* Scroll the whole sidebar as one column so the footer after the list stays
-     reachable instead of being clipped below the fold. */
+  /**
+   * Scroll the whole sidebar as one column so the footer after the list stays
+   * reachable instead of being clipped below the fold.
+   */
   #sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
@@ -455,8 +471,10 @@ footer a {
   }
 }
 
-/* A reader who has asked the operating system for less movement still gets the layout, colour and elevation — only the
-   swinging chevron, the fading copy button and the toast's slide go, each becoming an instant change of state instead. */
+/**
+ * A reader who has asked the operating system for less movement still gets the layout, colour and elevation — only the
+ * swinging chevron, the fading copy button and the toast's slide go, each becoming an instant change of state instead.
+ */
 @media (prefers-reduced-motion: reduce) {
   .continent .chev,
   .country .chev,

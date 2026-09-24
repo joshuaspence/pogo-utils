@@ -1,9 +1,13 @@
-/* Shared colour tokens for both pages: the map viewer (styles.css) and the events calendar (events.css). Kept in one
-   place so the light and dark palettes cannot drift between them. */
+/**
+ * Shared colour tokens for both pages: the map viewer (styles.css) and the events calendar (events.css). Kept in one
+ * place so the light and dark palettes cannot drift between them.
+ */
 
 :root {
-  /* The palette below follows prefers-color-scheme, so tell the browser to switch the parts of the page it paints
-     itself on the same preference: an unticked checkbox and a scrollbar would otherwise stay light on the dark page. */
+  /**
+   * The palette below follows prefers-color-scheme, so tell the browser to switch the parts of the page it paints
+   * itself on the same preference: an unticked checkbox and a scrollbar would otherwise stay light on the dark page.
+   */
   color-scheme: light dark;
 
   --bg: #f7f8fa;
@@ -18,18 +22,24 @@
   --end: #e3350d;
   --city: #d97706;
 
-  /* An entry added for an event takes this instead of --track or --city, so which of the map's lines and dots came from
-     a real-world event reads without clicking any of them. Far enough round the wheel from both to tell a 2px line
-     apart from a --track one, and from --accent so that "belongs to an event" cannot be mistaken for "selected". */
+  /**
+   * An entry added for an event takes this instead of --track or --city, so which of the map's lines and dots came from
+   * a real-world event reads without clicking any of them. Far enough round the wheel from both to tell a 2px line
+   * apart from a --track one, and from --accent so that "belongs to an event" cannot be mistaken for "selected".
+   */
   --event: #a21caf;
 
-  /* Resting and lifted elevation. A shadow that reads on a near-white page disappears on a dark one, so the two modes
-     carry their own alphas rather than one value tuned for whichever mode was looked at last. */
+  /**
+   * Resting and lifted elevation. A shadow that reads on a near-white page disappears on a dark one, so the two modes
+   * carry their own alphas rather than one value tuned for whichever mode was looked at last.
+   */
   --shadow: 0 1px 2px rgb(0 0 0 / 5%);
   --shadow-lift: 0 6px 16px rgb(0 0 0 / 12%);
 
-  /* A ticked checkbox is otherwise the browser's own blue — the one colour on these pages coming from outside the
-     palette. Inherited, so the per-type filter chips on the events page still override it with their own hue. */
+  /**
+   * A ticked checkbox is otherwise the browser's own blue — the one colour on these pages coming from outside the
+   * palette. Inherited, so the per-type filter chips on the events page still override it with their own hue.
+   */
   accent-color: var(--track);
 }
 
