@@ -1,6 +1,8 @@
-/* The PGSharp backup page. Shares the colour tokens in theme.css and the tab bar in nav.css with the other pages; the
-   panel here builds a partial PGSData.dat entirely in the browser from the repository's GPX files. These rules moved
-   out of styles.css when the panel left the map's sidebar for its own tab. */
+/**
+ * The PGSharp backup page. Shares the colour tokens in theme.css and the tab bar in nav.css with the other pages; the
+ * panel here builds a partial PGSData.dat entirely in the browser from the repository's GPX files. These rules moved
+ * out of styles.css when the panel left the map's sidebar for its own tab.
+ */
 
 * {
   box-sizing: border-box;
@@ -14,8 +16,10 @@ body {
   line-height: 1.4;
 }
 
-/* The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
-   at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need. */
+/**
+ * The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
+ * at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need.
+ */
 :root {
   --content-w: 640px;
 }
@@ -39,9 +43,11 @@ header.page h1 {
   font-size: 13px;
 }
 
-/* The form is one object, so it reads as one surface on the page rather than as text floating on the background — the
-   same panel, border and resting elevation the cards and calendar cells carry on the events page. The gutter stays on
-   the container above, which keeps the panel off the screen edge on a narrow viewport. */
+/**
+ * The form is one object, so it reads as one surface on the page rather than as text floating on the background — the
+ * same panel, border and resting elevation the cards and calendar cells carry on the events page. The gutter stays on
+ * the container above, which keeps the panel off the screen edge on a narrow viewport.
+ */
 .backup .body {
   display: flex;
   flex-direction: column;
@@ -66,9 +72,11 @@ header.page h1 {
   gap: 6px;
 }
 
-/* A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only ever
-   heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full contrast,
-   an accent on hover and a focus ring tell the two apart. */
+/**
+ * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only ever
+ * heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full contrast,
+ * an accent on hover and a focus ring tell the two apart.
+ */
 .backup details.subgroup > summary {
   cursor: pointer;
   user-select: none;
@@ -110,8 +118,10 @@ header.page h1 {
   margin-top: 8px;
 }
 
-/* How many of the options below are ticked — the same pill the routes sidebar counts a collapsed group with, for the
-   same reason: collapsing the list closes it over six boxes that are ticked, and the button writes every one of them. */
+/**
+ * How many of the options below are ticked — the same pill the routes sidebar counts a collapsed group with, for the
+ * same reason: collapsing the list closes it over six boxes that are ticked, and the button writes every one of them.
+ */
 .backup .tally {
   padding: 1px 7px;
   border: 1px solid currentcolor;
@@ -134,8 +144,10 @@ header.page h1 {
   cursor: pointer;
 }
 
-/* Belongs to the option directly above it, so it is indented past that checkbox to sit under the label's text and pulled
-   up out of the column's 6px gap — otherwise it floats between two options with nothing saying which one it qualifies. */
+/**
+ * Belongs to the option directly above it, so it is indented past that checkbox to sit under the label's text and pulled
+ * up out of the column's 6px gap — otherwise it floats between two options with nothing saying which one it qualifies.
+ */
 .backup .note {
   margin: -2px 0 0 24px;
   font-size: 11px;

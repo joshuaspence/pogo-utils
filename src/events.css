@@ -1,5 +1,7 @@
-/* The events calendar page. Shares the colour tokens in theme.css with the map viewer; the layout is its own — a
-   scrolling column of grouped cards rather than the map's fixed sidebar-and-canvas grid. */
+/**
+ * The events calendar page. Shares the colour tokens in theme.css with the map viewer; the layout is its own — a
+ * scrolling column of grouped cards rather than the map's fixed sidebar-and-canvas grid.
+ */
 
 * {
   box-sizing: border-box;
@@ -13,9 +15,11 @@ body {
   line-height: 1.4;
 }
 
-/* The header, controls, filters, cards and footer all share one content column, so the page reads with a single left
-   edge rather than a title hanging further out than the cards it heads. `--content-w` holds that width in one place
-   because the sticky controls bar has to reproduce it as padding rather than as a max-width. */
+/**
+ * The header, controls, filters, cards and footer all share one content column, so the page reads with a single left
+ * edge rather than a title hanging further out than the cards it heads. `--content-w` holds that width in one place
+ * because the sticky controls bar has to reproduce it as padding rather than as a max-width.
+ */
 :root {
   --content-w: 1100px;
 }
@@ -38,20 +42,24 @@ header.page .sub {
   color: var(--muted);
 }
 
-/* How many events have arrived since this browser last acknowledged them, and the only control that clears them. Its
-   own line beside the count rather than inside it, because each of the three views writes that line itself and this
-   has to read the same in all of them — a calendar or tracks bar can mark a new event but has no room for a control. */
+/**
+ * How many events have arrived since this browser last acknowledged them, and the only control that clears them. Its
+ * own line beside the count rather than inside it, because each of the three views writes that line itself and this
+ * has to read the same in all of them — a calendar or tracks bar can mark a new event but has no room for a control.
+ */
 .newly {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
-   none}`, so the `hidden` the page sets whenever the count is zero would lay the line out regardless — leaving Mark all
-   as seen on screen with nothing to mark, and on every page load, since the markup ships hidden with an empty count.
-   Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a
-   media query gives `.newly`. */
+/**
+ * The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
+ * none}`, so the `hidden` the page sets whenever the count is zero would lay the line out regardless — leaving Mark all
+ * as seen on screen with nothing to mark, and on every page load, since the markup ships hidden with an empty count.
+ * Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a
+ * media query gives `.newly`.
+ */
 .newly[hidden] {
   display: none;
 }
@@ -61,8 +69,10 @@ header.page .sub {
   font-weight: 600;
 }
 
-/* Quieter than the accent buttons in the controls bar below, which is a different band of the page: this sits in 12px
-   muted text and should read as a footnote to the count it follows, not compete with Refresh. */
+/**
+ * Quieter than the accent buttons in the controls bar below, which is a different band of the page: this sits in 12px
+ * muted text and should read as a footnote to the count it follows, not compete with Refresh.
+ */
 .newly button {
   padding: 2px 9px;
   border: 1px solid var(--border);
@@ -88,8 +98,10 @@ header.page .sub {
   gap: 10px;
   flex-wrap: wrap;
 
-  /* Full-bleed, because it carries the sticky background and bottom rule across the whole viewport — so it lines its
-     contents up with the content column through padding instead of a max-width. */
+  /**
+   * Full-bleed, because it carries the sticky background and bottom rule across the whole viewport — so it lines its
+   * contents up with the content column through padding instead of a max-width.
+   */
   padding: 12px max(22px, calc((100% - var(--content-w)) / 2));
   border-bottom: 1px solid var(--border);
   background: var(--panel);
@@ -120,11 +132,13 @@ header.page .sub {
   cursor: pointer;
 }
 
-/* The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
-   none}`, so the `hidden` setView() puts on these two labels outside the cards view laid them out regardless — leaving
-   Show ended and Show undated on screen in the calendar and tracks views, where neither reveals anything. Keyed on
-   `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
-   query gives them. */
+/**
+ * The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
+ * none}`, so the `hidden` setView() puts on these two labels outside the cards view laid them out regardless — leaving
+ * Show ended and Show undated on screen in the calendar and tracks views, where neither reveals anything. Keyed on
+ * `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
+ * query gives them.
+ */
 .controls .toggle[hidden] {
   display: none;
 }
@@ -144,8 +158,10 @@ header.page .sub {
   filter: brightness(1.05);
 }
 
-/* The Reset control is destructive-ish (it clears saved filters), so it reads as secondary rather than the accent
-   Refresh button beside it. */
+/**
+ * The Reset control is destructive-ish (it clears saved filters), so it reads as secondary rather than the accent
+ * Refresh button beside it.
+ */
 .controls button.ghost {
   background: transparent;
   color: var(--muted);
@@ -171,10 +187,12 @@ header.page .sub {
   display: none;
 }
 
-/* Each chip wears its own type's colour — a tinted fill, a matching border and a tick in the same hue — which makes this
-   row the legend for the three colour-coded views below it. The chip carries the same `.type-*` class the cards and
-   the calendar and timeline bars do, so --type-color inherits here and one palette serves all four; a type with no
-   colour falls back to the muted grey, which is what the row looked like throughout. */
+/**
+ * Each chip wears its own type's colour — a tinted fill, a matching border and a tick in the same hue — which makes this
+ * row the legend for the three colour-coded views below it. The chip carries the same `.type-*` class the cards and
+ * the calendar and timeline bars do, so --type-color inherits here and one palette serves all four; a type with no
+ * colour falls back to the muted grey, which is what the row looked like throughout.
+ */
 .type-chip {
   --chip-color: var(--type-color, var(--muted));
 
@@ -220,8 +238,10 @@ h2.group {
   color: var(--muted);
 }
 
-/* A hairline running out to the right margin makes each bucket read as a section rather than as a faint floating label.
-   On the pseudo-element so no extra node is rendered per group. */
+/**
+ * A hairline running out to the right margin makes each bucket read as a section rather than as a faint floating label.
+ * On the pseudo-element so no extra node is rendered per group.
+ */
 h2.group::after {
   content: '';
   flex: 1;
@@ -238,8 +258,10 @@ h2.group.group-active::after {
   background: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
-/* The bucket's size, so "Upcoming" says how much is in it without the reader counting cards. Letter-spacing is reset
-   because the digits inherit the heading's tracking, which spaces a number oddly. */
+/**
+ * The bucket's size, so "Upcoming" says how much is in it without the reader counting cards. Letter-spacing is reset
+ * because the digits inherit the heading's tracking, which spaces a number oddly.
+ */
 h2.group .gcount {
   padding: 1px 7px;
   border: 1px solid currentcolor;
@@ -262,11 +284,13 @@ h2.group .gcount {
   }
 }
 
-/* Cards fade up in sequence as a grid arrives, which gives the list a direction to be read in. Only on the render that
-   follows a fetch — the renderer adds `enter` just then, because render() also runs every minute to keep the relative
-   labels honest and replaying this on every tick would be a twitch, not a flourish. `--i` is the card's position in its
-   grid, capped by the renderer so a long bucket's last card is not left waiting. `backwards` holds the card invisible
-   through its delay rather than letting it show, vanish and fade in again. */
+/**
+ * Cards fade up in sequence as a grid arrives, which gives the list a direction to be read in. Only on the render that
+ * follows a fetch — the renderer adds `enter` just then, because render() also runs every minute to keep the relative
+ * labels honest and replaying this on every tick would be a twitch, not a flourish. `--i` is the card's position in its
+ * grid, capped by the renderer so a long bucket's last card is not left waiting. `backwards` holds the card invisible
+ * through its delay rather than letting it show, vanish and fade in again.
+ */
 .grid.enter .card {
   animation: card-in 0.32s ease-out backwards;
   animation-delay: calc(var(--i, 0) * 25ms);
@@ -295,8 +319,10 @@ h2.group .gcount {
   box-shadow: var(--shadow-lift);
 }
 
-/* A transparent overlay covering the whole card, so a click anywhere opens the event. The dismiss button sits above it
-   (higher z-index) and stays clickable. */
+/**
+ * A transparent overlay covering the whole card, so a click anywhere opens the event. The dismiss button sits above it
+ * (higher z-index) and stays clickable.
+ */
 .card-link {
   position: absolute;
   inset: 0;
@@ -341,12 +367,14 @@ h2.group .gcount {
   }
 }
 
-/* An event that has arrived since the reader last acknowledged the page. It takes the corner opposite the dismiss
-   button and the same elevation, because the card's overlay link covers everything below z-index 2 and would swallow
-   the click.
-
-   What it does not borrow is that button's reveal-on-hover: a mark nobody sees until they point at the card cannot do
-   the one job it has. So it stays visible, and reads as a label that happens to be clickable rather than a control. */
+/**
+ * An event that has arrived since the reader last acknowledged the page. It takes the corner opposite the dismiss
+ * button and the same elevation, because the card's overlay link covers everything below z-index 2 and would swallow
+ * the click.
+ *
+ * What it does not borrow is that button's reveal-on-hover: a mark nobody sees until they point at the card cannot do
+ * the one job it has. So it stays visible, and reads as a label that happens to be clickable rather than a control.
+ */
 .new-mark {
   position: absolute;
   top: 6px;
@@ -384,8 +412,10 @@ h2.group .gcount {
   border-left: 4px solid var(--border);
 }
 
-/* A dismissed card is only ever visible while "Show hidden" is on. Dim it and keep its restore button on-screen (rather
-   than hover-only) so the reader can tell it is hidden and bring it back. */
+/**
+ * A dismissed card is only ever visible while "Show hidden" is on. Dim it and keep its restore button on-screen (rather
+ * than hover-only) so the reader can tell it is hidden and bring it back.
+ */
 .card.dismissed {
   opacity: 0.6;
   border-style: dashed;
@@ -395,10 +425,12 @@ h2.group .gcount {
   opacity: 1;
 }
 
-/* Per-type colour palette. Each event type gets a distinctive hue in --type-color, set here so it inherits to the card
-   badge and applies directly to the calendar and timeline bars that carry the same class. Kept in CSS rather than JS
-   so the dark-mode overrides below sit beside the light values; the slugs are the feed's stable `eventType`, and a type
-   the feed adds later simply has no rule and falls back to the neutral default in each consumer. */
+/**
+ * Per-type colour palette. Each event type gets a distinctive hue in --type-color, set here so it inherits to the card
+ * badge and applies directly to the calendar and timeline bars that carry the same class. Kept in CSS rather than JS
+ * so the dark-mode overrides below sit beside the light values; the slugs are the feed's stable `eventType`, and a type
+ * the feed adds later simply has no rule and falls back to the neutral default in each consumer.
+ */
 .type-choose-your-path {
   --type-color: #7c3aed;
 }
@@ -529,8 +561,10 @@ h2.group .gcount {
   transition: transform 0.3s ease-out;
 }
 
-/* A slow push in on the artwork answers the hover without moving any text. The card already clips its overflow, so the
-   image grows into the frame rather than past it. */
+/**
+ * A slow push in on the artwork answers the hover without moving any text. The card already clips its overflow, so the
+ * image grows into the frame rather than past it.
+ */
 .card:hover .thumb {
   transform: scale(1.04);
 }
@@ -542,9 +576,11 @@ h2.group .gcount {
   padding: 12px 14px;
 }
 
-/* The type badge is filled with the event's type colour, matching the calendar and timeline bars so a type reads the
-   same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
-   a type with no colour falls back to the neutral track blue, as the bars do. */
+/**
+ * The type badge is filled with the event's type colour, matching the calendar and timeline bars so a type reads the
+ * same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
+ * a type with no colour falls back to the neutral track blue, as the bars do.
+ */
 .card .badge {
   align-self: flex-start;
   font-size: 10px;
@@ -575,8 +611,10 @@ h2.group .gcount {
   color: var(--muted);
 }
 
-/* An event starting or ending within the day is the most actionable line on the card, so it takes the accent instead of
-   reading the same muted grey as one 200 days out. `SOON_MS` in events.js sets the threshold this class marks. */
+/**
+ * An event starting or ending within the day is the most actionable line on the card, so it takes the accent instead of
+ * reading the same muted grey as one 200 days out. `SOON_MS` in events.js sets the threshold this class marks.
+ */
 .card .rel.soon {
   color: var(--accent);
   font-weight: 600;
@@ -586,11 +624,13 @@ h2.group .gcount {
   content: '⏳ ';
 }
 
-/* Lifted above the overlay link that makes the whole card open the event's source page (`.card-link`, z-index 1), the
-   same way the dismiss button is — without it the overlay swallows the click and this link can never be followed. It is
-   sized to its own text so the rest of the line still opens the source page, and wears the chip the Routes sidebar gives
-   the other end of this pair, so the two directions of the same link look alike. Its --event hue is the colour those
-   routes are actually drawn in over there, which is the point of using it here rather than the accent. */
+/**
+ * Lifted above the overlay link that makes the whole card open the event's source page (`.card-link`, z-index 1), the
+ * same way the dismiss button is — without it the overlay swallows the click and this link can never be followed. It is
+ * sized to its own text so the rest of the line still opens the source page, and wears the chip the Routes sidebar gives
+ * the other end of this pair, so the two directions of the same link look alike. Its --event hue is the colour those
+ * routes are actually drawn in over there, which is the point of using it here rather than the accent.
+ */
 .card .routes {
   position: relative;
   z-index: 2;
@@ -630,8 +670,10 @@ footer a {
   color: var(--track);
 }
 
-/* View switcher (Cards / Calendar). A segmented control: the two buttons share one pill outline, and only the active
-   segment takes the accent fill — overriding the accent-filled .controls button default. */
+/**
+ * View switcher (Cards / Calendar). A segmented control: the two buttons share one pill outline, and only the active
+ * segment takes the accent fill — overriding the accent-filled .controls button default.
+ */
 .viewtoggle {
   display: inline-flex;
   border: 1px solid var(--border);
@@ -656,8 +698,10 @@ footer a {
   color: #fff;
 }
 
-/* Calendar view: a month toolbar over a stack of week rows. Each week is a band of bars for the events spanning more
-   than one of its days, over the seven day cells, which list only the events confined to a single day. */
+/**
+ * Calendar view: a month toolbar over a stack of week rows. Each week is a band of bars for the events spanning more
+ * than one of its days, over the seven day cells, which list only the events confined to a single day.
+ */
 .calbar {
   display: flex;
   align-items: center;
@@ -692,27 +736,33 @@ footer a {
   gap: 4px;
 }
 
-/* A week is two grids stacked in one grid area rather than a band of bars above a row of cells: the day cells and the
-   bars occupy the same square of the page, so an event is drawn inside the days it covers instead of floating above
-   them. Both layers stretch to the area, and the area takes the height of the taller — so the bars, which are the only
-   layer with content that grows, are what sizes the week, and the cells follow them.
-
-   Reserving the row height for a band instead put every event outside the cell it belonged to. With most events running
-   more than a day that left the grid inverted: seven empty bordered boxes per week carrying nothing but a number, under
-   a stack holding all of the information. */
+/**
+ * A week is two grids stacked in one grid area rather than a band of bars above a row of cells: the day cells and the
+ * bars occupy the same square of the page, so an event is drawn inside the days it covers instead of floating above
+ * them. Both layers stretch to the area, and the area takes the height of the taller — so the bars, which are the only
+ * layer with content that grows, are what sizes the week, and the cells follow them.
+ *
+ * Reserving the row height for a band instead put every event outside the cell it belonged to. With most events running
+ * more than a day that left the grid inverted: seven empty bordered boxes per week carrying nothing but a number, under
+ * a stack holding all of the information.
+ */
 .cal-week {
   display: grid;
   grid-template-areas: 'week';
 
-  /* The strip at the top of a cell that the day number occupies, which the bars are offset past. Declared here so the
-     number's own box and the offset the other layer keeps clear derive from one value rather than two that can drift
-     apart and let a bar cover a date. */
+  /**
+   * The strip at the top of a cell that the day number occupies, which the bars are offset past. Declared here so the
+   * number's own box and the offset the other layer keeps clear derive from one value rather than two that can drift
+   * apart and let a bar cover a date.
+   */
   --cell-pad: 4px;
   --daynum-h: 17px;
 }
 
-/* Every grid that runs the width of a week shares one column definition, which is what lines a bar up with the day cell
-   behind it. Declared together so the three cannot drift apart and leave a bar a column off from the day it names. */
+/**
+ * Every grid that runs the width of a week shares one column definition, which is what lines a bar up with the day cell
+ * behind it. Declared together so the three cannot drift apart and leave a bar a column off from the day it names.
+ */
 .cal-wd-row,
 .cal-bars,
 .cal-days {
@@ -726,16 +776,20 @@ footer a {
   grid-area: week;
 }
 
-/* Dense auto-placement does the lane packing for free: each bar carries a definite `grid-column`, and CSS drops it into
-   the first row where that span is unoccupied — the same greedy interval partitioning packLanes() spells out for the
-   Tracks view, so two bars that do not overlap share a row instead of each taking their own.
-
-   The layer covers the cells completely, so it would swallow a click meant for one; only the bars themselves take the
-   pointer. */
+/**
+ * Dense auto-placement does the lane packing for free: each bar carries a definite `grid-column`, and CSS drops it into
+ * the first row where that span is unoccupied — the same greedy interval partitioning packLanes() spells out for the
+ * Tracks view, so two bars that do not overlap share a row instead of each taking their own.
+ *
+ * The layer covers the cells completely, so it would swallow a click meant for one; only the bars themselves take the
+ * pointer.
+ */
 .cal-bars {
-  /* Which layer is on top has to be stated rather than left to document order, because `opacity` on a day cell lifts it
-     into the z-index 0 painting layer and so above a plain in-flow sibling. A neighbouring month's cell is dimmed that
-     way, which is why the bars crossing into one came out washed through the cell drawn over them. */
+  /**
+   * Which layer is on top has to be stated rather than left to document order, because `opacity` on a day cell lifts it
+   * into the z-index 0 painting layer and so above a plain in-flow sibling. A neighbouring month's cell is dimmed that
+   * way, which is why the bars crossing into one came out washed through the cell drawn over them.
+   */
   position: relative;
   z-index: 1;
   grid-auto-flow: row dense;
@@ -755,10 +809,12 @@ footer a {
   text-align: center;
 }
 
-/* The same resting elevation the cards and the tracks panel carry, so a day cell reads as the same kind of surface. A
-   cell holds nothing but its date — the events that fall on it are drawn in the layer above — so it takes its height
-   from the bars stacked over the week rather than from its own content, and the minimum only keeps an empty week from
-   collapsing to a row of numbers. */
+/**
+ * The same resting elevation the cards and the tracks panel carry, so a day cell reads as the same kind of surface. A
+ * cell holds nothing but its date — the events that fall on it are drawn in the layer above — so it takes its height
+ * from the bars stacked over the week rather than from its own content, and the minimum only keeps an empty week from
+ * collapsing to a row of numbers.
+ */
 .cal-day {
   min-height: 52px;
   padding: var(--cell-pad);
@@ -773,9 +829,11 @@ footer a {
   opacity: 0.45;
 }
 
-/* A cell is now as tall as its whole week, so the ring that used to mark today reads as a tall accent box with bars
-   crossing it rather than as a marked day. A tint behind the column and the accent already on the date carry it
-   instead. */
+/**
+ * A cell is now as tall as its whole week, so the ring that used to mark today reads as a tall accent box with bars
+ * crossing it rather than as a marked day. A tint behind the column and the accent already on the date carry it
+ * instead.
+ */
 .cal-day.today {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   background: color-mix(in srgb, var(--accent) 7%, var(--panel));
@@ -793,9 +851,11 @@ footer a {
   color: var(--accent);
 }
 
-/* One bar per event per week row, filled with its type colour like the timeline bars. Flex rather than a plain block so
-   the continuation arrow keeps its place at the end while the name takes the ellipsis. Spanning the columns an event
-   covers is what finally gives a long name room to be read: drawn as a pill per day, 113 of 163 names were cut off. */
+/**
+ * One bar per event per week row, filled with its type colour like the timeline bars. Flex rather than a plain block so
+ * the continuation arrow keeps its place at the end while the name takes the ellipsis. Spanning the columns an event
+ * covers is what finally gives a long name room to be read: drawn as a pill per day, 113 of 163 names were cut off.
+ */
 .cal-bar {
   display: flex;
   gap: 4px;
@@ -824,19 +884,21 @@ footer a {
   opacity: 0.55;
 }
 
-/* An event that has arrived since the reader last acknowledged the page, on both bar kinds. A ring rather than a badge
-   or a leading dot because it costs no label width, and these labels have none to spare — a third of them already
-   ellipsise at desktop width and half do on a phone.
-
-   Two rings, because one cannot work: the accent against the fifteen type colours measures 1.04 to 1.28 contrast in
-   both themes, which is no ring at all. The page colour is the only value that clears every type colour (2.80 worst in
-   light, 6.13 in dark), so it goes inside — and the accent then sits outside it, against the page, where it measures
-   4.39 and 5.91. The drop shadow is repeated because a `box-shadow` declaration replaces the list rather than adds to
-   it.
-
-   One pixel of page colour and two of accent, in that order, because the whole ring has to fit the 2px row gap the bars
-   are packed with: wider and it laps over the bar in the row above. A single pixel is all the separation the contrast
-   measurement needs, and spending the rest on the accent is what makes the ring visible at all. */
+/**
+ * An event that has arrived since the reader last acknowledged the page, on both bar kinds. A ring rather than a badge
+ * or a leading dot because it costs no label width, and these labels have none to spare — a third of them already
+ * ellipsise at desktop width and half do on a phone.
+ *
+ * Two rings, because one cannot work: the accent against the fifteen type colours measures 1.04 to 1.28 contrast in
+ * both themes, which is no ring at all. The page colour is the only value that clears every type colour (2.80 worst in
+ * light, 6.13 in dark), so it goes inside — and the accent then sits outside it, against the page, where it measures
+ * 4.39 and 5.91. The drop shadow is repeated because a `box-shadow` declaration replaces the list rather than adds to
+ * it.
+ *
+ * One pixel of page colour and two of accent, in that order, because the whole ring has to fit the 2px row gap the bars
+ * are packed with: wider and it laps over the bar in the row above. A single pixel is all the separation the contrast
+ * measurement needs, and spending the rest on the accent is what makes the ring visible at all.
+ */
 .cal-bar.new,
 .bar.new {
   box-shadow:
@@ -849,8 +911,10 @@ footer a {
   filter: brightness(1.08);
 }
 
-/* A segment the week's edge cut off is squared there and given an arrow, so a bar reads as running on into the next row
-   rather than as ending on the Saturday. The arrow is decoration over the `title`, which carries the real dates. */
+/**
+ * A segment the week's edge cut off is squared there and given an arrow, so a bar reads as running on into the next row
+ * rather than as ending on the Saturday. The arrow is decoration over the `title`, which carries the real dates.
+ */
 .cal-bar.cont-left {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
@@ -878,9 +942,11 @@ footer a {
     gap: 2px;
   }
 
-  /* The cell padding is narrowed through the variable rather than on `.cal-day` itself, because the bar layer's offset
-     past the day number derives from it — set one and not the other and every bar sits a pixel off the date it
-     covers. */
+  /**
+   * The cell padding is narrowed through the variable rather than on `.cal-day` itself, because the bar layer's offset
+   * past the day number derives from it — set one and not the other and every bar sits a pixel off the date it
+   * covers.
+   */
   .cal-week {
     --cell-pad: 3px;
   }
@@ -889,18 +955,22 @@ footer a {
     font-size: 10px;
   }
 
-  /* Seven columns of a phone screen leave a bar about 50px per day, so the arrow would eat what little room the name has
-     on a short span. The squared-off end still says it continues. */
+  /**
+   * Seven columns of a phone screen leave a bar about 50px per day, so the arrow would eat what little room the name has
+   * on a short span. The squared-off end still says it continues.
+   */
   .cal-bar::before,
   .cal-bar::after {
     content: none;
   }
 }
 
-/* Tracks view: a Gantt-style timeline. Fixed category rows run down a left column that stays pinned while the day-scaled
-   timeline scrolls horizontally; each event is a bar positioned and sized by its date window, stacked into sub-lanes
-   where several overlap. --track-day (a day column's width) is set from JS so the gridline background matches the bar
-   positions it computes. */
+/**
+ * Tracks view: a Gantt-style timeline. Fixed category rows run down a left column that stays pinned while the day-scaled
+ * timeline scrolls horizontally; each event is a bar positioned and sized by its date window, stacked into sub-lanes
+ * where several overlap. --track-day (a day column's width) is set from JS so the gridline background matches the bar
+ * positions it computes.
+ */
 .tracks {
   margin-top: 16px;
 }
@@ -962,8 +1032,10 @@ footer a {
   background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
 }
 
-/* One bar per event, filled with its type colour to match the calendar bars. Absolutely positioned within its lane
-   from the inline left/width/top the renderer computes. A type with no colour falls back to the neutral track blue. */
+/**
+ * One bar per event, filled with its type colour to match the calendar bars. Absolutely positioned within its lane
+ * from the inline left/width/top the renderer computes. A type with no colour falls back to the neutral track blue.
+ */
 .bar {
   position: absolute;
   display: block;
@@ -990,8 +1062,10 @@ footer a {
   filter: brightness(1.08);
 }
 
-/* A vertical accent line marking today, spanning the whole grid (axis included). Sits above the lanes but below the
-   pinned labels, which have an opaque background and cover it once the timeline scrolls under them. */
+/**
+ * A vertical accent line marking today, spanning the whole grid (axis included). Sits above the lanes but below the
+ * pinned labels, which have an opaque background and cover it once the timeline scrolls under them.
+ */
 .track-today {
   position: absolute;
   top: 0;
@@ -1002,8 +1076,10 @@ footer a {
   pointer-events: none;
 }
 
-/* Everything decorative above is movement, and a reader who has asked the operating system for less of it wants the
-   layout, colour and elevation without any of it. The colour-coding and the urgency accent stay: neither moves. */
+/**
+ * Everything decorative above is movement, and a reader who has asked the operating system for less of it wants the
+ * layout, colour and elevation without any of it. The colour-coding and the urgency accent stay: neither moves.
+ */
 @media (prefers-reduced-motion: reduce) {
   .card,
   .card .thumb,

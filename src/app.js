@@ -576,8 +576,10 @@ function applyFilter() {
     el.classList.toggle('hidden', !hit);
   }
 
-  /* A country group and a continent group behave alike — both count the rows still showing anywhere beneath them — so
-     one pass serves for either level of the tree. */
+  /**
+   * A country group and a continent group behave alike — both count the rows still showing anywhere beneath them — so
+   * one pass serves for either level of the tree.
+   */
   const settle = (groupClass, headClass) => {
     for (const group of document.querySelectorAll(groupClass)) {
       const shown = group.querySelectorAll('.route:not(.hidden)').length;
@@ -648,8 +650,10 @@ function focusHashEvent() {
     return false;
   }
 
-  /* A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set needs
-     what follows, where no one of them can own the view or be the one the popup names. */
+  /**
+   * A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set needs
+   * what follows, where no one of them can own the view or be the one the popup names.
+   */
   if (routes.length + places.length === 1) {
     if (routes.length) {
       selectRoute(routes[0]);
@@ -665,10 +669,12 @@ function focusHashEvent() {
   places.forEach((c) => highlightCity(c));
   revealRows([...routes, ...places].map((entry) => entry.el));
 
-  /* One fit, not two. Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels as a CSS transition and
-     applies the move at its end, from the view captured when it began — so selecting an entry with its own pan and then
-     widening to the set landed the wide view and had it silently undone a moment later. Fitting once, here, is the only
-     ordering that cannot be taken away. */
+  /**
+   * One fit, not two. Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels as a CSS transition and
+   * applies the move at its end, from the view captured when it began — so selecting an entry with its own pan and then
+   * widening to the set landed the wide view and had it silently undone a moment later. Fitting once, here, is the only
+   * ordering that cannot be taken away.
+   */
   const layers = [...routes.map((s) => s.line), ...places.map((c) => c.marker)];
   map.fitBounds(L.featureGroup(layers).getBounds(), { padding: [24, 24], maxZoom: 16 });
 

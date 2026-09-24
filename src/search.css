@@ -1,8 +1,10 @@
-/* The search-string builder. Shares the colour tokens in theme.css and the tab bar in nav.css with the other pages;
-   everything below is this page's own.
-
-   The page has one job — show the string it is building — so the layout is built around keeping that string in view
-   while the controls that change it scroll past underneath. */
+/**
+ * The search-string builder. Shares the colour tokens in theme.css and the tab bar in nav.css with the other pages;
+ * everything below is this page's own.
+ *
+ * The page has one job — show the string it is building — so the layout is built around keeping that string in view
+ * while the controls that change it scroll past underneath.
+ */
 
 * {
   box-sizing: border-box;
@@ -16,14 +18,18 @@ body {
   line-height: 1.4;
 }
 
-/* Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
-   four, which reads as a list rather than as a palette. */
+/**
+ * Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
+ * four, which reads as a list rather than as a palette.
+ */
 :root {
   --content-w: 880px;
 
-  /* A group's hue is turned into its chip colour here rather than at each use, so light and dark each state their
-     lightness once. A hue picked for a white background is muddy on a dark one and a hue picked for dark is neon on
-     white, which is why this is two declarations and not one. */
+  /**
+   * A group's hue is turned into its chip colour here rather than at each use, so light and dark each state their
+   * lightness once. A hue picked for a white background is muddy on a dark one and a hue picked for dark is neon on
+   * white, which is why this is two declarations and not one.
+   */
   --chip-s: 60%;
   --chip-l: 40%;
 }
@@ -60,8 +66,10 @@ header.page .sub {
   font-size: 13px;
 }
 
-/* The string itself. Sticky under the tab bar, which is 48px of it — a value nav.css sets in padding and font size
-   rather than as a number, so it is measured here rather than shared as a token neither file would own. */
+/**
+ * The string itself. Sticky under the tab bar, which is 48px of it — a value nav.css sets in padding and font size
+ * rather than as a number, so it is measured here rather than shared as a token neither file would own.
+ */
 .output {
   position: sticky;
   top: 0;
@@ -77,9 +85,11 @@ header.page .sub {
   box-shadow: var(--shadow-lift);
 }
 
-/* The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
-   as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
-   disappear under an edge rather than surfacing for 14px first. */
+/**
+ * The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
+ * as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
+ * disappear under an edge rather than surfacing for 14px first.
+ */
 .output::after {
   content: '';
   position: absolute;
@@ -94,9 +104,11 @@ header.page .sub {
   gap: 10px;
 }
 
-/* The string is code and is read character by character — an l against a 1 decides whether a search works — so it is
-   set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search string
-   invites copying half of it. */
+/**
+ * The string is code and is read character by character — an l against a 1 decides whether a search works — so it is
+ * set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search string
+ * invites copying half of it.
+ */
 .output code#query {
   flex: 1;
   overflow-x: auto;
@@ -132,8 +144,10 @@ header.page .sub {
   filter: brightness(1.05);
 }
 
-/* With nothing to copy the button is furniture, not an action refused: a faded fill of the accent red reads as a
-   broken button, where an outline reads as one waiting for something to do. */
+/**
+ * With nothing to copy the button is furniture, not an action refused: a faded fill of the accent red reads as a
+ * broken button, where an outline reads as one waiting for something to do.
+ */
 .output button.copy:disabled {
   border-color: var(--border);
   background: transparent;
@@ -142,8 +156,10 @@ header.page .sub {
   cursor: default;
 }
 
-/* Held for a moment after a copy, so the click is acknowledged where the reader is already looking rather than in a
-   banner somewhere else on the page. */
+/**
+ * Held for a moment after a copy, so the click is acknowledged where the reader is already looking rather than in a
+ * banner somewhere else on the page.
+ */
 .output button.copy.done {
   border-color: var(--start);
   background: var(--start);
@@ -198,8 +214,10 @@ header.page .sub {
   box-shadow: var(--shadow);
 }
 
-/* The same uppercase muted section label the events page and the routes sidebar use, so a heading reads as a heading
-   across the site rather than as this page's own idea. */
+/**
+ * The same uppercase muted section label the events page and the routes sidebar use, so a heading reads as a heading
+ * across the site rather than as this page's own idea.
+ */
 .label {
   margin: 0 0 10px;
   font-size: 11px;
@@ -279,8 +297,10 @@ header.page .sub {
   color: inherit;
 }
 
-/* Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
-   empty and makes the reader scroll past sixty chips to reach the ranges. */
+/**
+ * Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
+ * empty and makes the reader scroll past sixty chips to reach the ranges.
+ */
 .groups {
   display: grid;
   gap: 14px;
@@ -298,9 +318,11 @@ header.page .sub {
   gap: 7px;
 }
 
-/* A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
-   came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
-   Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice. */
+/**
+ * A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
+ * came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
+ * Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice.
+ */
 .chip {
   --chip: hsl(var(--hue) var(--chip-s) var(--chip-l));
 
@@ -344,8 +366,10 @@ header.page .sub {
   text-decoration-thickness: 1px;
 }
 
-/* The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
-   who cannot see the difference between a red chip and a teal one. */
+/**
+ * The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
+ * who cannot see the difference between a red chip and a teal one.
+ */
 .chip .state {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
@@ -390,8 +414,10 @@ header.page .sub {
   color: var(--muted);
 }
 
-/* A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
-   does but looks like an empty box until you read the numbers in it. */
+/**
+ * A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
+ * does but looks like an empty box until you read the numbers in it.
+ */
 .range.set input:not(:placeholder-shown) {
   border-color: var(--track);
   color: var(--text);
