@@ -8,9 +8,9 @@
  * event Leek Duck has not listed yet, say). Either source failing still renders the other. A third,
  * `entries-by-event.json`, says which events have routes here, so a card can link through to them on the map.
  *
- * Three views over the same data: a card list grouped by status, a month grid where each event shows on every day it
- * covers, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a Gantt chart). The view
- * toggle switches between them; the search box, type filters and dismissals apply to all three.
+ * Three views over the same data: a card list grouped by status, a month grid where every event is a bar spanning the
+ * days it covers within each week, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a
+ * Gantt chart). The view toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
 import { ENTRIES_BY_EVENT } from './generated.js';
@@ -229,6 +229,27 @@ function overlaps(win, from, to) {
   return win !== null && win[0] < to && win[1] > from;
 }
 
+/**
+ * The columns of one week row an event's window touches, as `[first, last]` inclusive, or null for a week it misses
+ * entirely. A window is one contiguous interval, so the columns it covers are contiguous too and the pair describes them
+ * completely. A single-day event yields a one-column span and needs no special case.
+ */
+function weekColumns(win, weekStart) {
+  let first = -1;
+  let last = -1;
+
+  for (let col = 0; col < 7; col += 1) {
+    const dayStart = addDays(weekStart, col).getTime();
+
+    if (overlaps(win, dayStart, dayStart + DAY_MS)) {
+      first = first === -1 ? col : first;
+      last = col;
+    }
+  }
+
+  return first === -1 ? null : [first, last];
+}
+
 const GROUPS = {
   active: 'Happening now',
   upcoming: 'Upcoming',
@@ -261,7 +282,7 @@ const TRACKS = [
 /**
  * The class marking an event's type, so CSS can give each type its own colour (see the `.type-*` rules in events.css).
  * Takes the stable `eventType` slug like the Tracks rows, not the human `heading`. Empty for a feed entry missing the
- * field, in which case the colour consumers fall back to their default. Worn by the card, the calendar pill, the
+ * field, in which case the colour consumers fall back to their default. Worn by the card, the calendar bar, the
  * timeline bar and the filter chip alike, which is what keeps one type reading the same colour in all four.
  */
 function typeClass(eventType) {
@@ -480,22 +501,27 @@ function renderCards(now) {
   els.count.textContent = parts.join(' · ');
 }
 
-function pill(ev, now) {
-  const node = el('a', `pill ${statusOf(ev, now).kind}${typeClass(ev.eventType)}`, ev.name);
+/**
+ * One week's segment of an event, from a span of one column to all seven. `grid-column` places and stretches it; the
+ * rows pack themselves, because `.cal-bars` is a dense grid and CSS's dense auto-placement is the same greedy interval
+ * partitioning packLanes() does by hand for the Tracks view — a definite column span dropped into the first row where
+ * that span is free.
+ *
+ * A segment the week's edge cut off is squared off there and marked with an arrow, so a bar reads as running on into the
+ * next row rather than as ending on the Saturday.
+ */
+function calBar(ev, now, [first, last], { contLeft, contRight }) {
+  const node = el('a', `cal-bar ${statusOf(ev, now).kind}${typeClass(ev.eventType)}`);
+  node.style.gridColumn = `${first + 1} / span ${last - first + 1}`;
+  node.classList.toggle('cont-left', contLeft);
+  node.classList.toggle('cont-right', contRight);
   node.href = ev.link;
   node.target = '_blank';
   node.rel = 'noopener';
   node.title = `${ev.name} — ${timeRange(ev)}`;
+  node.append(el('span', 'cal-bar-name', ev.name));
   return node;
 }
-
-// Up to this many pills per day before the rest collapse into a "+N more" line, so a crowded day cannot blow out the
-// row height.
-const PILLS_PER_DAY = 4;
-
-// Day cells whose overflow pills the reader has expanded, keyed by day-start timestamp so the choice survives the
-// per-minute re-render that would otherwise rebuild the grid and collapse it.
-const expandedDays = new Set();
 
 function renderCalendar(now) {
   if (!calMonth) {
@@ -509,7 +535,15 @@ function renderCalendar(now) {
   const weeks = Math.ceil((lead + daysInMonth) / 7);
   const gridStart = new Date(year, month, 1 - lead);
 
-  const visible = events.filter(isVisible).map((ev) => ({ ev, win: windowOf(ev) }));
+  /**
+   * Every event the grid can place, resolved once ahead of the week loop. A dateless event has no window and so never
+   * reaches the grid at all. `events` is already sorted by start, so the longest-running bars settle at the top of each
+   * week and the order down a week reads as the order events begin.
+   */
+  const visible = events
+    .filter(isVisible)
+    .map((ev) => ({ ev, win: windowOf(ev) }))
+    .filter(({ win }) => win !== null);
 
   els.events.replaceChildren();
 
@@ -536,71 +570,65 @@ function renderCalendar(now) {
   els.events.append(bar);
 
   const grid = el('div', 'cal');
+  const head = el('div', 'cal-wd-row');
 
   for (const name of WEEKDAYS) {
-    grid.append(el('div', 'cal-wd', name));
+    head.append(el('div', 'cal-wd', name));
   }
+
+  grid.append(head);
 
   const todayKey = startOfDay(now).getTime();
 
-  for (let i = 0; i < weeks * 7; i += 1) {
-    const day = addDays(gridStart, i);
-    const dayStart = day.getTime();
-    const cell = el('div', 'cal-day');
+  for (let w = 0; w < weeks; w += 1) {
+    const weekStart = addDays(gridStart, w * 7);
+    const weekStartMs = weekStart.getTime();
+    const weekEndMs = addDays(weekStart, 7).getTime();
 
-    if (day.getMonth() !== month) {
-      cell.classList.add('other');
-    }
+    const week = el('div', 'cal-week');
+    const days = el('div', 'cal-days');
 
-    if (dayStart === todayKey) {
-      cell.classList.add('today');
-    }
+    for (let col = 0; col < 7; col += 1) {
+      const day = addDays(weekStart, col);
+      const cell = el('div', 'cal-day');
 
-    cell.append(el('span', 'daynum', String(day.getDate())));
-
-    const onDay = visible.filter((v) => overlaps(v.win, dayStart, dayStart + DAY_MS));
-
-    for (const { ev } of onDay.slice(0, PILLS_PER_DAY)) {
-      cell.append(pill(ev, now));
-    }
-
-    const hidden = onDay.slice(PILLS_PER_DAY);
-
-    if (hidden.length) {
-      for (const { ev } of hidden) {
-        const overflow = pill(ev, now);
-        overflow.classList.add('overflow');
-        cell.append(overflow);
+      if (day.getMonth() !== month) {
+        cell.classList.add('other');
       }
 
-      const open = expandedDays.has(dayStart);
-      cell.classList.toggle('expanded', open);
+      if (day.getTime() === todayKey) {
+        cell.classList.add('today');
+      }
 
-      const toggle = el('button', 'more');
-      toggle.type = 'button';
-
-      const label = (expanded) => {
-        toggle.textContent = expanded ? 'Show less' : `+${hidden.length} more`;
-        toggle.setAttribute('aria-expanded', String(expanded));
-      };
-
-      label(open);
-      toggle.addEventListener('click', () => {
-        const expanded = !cell.classList.contains('expanded');
-        cell.classList.toggle('expanded', expanded);
-
-        if (expanded) {
-          expandedDays.add(dayStart);
-        } else {
-          expandedDays.delete(dayStart);
-        }
-
-        label(expanded);
-      });
-      cell.append(toggle);
+      cell.append(el('span', 'daynum', String(day.getDate())));
+      days.append(cell);
     }
 
-    grid.append(cell);
+    const bars = el('div', 'cal-bars');
+
+    for (const { ev, win } of visible) {
+      const cols = weekColumns(win, weekStart);
+
+      if (cols === null) {
+        continue;
+      }
+
+      /**
+       * A segment continues past the week only where the week's own edge is what stopped it. Reaching column 0 while
+       * having begun earlier means it ran in from the row above; anything starting later than column 0 began inside this
+       * week, because it misses the column before.
+       */
+      bars.append(
+        calBar(ev, now, cols, {
+          contLeft: cols[0] === 0 && win[0] < weekStartMs,
+          contRight: cols[1] === 6 && win[1] > weekEndMs,
+        }),
+      );
+    }
+
+    // The cells first, so the bars that share their grid area paint over them rather than under.
+    week.append(days, bars);
+    grid.append(week);
   }
 
   els.events.append(grid);
@@ -813,7 +841,7 @@ function normalise(raw) {
  * Rebuild the per-type visibility checkboxes from the categories the feed currently carries. A box is checked when its
  * type is not in the hidden set; toggling one updates that set, persists it and re-renders.
  *
- * Each chip also wears its type's colour class, which turns the row into the legend for the colour-coded cards, pills
+ * Each chip also wears its type's colour class, which turns the row into the legend for the colour-coded cards, bars
  * and bars. That needs the `eventType` slug the colours are keyed by, while the filters themselves are keyed by the
  * human `heading` — so the pairing is read off the events rather than kept as a second list that could drift out of step
  * with the feed.

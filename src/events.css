@@ -122,9 +122,9 @@ header.page .sub {
 }
 
 /* Each chip wears its own type's colour — a tinted fill, a matching border and a tick in the same hue — which makes this
-   row the legend for the three colour-coded views below it. The chip carries the same `.type-*` class the cards, pills
-   and bars do, so --type-color inherits here and one palette serves all four; a type with no colour falls back to the
-   muted grey, which is what the row looked like throughout. */
+   row the legend for the three colour-coded views below it. The chip carries the same `.type-*` class the cards and
+   the calendar and timeline bars do, so --type-color inherits here and one palette serves all four; a type with no
+   colour falls back to the muted grey, which is what the row looked like throughout. */
 .type-chip {
   --chip-color: var(--type-color, var(--muted));
 
@@ -317,7 +317,7 @@ h2.group .gcount {
 }
 
 /* Per-type colour palette. Each event type gets a distinctive hue in --type-color, set here so it inherits to the card
-   badge and applies directly to the calendar pill and timeline bar that carry the same class. Kept in CSS rather than JS
+   badge and applies directly to the calendar and timeline bars that carry the same class. Kept in CSS rather than JS
    so the dark-mode overrides below sit beside the light values; the slugs are the feed's stable `eventType`, and a type
    the feed adds later simply has no rule and falls back to the neutral default in each consumer. */
 .type-choose-your-path {
@@ -463,9 +463,9 @@ h2.group .gcount {
   padding: 12px 14px;
 }
 
-/* The type badge is filled with the event's type colour, matching the calendar pills and timeline bars so a type reads
-   the same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
-   a type with no colour falls back to the neutral track blue, as the pills and bars do. */
+/* The type badge is filled with the event's type colour, matching the calendar and timeline bars so a type reads the
+   same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
+   a type with no colour falls back to the neutral track blue, as the bars do. */
 .card .badge {
   align-self: flex-start;
   font-size: 10px;
@@ -577,7 +577,8 @@ footer a {
   color: #fff;
 }
 
-/* Calendar view: a month toolbar over a seven-column grid of day cells, each listing the events that cover it. */
+/* Calendar view: a month toolbar over a stack of week rows. Each week is a band of bars for the events spanning more
+   than one of its days, over the seven day cells, which list only the events confined to a single day. */
 .calbar {
   display: flex;
   align-items: center;
@@ -607,9 +608,62 @@ footer a {
 }
 
 .cal {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* A week is two grids stacked in one grid area rather than a band of bars above a row of cells: the day cells and the
+   bars occupy the same square of the page, so an event is drawn inside the days it covers instead of floating above
+   them. Both layers stretch to the area, and the area takes the height of the taller — so the bars, which are the only
+   layer with content that grows, are what sizes the week, and the cells follow them.
+
+   Reserving the row height for a band instead put every event outside the cell it belonged to. With most events running
+   more than a day that left the grid inverted: seven empty bordered boxes per week carrying nothing but a number, under
+   a stack holding all of the information. */
+.cal-week {
+  display: grid;
+  grid-template-areas: 'week';
+
+  /* The strip at the top of a cell that the day number occupies, which the bars are offset past. Declared here so the
+     number's own box and the offset the other layer keeps clear derive from one value rather than two that can drift
+     apart and let a bar cover a date. */
+  --cell-pad: 4px;
+  --daynum-h: 17px;
+}
+
+/* Every grid that runs the width of a week shares one column definition, which is what lines a bar up with the day cell
+   behind it. Declared together so the three cannot drift apart and leave a bar a column off from the day it names. */
+.cal-wd-row,
+.cal-bars,
+.cal-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
+}
+
+.cal-bars,
+.cal-days {
+  grid-area: week;
+}
+
+/* Dense auto-placement does the lane packing for free: each bar carries a definite `grid-column`, and CSS drops it into
+   the first row where that span is unoccupied — the same greedy interval partitioning packLanes() spells out for the
+   Tracks view, so two bars that do not overlap share a row instead of each taking their own.
+
+   The layer covers the cells completely, so it would swallow a click meant for one; only the bars themselves take the
+   pointer. */
+.cal-bars {
+  /* Which layer is on top has to be stated rather than left to document order, because `opacity` on a day cell lifts it
+     into the z-index 0 painting layer and so above a plain in-flow sibling. A neighbouring month's cell is dimmed that
+     way, which is why the bars crossing into one came out washed through the cell drawn over them. */
+  position: relative;
+  z-index: 1;
+  grid-auto-flow: row dense;
+  gap: 2px 4px;
+  align-content: start;
+  padding-top: calc(var(--cell-pad) + var(--daynum-h));
+  pointer-events: none;
 }
 
 .cal-wd {
@@ -622,17 +676,16 @@ footer a {
   text-align: center;
 }
 
-/* The same resting elevation the cards and the tracks panel carry, so a day cell reads as the same kind of surface. */
+/* The same resting elevation the cards and the tracks panel carry, so a day cell reads as the same kind of surface. A
+   cell holds nothing but its date — the events that fall on it are drawn in the layer above — so it takes its height
+   from the bars stacked over the week rather than from its own content, and the minimum only keeps an empty week from
+   collapsing to a row of numbers. */
 .cal-day {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-height: 96px;
-  padding: 4px;
+  min-height: 52px;
+  padding: var(--cell-pad);
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
-  overflow: hidden;
   box-shadow: var(--shadow);
 }
 
@@ -641,12 +694,17 @@ footer a {
   opacity: 0.45;
 }
 
+/* A cell is now as tall as its whole week, so the ring that used to mark today reads as a tall accent box with bars
+   crossing it rather than as a marked day. A tint behind the column and the accent already on the date carry it
+   instead. */
 .cal-day.today {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
 }
 
 .cal-day .daynum {
+  display: block;
+  height: var(--daynum-h);
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -656,68 +714,86 @@ footer a {
   color: var(--accent);
 }
 
-/* One pill per event-day, filled with its type colour so a crowded day reads by category at a glance. Ellipsis keeps a
-   long name inside a narrow cell. A type with no colour falls back to the neutral track blue. */
-.pill {
-  display: block;
-  overflow: hidden;
-  padding: 2px 6px;
+/* One bar per event per week row, filled with its type colour like the timeline bars. Flex rather than a plain block so
+   the continuation arrow keeps its place at the end while the name takes the ellipsis. Spanning the columns an event
+   covers is what finally gives a long name room to be read: drawn as a pill per day, 113 of 163 names were cut off. */
+.cal-bar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 7px;
   border-radius: 4px;
   background: var(--type-color, var(--track));
   color: #fff;
   font-size: 11px;
-  line-height: 1.25;
-  text-overflow: ellipsis;
+  line-height: 1.35;
   text-decoration: none;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+
+  /* Restored from the layer, which declines the pointer so an empty stretch of it does not shadow the cell behind. */
+  pointer-events: auto;
+}
+
+.cal-bar .cal-bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Status no longer drives the fill, but a past event still reads as spent: dim it while keeping its type colour. */
-.pill.ended {
+/* A past event keeps its type colour but dims, matching the cards and the timeline bars. */
+.cal-bar.ended {
   opacity: 0.55;
 }
 
-.pill:hover {
+.cal-bar:hover {
   filter: brightness(1.08);
 }
 
-/* Overflow pills stay in the DOM but hidden, so revealing them is a pure class toggle rather than a re-render. */
-.cal-day .pill.overflow {
-  display: none;
+/* A segment the week's edge cut off is squared there and given an arrow, so a bar reads as running on into the next row
+   rather than as ending on the Saturday. The arrow is decoration over the `title`, which carries the real dates. */
+.cal-bar.cont-left {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
-.cal-day.expanded .pill.overflow {
-  display: block;
+.cal-bar.cont-right {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-/* The "+N more" line is a button that toggles the day open; strip the native button chrome so it reads as text. */
-.more {
-  align-self: flex-start;
-  padding: 0;
-  border: 0;
-  background: none;
-  font-size: 10px;
-  color: var(--muted);
-  cursor: pointer;
+.cal-bar.cont-left::before {
+  content: '‹';
 }
 
-.more:hover {
-  text-decoration: underline;
+.cal-bar.cont-right::after {
+  margin-left: auto;
+  content: '›';
 }
 
 @media (width <= 640px) {
-  .cal {
+  .cal,
+  .cal-wd-row,
+  .cal-bars,
+  .cal-days {
     gap: 2px;
   }
 
-  .cal-day {
-    min-height: 62px;
-    padding: 3px;
+  /* The cell padding is narrowed through the variable rather than on `.cal-day` itself, because the bar layer's offset
+     past the day number derives from it — set one and not the other and every bar sits a pixel off the date it
+     covers. */
+  .cal-week {
+    --cell-pad: 3px;
   }
 
-  .pill,
-  .more {
+  .cal-bar {
     font-size: 10px;
+  }
+
+  /* Seven columns of a phone screen leave a bar about 50px per day, so the arrow would eat what little room the name has
+     on a short span. The squared-off end still says it continues. */
+  .cal-bar::before,
+  .cal-bar::after {
+    content: none;
   }
 }
 
@@ -786,7 +862,7 @@ footer a {
   background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
 }
 
-/* One bar per event, filled with its type colour to match the calendar pills. Absolutely positioned within its lane
+/* One bar per event, filled with its type colour to match the calendar bars. Absolutely positioned within its lane
    from the inline left/width/top the renderer computes. A type with no colour falls back to the neutral track blue. */
 .bar {
   position: absolute;
@@ -804,7 +880,7 @@ footer a {
   box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
 }
 
-/* A past event keeps its type colour but dims, matching the calendar pills. */
+/* A past event keeps its type colour but dims, matching the calendar bars. */
 .bar.ended {
   opacity: 0.55;
 }
