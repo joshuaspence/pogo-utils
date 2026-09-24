@@ -138,6 +138,16 @@ URL:https://pokemongo.com/en/news/dancing-in-the-moonlight-2026
 CATEGORIES:Regional Event
 END:VEVENT
 BEGIN:VEVENT
+UID:pokemon-x-adidas-2026@pogo-utils.joshuaspence.github.io
+DTSTAMP:20260925T000000Z
+DTSTART:20260925T000000
+DTEND:20270115T200000
+SUMMARY:adidas × Pokémon Timed Research
+DESCRIPTION:Research\nhttps://leekduck.com/events/pokemon-x-adidas-2026/
+URL:https://leekduck.com/events/pokemon-x-adidas-2026/
+CATEGORIES:Research
+END:VEVENT
+BEGIN:VEVENT
 UID:citysafari-brisbane-2026@pogo-utils.joshuaspence.github.io
 DTSTAMP:20260926T000000Z
 DTSTART:20260926T000000Z
