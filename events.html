@@ -40,21 +40,76 @@
         <button id="viewTracks" type="button" aria-pressed="false">Tracks</button>
       </div>
       <input id="search" type="search" placeholder="Search events…" autocomplete="off" />
-      <label class="toggle"><input type="checkbox" id="showPast" /> Show ended</label>
-      <label class="toggle"><input type="checkbox" id="showUndated" /> Show undated</label>
-      <label class="toggle"><input type="checkbox" id="showHidden" /> Show hidden</label>
       <button id="refresh" type="button">Refresh</button>
       <button
         id="reset"
         type="button"
         class="ghost"
-        title="Show every type again, restore dismissed events and clear the new marks"
+        title="Show every type in every view, hide ended and undated events, restore dismissals and clear the new marks"
       >
         Reset
       </button>
+
+      <!--
+        The handle that discloses the filters, on a row of its own at the foot of the panel. `aria-expanded` carries the
+        state and the title says which way a click goes, so the label stays neutral in both of them and the ellipsis
+        only has to say there is more here; it is a real character rather than CSS content so it survives the stylesheet
+        not loading, and is hidden from the accessibility tree because the label already names it.
+      -->
+      <button
+        id="discloseFilters"
+        type="button"
+        class="disclose"
+        aria-controls="filters"
+        aria-expanded="false"
+        aria-label="Filters"
+      >
+        <span class="dots" aria-hidden="true">…</span>
+      </button>
     </section>
 
-    <section class="type-filters" id="typeFilters" aria-label="Filter by event type"></section>
+    <!--
+      Ships hidden and stays that way until the handle above discloses it. Everything in here narrows or widens what the
+      views draw, and none of it is wanted on a first read: the chip row doubles as the colour legend for all three
+      views, and the three reveals below only matter to a reader already looking for something they cannot see.
+    -->
+    <section class="filters" id="filters" aria-label="Filters" hidden>
+      <!--
+        What a chip click applies to, immediately above the chips it governs. The label is a real element and the group
+        takes `aria-labelledby` rather than repeating it in an `aria-label`, so the two cannot drift; the segmented
+        `.viewtoggle` is the same control the view switcher uses, and is here because it names both states at once
+        instead of leaving one of them to be inferred from the other being lit.
+      -->
+      <div class="scope">
+        <span id="scopeLabel">Type filters apply to</span>
+        <div class="viewtoggle" role="group" aria-labelledby="scopeLabel">
+          <button id="scopeGlobal" type="button" class="active" aria-pressed="true">All views</button>
+          <button id="scopeView" type="button" aria-pressed="false">This view</button>
+        </div>
+      </div>
+
+      <!--
+        A `group` rather than the labelled `section` this used to be, because it is now nested inside one: two regions,
+        one wrapping the other, is a landmark a reader has to step past to reach the chips it holds.
+      -->
+      <div class="type-filters" id="typeFilters" role="group" aria-label="Filter by event type"></div>
+
+      <!--
+        The same chip as a type filter, and toggle buttons for the same reason: `aria-pressed` is what carries on or off
+        to a reader who cannot see the dimming, and a button is the one control that takes it. They ship `off` and
+        `aria-pressed="false"` because all three start closed, and render() keeps both in step from there.
+
+        Last in the panel, and so last in the tab order, because they are the least of what is in it: the chips above
+        are the legend for all three views and get read whether or not they are clicked, where these three only widen a
+        window a reader is unlikely to want widened. Siblings of the chip row rather than children of it, because
+        fillTypes() calls replaceChildren() on every fetch and would take their listeners with it.
+      -->
+      <div class="toggles">
+        <button id="showPast" type="button" class="chip off" aria-pressed="false">Show ended</button>
+        <button id="showUndated" type="button" class="chip off" aria-pressed="false">Show undated</button>
+        <button id="showHidden" type="button" class="chip off" aria-pressed="false">Show hidden</button>
+      </div>
+    </section>
 
     <main id="events" aria-live="polite"></main>
 

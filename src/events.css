@@ -123,26 +123,6 @@ header.page .sub {
   outline-offset: -1px;
 }
 
-.controls .toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-/**
- * The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
- * none}`, so the `hidden` setView() puts on these two labels outside the cards view laid them out regardless — leaving
- * Show ended and Show undated on screen in the calendar and tracks views, where neither reveals anything. Keyed on
- * `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
- * query gives them.
- */
-.controls .toggle[hidden] {
-  display: none;
-}
-
 .controls button {
   padding: 8px 12px;
   border: 1px solid var(--accent);
@@ -174,13 +154,85 @@ header.page .sub {
   border-color: var(--accent);
 }
 
+/**
+ * The filter disclosure reads as the foot of the panel opening rather than a fifth control beside the four above it, so
+ * it drops everything `.controls button` gives the others — the accent fill, the border, the padding — and takes a row
+ * of its own. `flex: 1 0 100%` is what wins that row: the section is a wrapping flex container, so a full-basis item
+ * lands below whatever the items before it did, at any viewport.
+ */
+.controls .disclose {
+  flex: 1 0 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.controls .disclose:hover,
+.controls .disclose:focus-visible {
+  filter: none;
+  color: var(--accent);
+}
+
+/**
+ * The focus ring is drawn around the glyph rather than the button, because the button is as wide as the panel: the 2px
+ * `var(--track)` outline every other control here takes would hug a 941×15 box and read as an empty text input. It is
+ * still keyed on the button's own `:focus-visible`, so it appears exactly when the button has focus — only the box it
+ * encloses is smaller than the target.
+ */
+.controls .disclose:focus-visible {
+  outline: none;
+}
+
+.controls .disclose:focus-visible .dots {
+  outline: 2px solid var(--track);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/**
+ * The same ellipsis in both states, since it has no orientation to turn over the way a chevron would — what says the
+ * row is open is the row being there, and for anyone who cannot see that, `aria-expanded` and the title. `inline-block`
+ * is for the ring above: an inline box draws its outline around the font's own metrics rather than around the 15px the
+ * rest of the handle is, which measures 17px tall against the ellipsis's 15.
+ */
+.controls .disclose .dots {
+  display: inline-block;
+  font-size: 15px;
+}
+
+/**
+ * The disclosed panel: the filter scope, the type chips and the reveals, stacked in that order. It holds the content
+ * column's alignment for all three rows, which is why `.scope`, `.type-filters` and `.toggles` below carry no padding
+ * of their own — several paddings to keep in step is how one row ends up a few pixels off the next and off the cards
+ * under them.
+ */
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 12px 22px 0;
+}
+
+/**
+ * The `display: flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
+ * `[hidden] {display: none}`, so the `hidden` the markup ships with and render() maintains would lay the panel out
+ * regardless — putting the whole thing on screen on every page load, which is the one thing it must not do. Keyed on
+ * `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
+ * query gives `.filters`.
+ */
+.filters[hidden] {
+  display: none;
+}
+
+.toggles,
 .type-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 12px 22px 0;
 }
 
 .type-filters:empty {
@@ -188,36 +240,71 @@ header.page .sub {
 }
 
 /**
- * Each chip wears its own type's colour — a tinted fill, a matching border and a tick in the same hue — which makes this
- * row the legend for the three colour-coded views below it. The chip carries the same `.type-*` class the cards and
- * the calendar and timeline bars do, so --type-color inherits here and one palette serves all four; a type with no
- * colour falls back to the muted grey, which is what the row looked like throughout.
+ * The row that says what a chip click applies to: its label, then the segmented pair. The label takes the panel's muted
+ * 12px so that the question reads as a caption to the chips below rather than as a control of its own — the segments
+ * are the control, and they are the only part of the row that is interactive.
  */
-.type-chip {
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/**
+ * Both chip rows of the panel are made of these. A type chip wears its own type's colour — a tinted fill and a matching
+ * border — which makes that row the legend for the three colour-coded views below it: the chip carries the same
+ * `.type-*` class the cards and the calendar and timeline bars do, so --type-color inherits here and one palette serves
+ * all four. The three reveals carry no type and so fall through to the muted grey.
+ *
+ * `font-family` has to be asked for because these are buttons: a button does not inherit it, and left alone the chips
+ * come out in the UA's default face rather than the page's.
+ */
+.chip {
   --chip-color: var(--type-color, var(--muted));
 
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   padding: 5px 11px;
   border: 1px solid color-mix(in srgb, var(--chip-color) 40%, var(--border));
   border-radius: 999px;
   background: color-mix(in srgb, var(--chip-color) 10%, var(--panel));
-  accent-color: var(--chip-color);
   color: var(--text);
+  font-family: inherit;
   font-size: 12px;
   cursor: pointer;
   user-select: none;
 }
 
-.type-chip:hover {
+/**
+ * The `display: inline-flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
+ * `[hidden] {display: none}`, so the `hidden` setView() puts on two of the reveals outside the cards view would lay
+ * them out regardless — leaving Show ended and Show undated on screen in the calendar and tracks views, where neither
+ * reveals anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any
+ * later `display` a media query gives `.chip`.
+ */
+.chip[hidden] {
+  display: none;
+}
+
+.chip:hover {
   border-color: var(--chip-color);
   background: color-mix(in srgb, var(--chip-color) 20%, var(--panel));
 }
 
-/* An unchecked type is dimmed rather than removed, so the reader can see what they have hidden and switch it back. */
-.type-chip.off {
+/**
+ * An off chip is dimmed rather than dropped from the row, so the reader can see what they have hidden and put it back.
+ * Dimming is the whole of the visible state, which is why the `aria-pressed` beside it is not decoration: it is the
+ * only form the state takes for anyone who is not reading the colour.
+ */
+.chip.off {
   opacity: 0.45;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--track);
+  outline-offset: 2px;
 }
 
 main {
@@ -671,8 +758,13 @@ footer a {
 }
 
 /**
- * View switcher (Cards / Calendar). A segmented control: the two buttons share one pill outline, and only the active
- * segment takes the accent fill — overriding the accent-filled .controls button default.
+ * A segmented control: one bordered box, one lit segment, no gap between them. Used twice — the view switcher in the
+ * controls bar and the filter scope in the panel below it — so these rules are unscoped and state the whole appearance
+ * themselves, including the padding and type `.controls button` used to supply. Scoped to `.controls`, they reached
+ * only one of the two and the other would have come out as a pair of default browser buttons.
+ *
+ * That leaves them tied with `.controls button` on specificity, so what wins inside the controls bar is this block
+ * coming later in the file. It has to stay below that rule.
  */
 .viewtoggle {
   display: inline-flex;
@@ -681,19 +773,23 @@ footer a {
   overflow: hidden;
 }
 
-.controls .viewtoggle button {
+.viewtoggle button {
+  padding: 8px 12px;
   border: none;
   border-radius: 0;
   background: var(--bg);
   color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.controls .viewtoggle button:hover {
+.viewtoggle button:hover {
   filter: none;
   color: var(--text);
 }
 
-.controls .viewtoggle button.active {
+.viewtoggle button.active {
   background: var(--accent);
   color: #fff;
 }
