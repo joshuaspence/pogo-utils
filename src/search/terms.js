@@ -123,6 +123,13 @@ export const GROUPS = [
     terms: [
       { id: 'favorite', term: 'favorite', label: 'Favourite' },
       { id: 'buddy', term: 'buddy', label: 'Buddy' },
+
+      /**
+       * A tag is searched by the name its owner gave it, so `#` — the game's "has any tag at all" — is the only tag
+       * search a chip can offer without knowing what a reader called theirs. Ruling it out writes `!#`, the untagged
+       * half, which is what makes one chip enough for both.
+       */
+      { id: 'tagged', term: '#', label: 'Tagged' },
     ],
   },
   {
