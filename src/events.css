@@ -203,9 +203,10 @@ header.page .sub {
 }
 
 /**
- * The disclosed panel: the reveals, the filter scope and the type chips, stacked. It holds the content column's
- * alignment for all three rows, which is why `.toggles`, `.scope` and `.type-filters` below carry no padding of their
- * own — several paddings to keep in step is how one row ends up a few pixels off the next and off the cards under them.
+ * The disclosed panel: the filter scope, the type chips and the reveals, stacked in that order. It holds the content
+ * column's alignment for all three rows, which is why `.scope`, `.type-filters` and `.toggles` below carry no padding
+ * of their own — several paddings to keep in step is how one row ends up a few pixels off the next and off the cards
+ * under them.
  */
 .filters {
   display: flex;
@@ -252,7 +253,7 @@ header.page .sub {
 }
 
 /**
- * Both rows of the panel are made of these. A type chip wears its own type's colour — a tinted fill and a matching
+ * Both chip rows of the panel are made of these. A type chip wears its own type's colour — a tinted fill and a matching
  * border — which makes that row the legend for the three colour-coded views below it: the chip carries the same
  * `.type-*` class the cards and the calendar and timeline bars do, so --type-color inherits here and one palette serves
  * all four. The three reveals carry no type and so fall through to the muted grey.

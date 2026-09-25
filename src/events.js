@@ -246,7 +246,7 @@ let calMonth = null; // first-of-month Date the calendar view is showing; set la
 let filtersOpen = false; // whether the filter panel is disclosed; a session's choice, not a saved preference
 
 /**
- * Whether each of the three reveals at the head of the filter panel is on. Held here rather than read back off the
+ * Whether each of the three reveals at the foot of the filter panel is on. Held here rather than read back off the
  * chips because a chip says so in two places at once — the `off` class and `aria-pressed` — and a filter that asked
  * either of them would make the appearance the state, so a mismatch between the two would be undetectable. Keyed by
  * element id so render() can write both from one loop. A session's choice like `filtersOpen`; `prefs` is what survives
