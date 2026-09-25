@@ -92,8 +92,8 @@ const LEGACY_SETS = ['hiddenTypes', 'dismissed'];
  * The types hidden on a first visit, so the default view leads with the events a reader is more likely to plan around:
  * the recurring ones, which fire every week and crowd the feed, plus three that describe a standing state rather than
  * somewhere to be at a time — a GO Battle League rotation, a GO Pass and Choose Your Path. They are `heading`s, the
- * currency of `hiddenTypes`, so the type checkboxes read them as off. Once any preference is saved the stored hidden set
- * is authoritative, so unticking one of these sticks; Reset returns to this default rather than to an empty set.
+ * currency of `hiddenTypes`, so the type chips draw them dimmed. Once any preference is saved the stored hidden set is
+ * authoritative, so turning one of these on sticks; Reset returns to this default rather than to an empty set.
  *
  * The three extras stay out of RECURRING_TYPES because that list also says which types the trimmed calendar feed
  * (events.ics) leaves out, and each of these is a dated one-off worth keeping in a subscription.
@@ -177,7 +177,9 @@ const els = {
   newCount: document.getElementById('newCount'),
   markSeen: document.getElementById('markSeen'),
   search: document.getElementById('search'),
+  filters: document.getElementById('filters'),
   typeFilters: document.getElementById('typeFilters'),
+  discloseFilters: document.getElementById('discloseFilters'),
   showPast: document.getElementById('showPast'),
   showUndated: document.getElementById('showUndated'),
   showHidden: document.getElementById('showHidden'),
@@ -197,6 +199,16 @@ let tick = 0;
 let entering = false;
 let view = 'cards'; // 'cards' | 'calendar' | 'tracks'
 let calMonth = null; // first-of-month Date the calendar view is showing; set lazily to the current month
+let filtersOpen = false; // whether the filter panel is disclosed; a session's choice, not a saved preference
+
+/**
+ * Whether each of the three reveals at the head of the filter panel is on. Held here rather than read back off the
+ * chips because a chip says so in two places at once — the `off` class and `aria-pressed` — and a filter that asked
+ * either of them would make the appearance the state, so a mismatch between the two would be undetectable. Keyed by
+ * element id so render() can write both from one loop. A session's choice like `filtersOpen`; `prefs` is what survives
+ * a reload.
+ */
+const reveals = { showPast: false, showUndated: false, showHidden: false };
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   month: 'short',
@@ -394,7 +406,7 @@ function timeRange(ev) {
 /**
  * Whether an event survives the type-filter, dismissal and search-term filters — the ones that mean "I do not want to
  * see this", so every view honours them. The status reveals are isRevealed()'s, layered on top of this. A dismissed
- * event stays hidden unless "Show hidden" is ticked, which mirrors how "Show ended" reveals past events — the choice is
+ * event stays hidden unless "Show hidden" is on, which mirrors how "Show ended" reveals past events — the choice is
  * a temporary reveal, not a change to the saved dismissal.
  */
 function isVisible(ev) {
@@ -402,7 +414,7 @@ function isVisible(ev) {
     return false;
   }
 
-  if (prefs.dismissed.has(ev.eventID) && !els.showHidden.checked) {
+  if (prefs.dismissed.has(ev.eventID) && !reveals.showHidden) {
     return false;
   }
 
@@ -421,7 +433,7 @@ function isVisible(ev) {
  */
 function isRevealed(ev, now) {
   const kind = statusOf(ev, now).kind;
-  return (kind !== 'ended' || els.showPast.checked) && (kind !== 'tbd' || els.showUndated.checked);
+  return (kind !== 'ended' || reveals.showPast) && (kind !== 'tbd' || reveals.showUndated);
 }
 
 /**
@@ -855,8 +867,8 @@ function renderTracks(now) {
   const byType = new Map(TRACKS.map((t) => [t.type, []]));
   let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
-  // Track types whose filter checkbox is unticked, so the whole row can be dropped rather than left as an empty ghost.
-  // Keyed by the checkbox's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
+  // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed by
+  // the chip's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
   const filteredTypes = new Set();
 
   for (const ev of events) {
@@ -984,6 +996,23 @@ function render() {
   els.newly.hidden = newly === 0;
   els.newCount.textContent = `${newly} new event${newly === 1 ? '' : 's'}`;
 
+  /**
+   * Driven from here rather than from the handle's own click so `filtersOpen` is the only thing that says whether the
+   * panel shows. fillTypes() rebuilds the chips on each fetch and would otherwise have to remember the state itself,
+   * and the markup's initial `hidden` and `aria-expanded` could drift from it. The label stays neutral because
+   * `aria-expanded` announces the state; the title is for the pointer, which gets no such announcement from a glyph.
+   */
+  els.filters.hidden = !filtersOpen;
+  els.discloseFilters.setAttribute('aria-expanded', String(filtersOpen));
+  els.discloseFilters.title = `${filtersOpen ? 'Hide' : 'Show'} filters`;
+
+  // Both halves from the one source, for the same reason: the dimming is for the eye and `aria-pressed` for everyone
+  // else, so a chip that wrote one without the other would be off to half its readers and on to the rest.
+  for (const [id, on] of Object.entries(reveals)) {
+    els[id].classList.toggle('off', !on);
+    els[id].setAttribute('aria-pressed', String(on));
+  }
+
   // Spent by whichever view just drew, so the animation plays once per fetch rather than on every minute's re-render.
   entering = false;
 }
@@ -1003,8 +1032,8 @@ function setView(next) {
 
   // Both bucket reveals only mean anything for the cards: the calendar and tracks views show a fixed window regardless,
   // and neither can draw a dateless event in the first place — windowOf() gives it no window to place.
-  for (const box of [els.showPast, els.showUndated]) {
-    box.closest('.toggle').hidden = view !== 'cards';
+  for (const chip of [els.showPast, els.showUndated]) {
+    chip.hidden = view !== 'cards';
   }
 
   render();
@@ -1025,8 +1054,8 @@ function normalise(raw) {
 }
 
 /**
- * Rebuild the per-type visibility checkboxes from the categories the feed currently carries. A box is checked when its
- * type is not in the hidden set; toggling one updates that set, persists it and re-renders.
+ * Rebuild the per-type filter chips from the categories the feed currently carries. A chip is on when its type is not
+ * in the hidden set; clicking one updates that set, persists it and re-renders.
  *
  * Each chip also wears its type's colour class, which turns the row into the legend for the colour-coded cards, bars
  * and bars. That needs the `eventType` slug the colours are keyed by, while the filters themselves are keyed by the
@@ -1045,29 +1074,30 @@ function fillTypes() {
   els.typeFilters.replaceChildren();
 
   for (const heading of [...slugs.keys()].sort()) {
-    const box = document.createElement('input');
-    box.type = 'checkbox';
-    box.checked = !prefs.hiddenTypes.has(heading);
+    const chip = el('button', `chip${typeClass(slugs.get(heading))}`, heading);
+    chip.type = 'button';
 
-    const chip = el('label', `type-chip${typeClass(slugs.get(heading))}`);
+    // The hidden set is the state and the chip only shows it, so both the dimming and the `aria-pressed` beside it are
+    // written from that one read — neither is asked what it currently says, which is what keeps them from disagreeing.
+    const paint = () => {
+      const on = !prefs.hiddenTypes.has(heading);
+      chip.classList.toggle('off', !on);
+      chip.setAttribute('aria-pressed', String(on));
+    };
 
-    if (!box.checked) {
-      chip.classList.add('off');
-    }
-
-    box.addEventListener('change', () => {
-      if (box.checked) {
+    chip.addEventListener('click', () => {
+      if (prefs.hiddenTypes.has(heading)) {
         prefs.hiddenTypes.delete(heading);
       } else {
         prefs.hiddenTypes.add(heading);
       }
 
-      chip.classList.toggle('off', !box.checked);
+      paint();
       persist('hiddenTypes');
       render();
     });
 
-    chip.append(box, document.createTextNode(` ${heading}`));
+    paint();
     els.typeFilters.append(chip);
   }
 }
@@ -1172,9 +1202,20 @@ function focusHashEvent() {
 window.addEventListener('hashchange', focusHashEvent);
 
 els.search.addEventListener('input', render);
-els.showPast.addEventListener('change', render);
-els.showUndated.addEventListener('change', render);
-els.showHidden.addEventListener('change', render);
+els.discloseFilters.addEventListener('click', () => {
+  filtersOpen = !filtersOpen;
+  render();
+});
+
+// Bound over the keys rather than three times over, since `reveals` already names them and a fourth reveal should not
+// need a listener written for it. render() is what puts the new state back on the chip, the same as for `filtersOpen`.
+for (const id of Object.keys(reveals)) {
+  els[id].addEventListener('click', () => {
+    reveals[id] = !reveals[id];
+    render();
+  });
+}
+
 els.refresh.addEventListener('click', load);
 
 /**
@@ -1217,6 +1258,12 @@ els.reset.addEventListener('click', () => {
     }
   } catch {
     /* Nothing to clear if storage is unavailable. */
+  }
+
+  // Not a stored preference, so clearing the keys above leaves them as they were — but they are three of the same chips
+  // Reset puts back, and a Reset that returns the page to its defaults cannot leave one of them widening it.
+  for (const id of Object.keys(reveals)) {
+    reveals[id] = false;
   }
 
   settleSeen();
