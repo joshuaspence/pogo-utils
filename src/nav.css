@@ -59,7 +59,7 @@
 
 /**
  * Tighten the tabs on a narrow screen so the four of them fit without scrolling wherever they can. Below roughly a
- * 430px viewport they still cannot, which is what the scrolling above is for.
+ * 410px viewport they still cannot, which is what the scrolling above is for.
  */
 @media (width <= 560px) {
   .topnav {
