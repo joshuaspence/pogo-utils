@@ -4,20 +4,20 @@ A collection of small, self-contained browser tools for Pokémon GO, served as s
 from a shared top tab bar:
 
 - **Events** — a calendar of current and upcoming in-game events, also published as a calendar subscription.
-- **Routes** — an interactive map of GPX walking tracks and teleport waypoints.
+- **Map** — an interactive map of GPX walking tracks and teleport waypoints.
 - **Search** — a builder for the strings the game's own Pokémon search box takes.
 - **PGSharp** — a backup builder that loads those routes into PGSharp as favourites.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored as `*.gpx` files under [`data/`](data), grouped by country — the
-files themselves are the source of truth. The Routes viewer ([`routes.html`](routes.html), whose CSS and JavaScript live
-under [`src/`](src)) reads them directly, so to run it locally serve the repository over HTTP (the files are loaded via
+files themselves are the source of truth. The map viewer ([`map.html`](map.html), whose CSS and JavaScript live under
+[`src/`](src)) reads them directly, so to run it locally serve the repository over HTTP (the files are loaded via
 `fetch`):
 
 ```sh
 python3 -m http.server
-# then open http://localhost:8000/routes.html
+# then open http://localhost:8000/map.html
 ```
 
 Static hosting cannot list a directory, so the viewer is handed the paths in [`gpx-paths.json`](gpx-paths.json). That

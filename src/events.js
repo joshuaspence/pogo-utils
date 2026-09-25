@@ -674,7 +674,7 @@ function card(ev, now) {
   /**
    * What this repository added for the event, linking through to it on the map. Last, so that the absolute dates and the
    * relative ones stay together above it. The fragment is what lands the link on the entry rather than on a page of 81
-   * rows. The stylesheet puts the Routes tab's own glyph in front, so the destination is named the same way twice; the
+   * rows. The stylesheet puts the Map tab's own glyph in front, so the destination is named the same way twice; the
    * accessible name says it in words instead.
    */
   const here = routeIndex[ev.eventID];
@@ -682,9 +682,9 @@ function card(ev, now) {
   if (here) {
     const summary = routeSummary(here);
     const mapLink = el('a', 'routes', summary);
-    mapLink.href = `routes.html#event=${encodeURIComponent(ev.eventID)}`;
-    mapLink.title = 'Show on the Routes map';
-    mapLink.setAttribute('aria-label', `Show ${summary} for “${ev.name}” on the Routes map`);
+    mapLink.href = `map.html#event=${encodeURIComponent(ev.eventID)}`;
+    mapLink.title = 'Show on the map';
+    mapLink.setAttribute('aria-label', `Show ${summary} for “${ev.name}” on the map`);
     body.append(mapLink);
   }
 
