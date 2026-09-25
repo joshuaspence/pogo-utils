@@ -130,11 +130,14 @@ The terms live in one table, [`src/search/terms.js`](src/search/terms.js), and t
 or correcting one is a single line. [`src/search/query.js`](src/search/query.js) turns the state into the string and
 holds no DOM, which is where to look to check what the builder actually writes.
 
-Two things the composition decides, since neither is obvious. Terms picked within a group are OR'd (`fire,water`) while
-terms ruled out are each negated and AND'd (`!fire&!water`) — `!fire,!water` would match everything, since everything is
-either not Fire or not Water. And Pokémon GO's search has no brackets, so a string mixing `,` and `&` cannot say which
-binds first; the builder writes its clauses in a fixed order and says so on the page when the question can arise, rather
-than picking a reading on your behalf.
+Three things the composition decides, since none of them is obvious. Groups are AND'd together, and each group says how
+the terms picked within it join: most are OR (`fire,water`), because nothing is two types or two generations, so picking
+several can only mean either — while **Status** is AND (`shiny&lucky`), because a Pokémon is any number of those at once
+and a lucky shiny is the reason to search for two of them. Terms ruled out are negated and AND'd whatever their group
+does (`!fire&!water`), since `!fire,!water` would match everything: everything is either not Fire or not Water. And
+Pokémon GO's search has no brackets, so a string mixing `,` and `&` cannot say which binds first; the builder writes its
+clauses in a fixed order and says so on the page when the question can arise, rather than picking a reading on your
+behalf.
 
 ## Import into PGSharp
 
