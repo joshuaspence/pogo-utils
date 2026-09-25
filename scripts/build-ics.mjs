@@ -160,7 +160,7 @@ function vevent(ev, index) {
   const here = index[ev.eventID];
 
   if (here) {
-    description.push(`${routeSummary(here)} here: ${SITE}/routes.html#event=${encodeURIComponent(ev.eventID)}`);
+    description.push(`${routeSummary(here)} here: ${SITE}/map.html#event=${encodeURIComponent(ev.eventID)}`);
   }
 
   if (ev.link) {

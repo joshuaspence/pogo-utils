@@ -623,7 +623,7 @@ function appendFailures(heading, failures) {
 }
 
 /**
- * A link from the Events page arrives as `routes.html#event=<eventID>`, and this is what lands it on that event's
+ * A link from the Events page arrives as `map.html#event=<eventID>`, and this is what lands it on that event's
  * entries — every route and waypoint added for it, not one of them. All of them are selected together: highlighted on
  * the map, their rows marked and the groups above them opened, with the map fitted to the whole set.
  *
