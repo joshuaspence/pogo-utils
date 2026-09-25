@@ -284,7 +284,7 @@ export const RANGES = [
  * Starting points, each a plain state the builder loads and the reader then edits — the point is to land mid-way
  * through a query rather than to hand over a finished one. `text` fills the name box, the rest name term ids.
  *
- * The transfer preset is the one that earns its place: it is a dozen exclusions, every one of which matters, and
+ * The transfer preset is the one that earns its place: it is thirteen exclusions, every one of which matters, and
  * forgetting any single one of them is how a shiny ends up as candy.
  */
 export const PRESETS = [
@@ -299,6 +299,7 @@ export const PRESETS = [
       'purified',
       'legendary',
       'mythical',
+      'ultrabeast',
       'costume',
       'favorite',
       'buddy',
