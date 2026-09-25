@@ -12,8 +12,9 @@
  *
  * A group's `join` is what goes between the terms picked within it, and defaults to `,` because most of these groups
  * describe one slot on a Pokémon: nothing is two generations or two star ratings, so picking several can only mean
- * either. `status` is the exception, since a Pokémon is any number of those at once and the combinations are the point
- * of searching for them — a lucky shiny, a shiny in a costume.
+ * either. `status` and `moves` are the exceptions, since a Pokémon is any number of those at once and the combinations
+ * are the point of searching for them — a lucky shiny, a shiny in a costume, an exclusive move on something the weather
+ * is boosting.
  *
  * Which is why a pair that is one slot gets a group of its own rather than a place among the statuses. Rarity is one
  * slot and so is whatever Team GO Rocket did, so grouped with the statuses they would AND: `legendary&mythical` and
@@ -23,6 +24,10 @@
  * A group's `hue` tints its chips, so which group a selected chip came from reads at a glance once a dozen of them are
  * on. They are hues rather than the palette's tokens because these are categories of the page's own, unrelated to what
  * --track or --city mean elsewhere; theme.css owns the colours that carry meaning across pages.
+ *
+ * Fifteen groups is as far as that carries. The widest gap left on the wheel was 35°, and splitting it is what put Size
+ * at 52° — 17° from Kept aside and 18° from Rarity, three yellows, with no better placement available. So a sixteenth
+ * group wants a second cue rather than another hue.
  */
 
 /**
@@ -87,10 +92,11 @@ export const GROUPS = [
     id: 'rarity',
     label: 'Rarity',
     hue: 70,
-    help: 'A species is one or the other and never both, so picking both asks for anything rare.',
+    help: 'A species is one of these at most, so picking several asks for anything rare.',
     terms: [
       { id: 'legendary', term: 'legendary', label: 'Legendary' },
       { id: 'mythical', term: 'mythical', label: 'Mythical' },
+      { id: 'ultrabeast', term: 'ultrabeast', label: 'Ultra Beast' },
     ],
   },
   {
@@ -101,6 +107,17 @@ export const GROUPS = [
     terms: [
       { id: 'shadow', term: 'shadow', label: 'Shadow' },
       { id: 'purified', term: 'purified', label: 'Purified' },
+    ],
+  },
+  {
+    id: 'mega',
+    label: 'Mega and Max',
+    hue: 95,
+    help: 'What the species can turn into, which is a property of the species rather than of the one you caught.',
+    terms: [
+      { id: 'megaevolve', term: 'megaevolve', label: 'Can Mega Evolve' },
+      { id: 'dynamax', term: 'dynamax', label: 'Can Dynamax' },
+      { id: 'gigantamax', term: 'gigantamax', label: 'Can Gigantamax' },
     ],
   },
   {
@@ -120,12 +137,27 @@ export const GROUPS = [
     id: 'evolution',
     label: 'Evolution',
     hue: 265,
-    help: 'What can be evolved right now, and what that evolution would be worth.',
+    help: 'What can be evolved right now, what that evolution would be worth, and what an evolution is waiting on.',
     terms: [
       { id: 'evolve', term: 'evolve', label: 'Can evolve now' },
       { id: 'evolvenew', term: 'evolvenew', label: 'New to the dex' },
       { id: 'item', term: 'item', label: 'Needs an item' },
       { id: 'tradeevolve', term: 'tradeevolve', label: 'Evolves free after trade' },
+      { id: 'evolvequest', term: 'evolvequest', label: 'Needs a buddy task' },
+      { id: 'fusion', term: 'fusion', label: 'Can fuse' },
+      { id: 'eggsonly', term: 'eggsonly', label: 'Baby' },
+    ],
+  },
+  {
+    id: 'moves',
+    label: 'Moves',
+    hue: 120,
+    join: '&',
+    help: 'A move the Pokémon knows, or the weather right now. Picking several asks for all of them at once.',
+    terms: [
+      { id: 'special', term: '@special', label: 'Exclusive move' },
+      { id: 'adventureeffect', term: 'adventureeffect', label: 'Adventure Effect' },
+      { id: 'weather', term: '@weather', label: 'Weather boosted' },
     ],
   },
   {
@@ -137,9 +169,25 @@ export const GROUPS = [
       { id: 'traded', term: 'traded', label: 'Traded' },
       { id: 'hatched', term: 'hatched', label: 'Hatched' },
       { id: 'raid', term: 'raid', label: 'Raid' },
-      { id: 'research', term: 'research', label: 'Research' },
       { id: 'remote', term: 'remoteraid', label: 'Remote raid' },
+      { id: 'exraid', term: 'exraid', label: 'EX raid' },
+      { id: 'megaraid', term: 'megaraid', label: 'Mega raid' },
+      { id: 'primalraid', term: 'primalraid', label: 'Primal raid' },
+      { id: 'research', term: 'research', label: 'Research' },
+      { id: 'rocket', term: 'rocket', label: 'From Team GO Rocket' },
+      { id: 'gbl', term: 'gbl', label: 'GO Battle League' },
+      { id: 'snapshot', term: 'snapshot', label: 'Photobomb' },
       { id: 'defender', term: 'defender', label: 'In a gym' },
+    ],
+  },
+  {
+    id: 'background',
+    label: 'Background',
+    hue: 220,
+    help: 'The backdrop the catch was recorded against. Picking both is what the game spells `background`.',
+    terms: [
+      { id: 'locationbackground', term: 'locationbackground', label: 'Location' },
+      { id: 'specialbackground', term: 'specialbackground', label: 'Event' },
     ],
   },
   {
@@ -157,6 +205,29 @@ export const GROUPS = [
        * half, which is what makes one chip enough for both.
        */
       { id: 'tagged', term: '#', label: 'Tagged' },
+    ],
+  },
+  {
+    id: 'gender',
+    label: 'Gender',
+    hue: 344,
+    help: 'Nothing is two of these, so picking several asks for any of them.',
+    terms: [
+      { id: 'male', term: 'male', label: 'Male' },
+      { id: 'female', term: 'female', label: 'Female' },
+      { id: 'genderunknown', term: 'genderunknown', label: 'Unknown' },
+    ],
+  },
+  {
+    id: 'size',
+    label: 'Size',
+    hue: 52,
+    help: 'The four sizes the game records. Most Pokémon are none of them, so ruling one out barely narrows anything.',
+    terms: [
+      { id: 'xxs', term: 'xxs', label: 'XXS' },
+      { id: 'xs', term: 'xs', label: 'XS' },
+      { id: 'xl', term: 'xl', label: 'XL' },
+      { id: 'xxl', term: 'xxl', label: 'XXL' },
     ],
   },
   {
@@ -193,11 +264,17 @@ export const GROUPS = [
  *
  * `max` bounds the input so a typo cannot write a range nothing can match, and is the ceiling the game itself has where
  * there is one — 1025 is the dex, and a CP above 5000 belongs to nothing.
+ *
+ * Buddy and Mega level belong here rather than among the terms above, even though the game documents them as the eleven
+ * separate words `buddy0` to `buddy5` and `mega0` to `mega3`: they are levels, so a reader wants a span of them — `Good
+ * Buddy or better` is `buddy2-5` — and eleven chips could not write that.
  */
 export const RANGES = [
   { id: 'cp', prefix: 'cp', label: 'CP', max: 5000 },
   { id: 'hp', prefix: 'hp', label: 'HP', max: 500 },
   { id: 'dex', prefix: '', label: 'Dex number', min: 1, max: 1025 },
+  { id: 'buddylevel', prefix: 'buddy', label: 'Buddy level', max: 5 },
+  { id: 'megalevel', prefix: 'mega', label: 'Mega level', max: 3 },
   { id: 'age', prefix: 'age', label: 'Caught in the last … days', max: 3650 },
   { id: 'distance', prefix: 'distance', label: 'Kilometres from home', max: 40000 },
   { id: 'year', prefix: 'year', label: 'Year caught', min: 2016, max: 2030 },

@@ -132,13 +132,13 @@ holds no DOM, which is where to look to check what the builder actually writes.
 
 Three things the composition decides, since none of them is obvious. Groups are AND'd together, and each group says how
 the terms picked within it join: most are OR (`fire,water`), because nothing is two types or two generations, so picking
-several can only mean either — while **Status** is AND (`shiny&lucky`), because a Pokémon is any number of those at once
-and a lucky shiny is the reason to search for two of them. A pair that is one slot therefore gets a group to itself
-rather than a place among the statuses: nothing is both Shadow and Purified, so those two OR. Terms ruled out are
-negated and AND'd whatever their group does (`!fire&!water`), since `!fire,!water` would match everything: everything is
-either not Fire or not Water. And Pokémon GO's search has no brackets, so a string mixing `,` and `&` cannot say which
-binds first; the builder writes its clauses in a fixed order and says so on the page when the question can arise, rather
-than picking a reading on your behalf.
+several can only mean either — while **Status** and **Moves** are AND (`shiny&lucky`), because a Pokémon is any number
+of those at once and a lucky shiny is the reason to search for two of them. A pair that is one slot therefore gets a
+group to itself rather than a place among the statuses: nothing is both Shadow and Purified, so those two OR. Terms
+ruled out are negated and AND'd whatever their group does (`!fire&!water`), since `!fire,!water` would match everything:
+everything is either not Fire or not Water. And Pokémon GO's search has no brackets, so a string mixing `,` and `&`
+cannot say which binds first; the builder writes its clauses in a fixed order and says so on the page when the question
+can arise, rather than picking a reading on your behalf.
 
 ## Import into PGSharp
 
