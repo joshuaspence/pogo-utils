@@ -138,7 +138,7 @@ export const GROUPS = [
       { id: 'hatched', term: 'hatched', label: 'Hatched' },
       { id: 'raid', term: 'raid', label: 'Raid' },
       { id: 'research', term: 'research', label: 'Research' },
-      { id: 'remote', term: 'remote', label: 'Remote raid' },
+      { id: 'remote', term: 'remoteraid', label: 'Remote raid' },
       { id: 'defender', term: 'defender', label: 'In a gym' },
     ],
   },
