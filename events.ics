@@ -15,8 +15,8 @@ DTSTART:20260522T140000Z
 DTEND:20270412T020000Z
 SUMMARY:Pokémon Fossil Museum — Chicago
 DESCRIPTION:Regional Event\n1 route · 1 waypoint here: https://joshuaspenc
- e.github.io/pogo-utils/routes.html#event=pokemon-fossil-museum-chicago-202
- 6\nhttps://pokemongo.com/en/news/pgo-pokemon-fossil-musuem-chicago-2026
+ e.github.io/pogo-utils/map.html#event=pokemon-fossil-museum-chicago-2026\n
+ https://pokemongo.com/en/news/pgo-pokemon-fossil-musuem-chicago-2026
 URL:https://pokemongo.com/en/news/pgo-pokemon-fossil-musuem-chicago-2026
 CATEGORIES:Regional Event
 END:VEVENT
@@ -81,8 +81,8 @@ DTSTART:20260918T010000Z
 DTEND:20261011T110000Z
 SUMMARY:Pikachu's Autumn Picnic 2026
 DESCRIPTION:Regional Event\n1 waypoint here: https://joshuaspence.github.io
- /pogo-utils/routes.html#event=pikachu-autumn-picnic-korea-2026\nhttps://po
- kemongo.com/news/pikachu-autumn-picnic-korea-2026
+ /pogo-utils/map.html#event=pikachu-autumn-picnic-korea-2026\nhttps://pokem
+ ongo.com/news/pikachu-autumn-picnic-korea-2026
 URL:https://pokemongo.com/news/pikachu-autumn-picnic-korea-2026
 CATEGORIES:Regional Event
 END:VEVENT
@@ -159,8 +159,8 @@ CATEGORIES:Regional Event
 END:VEVENT
 BEGIN:VEVENT
 UID:pokemon-x-adidas-2026@pogo-utils.joshuaspence.github.io
-DTSTAMP:20260925T000000Z
-DTSTART:20260925T000000
+DTSTAMP:20260925T100000Z
+DTSTART:20260925T100000
 DTEND:20270115T200000
 SUMMARY:adidas × Pokémon Timed Research
 DESCRIPTION:Research\nhttps://leekduck.com/events/pokemon-x-adidas-2026/
@@ -336,8 +336,8 @@ DTSTART:20261002T100000
 DTEND:20261002T200000
 SUMMARY:Patterns of the Wild
 DESCRIPTION:Regional Event\n1 waypoint here: https://joshuaspence.github.io
- /pogo-utils/routes.html#event=patterns-of-the-wild-2026\nhttps://pokemongo
- .com/en/news/patterns-of-the-wild-2026
+ /pogo-utils/map.html#event=patterns-of-the-wild-2026\nhttps://pokemongo.co
+ m/en/news/patterns-of-the-wild-2026
 URL:https://pokemongo.com/en/news/patterns-of-the-wild-2026
 CATEGORIES:Regional Event
 END:VEVENT
@@ -940,8 +940,8 @@ DTSTART:20270123T020000Z
 DTEND:20270124T140000Z
 SUMMARY:PokéXciting! — Manila
 DESCRIPTION:Regional Event\n1 waypoint here: https://joshuaspence.github.io
- /pogo-utils/routes.html#event=30th-anniversary-manila-2027\nhttps://pokemo
- ngo.com/en/news/event-apac-30th-anniversary-2026
+ /pogo-utils/map.html#event=30th-anniversary-manila-2027\nhttps://pokemongo
+ .com/en/news/event-apac-30th-anniversary-2026
 URL:https://pokemongo.com/en/news/event-apac-30th-anniversary-2026
 CATEGORIES:Regional Event
 END:VEVENT
