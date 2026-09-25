@@ -198,6 +198,7 @@ export const PRESETS = [
       'costume',
       'favorite',
       'buddy',
+      'tagged',
       'defender',
       'star4',
     ],
