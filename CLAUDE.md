@@ -83,6 +83,13 @@ after the next.
   that it claims a row of its own, which also makes it 941px wide, and an outline on a box that shape reads as a field
   rather than as a focused control however it is coloured. `getBoundingClientRect` answered `941x15` either way and said
   nothing about it.
+- **A check on a net figure cancels; assert the per-step deltas.** Reset has to clear three reveals, a type filter and
+  the dismissals, so the probe disturbed all five and compared the card count before and after. It read 73 both times
+  and the check that the disturbance had happened at all reported a failure — with nothing wrong: the two bucket reveals
+  add one event each, hiding Community Day removes two, and a dismissal removes none while `showHidden` is on. 73, 74,
+  75, 73, 73 — net zero by arithmetic. Had the code been broken the same check would have said the same thing, which is
+  the real cost. Step the disturbance one control at a time and assert each delta, and where a count is all you have,
+  prefer one only the control under test can move.
 - **Measure widths in characters, not bytes, before believing a line is too long.** `awk 'length > 120'` counts bytes,
   so every comment carrying an em-dash reads three columns over per dash and a compliant line is reported as a
   violation. Four of these comments looked too long and only two were. Use `len()` on text decoded as UTF-8, and check
