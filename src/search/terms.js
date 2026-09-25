@@ -13,7 +13,12 @@
  * A group's `join` is what goes between the terms picked within it, and defaults to `,` because most of these groups
  * describe one slot on a Pokémon: nothing is two generations or two star ratings, so picking several can only mean
  * either. `status` is the exception, since a Pokémon is any number of those at once and the combinations are the point
- * of searching for them — a lucky shiny, a shiny shadow.
+ * of searching for them — a lucky shiny, a shiny in a costume.
+ *
+ * Which is why a pair that is one slot gets a group of its own rather than a place among the statuses. Rarity is one
+ * slot and so is whatever Team GO Rocket did, so grouped with the statuses they would AND: `legendary&mythical` and
+ * `shadow&purified` are searches nothing can match, where `legendary,mythical` and `shadow,purified` are two a reader
+ * would actually want. A group is the whole of that decision, so the fix is where the term sits and not a new field.
  *
  * A group's `hue` tints its chips, so which group a selected chip came from reads at a glance once a dozen of them are
  * on. They are hues rather than the palette's tokens because these are categories of the page's own, unrelated to what
@@ -75,11 +80,27 @@ export const GROUPS = [
     terms: [
       { id: 'shiny', term: 'shiny', label: 'Shiny' },
       { id: 'lucky', term: 'lucky', label: 'Lucky' },
-      { id: 'shadow', term: 'shadow', label: 'Shadow' },
-      { id: 'purified', term: 'purified', label: 'Purified' },
+      { id: 'costume', term: 'costume', label: 'Costume' },
+    ],
+  },
+  {
+    id: 'rarity',
+    label: 'Rarity',
+    hue: 70,
+    help: 'A species is one or the other and never both, so picking both asks for anything rare.',
+    terms: [
       { id: 'legendary', term: 'legendary', label: 'Legendary' },
       { id: 'mythical', term: 'mythical', label: 'Mythical' },
-      { id: 'costume', term: 'costume', label: 'Costume' },
+    ],
+  },
+  {
+    id: 'rocket',
+    label: 'Team GO Rocket',
+    hue: 292,
+    help: 'Purifying a Shadow Pokémon is what makes it Purified, so nothing is both — picking both asks for either.',
+    terms: [
+      { id: 'shadow', term: 'shadow', label: 'Shadow' },
+      { id: 'purified', term: 'purified', label: 'Purified' },
     ],
   },
   {
