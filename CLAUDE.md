@@ -706,6 +706,36 @@ Reading them:
   yet lists Vivillon per pattern, so per-card matching reports 28 Unown forms as missing when they are not. The labels
   are the sites' own rather than ours — `Poké Ball Pattern` for `POKE_BALL`.
 
+## Cross-checking `src/search/terms.js` against the game
+
+Three sources cover what the search box actually accepts, and each has a demonstrated failure mode, so take a term only
+where two of the three agree — the same rule as [`pokedex.js`](#cross-checking-srcpokemonpokedexjs-against-the-web).
+That rule has already paid for itself twice: `mega4` appeared in one source alone and does not exist, the Mega levels
+stopping at `mega3`, and a `remote` the table had carried since it was written turned out to be attested nowhere.
+
+- **PokeMiners' `English.txt`** is the game's own string table and the strongest of the three. The keywords are the 58
+  resources whose ID begins `filter_key_`, each on a `RESOURCE ID:` line with its keyword on the `TEXT:` line below —
+  which is why a regex anchored to the start of a line finds nothing. It settles a spelling outright:
+  `filter_key_raid_remote` is `remoteraid`, and the only `remote` in the whole file is prose about Remote Raid Passes.
+  Its failure mode is silence: `galar`, `favorite`, `#`, `evolve`, `cp`, the four sizes and the buddy levels are all
+  absent from it and all work, so **presence is strong evidence and absence is none**. It also gives the bare token
+  rather than the usable form — `filter_key_special_move` is `special`, where what a reader types is `@special`.
+- **The [Pokémon GO Wiki](https://pokemongo.fandom.com/wiki/Search)** carries 185 table rows, each with the client
+  version the keyword shipped in, and is the only source that gives the _semantics_: `alola` returns every Pokémon from
+  the Alola region rather than the Alolan forms, and `@move` matches the Pokémon that have **not** learned a second
+  charged attack. It also shows which keywords take a span — `buddy2–5`, `mega2-3`, `maxguard1-3` — which is what
+  decides whether a family belongs in `GROUPS` or in `RANGES`. It has gaps: none of `remoteraid`, `exraid`, `megaraid`
+  or `primalraid` appears anywhere on it.
+- **The [GO Hub cheat sheet](https://pokemongohub.net/post/guide/pokemon-go-search-bar-cheat-sheet/)** is organised by
+  what a player wants rather than by what the client holds, so it is the best source for a chip's label. It is the least
+  complete: it drops Kalos from its own list of regions, and never mentions `rocket`, `background`, `fusion`,
+  `evolvequest`, `candyxl` or `adventureeffect`. Its content is in 292 `<li>` items and one table with **no `<code>` or
+  `<pre>` anywhere**, so a parse looking for code fragments reports zero on a page that fetched fine.
+
+Read the two HTML sources with `curl` and parse them, for the reason the Pokédex section gives. Convert tags to newlines
+and print every non-empty line rather than filtering by length, or a two-character keyword is dropped by the filter that
+was meant to remove noise.
+
 ## What the search data does not settle
 
 Three things anything reasoning about a search string runs into, none of which the term table answers.
