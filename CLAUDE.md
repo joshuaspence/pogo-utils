@@ -76,6 +76,13 @@ after the next.
   bar over the dimmed columns came back rgb(220 136 230) against rgb(192 38 211) for the same bar a column later, and 0
   channels apart once fixed. Its other trap is that `elementFromPoint` answers null for a coordinate outside the
   viewport, and these grids are taller than the window — 21 of 43 bars were below the fold and counted as failures.
+- **Blur before you screenshot, or you will file your own focus ring as a bug.** A probe that calls `focus()` to check
+  the keyboard leaves the UA ring painted in every capture after it, and a black `auto 1px` outline rounded to 8px
+  across the foot of the controls bar looked exactly like a stray empty text input. One `blur()` took it away. The ring
+  was worth looking at all the same, which is the other half of the lesson: the filter disclosure is `flex: 1 0 100%` so
+  that it claims a row of its own, which also makes it 941px wide, and an outline on a box that shape reads as a field
+  rather than as a focused control however it is coloured. `getBoundingClientRect` answered `941x15` either way and said
+  nothing about it.
 - **Measure widths in characters, not bytes, before believing a line is too long.** `awk 'length > 120'` counts bytes,
   so every comment carrying an em-dash reads three columns over per dash and a compliant line is reported as a
   violation. Four of these comments looked too long and only two were. Use `len()` on text decoded as UTF-8, and check
