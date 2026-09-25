@@ -773,8 +773,11 @@ function renderCalendar(now) {
         cell.classList.add('other');
       }
 
+      // The class is the pill and the tint; `aria-current` is the same fact for a reader who is getting neither, and is
+      // the only thing on the grid that says which day is today rather than leaving it to a colour.
       if (day.getTime() === todayKey) {
         cell.classList.add('today');
+        cell.setAttribute('aria-current', 'date');
       }
 
       cell.append(el('span', 'daynum', String(day.getDate())));

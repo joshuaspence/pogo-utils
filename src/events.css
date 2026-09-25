@@ -754,7 +754,12 @@ footer a {
    * The strip at the top of a cell that the day number occupies, which the bars are offset past. Declared here so the
    * number's own box and the offset the other layer keeps clear derive from one value rather than two that can drift
    * apart and let a bar cover a date.
+   *
+   * The border counts towards that offset as much as the padding does, because only one of the two layers has one: a
+   * cell's content starts a border-width lower than the bars layer's, so an offset of padding plus strip alone leaves
+   * the first bar overlapping the last row of the date by exactly this much.
    */
+  --cell-border: 1px;
   --cell-pad: 4px;
   --daynum-h: 17px;
 }
@@ -795,7 +800,7 @@ footer a {
   grid-auto-flow: row dense;
   gap: 2px 4px;
   align-content: start;
-  padding-top: calc(var(--cell-pad) + var(--daynum-h));
+  padding-top: calc(var(--cell-border) + var(--cell-pad) + var(--daynum-h));
   pointer-events: none;
 }
 
@@ -818,7 +823,7 @@ footer a {
 .cal-day {
   min-height: 52px;
   padding: var(--cell-pad);
-  border: 1px solid var(--border);
+  border: var(--cell-border) solid var(--border);
   border-radius: 8px;
   background: var(--panel);
   box-shadow: var(--shadow);
@@ -830,13 +835,17 @@ footer a {
 }
 
 /**
- * A cell is now as tall as its whole week, so the ring that used to mark today reads as a tall accent box with bars
- * crossing it rather than as a marked day. A tint behind the column and the accent already on the date carry it
- * instead.
+ * Today is marked twice, because the two marks answer different questions. The tint and border say which column it is
+ * from across the grid, where a mark the size of a date would be lost; the pill on the date itself says exactly which
+ * day, which a tint cannot without a reader comparing one cell against the next.
+ *
+ * Neither is a ring around the cell, and that is the constraint to keep: a cell is as tall as its whole week, so
+ * anything drawn on the cell's own edge reads as a tall accent column with bars crossing it rather than as a marked
+ * day. Whatever marks the day has to be on the date.
  */
 .cal-day.today {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
 }
 
 .cal-day .daynum {
@@ -847,8 +856,23 @@ footer a {
   color: var(--muted);
 }
 
+/**
+ * The filled pill, in the white-on-accent the controls and the event bars already use. Block-level flex rather than an
+ * inline one so it is exactly the strip's height: an inline box sits on a baseline and brings the strut's descender
+ * with it, which would push the date past the offset `.cal-bars` keeps clear and let a bar cover it. `fit-content`
+ * shrinks it to the date — a `display: flex` box would otherwise fill the cell — and `min-width` squares it back up, so
+ * the 1st reads as a disc and the 21st as a short pill.
+ */
 .cal-day.today .daynum {
-  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-width: var(--daynum-h);
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
 }
 
 /**
