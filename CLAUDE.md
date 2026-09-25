@@ -439,6 +439,13 @@ after the next.
   make.
 - **Screenshot the viewport, not the page.** `captureBeyondViewport` on a long page returns something like 1400×5983,
   which scales down to an unreadable few hundred pixels wide. Pass an explicit height instead.
+- **A clip measured from one section's rect covers a column, not a row, and goes stale the moment the probe clicks.**
+  The search page lays its groups out as `grid-template-columns: 411px 411px`, so a clip taken from one section's
+  `getBoundingClientRect()` and stretched down to a later section's `bottom` captures one column and silently leaves out
+  the section beside it — the **Rarity** group was absent from an image of a page that had demonstrably rendered it,
+  which looks exactly like a group the table failed to emit. Span every section you mean to see, by the `min` of their
+  lefts and the `max` of their rights. Then measure after whatever the probe clicks rather than before: selecting a chip
+  grows the output block above the groups, so a clip computed first lands that much high and captures the wrong rows.
 - **Match the class names, not the rendered text.** `text-transform: uppercase` does not touch `textContent`, so a
   sidebar row reading `JAPAN` is `Japan` to `includes('JAPAN')`.
 - **An accessible name is the rendered text, which is that rule the other way round.** `text-transform` reaches the name
