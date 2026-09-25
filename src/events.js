@@ -62,13 +62,20 @@ const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
  *
  * One key per set rather than one object holding all of them, so each carries its own absent-versus-empty distinction
  * and writing one cannot decide another. `hiddenTypes` needs that: absent means a first visit and so DEFAULT_HIDDEN,
- * where empty means a reader who unticked everything, and in a shared object saving any one set would settle that
+ * where empty means a reader who cleared everything, and in a shared object saving any one set would settle that
  * question for all of them.
+ *
+ * `hiddenByView` is the exception and holds one set per view, because there the distinction is per view and survives
+ * inside the object: a view with no slot has never been filtered on its own and is seeded from the global set, where
+ * one with an empty array is a view whose chips are all on. Three keys would say the same thing and leave the set of
+ * views spelled out in the key names.
  *
  * The property names are the ones `prefs` uses, which is what lets persist() take a name alone.
  */
 const KEYS = {
   hiddenTypes: 'events:hidden-types',
+  hiddenByView: 'events:hidden-by-view',
+  filterScope: 'events:filter-scope',
   dismissed: 'events:dismissed',
   seen: 'events:seen',
 };
@@ -104,17 +111,43 @@ const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle Leagu
 const RECURRING = new Set(RECURRING_TYPES);
 
 /**
+ * One stored value, parsed, or null where the key has never been written or storage cannot be read at all. The three
+ * readers below share this because they differ only in the shape they expect back, and each of them treats a value it
+ * cannot use the same way it treats a missing one: the default applies.
+ */
+function readJSON(key) {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored === null ? null : JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * One stored set, or null where its key has never been written. Null rather than an empty set because the two mean
  * different things to `hiddenTypes`, and unreadable storage (private mode, disabled) is the same as never written.
  */
 function readSet(key) {
-  try {
-    const stored = localStorage.getItem(key);
-    const parsed = stored === null ? null : JSON.parse(stored);
-    return Array.isArray(parsed) ? new Set(parsed) : null;
-  } catch {
-    return null;
+  const parsed = readJSON(key);
+  return Array.isArray(parsed) ? new Set(parsed) : null;
+}
+
+/**
+ * The per-view hidden sets, as far as storage carries them, which may be none of them. Left sparse rather than filled
+ * out with an empty set per view, because absent is what tells hiddenNow() to seed a view from the global set — filling
+ * them would say instead that every view has had its chips cleared.
+ */
+function readSetsByView(key) {
+  const sets = {};
+
+  for (const [name, members] of Object.entries(readJSON(key) ?? {})) {
+    if (Array.isArray(members)) {
+      sets[name] = new Set(members);
+    }
   }
+
+  return sets;
 }
 
 /**
@@ -150,6 +183,12 @@ function loadPrefs() {
 
   return {
     hiddenTypes: readSet(KEYS.hiddenTypes) ?? new Set(DEFAULT_HIDDEN),
+    hiddenByView: readSetsByView(KEYS.hiddenByView),
+
+    // Anything but 'view' is global, so a value that was never written or that we cannot make sense of lands on the
+    // default rather than on a scope no view answers to, which would filter by a set nothing can reach to edit.
+    filterScope: readJSON(KEYS.filterScope) === 'view' ? 'view' : 'global',
+
     dismissed: readSet(KEYS.dismissed) ?? new Set(),
 
     // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
@@ -159,13 +198,16 @@ function loadPrefs() {
 
 const prefs = loadPrefs();
 
+// JSON has no Set, so one replacer serialises a bare set and the object of per-view sets alike, as their members.
+const asArrays = (_key, value) => (value instanceof Set ? [...value] : value);
+
 /**
- * Write one set back, named rather than keyed so a call site cannot pair a key with the wrong set, and one at a time so
- * ticking a type filter does not rewrite the dismissals beside it.
+ * Write one preference back, named rather than keyed so a call site cannot pair a key with the wrong value, and one at
+ * a time so toggling a type filter does not rewrite the dismissals beside it.
  */
 function persist(name) {
   try {
-    localStorage.setItem(KEYS[name], JSON.stringify([...prefs[name]]));
+    localStorage.setItem(KEYS[name], JSON.stringify(prefs[name], asArrays));
   } catch {
     /* Storage may be unavailable; the filters still work for the rest of the session. */
   }
@@ -183,6 +225,8 @@ const els = {
   showPast: document.getElementById('showPast'),
   showUndated: document.getElementById('showUndated'),
   showHidden: document.getElementById('showHidden'),
+  scopeGlobal: document.getElementById('scopeGlobal'),
+  scopeView: document.getElementById('scopeView'),
   refresh: document.getElementById('refresh'),
   reset: document.getElementById('reset'),
   viewCards: document.getElementById('viewCards'),
@@ -209,6 +253,24 @@ let filtersOpen = false; // whether the filter panel is disclosed; a session's c
  * a reload.
  */
 const reveals = { showPast: false, showUndated: false, showHidden: false };
+
+/**
+ * The hidden-type set in force: the global one, or the current view's own where the reader has scoped the chips to a
+ * single view. One set at a time rather than the two layered, so a chip can both hide and reveal in either scope —
+ * under a global set that still applied, a chip could not put back what it hides and would have to show a third state.
+ *
+ * A view's set is seeded from the global one the first time the scope reaches it, so flipping the toggle changes
+ * nothing on screen until a chip is clicked: a control that rearranged the page the moment it was touched would read as
+ * a bug rather than as a choice. Seeding does not write to storage — a click does, and a seed nothing has clicked says
+ * the same as the global set it came from.
+ */
+function hiddenNow() {
+  if (prefs.filterScope !== 'view') {
+    return prefs.hiddenTypes;
+  }
+
+  return (prefs.hiddenByView[view] ??= new Set(prefs.hiddenTypes));
+}
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   month: 'short',
@@ -410,7 +472,7 @@ function timeRange(ev) {
  * a temporary reveal, not a change to the saved dismissal.
  */
 function isVisible(ev) {
-  if (prefs.hiddenTypes.has(ev.heading)) {
+  if (hiddenNow().has(ev.heading)) {
     return false;
   }
 
@@ -878,7 +940,7 @@ function renderTracks(now) {
       continue;
     }
 
-    if (prefs.hiddenTypes.has(ev.heading)) {
+    if (hiddenNow().has(ev.heading)) {
       filteredTypes.add(ev.eventType);
     }
 
@@ -1013,6 +1075,29 @@ function render() {
     els[id].setAttribute('aria-pressed', String(on));
   }
 
+  for (const [name, btn] of [
+    ['global', els.scopeGlobal],
+    ['view', els.scopeView],
+  ]) {
+    const on = prefs.filterScope === name;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-pressed', String(on));
+  }
+
+  /**
+   * The type chips are painted here rather than where they are built, so that one pass writes the state of all nineteen
+   * controls in the panel and a change of view or of scope repaints the row without rebuilding it. That matters because
+   * under a per-view scope the set in force changes with the view, and a row still showing the last view's set would
+   * misreport what is filtering the page — the chips would be a legend for a set no longer being read.
+   */
+  const hidden = hiddenNow();
+
+  for (const chip of els.typeFilters.children) {
+    const on = !hidden.has(chip.dataset.heading);
+    chip.classList.toggle('off', !on);
+    chip.setAttribute('aria-pressed', String(on));
+  }
+
   // Spent by whichever view just drew, so the animation plays once per fetch rather than on every minute's re-render.
   entering = false;
 }
@@ -1036,6 +1121,18 @@ function setView(next) {
     chip.hidden = view !== 'cards';
   }
 
+  render();
+}
+
+/**
+ * Switch which hidden-type set the chips edit and the views read. Persisted, unlike the view itself, because the sets
+ * it chooses between are: a scope that fell back to global on reload would leave a reader's per-view filtering saved
+ * and silently out of force, which is worse than not having offered it. render() does the rest — it repaints the
+ * segments, and the chip row along with them.
+ */
+function setScope(next) {
+  prefs.filterScope = next;
+  persist('filterScope');
   render();
 }
 
@@ -1077,27 +1174,25 @@ function fillTypes() {
     const chip = el('button', `chip${typeClass(slugs.get(heading))}`, heading);
     chip.type = 'button';
 
-    // The hidden set is the state and the chip only shows it, so both the dimming and the `aria-pressed` beside it are
-    // written from that one read — neither is asked what it currently says, which is what keeps them from disagreeing.
-    const paint = () => {
-      const on = !prefs.hiddenTypes.has(heading);
-      chip.classList.toggle('off', !on);
-      chip.setAttribute('aria-pressed', String(on));
-    };
+    // Which type this is, for the render() pass that paints the row. The heading is already the chip's own text, but
+    // reading it back from there would make the label the state and break on the first one that gets reworded.
+    chip.dataset.heading = heading;
 
     chip.addEventListener('click', () => {
-      if (prefs.hiddenTypes.has(heading)) {
-        prefs.hiddenTypes.delete(heading);
+      const hidden = hiddenNow();
+
+      if (hidden.has(heading)) {
+        hidden.delete(heading);
       } else {
-        prefs.hiddenTypes.add(heading);
+        hidden.add(heading);
       }
 
-      paint();
-      persist('hiddenTypes');
+      // Whichever set that was. Naming it from the scope rather than from the set means the two cannot disagree about
+      // where a click just went, which is the one way a chip could take effect and then not survive a reload.
+      persist(prefs.filterScope === 'view' ? 'hiddenByView' : 'hiddenTypes');
       render();
     });
 
-    paint();
     els.typeFilters.append(chip);
   }
 }
@@ -1191,8 +1286,7 @@ function focusHashEvent() {
    * start hidden. Not persisted: this is for the one arrival, not a standing change to what they chose to see. A card
    * they dismissed individually stays dismissed, which is a decision about that event rather than a blanket rule.
    */
-  prefs.hiddenTypes.delete(match.heading);
-  fillTypes();
+  hiddenNow().delete(match.heading);
 
   els.search.value = match.name;
   render();
@@ -1243,9 +1337,16 @@ els.markSeen.addEventListener('click', () => {
 els.viewCards.addEventListener('click', () => setView('cards'));
 els.viewCalendar.addEventListener('click', () => setView('calendar'));
 els.viewTracks.addEventListener('click', () => setView('tracks'));
+els.scopeGlobal.addEventListener('click', () => setScope('global'));
+els.scopeView.addEventListener('click', () => setScope('view'));
 
 els.reset.addEventListener('click', () => {
   prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
+
+  // Emptied rather than filled with the defaults, because an absent set is what hiddenNow() seeds from the global one —
+  // so this returns every view to the same set the chips now show, whichever scope a reader comes back in.
+  prefs.hiddenByView = {};
+  prefs.filterScope = 'global';
   prefs.dismissed.clear();
 
   // Back to not knowing, which settleSeen() then reads as a first visit and seeds from the feed. Clearing it to empty

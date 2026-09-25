@@ -203,9 +203,9 @@ header.page .sub {
 }
 
 /**
- * The disclosed panel: the reveals and the type chips, stacked. It holds the content column's alignment for both rows,
- * which is why `.toggles` and `.type-filters` below carry no padding of their own — two paddings to keep in step is how
- * one row ends up a few pixels off the other and off the cards under them.
+ * The disclosed panel: the reveals, the filter scope and the type chips, stacked. It holds the content column's
+ * alignment for all three rows, which is why `.toggles`, `.scope` and `.type-filters` below carry no padding of their
+ * own — several paddings to keep in step is how one row ends up a few pixels off the next and off the cards under them.
  */
 .filters {
   display: flex;
@@ -236,6 +236,19 @@ header.page .sub {
 
 .type-filters:empty {
   display: none;
+}
+
+/**
+ * The row that says what a chip click applies to: its label, then the segmented pair. The label takes the panel's muted
+ * 12px so that the question reads as a caption to the chips below rather than as a control of its own — the segments
+ * are the control, and they are the only part of the row that is interactive.
+ */
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /**
@@ -744,8 +757,13 @@ footer a {
 }
 
 /**
- * View switcher (Cards / Calendar). A segmented control: the two buttons share one pill outline, and only the active
- * segment takes the accent fill — overriding the accent-filled .controls button default.
+ * A segmented control: one bordered box, one lit segment, no gap between them. Used twice — the view switcher in the
+ * controls bar and the filter scope in the panel below it — so these rules are unscoped and state the whole appearance
+ * themselves, including the padding and type `.controls button` used to supply. Scoped to `.controls`, they reached
+ * only one of the two and the other would have come out as a pair of default browser buttons.
+ *
+ * That leaves them tied with `.controls button` on specificity, so what wins inside the controls bar is this block
+ * coming later in the file. It has to stay below that rule.
  */
 .viewtoggle {
   display: inline-flex;
@@ -754,19 +772,23 @@ footer a {
   overflow: hidden;
 }
 
-.controls .viewtoggle button {
+.viewtoggle button {
+  padding: 8px 12px;
   border: none;
   border-radius: 0;
   background: var(--bg);
   color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.controls .viewtoggle button:hover {
+.viewtoggle button:hover {
   filter: none;
   color: var(--text);
 }
 
-.controls .viewtoggle button.active {
+.viewtoggle button.active {
   background: var(--accent);
   color: #fff;
 }

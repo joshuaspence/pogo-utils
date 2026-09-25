@@ -45,7 +45,7 @@
         id="reset"
         type="button"
         class="ghost"
-        title="Show every type again, hide ended and undated events, restore dismissed events and clear the new marks"
+        title="Show every type in every view, hide ended and undated events, restore dismissals and clear the new marks"
       >
         Reset
       </button>
@@ -83,6 +83,20 @@
         <button id="showPast" type="button" class="chip off" aria-pressed="false">Show ended</button>
         <button id="showUndated" type="button" class="chip off" aria-pressed="false">Show undated</button>
         <button id="showHidden" type="button" class="chip off" aria-pressed="false">Show hidden</button>
+      </div>
+
+      <!--
+        What a chip click applies to, immediately above the chips it governs. The label is a real element and the group
+        takes `aria-labelledby` rather than repeating it in an `aria-label`, so the two cannot drift; the segmented
+        `.viewtoggle` is the same control the view switcher uses, and is here because it names both states at once
+        instead of leaving one of them to be inferred from the other being lit.
+      -->
+      <div class="scope">
+        <span id="scopeLabel">Type filters apply to</span>
+        <div class="viewtoggle" role="group" aria-labelledby="scopeLabel">
+          <button id="scopeGlobal" type="button" class="active" aria-pressed="true">All views</button>
+          <button id="scopeView" type="button" aria-pressed="false">This view</button>
+        </div>
       </div>
 
       <!--
