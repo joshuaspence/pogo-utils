@@ -10,6 +10,11 @@
  * every shared link working, while renaming an id breaks them. It defaults to the term where the term is already a
  * plain word, and is spelled out where the term has punctuation a fragment would have to escape.
  *
+ * A group's `join` is what goes between the terms picked within it, and defaults to `,` because most of these groups
+ * describe one slot on a Pokémon: nothing is two generations or two star ratings, so picking several can only mean
+ * either. `status` is the exception, since a Pokémon is any number of those at once and the combinations are the point
+ * of searching for them — a lucky shiny, a shiny shadow.
+ *
  * A group's `hue` tints its chips, so which group a selected chip came from reads at a glance once a dozen of them are
  * on. They are hues rather than the palette's tokens because these are categories of the page's own, unrelated to what
  * --track or --city mean elsewhere; theme.css owns the colours that carry meaning across pages.
@@ -65,7 +70,8 @@ export const GROUPS = [
     id: 'status',
     label: 'Status',
     hue: 8,
-    help: 'What a Pokémon is, however it was caught.',
+    join: '&',
+    help: 'What a Pokémon is, however it was caught. Picking several asks for all of them at once — a lucky shiny.',
     terms: [
       { id: 'shiny', term: 'shiny', label: 'Shiny' },
       { id: 'lucky', term: 'lucky', label: 'Lucky' },

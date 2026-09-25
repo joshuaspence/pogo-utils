@@ -27,9 +27,12 @@ function nameClause(text) {
 }
 
 /**
- * One group's clause. The wanted terms are OR'd, because picking Fire and Water means either; the refused ones are each
- * negated and AND'd, because refusing both means neither. That asymmetry is not a choice — `!fire,!water` would match
- * everything that is not Fire *or* not Water, which is everything.
+ * One group's clause. The wanted terms are joined with the group's own operator, `,` unless the table says otherwise —
+ * picking Fire and Water means either, while picking Shiny and Lucky means a Pokémon that is both.
+ *
+ * The refused ones are negated and AND'd whatever the group joins with, because refusing both means neither. That
+ * asymmetry is not a choice — `!fire,!water` would match everything that is not Fire *or* not Water, which is
+ * everything.
  */
 function groupClause(group, state) {
   const wanted = group.terms.filter((term) => state.include.has(term.id)).map((term) => term.term);
@@ -37,7 +40,7 @@ function groupClause(group, state) {
   const parts = [];
 
   if (wanted.length > 0) {
-    parts.push(wanted.join(','));
+    parts.push(wanted.join(group.join ?? ','));
   }
 
   return [...parts, ...refused].join('&') || null;
