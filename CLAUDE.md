@@ -6,6 +6,13 @@
   `worktree.baseRef` is `head`, so it will not contain unpushed commits.
 - **Commit staged changes.** Staged work is finished work. Stage the paths you touched rather than the whole tree, so a
   commit carries your change and nothing else.
+- **`html-validate`'s `prefer-native-element` does not know about ARIA widgets.** It reads `role="listbox"` and asks for
+  a `<select>`, which is the one element a combobox's popup cannot be — a `<select>` owns its own popup and its options
+  are not focusable rows an `aria-activedescendant` can point at. The rule is right about a `role="button"` on a `<div>`
+  and wrong here, so take the exception at the element rather than switching the rule off in `.htmlvalidate.mjs`:
+  `<!-- [html-validate-disable-next prefer-native-element -- reason] -->` on the line above keeps the reason where the
+  next reader will be standing. Watch its width, since that comment is a comment and
+  [nothing reflows one](#checking-the-pages-in-a-browser).
 
 ## Landing a change
 
@@ -96,7 +103,16 @@ after the next.
   what the diff actually adds rather than the whole file: thirteen lines already sit at 121. Measuring is not optional,
   because nothing else does it — `prettier.config.mjs` sets `printWidth: 120` and Prettier reflows code and Markdown
   prose to it, but never a `/* */` or `//` comment, so `pnpm lint` is silent on an over-long one. That is how those
-  thirteen got in, and how sixteen more nearly went in with the new-event marker.
+  thirteen got in, and how sixteen more nearly went in with the new-event marker. One trap in reading that diff: this
+  machine sets `diff.noprefix`, so the header reads `+++ search.html` and not `+++ b/search.html`. A parser anchored on
+  that `b/` files every added line under no path at all. It still measures them, so the run looks right and simply
+  cannot say which file to fix.
+- **A probe step that carries on from the previous step's state may have nothing left to prove.** Step 11 accepted a
+  suggestion, leaving `eevee` in the name box; step 12 then typed `ch` to open the list before blurring, but `eeveech`
+  names no species, so the list was already shut and the assertion that a blur shuts it could not have failed. It read
+  as a pass in the same green as the ten real ones around it. Establish each step's precondition from a fresh page, and
+  print the state you are about to disturb — `open: block 802x252 ['Charmander', …]` is the half that catches this,
+  where `open: none` was the bug.
 - **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.js` holds the
   Leaflet map in a `const`, so `Runtime.evaluate` finds only the `<div id="map">` and answers
   `map.getZoom is not a function`. Send a `Page.addScriptToEvaluateOnNewDocument` that defines a setter for `window.L`
