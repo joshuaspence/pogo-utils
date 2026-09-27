@@ -260,6 +260,49 @@ header.page .sub {
   outline-offset: 1px;
 }
 
+/**
+ * The name box and the species it is offering. The list floats over what is beneath it rather than taking a place in
+ * the flow, because a list that pushes the page down as you type moves the chips you were about to click; that is what
+ * the wrapper is for, since an absolute position needs something to be absolute within.
+ */
+.combobox {
+  position: relative;
+}
+
+.suggestions {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 50vh;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-lift);
+  list-style: none;
+}
+
+.suggestions li {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/**
+ * The row the keyboard is on and the row the pointer is over are painted the same, because they mean the same thing —
+ * the one Enter or a click would take. Nothing else on the page marks a row this way, so the accent is enough.
+ */
+.suggestions li[aria-selected='true'],
+.suggestions li:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .presets {
   display: flex;
   flex-wrap: wrap;
