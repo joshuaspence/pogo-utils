@@ -174,3 +174,28 @@ Reading them:
 - **Compare at dex level, with form names only as a fallback.** `/go/shiny` collapses Unown and Spinda to one card each
   yet lists Vivillon per pattern, so per-card matching reports 28 Unown forms as missing when they are not. The labels
   are the sites' own rather than ours — `Poké Ball Pattern` for `POKE_BALL`.
+
+## What the search data does not settle
+
+Three things anything reasoning about a search string runs into, none of which the term table answers.
+
+- **A partial name has two readings and the sources disagree on which the game uses.** The wiki's table says `T`
+  "Returns all Pokémon that begins with T (including nicknames)", where this repository's own help text on `search.html`
+  has a partial name matching anywhere in it — `char` finding Charizard as well as Charmander. Only one source speaks to
+  it, so the cross-checking rule above cannot resolve it and a reduction is sound only where both readings give the same
+  answer: `char` reaches Charmander either way, where `saur` reaches Bulbasaur under one reading and nothing under the
+  other. `src/search/optimise.js` tests that by counting — everything beginning with a fragment also contains it, so the
+  begins-set sits inside the contains-set and equal sizes are equal sets — and refuses the fragment where they differ,
+  which is what costs `saur` and `mime` their reductions. It is also why the candidates are leading fragments rather
+  than fragments from anywhere: `rman` reaches Charmander under one reading and nothing under the other.
+- **Nothing here knows which species share an evolution family.** `grep -ric evol src/pokemon/` answers 0 for both
+  files: `pokedex.js` carries forms, regions, rarity, `released` and `shinyEligible` and no evolution links, and the
+  families in `src/filters/xxs.js` are a line break for a human reading the list rather than data, which is what the
+  `// prettier-ignore` above it exists to hold. So a `+` prefix cannot be reasoned about — `+charmander` is not
+  rewritable as `4,5,6`, nor shortenable to `+charm` by reaching the family through another of its members. It gets the
+  name shortening alone, which is sound because the same species reached a shorter way are the same families.
+- **The generation group joins with `,`, not `&`.** Nothing is two generations, so `terms.js` gives it the default OR
+  and several generations compose to a single clause — `1-151,152-251`, not two clauses AND'd. Anything folding dex
+  spans together therefore unions the generations first and intersects that union with the other sources. Merging them
+  can take the ambiguity warning with it as well as the characters: `shiny&1-151,152-251` mixes `,` with `&` and earns
+  the caveat, where `shiny&1-251` says the same thing and does not.
