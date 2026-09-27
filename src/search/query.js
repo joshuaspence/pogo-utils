@@ -3,14 +3,21 @@
  * means is readable without the DOM around it — this is the part that has to be right, and it is the part a reader will
  * check against what the game does.
  *
- * The state is the three things a chip or a box can say: which terms are wanted, which are refused, what was typed in
- * the name box, and what the numeric ranges were set to. Nothing here holds a node.
+ * The state is everything a chip, a box or a toggle can say: which terms are wanted, which are refused, what was typed
+ * in the name box, what the numeric ranges were set to, and whether the string should be compressed on the way out.
+ * Nothing here holds a node.
  */
 
 import { GROUPS, RANGES, TERMS_BY_ID } from './terms.js';
 
 /** An empty state, which every reader of a link starts from and the Clear button returns to. */
-export const emptyState = () => ({ text: '', include: new Set(), exclude: new Set(), ranges: new Map() });
+export const emptyState = () => ({
+  text: '',
+  include: new Set(),
+  exclude: new Set(),
+  ranges: new Map(),
+  optimise: false,
+});
 
 /**
  * The names typed in the box, as one clause. They are split on commas and rejoined rather than passed through, so
@@ -51,8 +58,11 @@ function groupClause(group, state) {
  * written as an open end: `cp3000-` may well be read the way it looks, but `cp3000-5000` cannot be read any other way,
  * and nothing can have a CP above the ceiling anyway. The dex range carries no prefix, since a bare `1-151` is how the
  * game searches dex numbers.
+ *
+ * Exported for the optimiser, which reads the dex clause back into the span it describes: asking the writer what it
+ * wrote is what keeps the two from drifting over which bound an empty box falls back to.
  */
-function rangeClause(range, state) {
+export function rangeClause(range, state) {
   const bounds = state.ranges.get(range.id);
 
   if (!bounds || (bounds.from == null && bounds.to == null)) {
@@ -100,6 +110,10 @@ export function compose(state) {
  *
  * A dot separates ids because a comma is what the search string itself uses and a reader who sees the fragment should
  * not have to wonder which one they are looking at.
+ *
+ * `s=1` is the optimiser being on, so a link arrives showing the string its sender was looking at. It carries only the
+ * toggle and never the compression: the choices travel as themselves, and the short string is composed again at the
+ * other end from a state that still says `charmander`.
  */
 export function toFragment(state) {
   const parts = [];
@@ -114,6 +128,10 @@ export function toFragment(state) {
 
   if (state.exclude.size > 0) {
     parts.push(`x=${[...state.exclude].join('.')}`);
+  }
+
+  if (state.optimise) {
+    parts.push('s=1');
   }
 
   for (const [id, { from, to }] of state.ranges) {
@@ -147,6 +165,7 @@ export function fromFragment(fragment) {
   const ranges = new Map(RANGES.map((range) => [range.id, range]));
 
   state.text = params.get('t') ?? '';
+  state.optimise = params.get('s') === '1';
 
   for (const [key, set] of [
     ['i', state.include],

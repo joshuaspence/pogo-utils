@@ -140,6 +140,24 @@ everything is either not Fire or not Water. And Pokémon GO's search has no brac
 cannot say which binds first; the builder writes its clauses in a fixed order and says so on the page when the question
 can arise, rather than picking a reading on your behalf.
 
+**Shorten**, beside the character count, says the same thing in fewer characters — worth having because the game's
+search box is a small one and a long string is pasted with half of it out of sight. Both reductions are the same
+observation: the choices name the species at more length than the game needs. A name can lose its tail, since
+`charmander` and `charma` reach the same one species and so does the dex number `4`; and the generation chips, the
+dex-number boxes and a name that has become a number all write spans of the same numbers into clauses that are AND'd, so
+they collapse into their overlap — Gen 1 with Gen 2 is `1-251`, and `charmander` inside Gen 1 is just `4`. Occasionally
+that makes the string plainer as well as shorter: `shiny&1-151,152-251` mixes `,` with `&` and earns the warning above,
+where `shiny&1-251` says the same thing and does not.
+
+[`src/search/optimise.js`](src/search/optimise.js) rewrites the _state_ rather than the string, handing a second state
+to the same composer, so the short string goes through the same clause writer and the same ambiguity check as the long
+one — and the chips, the boxes and the link never stop carrying what was actually chosen, so switching the toggle back
+off restores the original rather than leaving a rewrite to undo. The substitutions are listed under the string, because
+one of them is not an equivalence: a name matches nicknames as well as species, where a dex number matches the species
+alone. What it will not do is turn `+charmander` into `4,5,6`, or shorten it to `+charm` by reaching the family through
+another of its members; both need to know which species share an evolution family, which is data this repository does
+not hold. A `+` keeps its name and gets the name shortening alone.
+
 ## Import into PGSharp
 
 The **PGSharp backup** page ([`pgsharp.html`](pgsharp.html), reached from the top tab bar) builds a _partial_
