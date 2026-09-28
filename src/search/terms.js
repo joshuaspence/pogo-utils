@@ -291,8 +291,9 @@ export const RANGES = [
  * Starting points, each a plain state the builder loads and the reader then edits — the point is to land mid-way
  * through a query rather than to hand over a finished one. `text` fills the name box, the rest name term ids.
  *
- * The transfer preset is the one that earns its place: it is sixteen exclusions, every one of which matters, and
- * forgetting any single one of them is how a shiny ends up as candy.
+ * Only one of these earns its place. Safe to transfer is a long list of exclusions, every one of which matters, and
+ * forgetting any single one of them is how a shiny ends up as candy. A start a reader could have clicked together out
+ * of two chips saves them nothing and costs every reader a button to read past, so the chips carry those.
  */
 export const PRESETS = [
   {
@@ -317,34 +318,6 @@ export const PRESETS = [
       'xxs',
       'xxl',
     ],
-  },
-  {
-    id: 'evolve',
-    label: 'Worth evolving',
-    note: 'Evolutions the dex has not seen, minus the ones you are keeping.',
-    include: ['evolvenew'],
-    exclude: ['favorite', 'buddy'],
-  },
-  {
-    id: 'lucky-trade',
-    label: 'Shinies not yet lucky',
-    note: 'Trade fodder for a lucky shiny.',
-    include: ['shiny'],
-    exclude: ['lucky', 'favorite'],
-  },
-  {
-    id: 'great-league',
-    label: 'Great League hopefuls',
-    note: 'Just under the 1500 cap, shadows left out.',
-    include: [],
-    exclude: ['shadow'],
-    ranges: { cp: { from: 1400, to: 1500 } },
-  },
-  {
-    id: 'hundos',
-    label: 'Hundos',
-    note: 'Four stars, however they were caught.',
-    include: ['star4'],
   },
 ];
 
