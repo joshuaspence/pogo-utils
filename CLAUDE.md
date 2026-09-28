@@ -57,6 +57,11 @@ after the next.
   which scales down to an unreadable few hundred pixels wide. Pass an explicit height instead.
 - **Match the class names, not the rendered text.** `text-transform: uppercase` does not touch `textContent`, so a
   sidebar row reading `JAPAN` is `Japan` to `includes('JAPAN')`.
+- **An accessible name is the rendered text, which is that rule the other way round.** `text-transform` reaches the name
+  where it never reaches `textContent`, so `Accessibility.getPartialAXTree` answered `" FAVOURITES"` for a heading whose
+  `textContent` is `"⭐ Favourites"` — uppercased, and with the space before the word left behind because only the
+  `aria-hidden` span was dropped. Assert what the check is about, which is that the icon is absent from the name, rather
+  than that the string matches character for character.
 - **A selector that matches nothing reads as a pass.** `document.querySelector('.banner')?.textContent ?? 'NO BANNER'`
   reported no error banner on a page whose manifest fetch had been blocked outright — the markup is `id="banner"`, so
   the query was null either way and the check could not have failed however broken the page was. Assert the node exists
@@ -76,6 +81,13 @@ after the next.
   bar over the dimmed columns came back rgb(220 136 230) against rgb(192 38 211) for the same bar a column later, and 0
   channels apart once fixed. Its other trap is that `elementFromPoint` answers null for a coordinate outside the
   viewport, and these grids are taller than the window — 21 of 43 bars were below the fold and counted as failures.
+- **A warm pixel is not an emoji, because subpixel antialiasing fringes grey text.** Checking that the Favourites star
+  had really painted rather than arriving as tofu, a count of pixels above `r 190` and below `b 130` inside its box
+  found 547 of rgb(253 216 53), which is the glyph — and then 46 in the iconless heading beside it, whose warmest was
+  rgb(254 114 128). LCD text rendering colours the edges of a muted grey glyph, so threshold on the emoji's own body
+  rather than on warmth, and keep the control clip: it is what showed the fringe instead of quietly passing both. Note
+  also that `Page.captureScreenshot` answers PNG colour type 2 where nothing is transparent, so a decoder hard-coded to
+  RGBA throws on the very capture it was written for.
 - **Blur before you screenshot, or you will file your own focus ring as a bug.** A probe that calls `focus()` to check
   the keyboard leaves the UA ring painted in every capture after it, and a black `auto 1px` outline rounded to 8px
   across the foot of the controls bar looked exactly like a stray empty text input. One `blur()` took it away. The ring

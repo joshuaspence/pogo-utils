@@ -227,6 +227,16 @@ header.page .sub {
   color: var(--muted);
 }
 
+/**
+ * An icon in one of those labels is sized up, because a label is 11px and an emoji that small reads as punctuation
+ * rather than as a mark of its own. `line-height: 1` keeps the taller glyph from stretching the heading's line box, the
+ * same reason the nav's tab icons carry it.
+ */
+.label .ico {
+  font-size: 14px;
+  line-height: 1;
+}
+
 .help {
   margin: 10px 0 0;
   font-size: 11.5px;
