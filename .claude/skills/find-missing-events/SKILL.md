@@ -180,6 +180,6 @@ Once the proposal is approved:
 4. **Commit `data/events.json` alone, straight to `master`.** This is a data change in the sense `CLAUDE.md` means, so
    it needs no branch and no pull request. Stage that one path.
 
-**Do not run `scripts/build-ics.mjs`.** The calendar feeds are generated from this file, but the Calendar workflow
-rebuilds and commits them every six hours, and the generator also pulls the live feed — so running it now sweeps
-unrelated feed drift into a commit that should carry one entry.
+**Do not run `pnpm build:ics`.** The calendar feeds are generated from this file, but the Calendar workflow rebuilds and
+commits them every six hours, and the generator also pulls the live feed — so running it now sweeps unrelated feed drift
+into a commit that should carry one entry.

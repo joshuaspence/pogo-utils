@@ -95,12 +95,15 @@ subscribed URL on its own schedule, typically somewhere between a few hours and 
 not appear there as promptly as it does on the page.
 
 A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does live has to happen
-ahead of time. [`scripts/build-ics.mjs`](scripts/build-ics.mjs) does it, and the
+ahead of time. [`scripts/build-ics.mts`](scripts/build-ics.mts) does it, and the
 [Calendar workflow](.github/workflows/calendar.yml) runs it every six hours and commits the result:
 
 ```sh
-node scripts/build-ics.mjs
+pnpm build:ics
 ```
+
+Through pnpm rather than `node` directly: the generator is TypeScript, and `devEngines` is what holds the run to a Node
+new enough to strip it.
 
 The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
 [`entries-by-event.json`](entries-by-event.json) — so an unchanged file after a run means the event data has not moved.

@@ -36,7 +36,7 @@ export default [
   },
 
   {
-    files: ['**/*.mjs'],
+    files: ['**/*.mjs', '**/*.mts'],
     languageOptions: {
       globals: globals.nodeBuiltin,
     },

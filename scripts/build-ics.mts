@@ -18,6 +18,7 @@
 
 import { ENTRIES_BY_EVENT } from '../src/generated.js';
 import RECURRING_TYPES from '../src/recurring-types.js';
+import type { FeedEvent, RouteCounts, RouteIndex } from '../src/types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
@@ -60,7 +61,7 @@ const FEED = {
 const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 const PARTS = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/;
 
-function icsDate(raw) {
+function icsDate(raw: string | null): string | null {
   if (typeof raw !== 'string') {
     return null;
   }
@@ -82,20 +83,24 @@ function icsDate(raw) {
 
 // `DTSTAMP` is a UTC timestamp whatever the event is. A floating time has no instant to convert, so its digits are
 // taken as they stand — the value only has to be stable, and this one is.
-const utcStamp = (value) => (value.endsWith('Z') ? value : `${value}Z`);
+const utcStamp = (value: string) => (value.endsWith('Z') ? value : `${value}Z`);
 
 // The characters a TEXT value cannot carry as themselves. URI values (`URL:`) are not escaped this way.
-const escape = (text) =>
-  String(text)
-    .replace(/([\\;,])/g, '\\$1')
-    .replace(/\r?\n/g, '\\n');
+const escape = (text: string) => text.replace(/([\\;,])/g, '\\$1').replace(/\r?\n/g, '\\n');
+
+/**
+ * A UTF-8 continuation byte, the second and later octet of a multi-byte character. Reading past the end of the buffer
+ * gives `undefined`, which is not one — a subscript is `number | undefined` under `noUncheckedIndexedAccess` however
+ * carefully the caller bounds it.
+ */
+const isContinuation = (byte: number | undefined) => byte !== undefined && (byte & 0xc0) === 0x80;
 
 /**
  * RFC 5545 caps a content line at 75 *octets*, continuing it with CRLF and a leading space. Octets, and these names
  * carry é and · — so the length is measured over the UTF-8 encoding, and a split is walked back off any continuation
- * byte (`10xxxxxx`) rather than cutting a character in half.
+ * byte rather than cutting a character in half.
  */
-function fold(line) {
+function fold(line: string): string {
   const bytes = Buffer.from(line, 'utf8');
 
   if (bytes.length <= 75) {
@@ -109,7 +114,7 @@ function fold(line) {
   for (let limit = 75; start < bytes.length; limit = 74) {
     let end = Math.min(start + limit, bytes.length);
 
-    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) {
+    while (end < bytes.length && isContinuation(bytes[end])) {
       end -= 1;
     }
 
@@ -124,7 +129,7 @@ function fold(line) {
  * "2 routes · 1 waypoint" — the same summary the card carries, each kind the event has and none it does not. Kept in
  * step with routeSummary() in src/events.js by hand; it is three lines and the two outputs are read side by side.
  */
-function routeSummary({ routes, waypoints }) {
+function routeSummary({ routes, waypoints }: RouteCounts): string {
   const parts = [];
 
   if (routes) {
@@ -138,16 +143,22 @@ function routeSummary({ routes, waypoints }) {
   return parts.join(' · ');
 }
 
-function vevent(ev, index) {
+function vevent(ev: FeedEvent, index: RouteIndex): string[] {
   const start = icsDate(ev.start);
   const end = icsDate(ev.end);
 
   /**
    * A VEVENT must have a `DTSTART`, and the feed can leave either end of the window null. An event with only one of
    * them becomes a point in time at whichever it has — the same reading events.html gives it, where a start with no
-   * end is a marker on its start date rather than a band running forever.
+   * end is a marker on its start date rather than a band running forever. One with neither is filtered out before it
+   * reaches here, so the throw states that caller's obligation rather than writing `DTSTART:null` into the feed.
    */
   const from = start ?? end;
+
+  if (!from) {
+    throw new Error(`${ev.eventID}: no date to put on a calendar`);
+  }
+
   const lines = [`UID:${ev.eventID}@${UID_DOMAIN}`, `DTSTAMP:${utcStamp(from)}`, `DTSTART:${from}`];
 
   if (start && end) {
@@ -180,7 +191,7 @@ function vevent(ev, index) {
   return ['BEGIN:VEVENT', ...lines, 'END:VEVENT'];
 }
 
-function calendar({ name, description }, events, index) {
+function calendar({ name, description }: typeof FEED, events: FeedEvent[], index: RouteIndex): string {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -199,7 +210,7 @@ function calendar({ name, description }, events, index) {
   return lines.map(fold).join('\r\n') + '\r\n';
 }
 
-async function fetchFeed(url) {
+async function fetchFeed(url: string): Promise<FeedEvent[]> {
   const res = await fetch(url);
 
   if (!res.ok) {
@@ -216,12 +227,12 @@ async function fetchFeed(url) {
 }
 
 const feed = await fetchFeed(FEED_URL);
-const local = JSON.parse(readFileSync(LOCAL_PATH, 'utf8'));
-const index = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
+const local: FeedEvent[] = JSON.parse(readFileSync(LOCAL_PATH, 'utf8'));
+const index: RouteIndex = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
 
 // Keyed by eventID with the local pass last, so a repo entry overrides a feed event of the same ID rather than
 // duplicating it — the merge src/events.js does, in the same order.
-const byId = new Map();
+const byId = new Map<string, FeedEvent>();
 
 for (const ev of [...feed, ...local]) {
   byId.set(ev.eventID, ev);
@@ -236,7 +247,7 @@ for (const ev of [...feed, ...local]) {
  * one have no shared instant to sort by, and collation varies with the ICU build, which would churn the committed
  * files whenever a runner's Node changed. The eventID breaks a tie so the order is total.
  */
-const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const dated = [...byId.values()]
   .filter((ev) => icsDate(ev.start) ?? icsDate(ev.end))
   .sort((a, b) => order(a.start ?? '', b.start ?? '') || order(a.eventID, b.eventID));

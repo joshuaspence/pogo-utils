@@ -10,6 +10,9 @@
     "checkJs": true,
     "noEmit": true,
 
+    // `tsc -b` in `lint:types` builds both projects from one command, and build mode requires this of each of them.
+    "composite": true,
+
     "strict": true,
     "noUncheckedIndexedAccess": true,
 

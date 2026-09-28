@@ -1,0 +1,34 @@
+// The Node half. These files never reach a browser, so they are real TypeScript, stripped by Node at run time rather
+// than compiled — which is why nothing here emits either.
+{
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2023",
+
+    "noEmit": true,
+
+    // `tsc -b` in `lint:types` builds both projects from one command, and build mode requires this of each of them.
+    "composite": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+
+    // Node strips the types and runs what is left, so anything it cannot erase in place — an `enum`, a `namespace`, a
+    // parameter property — would compile here and fail at run time. This rejects all three at check time instead.
+    "erasableSyntaxOnly": true,
+
+    // Node's globals, deliberately absent from the browser project next door.
+    "types": ["node"],
+
+    // These scripts import `src/countries.js`, `src/generated.js`, `src/recurring-types.js` and `src/types.d.ts`, which
+    // belong to the browser project. Build mode wants every file a project reads listed by the project that reads it,
+    // and there is no declaration output to reach them through because both projects are `noEmit`. Listing them here is
+    // what satisfies that; it also means the three `.js` files are checked twice, once under each lib set, which is the
+    // point for `recurring-types.js` — it is imported by `src/events.js` too and must assume neither DOM nor Node.
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["*.mts", "../src/countries.js", "../src/generated.js", "../src/recurring-types.js", "../src/types.d.ts"]
+}

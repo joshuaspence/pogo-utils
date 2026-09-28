@@ -361,7 +361,7 @@ async function copyCoords(c, btn) {
 
 /**
  * The name to show for a `<pgr:event>`, which the files record only by `eventID`. data/events.json is where that name
- * lives — the same file validate-gpx.mjs checks those IDs against — and it is read once into here.
+ * lives — the same file validate-gpx.mts checks those IDs against — and it is read once into here.
  */
 const eventNames = new Map();
 
