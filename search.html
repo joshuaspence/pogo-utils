@@ -34,12 +34,22 @@
         </div>
         <div class="meta">
           <span id="count" class="count"></span>
-          <button id="clear" type="button" class="ghost">Clear</button>
+          <span class="actions">
+            <label class="toggle" title="Say the same thing in fewer characters">
+              <input id="optimise" type="checkbox" />
+              Shorten
+            </label>
+            <button id="clear" type="button" class="ghost">Clear</button>
+          </span>
         </div>
         <p class="caveat" id="caveat" hidden>
           This mixes <code>,</code> and <code>&amp;</code>, and the game's search has no brackets to say which binds
           first. Check it matches what you meant before trusting it on a mass transfer.
         </p>
+
+        <!-- What the shortening did, since a reader handed `4` where they typed `charmander` has no way to check the
+             string against what they chose. Empty and hidden until there is a substitution to show. -->
+        <p class="help rewritten" id="rewritten" hidden></p>
       </section>
 
       <section class="panel" aria-labelledby="presetsLabel">

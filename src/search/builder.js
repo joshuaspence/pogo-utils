@@ -10,6 +10,7 @@
 
 import { GROUPS, PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
 import { compose, emptyState, fromFragment, toFragment } from './query.js';
+import { optimise } from './optimise.js';
 import { suggestions, withName } from './species.js';
 
 const els = {
@@ -18,6 +19,8 @@ const els = {
   clear: document.getElementById('clear'),
   count: document.getElementById('count'),
   caveat: document.getElementById('caveat'),
+  optimise: document.getElementById('optimise'),
+  rewritten: document.getElementById('rewritten'),
   presets: document.getElementById('presets'),
   text: document.getElementById('text'),
   suggestions: document.getElementById('suggestions'),
@@ -60,6 +63,12 @@ const STATE = {
 
 const stateOf = (id) => (state.include.has(id) ? 'in' : state.exclude.has(id) ? 'out' : 'off');
 
+/**
+ * Nothing chosen, still written the way the reader asked for it. Clearing and loading a preset both start from empty,
+ * and neither is a reason to stop shortening: the toggle says how a query is written rather than what is in one.
+ */
+const cleared = () => ({ ...emptyState(), optimise: state.optimise });
+
 function setChipState(id, next) {
   state.include.delete(id);
   state.exclude.delete(id);
@@ -81,17 +90,73 @@ function paintChip(id) {
 }
 
 /**
+ * The string the page is showing, which is the string the Copy button writes — one answer rather than two compositions
+ * that could disagree about which of them the reader is looking at.
+ *
+ * The optimiser is offered the state and its answer taken only where it is genuinely shorter, so the toggle can never
+ * cost characters. Empty does not count as shorter: every generation at once really does reduce to no dex clause at
+ * all, but a blank output box beside nine lit chips reads as a page that has broken rather than as a search for
+ * everything.
+ */
+function current() {
+  const plain = compose(state);
+
+  if (!state.optimise) {
+    return { ...plain, was: null, rewrites: [], lossy: false };
+  }
+
+  const { state: shortened, rewrites, lossy } = optimise(state);
+  const short = compose(shortened);
+  const worth = short.query.length > 0 && short.query.length < plain.query.length;
+
+  return worth
+    ? { ...short, was: plain.query.length, rewrites, lossy }
+    : { ...plain, was: null, rewrites: [], lossy: false };
+}
+
+/** The length of the string, said in words. A one-character query is what the shortening makes reachable. */
+const characters = (length) => `${length} character${length === 1 ? '' : 's'}`;
+
+/**
+ * The substitutions behind the string on screen, and nothing when it is the plain one. A reader handed `4` where they
+ * typed `charmander` cannot otherwise check what they are about to paste over a storage box full of Pokémon.
+ */
+function paintRewrites(rewrites, lossy) {
+  els.rewritten.textContent = '';
+  els.rewritten.hidden = rewrites.length === 0;
+
+  rewrites.forEach(([from, to], index) => {
+    const pair = el('span', 'rewrite');
+    pair.append(el('code', null, from), document.createTextNode(' → '), el('code', null, to));
+
+    // The comma is part of the text rather than a gap in the layout, so a screen reader reads a list of substitutions
+    // rather than running `26` into the word after it.
+    if (index < rewrites.length - 1) {
+      pair.append(document.createTextNode(', '));
+    }
+
+    els.rewritten.append(pair);
+  });
+
+  if (lossy) {
+    const said = ' A dex number matches the species itself, where the name would also have matched a nickname.';
+    els.rewritten.append(el('span', 'lossy', said));
+  }
+}
+
+/**
  * The string, and everything said about it. Runs after any change at all, which is what keeps the output, the link and
  * the chips from ever disagreeing about what has been chosen.
  */
 function render() {
-  const { query, ambiguous } = compose(state);
+  const { query, ambiguous, was, rewrites, lossy } = current();
 
   els.query.textContent = query || 'Nothing chosen yet';
   els.query.classList.toggle('empty', !query);
   els.copy.disabled = !query;
-  els.count.textContent = query ? `${query.length} characters` : '';
+  els.count.textContent = query ? `${characters(query.length)}${was ? `, down from ${was}` : ''}` : '';
   els.caveat.hidden = !ambiguous;
+  paintRewrites(rewrites, lossy);
 
   // replaceState rather than assigning location.hash: the builder is one page being adjusted, not a sequence of pages,
   // and a history entry per click would leave Back needing forty presses to leave.
@@ -102,6 +167,7 @@ function render() {
 /** The whole page repainted from the state — after a preset, a clear, or a link arriving in the address bar. */
 function paintAll() {
   els.text.value = state.text;
+  els.optimise.checked = state.optimise;
 
   // The box has just been written for the reader rather than by them, so whatever they were part-way through typing is
   // no longer what it holds and the list under it would be describing text that has gone.
@@ -128,7 +194,7 @@ function buildPresets() {
     button.append(el('span', null, preset.label), el('span', 'note', preset.note));
 
     button.addEventListener('click', () => {
-      state = emptyState();
+      state = cleared();
       state.text = preset.text ?? '';
 
       for (const id of preset.include ?? []) {
@@ -352,8 +418,15 @@ els.text.addEventListener('keydown', (event) => {
 
 els.text.addEventListener('blur', closeSuggestions);
 
+// Only what is composed changes, never the state the chips and the boxes describe, so switching this off puts the long
+// string back rather than leaving the reader to undo a rewrite.
+els.optimise.addEventListener('change', () => {
+  state.optimise = els.optimise.checked;
+  render();
+});
+
 els.clear.addEventListener('click', () => {
-  state = emptyState();
+  state = cleared();
   paintAll();
   els.text.focus();
 });
@@ -364,7 +437,7 @@ els.clear.addEventListener('click', () => {
  * is the fallback, which is why it is `user-select: all` rather than merely selectable.
  */
 els.copy.addEventListener('click', async () => {
-  const { query } = compose(state);
+  const { query } = current();
 
   try {
     await navigator.clipboard.writeText(query);

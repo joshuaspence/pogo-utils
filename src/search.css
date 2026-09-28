@@ -174,6 +174,26 @@ header.page .sub {
   color: var(--muted);
 }
 
+/* The two things a reader can do *to* the string, kept together at the end of the row so the count keeps its side. */
+.output .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.output .toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.output .toggle input {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .output button.ghost {
   padding: 3px 10px;
   border: 1px solid var(--border);
@@ -202,6 +222,29 @@ header.page .sub {
 
 .output .caveat code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Laid out as pairs rather than as a sentence, so `charmander → 4` reads as one thing and wraps as one thing. */
+.output .rewritten {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+/**
+ * Paired with the `display: flex` above, which the UA stylesheet's own `[hidden] {display: none}` loses to: without
+ * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load.
+ */
+.output .rewritten[hidden] {
+  display: none;
+}
+
+.output .rewrite {
+  white-space: nowrap;
+}
+
+.output .rewritten .lossy {
+  flex: 1 0 100%;
 }
 
 .panel,
