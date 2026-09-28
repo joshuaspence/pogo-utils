@@ -296,19 +296,86 @@ header.page .sub {
   font-size: 11px;
 }
 
-#text {
-  width: 100%;
-  padding: 9px 12px;
+/**
+ * The box the names live in. What looks like a text field is this element rather than the input inside it, so the names
+ * already chosen can sit in it as chips: the border, the padding and the background are all here, and the input is left
+ * transparent and borderless at the end of the row. Wrapping, because a reader can choose more names than fit on a
+ * line.
+ */
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
+  cursor: text;
+}
+
+/* The ring goes on the box, since the thing that has the focus is drawn as part of it and not as a field of its own. */
+.field:focus-within {
+  outline: 2px solid var(--track);
+  outline-offset: 1px;
+}
+
+#text {
+  flex: 1;
+
+  /* Enough that a name being typed is readable beside the chips, and little enough to sit on a line with several. */
+  min-width: 9ch;
+  padding: 1px 2px;
+  border: 0;
+  background: none;
   color: var(--text);
   font: inherit;
   font-size: 14px;
 }
 
-#text:focus-visible,
+#text:focus-visible {
+  outline: none;
+}
+
 .range input:focus-visible {
+  outline: 2px solid var(--track);
+  outline-offset: 1px;
+}
+
+/**
+ * A name already chosen. Coloured on --track rather than on the accent, which on this page means a term ruled out: a
+ * name is a value the reader has set, which is what --track already says on a range box they have filled in.
+ */
+.field .name {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  padding: 3px 5px 3px 9px;
+  border: 1px solid var(--track);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--track) 12%, var(--panel));
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.field .name button {
+  padding: 0 3px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.field .name button:hover {
+  color: var(--accent);
+}
+
+.field .name button:focus-visible {
   outline: 2px solid var(--track);
   outline-offset: 1px;
 }

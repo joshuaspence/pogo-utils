@@ -1,7 +1,6 @@
 /**
- * The species the name box offers, and the pure half of taking one of them. Kept out of the page for the reason
- * query.js is: what accepting a suggestion does to the text in the box is worth being able to check without a DOM
- * around it.
+ * The species the name box offers, and what a row of them writes. Kept out of the page for the reason query.js is: what
+ * a row means is worth being able to check without a DOM around it.
  *
  * The list is the Pokédex rather than a list of its own — `pokedex.js` already names all 1025 species, and a second
  * copy here would be one more thing to keep in step with it. Only the released ones are offered, since a species the
@@ -97,32 +96,10 @@ const SHORTEST = 2;
 const FAMILY = '+';
 
 /**
- * The span of the box the caret's own name occupies. Commas separate names here — `pikachu, eevee` asks for either — so
- * a suggestion completes the one being typed and leaves whatever is on the other side of a comma alone.
- */
-function fragment(value, caret) {
-  const start = value.slice(0, caret).lastIndexOf(',') + 1;
-  const after = value.indexOf(',', caret);
-
-  return { start, end: after === -1 ? value.length : after };
-}
-
-/**
- * The caret's own name taken apart: where it sits in the box, the space in front of it that is the reader's, whether it
- * asks for a family, and the name itself with the marker off. Everything below writes the name back out of these, so a
- * `+` cannot be honoured by one path and dropped by another.
- */
-function parts(value, caret) {
-  const { start, end } = fragment(value, caret);
-  const typed = value.slice(start, end);
-  const lead = typed.match(/^\s*/)[0];
-  const family = typed.slice(lead.length).startsWith(FAMILY);
-
-  return { start, end, lead, family, name: typed.slice(lead.length + (family ? FAMILY.length : 0)) };
-}
-
-/**
- * What the list offers for what is being typed, as the species each row names and whether that row is its family.
+ * What the list offers for the name being typed, as the species each row names and whether that row is its family. The
+ * box holds one name at a time — the ones already chosen are chips beside it and carry no caret — so there is nothing
+ * to scope this to but the value.
+ *
  * Prefixes first: `char` offers Charmander before Hitmonchan, since a reader typing the start of a name almost always
  * means the start of a name. Each of the two groups keeps its dex order.
  *
@@ -138,9 +115,10 @@ function parts(value, caret) {
  * has typed the marker has already said which of the two they mean. Without that they would be the one reader the list
  * refuses to help.
  */
-export function suggestions(value, caret) {
-  const { family, name: typed } = parts(value, caret);
-  const needle = fold(typed.trim());
+export function suggestions(value) {
+  const typed = value.trim();
+  const family = typed.startsWith(FAMILY);
+  const needle = fold(family ? typed.slice(FAMILY.length) : typed);
 
   if (needle.length < SHORTEST) {
     return [];
@@ -172,25 +150,11 @@ export function suggestions(value, caret) {
 }
 
 /**
- * The box with one offer taken, and where the caret belongs afterwards. Only the name being typed is replaced, so
- * taking one in the middle of `pikachu, chariz, eevee` leaves both neighbours as they were. The space after a comma is
- * the reader's and is kept — query.js trims it back out of the string.
+ * A row as the search writes it. The offer is the whole of the answer — nothing about what was typed reaches this, not
+ * even a marker the reader put there themselves, which is the whole of why a family is a row rather than a mode: what a
+ * row writes is decided by taking it, and there is nothing else left to have changed it.
  *
- * A name taken at the end of the box is followed by the comma and the space for the next one, so choosing several
- * species is typing and taking names rather than punctuating between them. One taken in the middle already has both.
- * query.js drops the empty name a trailing comma leaves, so the box is never in a state that writes a broken string.
- *
- * The offer alone says whether a family is written, including over a marker the reader typed — which is the whole of
- * why a family is a row: what a row writes is decided by taking it, and there is nothing else left to have changed it.
- *
- * The name is written in lower case, matching the placeholder and every term the chips write. The game does not care,
- * and a string that is lower case throughout reads as one thing rather than as two pasted together.
+ * Written in lower case, matching the placeholder and every term the chips write. The game does not care, and a string
+ * that is lower case throughout reads as one thing rather than as two pasted together.
  */
-export function withName(value, caret, offer) {
-  const place = parts(value, caret);
-  const written = (offer.family ? FAMILY : '') + offer.name.toLowerCase();
-  const next = place.end === value.length ? ', ' : '';
-  const head = value.slice(0, place.start) + place.lead + written + next;
-
-  return { value: head + value.slice(place.end), caret: head.length };
-}
+export const written = (offer) => (offer.family ? FAMILY : '') + offer.name.toLowerCase();
