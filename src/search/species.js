@@ -10,6 +10,13 @@
  * Forms and regional variants are left out. The game searches the name it shows for a species, and that name is the
  * species' — `pokemon_name_0019` is `Rattata` for the Alolan one as much as for the Kantonian — so `Alolan Rattata` is
  * a name nothing answers to, and the Regional forms chips are how a reader asks for that one.
+ *
+ * A family is written rather than expanded. Both sources that document the marker agree on what it does — the wiki has
+ * "Pokémon that belong to a particular family can be filtered by searching a species name and placing a plus sign ( + )
+ * before it", GO Hub has "Using a “+” before a Pokémon species name will return the entire family of that species in
+ * your storage", and both give `+bulbasaur` as the example — so `+charmander` is handed to the game as it stands. Which
+ * three species that is cannot be worked out here: `pokedex.js` carries forms, regions and rarity but no evolution
+ * links. The game knows, and the wiki has it answering from any member of a family and even from one you do not own.
  */
 
 import POKEMON from '../pokemon/pokedex.js';
@@ -77,11 +84,17 @@ const SPECIES = Object.entries(POKEMON)
   .map(([constant]) => SPELLINGS[constant] ?? titleise(constant))
   .map((name) => ({ name, folded: fold(name) }));
 
-/** How many are offered at once. The list is a shortcut past spelling a name, not a way to read the dex. */
+/**
+ * How many rows are offered at once. The list is a shortcut past spelling a name, not a way to read the dex. A family
+ * takes a row of its own, so eight rows is four species — which is the cost of a family being a row rather than a mode.
+ */
 const LIMIT = 8;
 
 /** Shorter than this names too much of the dex for eight rows to say anything useful about it. */
 const SHORTEST = 2;
+
+/** The game's mark for a species and the rest of its evolutionary line, written in front of the name. */
+const FAMILY = '+';
 
 /**
  * The span of the box the caret's own name occupies. Commas separate names here — `pikachu, eevee` asks for either — so
@@ -95,12 +108,39 @@ function fragment(value, caret) {
 }
 
 /**
- * The species matching what is being typed, prefixes first: `char` offers Charmander before Hitmonchan, since a reader
- * typing the start of a name almost always means the start of a name. Each of the two groups keeps its dex order.
+ * The caret's own name taken apart: where it sits in the box, the space in front of it that is the reader's, whether it
+ * asks for a family, and the name itself with the marker off. Everything below writes the name back out of these, so a
+ * `+` cannot be honoured by one path and dropped by another.
+ */
+function parts(value, caret) {
+  const { start, end } = fragment(value, caret);
+  const typed = value.slice(start, end);
+  const lead = typed.match(/^\s*/)[0];
+  const family = typed.slice(lead.length).startsWith(FAMILY);
+
+  return { start, end, lead, family, name: typed.slice(lead.length + (family ? FAMILY.length : 0)) };
+}
+
+/**
+ * What the list offers for what is being typed, as the species each row names and whether that row is its family.
+ * Prefixes first: `char` offers Charmander before Hitmonchan, since a reader typing the start of a name almost always
+ * means the start of a name. Each of the two groups keeps its dex order.
+ *
+ * A family is a row of its own rather than a mode over the list, because a species and its family are two different
+ * searches and which of them a row writes should be settled by taking that row and by nothing else. It sits directly
+ * beside the species it came from, so one `↓` from a species reaches its family.
+ *
+ * Every match gets a family row, and three of them can be the same search: `+charmander`, `+charmeleon` and
+ * `+charizard` all return those three Pokémon. Collapsing them would need to know which species share a family, and
+ * nothing here does, so the redundancy is the honest answer rather than a guess at which row to keep.
+ *
+ * The marker is not part of the name, so `+charm` offers what `charm` offers — as families alone, since a reader who
+ * has typed the marker has already said which of the two they mean. Without that they would be the one reader the list
+ * refuses to help.
  */
 export function suggestions(value, caret) {
-  const { start, end } = fragment(value, caret);
-  const needle = fold(value.slice(start, end).trim());
+  const { family, name: typed } = parts(value, caret);
+  const needle = fold(typed.trim());
 
   if (needle.length < SHORTEST) {
     return [];
@@ -119,21 +159,38 @@ export function suggestions(value, caret) {
     }
   }
 
-  return [...starting, ...containing].slice(0, LIMIT);
+  const matched = [...starting, ...containing];
+
+  const offers = family
+    ? matched.map((name) => ({ name, family: true }))
+    : matched.flatMap((name) => [
+        { name, family: false },
+        { name, family: true },
+      ]);
+
+  return offers.slice(0, LIMIT);
 }
 
 /**
- * The box with one suggestion taken, and where the caret belongs afterwards. Only the name being typed is replaced, so
- * accepting one in the middle of `pikachu, chariz, eevee` leaves both neighbours as they were. The space after a comma
- * is the reader's and is kept — query.js trims it back out of the string.
+ * The box with one offer taken, and where the caret belongs afterwards. Only the name being typed is replaced, so
+ * taking one in the middle of `pikachu, chariz, eevee` leaves both neighbours as they were. The space after a comma is
+ * the reader's and is kept — query.js trims it back out of the string.
+ *
+ * A name taken at the end of the box is followed by the comma and the space for the next one, so choosing several
+ * species is typing and taking names rather than punctuating between them. One taken in the middle already has both.
+ * query.js drops the empty name a trailing comma leaves, so the box is never in a state that writes a broken string.
+ *
+ * The offer alone says whether a family is written, including over a marker the reader typed — which is the whole of
+ * why a family is a row: what a row writes is decided by taking it, and there is nothing else left to have changed it.
  *
  * The name is written in lower case, matching the placeholder and every term the chips write. The game does not care,
  * and a string that is lower case throughout reads as one thing rather than as two pasted together.
  */
-export function withName(value, caret, name) {
-  const { start, end } = fragment(value, caret);
-  const lead = value.slice(start, end).match(/^\s*/)[0];
-  const head = value.slice(0, start) + lead + name.toLowerCase();
+export function withName(value, caret, offer) {
+  const place = parts(value, caret);
+  const written = (offer.family ? FAMILY : '') + offer.name.toLowerCase();
+  const next = place.end === value.length ? ', ' : '';
+  const head = value.slice(0, place.start) + place.lead + written + next;
 
-  return { value: head + value.slice(end), caret: head.length };
+  return { value: head + value.slice(place.end), caret: head.length };
 }

@@ -331,9 +331,12 @@ function paintActive() {
   option.scrollIntoView({ block: 'nearest' });
 }
 
+/** Where the caret is, which is what every suggestion is scoped to — the end of the box until the reader moves it. */
+const caret = () => els.text.selectionStart ?? els.text.value.length;
+
 /** The list rebuilt for whatever the caret is in now, and taken away again when that names nothing in the dex. */
 function openSuggestions() {
-  offered = suggestions(els.text.value, els.text.selectionStart ?? els.text.value.length);
+  offered = suggestions(els.text.value, caret());
 
   if (offered.length === 0) {
     closeSuggestions();
@@ -341,11 +344,17 @@ function openSuggestions() {
   }
 
   els.suggestions.replaceChildren(
-    ...offered.map((name, index) => {
-      const option = el('li', null, name);
+    ...offered.map((offer, index) => {
+      const option = el('li', null, offer.name);
 
       option.id = `suggestion-${index}`;
       option.setAttribute('role', 'option');
+
+      // Said in the word rather than in the `+` the row would write, because the row's text is also its accessible name
+      // and "plus Charmander" read out loud names neither of the two searches on offer.
+      if (offer.family) {
+        option.append(el('span', 'family', ' (family)'));
+      }
 
       // mousedown rather than click: a click arrives after the blur that closes the list, by which point there is no
       // row left to have been clicked. The default is prevented so the box keeps the focus and the caret it had.
@@ -364,9 +373,13 @@ function openSuggestions() {
   paintActive();
 }
 
-/** One row taken: the box rewritten, the caret left after the name, and the string brought up to date behind it. */
+/**
+ * One row taken: the box rewritten, the caret left where the next name goes, and the string brought up to date behind
+ * it. The list is closed rather than reopened because what the caret is now in is the empty name after a comma, which
+ * names every species and so has nothing to offer until two letters of it are typed.
+ */
 function accept(index) {
-  const taken = withName(els.text.value, els.text.selectionStart ?? els.text.value.length, offered[index]);
+  const taken = withName(els.text.value, caret(), offered[index]);
 
   els.text.value = taken.value;
   els.text.setSelectionRange(taken.caret, taken.caret);

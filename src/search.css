@@ -356,6 +356,14 @@ header.page .sub {
   color: var(--accent);
 }
 
+/**
+ * What tells a family row from the species row above it. Faded rather than recoloured, so it stays the quieter half of
+ * the row on the one the keyboard or the pointer has reached as well as on the seven it has not.
+ */
+.suggestions .family {
+  opacity: 0.6;
+}
+
 .presets {
   display: flex;
   flex-wrap: wrap;
