@@ -15,6 +15,7 @@
 
 import { ENTRIES_BY_EVENT } from './generated.js';
 import RECURRING_TYPES from './recurring-types.js';
+import { byId, el } from './dom.js';
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_URL = 'data/events.json';
@@ -214,25 +215,25 @@ function persist(name) {
 }
 
 const els = {
-  count: document.getElementById('count'),
-  newly: document.getElementById('newly'),
-  newCount: document.getElementById('newCount'),
-  markSeen: document.getElementById('markSeen'),
-  search: document.getElementById('search'),
-  filters: document.getElementById('filters'),
-  typeFilters: document.getElementById('typeFilters'),
-  discloseFilters: document.getElementById('discloseFilters'),
-  showPast: document.getElementById('showPast'),
-  showUndated: document.getElementById('showUndated'),
-  showHidden: document.getElementById('showHidden'),
-  scopeGlobal: document.getElementById('scopeGlobal'),
-  scopeView: document.getElementById('scopeView'),
-  refresh: document.getElementById('refresh'),
-  reset: document.getElementById('reset'),
-  viewCards: document.getElementById('viewCards'),
-  viewCalendar: document.getElementById('viewCalendar'),
-  viewTracks: document.getElementById('viewTracks'),
-  events: document.getElementById('events'),
+  count: byId('count'),
+  newly: byId('newly'),
+  newCount: byId('newCount'),
+  markSeen: byId('markSeen'),
+  search: byId('search', HTMLInputElement),
+  filters: byId('filters'),
+  typeFilters: byId('typeFilters'),
+  discloseFilters: byId('discloseFilters'),
+  showPast: byId('showPast'),
+  showUndated: byId('showUndated'),
+  showHidden: byId('showHidden'),
+  scopeGlobal: byId('scopeGlobal'),
+  scopeView: byId('scopeView'),
+  refresh: byId('refresh'),
+  reset: byId('reset'),
+  viewCards: byId('viewCards'),
+  viewCalendar: byId('viewCalendar'),
+  viewTracks: byId('viewTracks'),
+  events: byId('events'),
 };
 
 let events = []; // normalised feed entries, sorted by start
@@ -431,20 +432,6 @@ const TRACKS = [
  */
 function typeClass(eventType) {
   return eventType ? ` type-${eventType}` : '';
-}
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-
-  if (className) {
-    node.className = className;
-  }
-
-  if (text != null) {
-    node.textContent = text;
-  }
-
-  return node;
 }
 
 function timeRange(ev) {

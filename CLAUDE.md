@@ -60,6 +60,16 @@ one more thing about it.
   ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)). TypeScript 6.0.3
   accepts the same configuration and reports the same errors; the whole project checks in about a second either way, so
   the Go compiler buys nothing here worth a broken linter.
+- **Every page reaches the DOM through `src/dom.js`.** `byId` throws where the markup and the script disagree, so a
+  stale id is a broken page at load rather than a `null` travelling until something further along trips over it. Name a
+  class only where the code depends on one — `byId('q', HTMLInputElement)` because a `.value` is read off it, a plain
+  `byId('grid')` for a container whose tag the script has no opinion about — since the argument states a dependency
+  rather than describing the markup. Note that this is the half `tsc` cannot check: typing a `<div>` as an
+  `HTMLInputElement` is what you asked for, and only the run-time `instanceof` says otherwise.
+- **Two `@overload`s, not one `@template` defaulting to `HTMLElement`.** A type parameter appearing only in the return
+  position is inferred from the caller's own annotation, so `@template {HTMLElement} [T=HTMLElement]` leaves
+  `byId('grid')` answering `HTMLInputElement` to anyone who asks for one — the default never applies and the check is
+  worth nothing. Verified by probing both forms: the overloads reject it, the default accepts it silently.
 
 ## Landing a change
 
@@ -120,7 +130,11 @@ after the next.
   reported no error banner on a page whose manifest fetch had been blocked outright — the markup is `id="banner"`, so
   the query was null either way and the check could not have failed however broken the page was. Assert the node exists
   before asserting anything about it, and confirm a probe can fail: block the request with `Network.setBlockedURLs` and
-  watch the banner appear before trusting its absence.
+  watch the banner appear before trusting its absence. A node that _does_ exist is the same trap one step along, because
+  every container on these pages ships empty in the HTML and is filled by the module: `#optTally` is an empty `<span>`
+  in `pgsharp.html`, so a smoke test reading its child count was satisfied by the zero a page whose module had thrown
+  would also report. Assert what the script writes rather than what the markup already carries — `'6 of 6'` in that
+  span, 74 `.route` rows under `#list` — and keep a control that breaks one lookup on purpose.
 - **`el.hidden` answers the attribute, not the layout.** It reads `true` however visible the element is, so a probe
   asserting it cannot see the one way hiding actually fails: the UA stylesheet's `[hidden] {display: none}` loses to any
   author `display` on the same element. `.newly {display: flex}` is one, so five suites in a row reported

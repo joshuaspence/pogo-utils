@@ -1,6 +1,7 @@
 import COUNTRIES from './countries.js';
 import { GPX_PATHS } from './generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
+import { byId } from './dom.js';
 
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
@@ -14,11 +15,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
 
-const listEl = document.getElementById('list');
-const countEl = document.getElementById('count');
-const filterEl = document.getElementById('filter');
-const bannerEl = document.getElementById('banner');
-const toastEl = document.getElementById('toast');
+const listEl = byId('list');
+const countEl = byId('count');
+const filterEl = byId('filter', HTMLInputElement);
+const bannerEl = byId('banner');
+const toastEl = byId('toast');
 
 const store = []; // { name, country, variant, event, file, gpx, latlngs, line, el, markers, distance }
 const cityStore = []; // { name, country, event, coords:[lat,lon], coordStr, marker, el }

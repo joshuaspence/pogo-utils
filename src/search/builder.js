@@ -12,21 +12,22 @@ import { GROUPS, PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
 import { compose, emptyState, fromFragment, names, toFragment } from './query.js';
 import { optimise } from './optimise.js';
 import { suggestions, written } from './species.js';
+import { byId, el } from '../dom.js';
 
 const els = {
-  query: document.getElementById('query'),
-  copy: document.getElementById('copy'),
-  clear: document.getElementById('clear'),
-  count: document.getElementById('count'),
-  caveat: document.getElementById('caveat'),
-  optimise: document.getElementById('optimise'),
-  rewritten: document.getElementById('rewritten'),
-  presets: document.getElementById('presets'),
-  field: document.getElementById('field'),
-  text: document.getElementById('text'),
-  suggestions: document.getElementById('suggestions'),
-  groups: document.getElementById('groups'),
-  ranges: document.getElementById('ranges'),
+  query: byId('query'),
+  copy: byId('copy', HTMLButtonElement),
+  clear: byId('clear'),
+  count: byId('count'),
+  caveat: byId('caveat'),
+  optimise: byId('optimise', HTMLInputElement),
+  rewritten: byId('rewritten'),
+  presets: byId('presets'),
+  field: byId('field'),
+  text: byId('text', HTMLInputElement),
+  suggestions: byId('suggestions'),
+  groups: byId('groups'),
+  ranges: byId('ranges'),
 };
 
 let state = fromFragment(location.hash);
@@ -37,20 +38,6 @@ const chips = new Map();
 const rangeInputs = new Map();
 
 let copied = null;
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-
-  if (className) {
-    node.className = className;
-  }
-
-  if (text != null) {
-    node.textContent = text;
-  }
-
-  return node;
-}
 
 /** Where a chip goes when it is clicked: unused, required, ruled out, and round again. */
 const NEXT = { off: 'in', in: 'out', out: 'off' };
