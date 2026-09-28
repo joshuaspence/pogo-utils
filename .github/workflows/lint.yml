@@ -21,7 +21,14 @@ jobs:
           - 'html'
           - 'js'
           - 'prettier'
+          - 'types'
           - 'xml'
+
+    # `types` reports the migration's remaining error count rather than gating on it, because `checkJs` is on from the
+    # outset and the tree is not annotated yet. Reporting is the point: every pull request in the migration publishes
+    # the number, so a slice that raises it is caught by the change that caused it rather than at the end. The last
+    # slice deletes this line, and from then on it gates like the others. See #53.
+    continue-on-error: "${{ matrix.check == 'types' }}"
     steps:
       - uses: 'actions/checkout@v7'
       - uses: 'pnpm/setup@v2'

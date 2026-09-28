@@ -1,0 +1,26 @@
+// The browser half. Pages serves these files verbatim, so nothing here emits: tsc is a checker, not a build step.
+{
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "ES2023",
+
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+
+    // Only Leaflet, so that installing any other @types package cannot silently hand Node's globals to a browser
+    // module. Naming it is also what pulls it in at all, since an empty list would leave `L` undeclared.
+    "types": ["leaflet"],
+
+    // `L` arrives from a CDN <script> in map.html, and @types/leaflet declares it with `export as namespace L` — a UMD
+    // global, which a module cannot otherwise see. Declaring it by hand instead does not work: a `declare global` for
+    // `L` shadows that namespace, which breaks the package's own internal references to it.
+    "allowUmdGlobalAccess": true
+  },
+  "include": ["src/**/*.js", "src/types.d.ts"]
+}
