@@ -109,6 +109,12 @@ after the next.
   75, 73, 73 — net zero by arithmetic. Had the code been broken the same check would have said the same thing, which is
   the real cost. Step the disturbance one control at a time and assert each delta, and where a count is all you have,
   prefer one only the control under test can move.
+- **A set taken over every row carries the absence as a value of its own.** The suffix telling a family row from the
+  species row above it was read as `new Set(rows.map((li) => li.querySelector('.family')?.textContent ?? ''))`, which
+  over a list where half the rows are marked is `['', ' (family)']` — so the assertion that the mark reads ` (family)`
+  failed on a list that was entirely correct, and would have passed on one where every row was marked. Map over the rows
+  that have the thing rather than over all of them. Keep the tally of them separate and assert it as a ratio, since
+  `4 of 8` and `6 of 6` are what tell a paired list from a family-only one where either count alone tells you nothing.
 - **Measure widths in characters, not bytes, before believing a line is too long.** `awk 'length > 120'` counts bytes,
   so every comment carrying an em-dash reads three columns over per dash and a compliant line is reported as a
   violation. Four of these comments looked too long and only two were. Use `len()` on text decoded as UTF-8, and check
@@ -118,7 +124,9 @@ after the next.
   thirteen got in, and how sixteen more nearly went in with the new-event marker. One trap in reading that diff: this
   machine sets `diff.noprefix`, so the header reads `+++ search.html` and not `+++ b/search.html`. A parser anchored on
   that `b/` files every added line under no path at all. It still measures them, so the run looks right and simply
-  cannot say which file to fix.
+  cannot say which file to fix. Print every line over the limit rather than the widest one per file: reflowing a 121
+  uncovers the next paragraph behind it, which reads as a fresh violation appearing out of a change that only shortened
+  something. Four of these turned up one at a time before the script was asked for the whole list.
 - **A probe step that carries on from the previous step's state may have nothing left to prove.** Step 11 accepted a
   suggestion, leaving `eevee` in the name box; step 12 then typed `ch` to open the list before blurring, but `eeveech`
   names no species, so the list was already shut and the assertion that a blur shuts it could not have failed. It read
