@@ -35,7 +35,7 @@
  * `gen1` — so each is the range it spans, which is why they sit here as terms rather than in the numeric ranges below.
  * The upper bound of the last one moves when a generation is added to the game.
  */
-const GENERATIONS = [
+export const GENERATIONS = [
   ['1', '1-151'],
   ['2', '152-251'],
   ['3', '252-386'],
