@@ -184,10 +184,17 @@ export const GROUPS = [
     id: 'background',
     label: 'Background',
     hue: 220,
-    help: 'The backdrop the catch was recorded against. Picking both is what the game spells `background`.',
+    help: 'The backdrop the catch was recorded against. `Any` is `background`, the word the game has for either.',
     terms: [
       { id: 'locationbackground', term: 'locationbackground', label: 'Location' },
       { id: 'specialbackground', term: 'specialbackground', label: 'Event' },
+
+      /**
+       * `background` is the union of the two above, so as an inclusion it says nothing picking both does not. It earns
+       * its chip on the other side: ruling it out is one clause where refusing both is two, and a search string has a
+       * reader typing it on a phone.
+       */
+      { id: 'background', term: 'background', label: 'Any' },
     ],
   },
   {
@@ -284,7 +291,7 @@ export const RANGES = [
  * Starting points, each a plain state the builder loads and the reader then edits — the point is to land mid-way
  * through a query rather than to hand over a finished one. `text` fills the name box, the rest name term ids.
  *
- * The transfer preset is the one that earns its place: it is thirteen exclusions, every one of which matters, and
+ * The transfer preset is the one that earns its place: it is sixteen exclusions, every one of which matters, and
  * forgetting any single one of them is how a shiny ends up as candy.
  */
 export const PRESETS = [
@@ -297,15 +304,18 @@ export const PRESETS = [
       'lucky',
       'shadow',
       'purified',
-      'legendary',
       'mythical',
-      'ultrabeast',
       'costume',
+      'special',
+      'background',
       'favorite',
       'buddy',
       'tagged',
       'defender',
+      'star3',
       'star4',
+      'xxs',
+      'xxl',
     ],
   },
   {
