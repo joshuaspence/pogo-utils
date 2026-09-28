@@ -15,6 +15,21 @@
  * flags are not. England is a subdivision rather than a country, and carries the "GB-ENG" tag sequence Unicode gives it
  * instead of a pair of regional indicators.
  */
+
+/**
+ * One country's entry: the alpha-2 code its flag is derived from, and the continent it groups under.
+ *
+ * Both fields are `string` and the table is keyed by `string`, rather than naming the codes, continents and countries
+ * this one happens to hold. A country is a data change and lands on `master` on its own, so a type that enumerated the
+ * rows would turn every such edit into a type edit as well — and the row set is already checked, better than a type
+ * could: validate-gpx.mts reads it against the files in both directions. What the shape does buy is the row itself. A
+ * misspelled `continent` is a type error where inference simply gave that country a field of its own and let the
+ * sidebar file it under "Other".
+ *
+ * @typedef {{code: string, continent: string}} Country
+ */
+
+/** @type {Record<string, Country>} */
 export default {
   'Argentina': { code: 'AR', continent: 'South America' },
   'Australia': { code: 'AU', continent: 'Oceania' },

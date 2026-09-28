@@ -17,6 +17,12 @@
  *
  * An entry whose constant `pokedex.js` has since renamed leaves that species named the way its constant reads, which is
  * a name looking odd rather than a page that fails — worth knowing when one here looks wrong.
+ *
+ * Keyed by `string` rather than by the constants it holds, so that `nameOf` takes any constant and answers from the
+ * table or from `titleise`. Naming them would make the fallback unreachable to the checker and every correction here a
+ * type edit, where the point of the `??` is that a constant absent from this table is the ordinary case.
+ *
+ * @type {Record<string, string>}
  */
 const SPELLINGS = {
   NIDORAN_F: 'Nidoran♀',
@@ -39,17 +45,29 @@ const SPELLINGS = {
   CHI_YU: 'Chi-Yu',
 };
 
-/** A constant as its name reads, right for every species SPELLINGS does not speak for: `IRON_HANDS` is `Iron Hands`. */
+/**
+ * A constant as its name reads, right for every species SPELLINGS does not speak for: `IRON_HANDS` is `Iron Hands`.
+ *
+ * `charAt` rather than `word[0]`, which is `string | undefined` to the checker because a segment could be empty — as
+ * one would be given a constant spelled `A__B`. None is, checked over every constant `pokedex.js` binds and every form
+ * name hung off one. Worth saying rather than assuming, because where the two do differ `charAt` writes a name with a
+ * stray space where the index read threw, and quietly is the worse of the two ways to be wrong.
+ *
+ * @param {string} constant
+ * @returns {string}
+ */
 const titleise = (constant) =>
   constant
     .toLowerCase()
     .split('_')
-    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 
 /**
  * The form names the constant-to-words rule gets wrong: the two Unown that are punctuation, a percentage the constant
  * had to spell out, and two whose hyphen or accent was dropped. Every other form reads the way `titleise` writes it.
+ *
+ * @type {Record<string, string>}
  */
 const FORM_SPELLINGS = {
   EXCLAMATION_MARK: '!',
@@ -60,15 +78,28 @@ const FORM_SPELLINGS = {
   POKE_BALL: 'Poké Ball',
 };
 
-/** A species' name, from the constant it is bound to: `IRON_HANDS` is `Iron Hands`, `HO_OH` is `Ho-Oh`. */
+/**
+ * A species' name, from the constant it is bound to: `IRON_HANDS` is `Iron Hands`, `HO_OH` is `Ho-Oh`.
+ *
+ * @param {string} constant
+ * @returns {string}
+ */
 export const nameOf = (constant) => SPELLINGS[constant] ?? titleise(constant);
 
-/** A form's name, from the name `pokedex.js` files it under: `COMBAT_BREED` is `Combat Breed`. */
+/**
+ * A form's name, from the name `pokedex.js` files it under: `COMBAT_BREED` is `Combat Breed`.
+ *
+ * @param {string} form
+ * @returns {string}
+ */
 export const formNameOf = (form) => FORM_SPELLINGS[form] ?? titleise(form);
 
 /**
  * A name folded to what a reader will actually type: lower case, and with the accents taken off, so `flabebe` finds
  * Flabébé from a keyboard that cannot easily write it.
+ *
+ * @param {string} name
+ * @returns {string}
  */
 export const fold = (name) =>
   name
