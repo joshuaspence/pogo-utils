@@ -3,6 +3,11 @@
  * pgsedit tool. `loads` reads a stream into a live object graph and `dumps` writes one back; `box` wraps a JS value as
  * a boxed Java primitive (an Integer, Long, Float or Boolean) for the map values that are not strings.
  *
+ * A value here is one of four things and nothing else — `null`, a string, a boxed primitive or a `Map` — so the tags
+ * `content` reads and the shapes `value` writes cover the same ground from either end. Block data is not among them: it
+ * appears only in the annotations `skipAnnotation` discards, and is consumed there rather than handed back as a value
+ * nothing could hold.
+ *
  * The whole stream is re-emitted from scratch rather than patched in place: back-references are positional handles, so
  * changing one value shifts every handle after it, and only a full re-serialization keeps them consistent. See the
  * pgsedit README for the wire format this mirrors.
@@ -44,6 +49,24 @@ export const JavaSer = (() => {
   const HASHMAP_UID = 0x0507dac1c31660d1n;
 
   const err = (m) => new Error(m);
+
+  /**
+   * A boxed primitive, the one value shape that is neither a string nor a map. A class rather than a `{box, value}`
+   * literal so that reader and writer share one representation and `instanceof` separates it from a `Map` — where a
+   * property test would have to be guarded, since `'box' in v` throws on the very primitives `dumps` exists to reject.
+   * The field type is checked here so that an unsupported one fails at the call that named it.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- `instanceof` needs a constructor to narrow on
+  class Box {
+    constructor(code, value) {
+      if (!(code in BOX)) {
+        throw err(`no boxed Java primitive for field type '${code}'`);
+      }
+
+      this.code = code;
+      this.value = value;
+    }
+  }
 
   /**
    * Java's "modified UTF-8": U+0000 is C0 80 and non-BMP characters are written as their two UTF-16 surrogates (3 bytes
@@ -107,6 +130,13 @@ export const JavaSer = (() => {
       this.b = bytes;
       this.dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       this.p = 0;
+
+      /**
+       * The back-reference table. Handles are positional and both kinds share the one sequence, so a classdesc
+       * reference and a value reference read the same four bytes — only the caller knows which the stream should have
+       * put there. Tagging the entries is what lets it say so, instead of a string travelling as a class descriptor
+       * until something reads a `fields` off it.
+       */
       this.handles = [];
     }
     u1() {
@@ -154,30 +184,54 @@ export const JavaSer = (() => {
     peek() {
       return this.b[this.p];
     }
-    newHandle(obj) {
-      this.handles.push(obj);
-      return obj;
+    newValueHandle(value) {
+      this.handles.push({ kind: 'value', value });
+      return value;
+    }
+    newClassHandle(desc) {
+      this.handles.push({ kind: 'class', desc });
+      return desc;
     }
     /**
      * The JVM assigns an object's handle before its fields are read, so a self-referential object can cite itself;
      * reserve the slot, back-patch it.
      */
-    claimHandle() {
-      this.handles.push(null);
+    claimValueHandle() {
+      this.handles.push({ kind: 'value', value: null });
       return this.handles.length - 1;
     }
-    resolveHandle(slot, obj) {
-      this.handles[slot] = obj;
-      return obj;
+    resolveValueHandle(slot, value) {
+      this.handles[slot] = { kind: 'value', value };
+      return value;
     }
-    ref() {
+    handleIndex() {
       const h = this.i4() - BASE_HANDLE;
 
       if (h < 0 || h >= this.handles.length) {
         throw err(`bad handle reference ${h}`);
       }
 
-      return this.handles[h];
+      return h;
+    }
+    refValue() {
+      const h = this.handleIndex();
+      const entry = this.handles[h];
+
+      if (entry.kind !== 'value') {
+        throw err(`handle ${h} is a class descriptor, not a value`);
+      }
+
+      return entry.value;
+    }
+    refClass() {
+      const h = this.handleIndex();
+      const entry = this.handles[h];
+
+      if (entry.kind !== 'class') {
+        throw err(`handle ${h} is a value, not a class descriptor`);
+      }
+
+      return entry.desc;
     }
     utf() {
       return decodeMutf8(this.raw(this.u2()));
@@ -194,7 +248,7 @@ export const JavaSer = (() => {
       }
 
       if (tag === TC_REFERENCE) {
-        return this.ref();
+        return this.refClass();
       }
 
       if (tag !== TC_CLASSDESC) {
@@ -204,7 +258,7 @@ export const JavaSer = (() => {
       const name = this.utf();
       const uid = this.i8();
       const flags = this.u1();
-      const desc = this.newHandle({ name, uid, flags, fields: [] });
+      const desc = this.newClassHandle({ name, uid, flags, fields: [], super: null });
       const nfields = this.u2();
 
       for (let i = 0; i < nfields; i++) {
@@ -212,8 +266,8 @@ export const JavaSer = (() => {
         const fname = this.utf();
 
         if (tcode === 'L' || tcode === '[') {
-          this.content();
-        } // field type string; unused
+          this.content(); // the field's type string, unused
+        }
 
         desc.fields.push([tcode, fname]);
       }
@@ -222,14 +276,29 @@ export const JavaSer = (() => {
       desc.super = this.classDesc();
       return desc;
     }
+    /**
+     * A class or object annotation, discarded. This is the only place block data appears, so it is consumed here rather
+     * than returned from `content`, which answers what a field or a map entry can hold — and a byte array is not one of
+     * those.
+     */
     skipAnnotation() {
       for (;;) {
-        if (this.peek() === TC_ENDBLOCKDATA) {
+        const tag = this.peek();
+
+        if (tag === TC_ENDBLOCKDATA) {
           this.p += 1;
           return;
         }
 
-        this.content();
+        if (tag === TC_BLOCKDATA) {
+          this.p += 1;
+          this.raw(this.u1());
+        } else if (tag === TC_BLOCKDATALONG) {
+          this.p += 1;
+          this.raw(this.i4());
+        } else {
+          this.content();
+        }
       }
     }
     readPrimitive(tcode) {
@@ -271,23 +340,15 @@ export const JavaSer = (() => {
       }
 
       if (tag === TC_REFERENCE) {
-        return this.ref();
+        return this.refValue();
       }
 
       if (tag === TC_STRING) {
-        return this.newHandle(this.utf());
+        return this.newValueHandle(this.utf());
       }
 
       if (tag === TC_LONGSTRING) {
-        return this.newHandle(this.longUtf());
-      }
-
-      if (tag === TC_BLOCKDATA) {
-        return { blockdata: this.raw(this.u1()) };
-      }
-
-      if (tag === TC_BLOCKDATALONG) {
-        return { blockdata: this.raw(this.i4()) };
+        return this.newValueHandle(this.longUtf());
       }
 
       if (tag === TC_OBJECT) {
@@ -296,49 +357,69 @@ export const JavaSer = (() => {
 
       throw err(`unsupported tag 0x${tag.toString(16)} at offset ${this.p - 1}`);
     }
+    /**
+     * One class's declared fields. Only HashMap's writeObject payload is needed downstream, so a value is read to
+     * advance the stream rather than because anything looks at it — bar a box's `value`, which `object` takes from the
+     * most-derived class in the chain.
+     */
+    readFields(fields) {
+      const values = {};
+
+      for (const [tcode, fname] of fields) {
+        values[fname] = tcode === 'L' || tcode === '[' ? this.content() : this.readPrimitive(tcode);
+      }
+
+      return values;
+    }
     object() {
       const desc = this.classDesc();
-      const slot = this.claimHandle();
+
+      if (desc === null) {
+        throw err(`object with no class descriptor at offset ${this.p - 1}`);
+      }
+
+      const slot = this.claimValueHandle();
       const chain = [];
 
-      for (let d = desc; d; d = d.super) {
+      for (let d = desc; d !== null; d = d.super) {
         chain.push(d);
       }
 
       chain.reverse(); // superclass fields come first
 
+      /**
+       * Both belong to the instance being read rather than to the descriptor, which every instance of the class shares
+       * through its handle. Holding them there was correct only by adjacency — each written and read back with no other
+       * instance of the same class in between, a nested HashMap included — which the shape never said and nothing held
+       * it to. Locals say it.
+       */
+      let own = {};
+      let custom = null;
+
       for (const d of chain) {
-        for (const [tcode, fname] of d.fields) {
-          d.values ||= {};
-          /**
-           * We only need HashMap's writeObject payload; a field's value is read to advance the stream but not otherwise
-           * used here.
-           */
-          d.values[fname] = tcode === 'L' || tcode === '[' ? this.content() : this.readPrimitive(tcode);
+        const values = this.readFields(d.fields);
+
+        if (d === desc) {
+          own = values;
         }
 
         if (d.flags & SC_WRITE_METHOD) {
-          d.custom = this.customData(d.name);
+          custom = this.customData(d.name);
         }
       }
 
       const name = desc.name;
 
       if (name in BOX_BY_CLASS) {
-        const t = BOX_BY_CLASS[name];
-        return this.resolveHandle(slot, { box: t, value: chain[chain.length - 1].values.value });
+        if (!('value' in own)) {
+          throw err(`${name} declares no value field`);
+        }
+
+        return this.resolveValueHandle(slot, new Box(BOX_BY_CLASS[name], own.value));
       }
 
       if (name === 'java.util.HashMap') {
-        let entries = null;
-
-        for (const d of chain) {
-          if (d.custom !== undefined) {
-            entries = d.custom;
-          }
-        }
-
-        return this.resolveHandle(slot, entries);
+        return this.resolveValueHandle(slot, custom);
       }
 
       throw err(`unsupported class ${name}`);
@@ -491,25 +572,35 @@ export const JavaSer = (() => {
       }
     }
     box(b) {
-      const info = BOX[b.box];
+      const info = BOX[b.code];
       this.u1(TC_OBJECT);
 
-      if (b.box === 'Z') {
+      if (b.code === 'Z') {
         this.classDesc(info.cls, info.uid, SC_SERIALIZABLE, [['Z', 'value']]);
       } else {
-        this.classDesc(info.cls, info.uid, SC_SERIALIZABLE, [[b.box, 'value']], NUMBER.name, NUMBER.uid);
+        this.classDesc(info.cls, info.uid, SC_SERIALIZABLE, [[b.code, 'value']], NUMBER.name, NUMBER.uid);
       }
 
       this.boxHandles.set(b, this.claim());
 
-      if (b.box === 'Z') {
-        this.u1(b.value ? 1 : 0);
-      } else if (b.box === 'I') {
-        this.i4(b.value);
-      } else if (b.box === 'J') {
-        this.i8(b.value);
-      } else if (b.box === 'F') {
-        this.f4(b.value);
+      // A `switch` with a default rather than an `if` chain, so adding a `BOX` entry and forgetting to encode it fails
+      // here instead of writing a class descriptor with no value after it.
+      switch (b.code) {
+        case 'Z':
+          this.u1(b.value ? 1 : 0);
+          break;
+        case 'I':
+          this.i4(b.value);
+          break;
+        case 'J':
+          this.i8(b.value);
+          break;
+        case 'F':
+          this.f4(b.value);
+          break;
+
+        default:
+          throw err(`no encoding for boxed field type '${b.code}'`);
       }
     }
     value(v) {
@@ -517,7 +608,7 @@ export const JavaSer = (() => {
         this.u1(TC_NULL);
       } else if (typeof v === 'string') {
         this.string(v);
-      } else if (v.box) {
+      } else if (v instanceof Box) {
         const h = this.boxHandles.get(v);
 
         if (h !== undefined) {
@@ -575,5 +666,5 @@ export const JavaSer = (() => {
     return Uint8Array.from(w.out);
   }
 
-  return { loads, dumps, box: (t, v) => ({ box: t, value: v }) };
+  return { loads, dumps, box: (t, v) => new Box(t, v) };
 })();
