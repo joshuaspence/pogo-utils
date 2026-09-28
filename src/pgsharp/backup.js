@@ -11,6 +11,7 @@ import { GPX_PATHS } from '../generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from '../gpx.js';
 import { JavaSer } from '../java-serialization.js';
 import { CONTROL_RESETS } from './controls.js';
+import { byId } from '../dom.js';
 
 const POINTS_KEY = 'hlfavor';
 const ROUTES_KEY = 'hlfavorRoute';
@@ -284,8 +285,8 @@ function byName(a, b) {
   return 0;
 }
 
-const backupRunEl = document.getElementById('backupRun');
-const backupStatusEl = document.getElementById('backupStatus');
+const backupRunEl = byId('backupRun', HTMLButtonElement);
+const backupStatusEl = byId('backupStatus');
 
 function backupStatus(msg, kind) {
   backupStatusEl.textContent = msg;
@@ -296,8 +297,8 @@ function backupStatus(msg, kind) {
  * The options, read off the same object the click handler looks them up in rather than a second list of ids here — add a
  * control to CONTROL_RESETS and it is counted without touching this.
  */
-const optEls = Object.keys(CONTROL_RESETS).map((id) => document.getElementById(id));
-const optTallyEl = document.getElementById('optTally');
+const optEls = Object.keys(CONTROL_RESETS).map((id) => byId(id, HTMLInputElement));
+const optTallyEl = byId('optTally');
 
 /**
  * Say on the summary how many options the button will write, so collapsing the list leaves a number behind rather than a
@@ -322,7 +323,7 @@ updateTally();
  * adding a filter to filters.js cannot leave a stale number in the markup.
  */
 const feedCount = JSON.parse(CONTROL_RESETS.resetFeeds.hlfeeds).length;
-document.getElementById('feedNote').textContent =
+byId('feedNote').textContent =
   `Replaces every feed filter in the profile with these ${feedCount} rather than adding to them.`;
 
 function downloadBytes(bytes, name) {
@@ -387,7 +388,7 @@ backupRunEl.addEventListener('click', async () => {
     let controls = 0;
 
     for (const [id, keys] of Object.entries(CONTROL_RESETS)) {
-      if (!document.getElementById(id).checked) {
+      if (!byId(id, HTMLInputElement).checked) {
         continue;
       }
 

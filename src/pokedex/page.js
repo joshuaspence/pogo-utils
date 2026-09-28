@@ -9,24 +9,25 @@
 
 import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, spriteOf } from './entries.js';
 import { fold } from '../pokemon/names.js';
+import { byId, el } from '../dom.js';
 
 const $ = {
-  q: document.getElementById('q'),
-  generation: document.getElementById('generation'),
-  availability: document.getElementById('availability'),
-  flags: document.getElementById('flags'),
-  hunts: document.getElementById('hunts'),
-  count: document.getElementById('count'),
-  reset: document.getElementById('reset'),
-  grid: document.getElementById('grid'),
-  empty: document.getElementById('empty'),
-  detail: document.getElementById('detail'),
-  detailNum: document.getElementById('detailNum'),
-  detailName: document.getElementById('detailName'),
-  detailBody: document.getElementById('detailBody'),
-  prev: document.getElementById('prev'),
-  next: document.getElementById('next'),
-  close: document.getElementById('close'),
+  q: byId('q', HTMLInputElement),
+  generation: byId('generation', HTMLSelectElement),
+  availability: byId('availability', HTMLSelectElement),
+  flags: byId('flags'),
+  hunts: byId('hunts'),
+  count: byId('count'),
+  reset: byId('reset', HTMLButtonElement),
+  grid: byId('grid'),
+  empty: byId('empty'),
+  detail: byId('detail', HTMLDialogElement),
+  detailNum: byId('detailNum'),
+  detailName: byId('detailName'),
+  detailBody: byId('detailBody'),
+  prev: byId('prev', HTMLButtonElement),
+  next: byId('next', HTMLButtonElement),
+  close: byId('close'),
 };
 
 /**
@@ -137,20 +138,6 @@ function matches(entry) {
   }
 
   return [...state.flags].every((id) => TOGGLES.get(id).test(entry));
-}
-
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-
-  if (className) {
-    node.className = className;
-  }
-
-  if (text != null) {
-    node.textContent = text;
-  }
-
-  return node;
 }
 
 /**
