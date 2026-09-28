@@ -18,60 +18,8 @@
  * links. The game knows, and the wiki has it answering from any member of a family and even from one you do not own.
  */
 
+import { fold, nameOf } from '../pokemon/names.js';
 import POKEMON from '../pokemon/pokedex.js';
-
-/**
- * The species whose name its constant cannot be spelled back out of. A constant drops the punctuation the games write a
- * name with or turns it into an underscore, and that underscore stands for something different every time: a space in
- * `IRON_HANDS`, a hyphen in `HO_OH`, a full stop and a space in `MR_MIME`, a colon and one in `TYPE_NULL`, and in
- * `NIDORAN_F` a symbol no keyboard has. `FARFETCHD` and `FLABEBE` lost a character outright. Nothing can derive those
- * back, so these eighteen are written out and every other name is derived from its constant.
- *
- * Each is the name the game itself displays, from PokeMiners' string table — `pokemon_name_0250` is `Ho-Oh` — checked
- * against pokemondb's GO Pokédex, which agrees on all eighteen except for writing that one `Ho-oh` in one of the two
- * attributes it carries the name in.
- *
- * An entry whose constant `pokedex.js` has since renamed leaves that species named the way its constant reads, which is
- * a name looking odd rather than a page that fails — worth knowing when one here looks wrong.
- */
-const SPELLINGS = {
-  NIDORAN_F: 'Nidoran♀',
-  NIDORAN_M: 'Nidoran♂',
-  FARFETCHD: "Farfetch'd",
-  MR_MIME: 'Mr. Mime',
-  HO_OH: 'Ho-Oh',
-  MIME_JR: 'Mime Jr.',
-  PORYGON_Z: 'Porygon-Z',
-  FLABEBE: 'Flabébé',
-  TYPE_NULL: 'Type: Null',
-  JANGMO_O: 'Jangmo-o',
-  HAKAMO_O: 'Hakamo-o',
-  KOMMO_O: 'Kommo-o',
-  SIRFETCHD: "Sirfetch'd",
-  MR_RIME: 'Mr. Rime',
-  WO_CHIEN: 'Wo-Chien',
-  CHIEN_PAO: 'Chien-Pao',
-  TING_LU: 'Ting-Lu',
-  CHI_YU: 'Chi-Yu',
-};
-
-/** A constant as its name reads, right for every species SPELLINGS does not speak for: `IRON_HANDS` is `Iron Hands`. */
-const titleise = (constant) =>
-  constant
-    .toLowerCase()
-    .split('_')
-    .map((word) => word[0].toUpperCase() + word.slice(1))
-    .join(' ');
-
-/**
- * A name folded to what a reader will actually type: lower case, and with the accents taken off, so `flabebe` finds
- * Flabébé from a keyboard that cannot easily write it.
- */
-const fold = (name) =>
-  name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '');
 
 /**
  * Every species that can be in your boxes, in dex order — so the suggestions for `char` read as a family rather than
@@ -80,7 +28,7 @@ const fold = (name) =>
  */
 const SPECIES = Object.entries(POKEMON)
   .filter(([, species]) => species.released)
-  .map(([constant]) => SPELLINGS[constant] ?? titleise(constant))
+  .map(([constant]) => nameOf(constant))
   .map((name) => ({ name, folded: fold(name) }));
 
 /**

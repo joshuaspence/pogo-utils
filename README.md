@@ -6,6 +6,7 @@ from a shared top tab bar:
 - **Events** — a calendar of current and upcoming in-game events, also published as a calendar subscription.
 - **Map** — an interactive map of GPX walking tracks and teleport waypoints.
 - **Search** — a builder for the strings the game's own Pokémon search box takes.
+- **Pokédex** — every species and its forms: what is in the game, which have a shiny, and which hunts still want it.
 - **PGSharp** — a backup builder that loads those routes into PGSharp as favourites.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
@@ -157,6 +158,23 @@ one of them is not an equivalence: a name matches nicknames as well as species, 
 alone. What it will not do is turn `+charmander` into `4,5,6`, or shorten it to `+charm` by reaching the family through
 another of its members; both need to know which species share an evolution family, which is data this repository does
 not hold. A `+` keeps its name and gets the name shortening alone.
+
+## Pokédex
+
+The **Pokédex** page ([`pokedex.html`](pokedex.html)) is the whole national dex as a grid of cards, narrowed by name or
+number, by generation, by whether a species is in the game yet, and by toggles for a shiny, a wild spawn, a category
+(Legendary, Mythical, Ultra Beast, Baby, Regional) or a place on one of the hunt lists. Picking a card opens the
+species: its normal and shiny sprite, what is true of it, each of its forms and regional variants with the same answers,
+and a link into the **Search** page for it or its family. The arrows step through the species the filters left, and the
+link carries both the filters and the open species.
+
+Nothing on it is kept by hand. [`src/pokedex/entries.js`](src/pokedex/entries.js) reads
+[`src/pokemon/pokedex.js`](src/pokemon/pokedex.js) for the flags and the hunt lists in [`src/filters/`](src/filters) for
+what is still wanted — the same Sets the PGSharp backup is built from — so crossing a species off `xxl.js` takes it off
+the page's XXL filter too. A list is a checklist and the backup's feed is that list narrowed to what the wild can turn
+up, so the page says when a species is wanted but the feed cannot alert on it: Mewtwo is still wanted as a 100%, and
+only a raid will ever produce one. Sprites are hotlinked from [PokeAPI](https://github.com/PokeAPI/sprites); a species
+keeps its number and name if one does not load.
 
 ## Import into PGSharp
 

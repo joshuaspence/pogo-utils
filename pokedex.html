@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pokémon GO Pokédex</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="src/theme.css" />
+    <link rel="stylesheet" href="src/nav.css" />
+    <link rel="stylesheet" href="src/pokedex.css" />
+  </head>
+  <body>
+    <nav class="topnav">
+      <a class="tab" href="events.html"><span class="ico" aria-hidden="true">📅</span> Events</a>
+      <a class="tab" href="map.html"><span class="ico" aria-hidden="true">🗺️</span> Map</a>
+      <a class="tab" href="search.html"><span class="ico" aria-hidden="true">🔎</span> Search</a>
+      <a class="tab" href="pokedex.html" aria-current="page"><span class="ico" aria-hidden="true">📖</span> Pokédex</a>
+      <a class="tab" href="pgsharp.html"><span class="ico" aria-hidden="true">💾</span> PGSharp</a>
+    </nav>
+    <header class="page">
+      <h1>Pokémon GO Pokédex</h1>
+      <p class="sub">
+        Every species, what of it is in the game, which have a shiny, and which of the hunts still want it. Pick one to
+        see its forms.
+      </p>
+    </header>
+
+    <main class="dex">
+      <section class="controls" aria-label="Filter the Pokédex">
+        <div class="row">
+          <input
+            id="q"
+            type="search"
+            placeholder="Name or number"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Name or dex number"
+          />
+          <select id="generation" aria-label="Generation">
+            <option value="">All generations</option>
+          </select>
+          <select id="availability" aria-label="In Pokémon GO">
+            <option value="">Released or not</option>
+            <option value="in">In Pokémon GO</option>
+            <option value="out">Not released yet</option>
+          </select>
+        </div>
+
+        <!-- Toggles rather than a three-state chip like the search page's: every one of these narrows the list, and a
+             species "not Legendary" is what the list already shows once the toggle is off. -->
+        <div class="chips" id="flags" role="group" aria-label="Only show"></div>
+        <div class="chips" id="hunts" role="group" aria-label="On a hunt list"></div>
+
+        <div class="meta">
+          <span id="count" class="count" aria-live="polite"></span>
+          <button id="reset" type="button" class="ghost">Reset</button>
+        </div>
+      </section>
+
+      <ul class="grid" id="grid"></ul>
+      <p class="empty" id="empty" hidden>No species match those filters.</p>
+    </main>
+
+    <!-- One dialog, filled in for whichever species is opened. A modal <dialog> brings the focus trap and Escape to
+         close, neither of which then has to be written. Focus opens on Close rather than on the first button, which is
+         the step back to the previous species and not where a reader who has just picked one means to be. -->
+    <dialog class="detail" id="detail" aria-labelledby="detailName">
+      <div class="head">
+        <button type="button" class="step" id="prev" aria-label="Previous species">‹</button>
+        <div class="title">
+          <span class="num" id="detailNum"></span>
+          <h2 id="detailName">Pokémon</h2>
+        </div>
+        <button type="button" class="step" id="next" aria-label="Next species">›</button>
+        <button type="button" class="close" id="close" aria-label="Close" autofocus>✕</button>
+      </div>
+      <div class="body" id="detailBody"></div>
+    </dialog>
+
+    <footer>
+      <p>
+        Read from the same Pokédex and hunt lists the PGSharp backup is built from, so the two cannot disagree. Sprites
+        are PokeAPI's. The link updates as you filter, so a view can be shared or bookmarked.
+      </p>
+      <p>This site is unofficial.</p>
+    </footer>
+
+    <script type="module" src="src/pokedex/page.js"></script>
+  </body>
+</html>

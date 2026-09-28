@@ -403,6 +403,26 @@ export default class Pokemon {
   }
 
   /**
+   * The national dex number, which every form and regional variant of a species shares.
+   */
+  get dex() {
+    return this.#dex;
+  }
+
+  /**
+   * The regional variants and forms hung directly off this one, regions first, each in the order declared — for reading
+   * the dex rather than for naming a form in a filter, which is what `form` and `region` are for. A variant that
+   * carries variants of its own answers for them in turn, so Paldean Tauros lists its three breeds and the species
+   * lists only Paldean Tauros.
+   */
+  get variants() {
+    return [
+      ...[...this.#regions].map(([region, pokemon]) => ({ region, form: null, pokemon })),
+      ...[...this.#forms].map(([form, pokemon]) => ({ region: null, form, pokemon })),
+    ];
+  }
+
+  /**
    * Whether this one is a Baby.
    */
   get baby() {

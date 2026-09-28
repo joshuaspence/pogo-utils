@@ -1,6 +1,6 @@
 /**
- * The site's top tab bar, shared by both pages (the map viewer and the events calendar), so the two read as co-equal
- * destinations rather than one hanging off the other. The active tab is marked with aria-current="page", which doubles
+ * The site's top tab bar, shared by every page, so they read as co-equal destinations rather than one hanging off
+ * another. The active tab is marked with aria-current="page", which doubles
  * as the styling hook. Uses the tokens from theme.css.
  */
 
@@ -13,7 +13,7 @@
   border-bottom: 1px solid var(--border);
 
   /**
-   * Four tabs no longer fit a phone, and a bar that merely overflows drops the last one off the edge with no way to
+   * Five tabs no longer fit a phone, and a bar that merely overflows drops the last one off the edge with no way to
    * reach it — the tab was there and simply could not be got to. Scrolling keeps every tab reachable at any width. The
    * scrollbar is hidden because the bar is 48px tall and a horizontal one eats a quarter of that; the tabs are wide
    * enough to be an obvious swipe target without it.
@@ -29,7 +29,7 @@
 .topnav .tab {
   /**
    * Without this a tab shrinks to fit rather than overflowing, which trades the one tab that cannot be reached for
-   * four that are squeezed.
+   * five that are squeezed.
    */
   flex: 0 0 auto;
   display: inline-flex;
@@ -58,8 +58,8 @@
 }
 
 /**
- * Tighten the tabs on a narrow screen so the four of them fit without scrolling wherever they can. Below roughly a
- * 410px viewport they still cannot, which is what the scrolling above is for.
+ * Tighten the tabs on a narrow screen so the five of them fit without scrolling wherever they can. Below roughly a
+ * 540px viewport they still cannot, which is what the scrolling above is for.
  */
 @media (width <= 560px) {
   .topnav {
