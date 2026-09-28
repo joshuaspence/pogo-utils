@@ -20,17 +20,23 @@ export const emptyState = () => ({
 });
 
 /**
- * The names typed in the box, as one clause. They are split on commas and rejoined rather than passed through, so
- * "pikachu, eevee" — which a reader will type with the space — does not reach the game as a name with a space in front
- * of it. A name is left otherwise alone, since the game matches partial names and a reader typing `char` means it.
+ * The names a `text` holds. Commas separate them — `pikachu, eevee` asks for either — and the spaces a reader types
+ * around one are theirs rather than part of the name. Exported because the page shows these as chips and has to agree
+ * with the string about where one name ends, which a second copy of this split would eventually stop doing.
+ *
+ * A name is left otherwise alone, since the game matches partial names and a reader typing `char` means it.
  */
-function nameClause(text) {
-  const names = text
+export const names = (text) =>
+  text
     .split(',')
     .map((name) => name.trim())
     .filter(Boolean);
 
-  return names.length > 0 ? names.join(',') : null;
+/** Those names as one clause: rejoined without the spaces, so the game is not handed a name with one in front of it. */
+function nameClause(text) {
+  const chosen = names(text);
+
+  return chosen.length > 0 ? chosen.join(',') : null;
 }
 
 /**

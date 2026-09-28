@@ -9,9 +9,9 @@
  */
 
 import { GROUPS, PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
-import { compose, emptyState, fromFragment, toFragment } from './query.js';
+import { compose, emptyState, fromFragment, names, toFragment } from './query.js';
 import { optimise } from './optimise.js';
-import { suggestions, withName } from './species.js';
+import { suggestions, written } from './species.js';
 
 const els = {
   query: document.getElementById('query'),
@@ -22,6 +22,7 @@ const els = {
   optimise: document.getElementById('optimise'),
   rewritten: document.getElementById('rewritten'),
   presets: document.getElementById('presets'),
+  field: document.getElementById('field'),
   text: document.getElementById('text'),
   suggestions: document.getElementById('suggestions'),
   groups: document.getElementById('groups'),
@@ -166,7 +167,6 @@ function render() {
 
 /** The whole page repainted from the state — after a preset, a clear, or a link arriving in the address bar. */
 function paintAll() {
-  els.text.value = state.text;
   els.optimise.checked = state.optimise;
 
   // The box has just been written for the reader rather than by them, so whatever they were part-way through typing is
@@ -184,7 +184,9 @@ function paintAll() {
     from.closest('.range').classList.toggle('set', bounds.from != null || bounds.to != null);
   }
 
-  render();
+  // Last, because this is what calls render. Every name that arrived this way was chosen somewhere else — in a preset,
+  // or in whoever's box the link was copied from — so all of them are chips and nothing is left half-typed.
+  setNames(names(state.text), '');
 }
 
 function buildPresets() {
@@ -291,16 +293,90 @@ function buildRanges() {
 }
 
 /**
- * The name box's species list. A combobox of its own rather than a `<datalist>`, which would have been a fraction of
- * the code: the browser matches a datalist against the entire value of the box, and this box holds any number of names
- * separated by commas, so past the first one nothing would ever match again. Completing the name the caret is in is the
- * whole of what this is for, and that is the one thing the built-in cannot do.
+ * The name box. A combobox of its own rather than a `<datalist>`, which would have been a fraction of the code: the
+ * browser matches a datalist against the entire value of the box, and this box holds any number of names, so past the
+ * first one nothing would ever match again. Completing the name being typed is the whole of what this is for, and that
+ * is the one thing the built-in cannot do.
  *
- * `offered` is what the list is showing and `active` which row the keyboard has reached, -1 for none. The two together
- * are the state of the control, and every path out of here leaves them agreeing with what is on screen.
+ * `taken` is the names already chosen, which are chips in the field; the input holds at most the one being typed. That
+ * split is the whole of why a chosen name cannot be edited: a chip has no caret to put a letter into or take one out
+ * of, so `pikachu` cannot become `pikach`. It goes in whole and comes out whole.
+ *
+ * `offered` is what the list is showing and `active` which row the keyboard has reached, -1 for none. The three
+ * together are the state of the control, and every path out of here leaves them agreeing with what is on screen.
  */
+let taken = [];
 let offered = [];
 let active = -1;
+
+/** The placeholder the markup gives the input, read rather than repeated so it can be taken away and put back. */
+const PLACEHOLDER = els.text.placeholder;
+
+/** The names as chips, rebuilt. Each carries its own way out, since the keyboard can only reach the last of them. */
+function paintNames() {
+  // The chips are taken out and put back while the input is left where it is: removing a focused node from the document
+  // blurs it, and the blur handler would then shut the list the reader is in the middle of using.
+  for (const chip of els.field.querySelectorAll('.name')) {
+    chip.remove();
+  }
+
+  els.field.prepend(
+    ...taken.map((name, index) => {
+      const chip = el('span', 'name', name);
+      const drop = el('button', null, '✕');
+
+      drop.type = 'button';
+      drop.setAttribute('aria-label', `Remove ${name}`);
+
+      // The focus is handed back because the button it was on has just been removed from the page, and focus falling to
+      // the body would leave the reader's next keystroke going nowhere.
+      drop.addEventListener('click', () => {
+        setNames(
+          taken.filter((_, at) => at !== index),
+          els.text.value,
+        );
+        els.text.focus();
+      });
+
+      chip.append(drop);
+
+      return chip;
+    }),
+  );
+
+  // Beside the chips a placeholder is a name the reader has not chosen sitting among the ones they have.
+  els.text.placeholder = taken.length === 0 ? PLACEHOLDER : '';
+}
+
+/**
+ * The names the box holds now: `chosen` become chips, `typing` is left in the input. Every path that changes the box
+ * comes through here, so the chips, the input and the string cannot come to disagree about what is being searched for.
+ *
+ * The name being typed counts towards the string, which is why committing one to a chip changes the picture without
+ * changing the search: the reader is saying they have finished with that name, not adding it. It also means a name the
+ * reader is part-way through is never silently dropped — Copy takes what is on screen, including the last three letters
+ * they typed and did not press anything after.
+ *
+ * A name is not held twice, as a chip or as the one being typed: the same name twice is the same clause twice, which the
+ * game reads as one and a reader reads as a mistake. `charmander` and `+charmander` are two different searches and both
+ * can be here. The spaces around a name are dropped here rather than by each caller, so a pasted `pikachu, eevee` and a
+ * row taken from the list arrive the same shape and can be compared with one another.
+ */
+function setNames(chosen, typing) {
+  const unique = (all) => all.filter((name, index) => name && all.indexOf(name) === index);
+
+  taken = unique(chosen.map((name) => name.trim()));
+  state.text = unique([...taken, typing.trim()]).join(', ');
+
+  // Guarded, because assigning a value sends the caret to the end of it — which on a keystroke that changed nothing
+  // here would drag the caret out of the middle of a name the reader was correcting.
+  if (els.text.value !== typing) {
+    els.text.value = typing;
+  }
+
+  paintNames();
+  render();
+}
 
 function closeSuggestions() {
   offered = [];
@@ -331,9 +407,9 @@ function paintActive() {
   option.scrollIntoView({ block: 'nearest' });
 }
 
-/** The list rebuilt for whatever the caret is in now, and taken away again when that names nothing in the dex. */
+/** The list rebuilt for the name being typed, and taken away again when that names nothing in the dex. */
 function openSuggestions() {
-  offered = suggestions(els.text.value, els.text.selectionStart ?? els.text.value.length);
+  offered = suggestions(els.text.value);
 
   if (offered.length === 0) {
     closeSuggestions();
@@ -341,17 +417,23 @@ function openSuggestions() {
   }
 
   els.suggestions.replaceChildren(
-    ...offered.map((name, index) => {
-      const option = el('li', null, name);
+    ...offered.map((offer, index) => {
+      const option = el('li', null, offer.name);
 
       option.id = `suggestion-${index}`;
       option.setAttribute('role', 'option');
 
+      // Said in the word rather than in the `+` the row would write, because the row's text is also its accessible name
+      // and "plus Charmander" read out loud names neither of the two searches on offer.
+      if (offer.family) {
+        option.append(el('span', 'family', ' (family)'));
+      }
+
       // mousedown rather than click: a click arrives after the blur that closes the list, by which point there is no
-      // row left to have been clicked. The default is prevented so the box keeps the focus and the caret it had.
+      // row left to have been clicked. The default is prevented so the box keeps the focus it had.
       option.addEventListener('mousedown', (event) => {
         event.preventDefault();
-        accept(index);
+        take(written(offer));
       });
 
       return option;
@@ -364,24 +446,28 @@ function openSuggestions() {
   paintActive();
 }
 
-/** One row taken: the box rewritten, the caret left after the name, and the string brought up to date behind it. */
-function accept(index) {
-  const taken = withName(els.text.value, els.text.selectionStart ?? els.text.value.length, offered[index]);
-
-  els.text.value = taken.value;
-  els.text.setSelectionRange(taken.caret, taken.caret);
-  state.text = taken.value;
-
+/**
+ * One name finished with: it becomes a chip and the input is left empty for the next. Taking a row and typing a name
+ * out in full both come here, since the two are the same act said two ways.
+ *
+ * The list is closed rather than reopened, because the empty input the reader is left in names every species and so has
+ * nothing to offer until two letters of the next one are typed.
+ */
+function take(name) {
+  setNames([...taken, name], '');
   closeSuggestions();
-  render();
 }
 
 /** The arrow keys, as the step each one takes through the list. */
 const STEPS = { ArrowDown: 1, ArrowUp: -1 };
 
+// A comma is what separates names in the string, so typing or pasting one commits the name in front of it — which is
+// also how a pasted `pikachu, eevee, snorlax` arrives as three chips rather than as one name with commas in it.
 els.text.addEventListener('input', () => {
-  state.text = els.text.value;
-  render();
+  const parts = els.text.value.split(',');
+  const typing = parts.pop();
+
+  setNames([...taken, ...parts], typing);
   openSuggestions();
 });
 
@@ -403,9 +489,24 @@ els.text.addEventListener('keydown', (event) => {
     return;
   }
 
-  if (event.key === 'Enter' && active >= 0) {
+  // Enter takes the row the keyboard has reached, or else the name as it was typed — a nickname is not in the dex and
+  // has no row, so this is the only way one can be asked for.
+  if (event.key === 'Enter') {
+    const name = active >= 0 ? written(offered[active]) : els.text.value.trim();
+
+    if (name) {
+      event.preventDefault();
+      take(name);
+    }
+
+    return;
+  }
+
+  // Backspace with nothing left to delete takes the last chip off whole. A chosen name has no caret of its own, so this
+  // and its ✕ are the two ways out of one, and neither can leave `pikachu` reading `pikach`.
+  if (event.key === 'Backspace' && els.text.value === '' && taken.length > 0) {
     event.preventDefault();
-    accept(active);
+    setNames(taken.slice(0, -1), '');
     return;
   }
 
@@ -413,6 +514,15 @@ els.text.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !els.suggestions.hidden) {
     event.preventDefault();
     closeSuggestions();
+  }
+});
+
+// The chips make the field much wider than the input inside it, so a click on the gap beside them has to reach the one
+// place there is to type. Only the field itself: a click on a chip is the chip's own, and its ✕ is a button.
+els.field.addEventListener('mousedown', (event) => {
+  if (event.target === els.field) {
+    event.preventDefault();
+    els.text.focus();
   }
 });
 

@@ -62,26 +62,38 @@
 
         <!-- The suggestion list is markup rather than built from JavaScript because the box has to name it in
              aria-controls, and an id can only be promised by something that is already there. Its rows are the ones
-             matching what has been typed, so those are added as they are needed. -->
+             matching what has been typed, so those are added as they are needed.
+
+             The names already chosen are inserted into the field ahead of the input, so the box holds the whole of the
+             search's name half. A chosen name is a chip and not an input, which is what keeps a caret out of it. The
+             input is `text` rather than `search` because the clear button a search box draws for itself would land in
+             the middle of that row, offering to empty the names as well as the one being typed. -->
         <div class="combobox">
-          <input
-            id="text"
-            type="search"
-            placeholder="pikachu, eevee"
-            autocomplete="off"
-            spellcheck="false"
-            role="combobox"
-            aria-expanded="false"
-            aria-controls="suggestions"
-            aria-autocomplete="list"
-          />
+          <div class="field" id="field">
+            <input
+              id="text"
+              type="text"
+              placeholder="pikachu"
+              autocomplete="off"
+              spellcheck="false"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="suggestions"
+              aria-autocomplete="list"
+              aria-label="Name or species"
+            />
+          </div>
           <!-- [html-validate-disable-next prefer-native-element -- a select cannot be a combobox's popup] -->
           <ul class="suggestions" id="suggestions" role="listbox" aria-label="Matching species" hidden></ul>
         </div>
 
         <p class="help">
-          Partial names match, so <code>char</code> finds Charmander and Charizard. Commas mean any. Two letters bring
-          up the species that match, and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one.
+          Partial names match, so <code>char</code> finds Charmander and Charizard. Two letters bring up the species
+          that match, and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one. Each species is followed by its family: taking
+          <em>Charmander (family)</em> writes <code>+charmander</code>, the game's shorthand for a species and the rest
+          of its evolutionary line. A name you have typed yourself becomes one of these on a comma or <kbd>Enter</kbd> —
+          a nickname works as well as a species. Chosen names come out whole rather than a letter at a time:
+          <kbd>⌫</kbd> in the empty part of the box takes the last one off, and <kbd>✕</kbd> takes any of them.
         </p>
       </section>
 
