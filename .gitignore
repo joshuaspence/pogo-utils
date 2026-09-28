@@ -1,1 +1,5 @@
 /node_modules/
+
+# `tsc -b` needs `composite` in both projects, and `composite` writes this beside each config even though both are
+# `noEmit`. Unanchored because there is one per project.
+tsconfig.tsbuildinfo

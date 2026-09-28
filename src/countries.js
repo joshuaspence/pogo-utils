@@ -4,7 +4,7 @@
  * drift out of step.
  *
  * Exactly those countries and no others. Every lookup starts from a `<pgr:country>` read out of a file, so a name with
- * nothing behind it is unreachable — validate-gpx.mjs checks both directions, and adding a country ahead of its first
+ * nothing behind it is unreachable — validate-gpx.mts checks both directions, and adding a country ahead of its first
  * route fails the lint as surely as forgetting to add it at all.
  *
  * The code is required: a route or waypoint whose country has no entry here cannot be flagged, and building a PGSharp

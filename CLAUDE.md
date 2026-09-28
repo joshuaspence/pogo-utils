@@ -29,6 +29,20 @@ one more thing about it.
   checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
   the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
   installed `@types` package hand Node's globals to a browser module.
+- **One `tsc -b` over both of them, so `pnpm lint:types` is a single check.** Build mode takes the two project paths
+  directly — no solution-style config to keep in step — and reports both projects rather than stopping at the first that
+  fails. It does require `composite: true` in each, which writes a `tsconfig.tsbuildinfo` beside each config even though
+  both are `noEmit`; `.gitignore` covers it. The cost of one check is that `scripts/` cannot gate separately while
+  `src/` is still being annotated, so a type error there rides along with the migration's error count until the flip.
+- **A `scripts/` file reaches `src/types.d.ts` as `'../src/types.js'`.** TypeScript resolves a `.js` specifier onto its
+  declaration sibling, where naming `'../src/types.d.ts'` is rejected outright without `allowImportingTsExtensions`.
+  Build mode also wants every file a project reads listed by the project that reads it, and two `noEmit` projects have
+  no declaration output to reach each other through — which is why `scripts/tsconfig.json` names the four `src/` files
+  it imports in its own `include`.
+- **Run a script through pnpm, never as a bare `node`.** `devEngines.runtime` pins the Node floor that guarantees type
+  stripping, and it governs only what pnpm invokes — so `pnpm build:ics` is safe where `node scripts/build-ics.mts` will
+  fail outright on a Node older than 22.18. Every entry point therefore has a `package.json` script, and `calendar.yml`
+  calls that rather than the file.
 - **Do not hand-declare `L`.** It arrives from a CDN `<script>` in `map.html`, and `@types/leaflet` declares it with
   `export as namespace L` — a UMD global, invisible from inside a module, which is what `allowUmdGlobalAccess` is for.
   Declaring `const L` in a `declare global` instead looks tidier and does not work: it shadows that namespace, so you

@@ -11,7 +11,8 @@
 
 import COUNTRIES from '../src/countries.js';
 import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.js';
-import { DOMParser } from '@xmldom/xmldom';
+import type { FeedEvent, RouteCounts } from '../src/types.js';
+import { DOMParser, Node, type Document, type Element } from '@xmldom/xmldom';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { validateXML } from 'xmllint-wasm';
@@ -21,7 +22,7 @@ const writeIndex = process.argv.includes('--write');
 
 const files = execFileSync('git', ['ls-files', '-z', '*.gpx'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const sources = files.map((fileName) => ({ fileName, contents: readFileSync(fileName, 'utf8') }));
-const problems = [];
+const problems: string[] = [];
 
 if (files.length === 0) {
   console.error('No GPX files found. Run this from the repository root.');
@@ -57,21 +58,24 @@ const VARIANTS = new Set(['short', 'long']);
 // Spelled out of PGR_FIELDS rather than beside it, so adding a field cannot leave the message naming the old set.
 const PGR_EXPECTED = [...PGR_FIELDS].join(', ').replace(/, (?=[^,]*$)/, ' or ');
 
+const EVENTS: FeedEvent[] = JSON.parse(readFileSync('data/events.json', 'utf8'));
+
 /**
  * The events an entry may point at, by `eventID` (data/events.json). An entry naming an event that is not there is the
  * same silent failure as a country missing from COUNTRIES: nothing downstream reads the field yet, so a typo or an
  * event renamed out from under it would sit in the file unnoticed.
  */
-const EVENT_IDS = new Set(JSON.parse(readFileSync('data/events.json', 'utf8')).map((event) => event.eventID));
+const EVENT_IDS = new Set(EVENTS.map((event) => event.eventID));
 
 /**
- * The element children of `el`, in document order. `childNodes` carries the whitespace between tags too, so the
- * text nodes are filtered out (nodeType 1 is an element).
+ * The element children of `el`, in document order. `childNodes` carries the whitespace between tags too, so the text
+ * nodes are filtered out.
  */
-const elementChildren = (el) => Array.from(el.childNodes).filter((node) => node.nodeType === 1);
+const elementChildren = (el: Element): Element[] =>
+  Array.from(el.childNodes).filter((node): node is Element => node.nodeType === Node.ELEMENT_NODE);
 
 // Report against the file, at the element's own line where there is one, matching the schema pass's `file:line:` form.
-const report = (fileName, el, message) =>
+const report = (fileName: string, el: Element | undefined, message: string) =>
   problems.push(el?.lineNumber ? `${fileName}:${el.lineNumber}: ${message}` : `${fileName}: ${message}`);
 
 const beforePgr = problems.length;
@@ -82,13 +86,13 @@ let entryCount = 0;
  * second pass, so what gets written to entries-by-event.json cannot describe a file differently from the checks that
  * just validated it.
  */
-const eventIndex = new Map();
+const eventIndex = new Map<string, RouteCounts>();
 
 // Which countries the files actually name, for the reverse check on COUNTRIES below.
-const usedCountries = new Set();
+const usedCountries = new Set<string>();
 
 for (const { fileName, contents } of sources) {
-  let doc;
+  let doc: Document;
 
   try {
     doc = new DOMParser({
@@ -116,11 +120,15 @@ for (const { fileName, contents } of sources) {
   for (const entry of entries) {
     entryCount++;
     const ext = elementChildren(entry).find((child) => child.localName === 'extensions');
-    const counts = {};
+    const counts: Record<string, number> = {};
     let eventId = null;
 
     for (const field of ext ? elementChildren(ext) : []) {
-      const name = field.localName;
+      /**
+       * xmldom types `localName` as nullable on every node rather than narrowing it on `Element`, though an element
+       * always has one. `''` stands in because it is in no branch below, exactly as `null` would be.
+       */
+      const name = field.localName ?? '';
 
       /**
        * A `pgr`-namespace element the viewer has no field for is a misspelling. A foreign element from another tool
@@ -136,7 +144,7 @@ for (const { fileName, contents } of sources) {
       }
 
       counts[name] = (counts[name] || 0) + 1;
-      const text = field.textContent.trim();
+      const text = field.textContent?.trim() ?? '';
 
       if (name === 'event' && text) {
         eventId = text;
@@ -166,8 +174,10 @@ for (const { fileName, contents } of sources) {
      * only the first and ignores the rest.
      */
     for (const name of PGR_FIELDS) {
-      if (counts[name] > 1) {
-        report(fileName, ext, `<${entry.localName}> has ${counts[name]} <pgr:${name}> fields — expected one`);
+      const seen = counts[name] ?? 0;
+
+      if (seen > 1) {
+        report(fileName, ext, `<${entry.localName}> has ${seen} <pgr:${name}> fields — expected one`);
       }
     }
 
@@ -211,7 +221,7 @@ if (unusedCountries.length === 0) {
  * that file falls out of step with the repository, and the failure is silent in the worst way: a route that is
  * perfectly good GPX, and that this script has just validated, simply never appears on the map.
  */
-const listed = JSON.parse(readFileSync(GPX_PATHS, 'utf8'));
+const listed: string[] = JSON.parse(readFileSync(GPX_PATHS, 'utf8'));
 const unlisted = files.filter((file) => !listed.includes(file));
 const phantom = listed.filter((file) => !files.includes(file));
 

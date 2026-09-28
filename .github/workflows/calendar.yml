@@ -12,7 +12,7 @@ on:
       - '.github/workflows/calendar.yml'
       - 'data/events.json'
       - 'entries-by-event.json'
-      - 'scripts/build-ics.mjs'
+      - 'scripts/build-ics.mts'
       - 'src/recurring-types.js'
   workflow_dispatch: {}
 
@@ -34,7 +34,10 @@ jobs:
       - uses: 'pnpm/setup@v2'
         with:
           cache: true
-      - run: 'node scripts/build-ics.mjs'
+
+      # Through pnpm rather than as a bare `node`, because the generator is `.mts` and only what pnpm invokes is
+      # governed by the `devEngines` Node floor that guarantees type stripping.
+      - run: 'pnpm build:ics'
 
       # Commits and pushes only when the feed actually differs, which is the whole point of the generator reading no
       # clock: an unchanged file means the event data has not moved, and the run passes without a commit rather than
