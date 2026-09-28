@@ -49,8 +49,30 @@
 
       <section class="panel" aria-labelledby="nameLabel">
         <h2 class="label" id="nameLabel">Name or species</h2>
-        <input id="text" type="search" placeholder="pikachu, eevee" autocomplete="off" spellcheck="false" />
-        <p class="help">Partial names match, so <code>char</code> finds Charmander and Charizard. Commas mean any.</p>
+
+        <!-- The suggestion list is markup rather than built from JavaScript because the box has to name it in
+             aria-controls, and an id can only be promised by something that is already there. Its rows are the ones
+             matching what has been typed, so those are added as they are needed. -->
+        <div class="combobox">
+          <input
+            id="text"
+            type="search"
+            placeholder="pikachu, eevee"
+            autocomplete="off"
+            spellcheck="false"
+            role="combobox"
+            aria-expanded="false"
+            aria-controls="suggestions"
+            aria-autocomplete="list"
+          />
+          <!-- [html-validate-disable-next prefer-native-element -- a select cannot be a combobox's popup] -->
+          <ul class="suggestions" id="suggestions" role="listbox" aria-label="Matching species" hidden></ul>
+        </div>
+
+        <p class="help">
+          Partial names match, so <code>char</code> finds Charmander and Charizard. Commas mean any. Two letters bring
+          up the species that match, and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one.
+        </p>
       </section>
 
       <div class="groups" id="groups"></div>

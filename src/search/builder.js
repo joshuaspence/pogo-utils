@@ -10,6 +10,7 @@
 
 import { GROUPS, PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
 import { compose, emptyState, fromFragment, toFragment } from './query.js';
+import { suggestions, withName } from './species.js';
 
 const els = {
   query: document.getElementById('query'),
@@ -19,6 +20,7 @@ const els = {
   caveat: document.getElementById('caveat'),
   presets: document.getElementById('presets'),
   text: document.getElementById('text'),
+  suggestions: document.getElementById('suggestions'),
   groups: document.getElementById('groups'),
   ranges: document.getElementById('ranges'),
 };
@@ -100,6 +102,10 @@ function render() {
 /** The whole page repainted from the state — after a preset, a clear, or a link arriving in the address bar. */
 function paintAll() {
   els.text.value = state.text;
+
+  // The box has just been written for the reader rather than by them, so whatever they were part-way through typing is
+  // no longer what it holds and the list under it would be describing text that has gone.
+  closeSuggestions();
 
   for (const id of chips.keys()) {
     paintChip(id);
@@ -218,10 +224,133 @@ function buildRanges() {
   }
 }
 
+/**
+ * The name box's species list. A combobox of its own rather than a `<datalist>`, which would have been a fraction of
+ * the code: the browser matches a datalist against the entire value of the box, and this box holds any number of names
+ * separated by commas, so past the first one nothing would ever match again. Completing the name the caret is in is the
+ * whole of what this is for, and that is the one thing the built-in cannot do.
+ *
+ * `offered` is what the list is showing and `active` which row the keyboard has reached, -1 for none. The two together
+ * are the state of the control, and every path out of here leaves them agreeing with what is on screen.
+ */
+let offered = [];
+let active = -1;
+
+function closeSuggestions() {
+  offered = [];
+  active = -1;
+  els.suggestions.replaceChildren();
+  els.suggestions.hidden = true;
+  els.text.setAttribute('aria-expanded', 'false');
+  els.text.removeAttribute('aria-activedescendant');
+}
+
+/**
+ * Which row is the one Enter would take. Said in `aria-selected`, which the stylesheet then paints, rather than in a
+ * class beside it: one attribute cannot fall out of step with itself, where a class and an attribute can.
+ */
+function paintActive() {
+  for (const [index, option] of [...els.suggestions.children].entries()) {
+    option.setAttribute('aria-selected', String(index === active));
+  }
+
+  if (active < 0) {
+    els.text.removeAttribute('aria-activedescendant');
+    return;
+  }
+
+  const option = els.suggestions.children[active];
+
+  els.text.setAttribute('aria-activedescendant', option.id);
+  option.scrollIntoView({ block: 'nearest' });
+}
+
+/** The list rebuilt for whatever the caret is in now, and taken away again when that names nothing in the dex. */
+function openSuggestions() {
+  offered = suggestions(els.text.value, els.text.selectionStart ?? els.text.value.length);
+
+  if (offered.length === 0) {
+    closeSuggestions();
+    return;
+  }
+
+  els.suggestions.replaceChildren(
+    ...offered.map((name, index) => {
+      const option = el('li', null, name);
+
+      option.id = `suggestion-${index}`;
+      option.setAttribute('role', 'option');
+
+      // mousedown rather than click: a click arrives after the blur that closes the list, by which point there is no
+      // row left to have been clicked. The default is prevented so the box keeps the focus and the caret it had.
+      option.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        accept(index);
+      });
+
+      return option;
+    }),
+  );
+
+  active = -1;
+  els.suggestions.hidden = false;
+  els.text.setAttribute('aria-expanded', 'true');
+  paintActive();
+}
+
+/** One row taken: the box rewritten, the caret left after the name, and the string brought up to date behind it. */
+function accept(index) {
+  const taken = withName(els.text.value, els.text.selectionStart ?? els.text.value.length, offered[index]);
+
+  els.text.value = taken.value;
+  els.text.setSelectionRange(taken.caret, taken.caret);
+  state.text = taken.value;
+
+  closeSuggestions();
+  render();
+}
+
+/** The arrow keys, as the step each one takes through the list. */
+const STEPS = { ArrowDown: 1, ArrowUp: -1 };
+
 els.text.addEventListener('input', () => {
   state.text = els.text.value;
   render();
+  openSuggestions();
 });
+
+els.text.addEventListener('keydown', (event) => {
+  const step = STEPS[event.key];
+
+  if (step) {
+    event.preventDefault();
+
+    if (offered.length === 0) {
+      openSuggestions();
+      return;
+    }
+
+    // One slot more than there are rows, so arrowing off either end lands on what was typed rather than wrapping
+    // straight past it: the reader can always get their own text back the way they came.
+    active = ((active + step + offered.length + 2) % (offered.length + 1)) - 1;
+    paintActive();
+    return;
+  }
+
+  if (event.key === 'Enter' && active >= 0) {
+    event.preventDefault();
+    accept(active);
+    return;
+  }
+
+  // Escape empties a search input, which is not what a reader dismissing a list of species means by it.
+  if (event.key === 'Escape' && !els.suggestions.hidden) {
+    event.preventDefault();
+    closeSuggestions();
+  }
+});
+
+els.text.addEventListener('blur', closeSuggestions);
 
 els.clear.addEventListener('click', () => {
   state = emptyState();
