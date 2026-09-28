@@ -126,7 +126,12 @@ after the next.
   that `b/` files every added line under no path at all. It still measures them, so the run looks right and simply
   cannot say which file to fix. Print every line over the limit rather than the widest one per file: reflowing a 121
   uncovers the next paragraph behind it, which reads as a fresh violation appearing out of a change that only shortened
-  something. Four of these turned up one at a time before the script was asked for the whole list.
+  something. Four of these turned up one at a time before the script was asked for the whole list. That `proseWrap` does
+  not follow prose out of the checkout: Prettier resolves its configuration from the file's own directory, so
+  `prettier --write` on a commit message or a pull request body drafted under `$CLAUDE_JOB_DIR/tmp` finds no config,
+  falls back to the default `proseWrap: 'preserve'` and reports the file unchanged with four lines still at 121. It
+  looks exactly like a body that was already well-formed. Refill a scratch Markdown file with `textwrap` and measure it,
+  or draft it somewhere the config reaches.
 - **A probe step that carries on from the previous step's state may have nothing left to prove.** Step 11 accepted a
   suggestion, leaving `eevee` in the name box; step 12 then typed `ch` to open the list before blurring, but `eeveech`
   names no species, so the list was already shut and the assertion that a blur shuts it could not have failed. It read
