@@ -14,6 +14,39 @@
   next reader will be standing. Watch its width, since that comment is a comment and
   [nothing reflows one](#checking-the-pages-in-a-browser).
 
+## Types
+
+There are two idioms here and the line between them is **does a browser fetch this file**. Pages serves `master` at `/`
+in `legacy` mode and `map.html` loads `<script type="module" src="src/app.js">`, so the browser reads source verbatim
+and there is no build step to put a compiler in. So `src/` is `.js` typed by JSDoc, checked by `tsc --noEmit` and never
+emitted; `scripts/` is real TypeScript, run by Node's own type stripping with no compiler at all. A data change still
+lands on `master` directly — adding a species to `src/filters/shiny.js` needs no build, and `pnpm lint` simply checks
+one more thing about it.
+
+- **`src/recurring-types.js` is in both worlds.** `src/events.js` imports it and so does `scripts/build-ics`, so it
+  stays `.js` and must assume neither DOM nor Node. Both `tsconfig.json` files include it, which is what holds that.
+- **Two `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/` — so the
+  checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
+  the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
+  installed `@types` package hand Node's globals to a browser module.
+- **Do not hand-declare `L`.** It arrives from a CDN `<script>` in `map.html`, and `@types/leaflet` declares it with
+  `export as namespace L` — a UMD global, invisible from inside a module, which is what `allowUmdGlobalAccess` is for.
+  Declaring `const L` in a `declare global` instead looks tidier and does not work: it shadows that namespace, so you
+  get `TS2451: Cannot redeclare block-scoped variable 'L'` plus four `Cannot find namespace 'L'` errors from inside
+  `@types/leaflet` itself, reported against a file you did not write.
+- **`@ts-expect-error` takes a reason, in the same form as the `html-validate` exceptions above:**
+  `// @ts-expect-error -- reason`, at least ten characters. `@typescript-eslint/ban-ts-comment` enforces both the reason
+  and the choice of directive — `@ts-ignore` is rejected outright, because it does nothing once the line below it stops
+  erroring where `@ts-expect-error` tells you it is no longer needed.
+- **`any` is banned by convention only, because nothing can enforce it.** `no-explicit-any` reads TypeScript syntax, and
+  a JSDoc `/** @type {any} */` is a comment the rule never sees — verified by probing it, where the bare
+  `@ts-expect-error` on the next line was caught and the `any` above it was not. Reach for `unknown` and narrow.
+- **TypeScript is pinned to 6.x on purpose.** `typescript-eslint` throws on import against TypeScript 7 and takes
+  `pnpm lint:js` down with it
+  ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)). TypeScript 6.0.3
+  accepts the same configuration and reports the same errors; the whole project checks in about a second either way, so
+  the Go compiler buys nothing here worth a broken linter.
+
 ## Landing a change
 
 Which route a change takes turns on whether it changes what the code _does_ or only what it is _told_.
