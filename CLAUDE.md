@@ -99,6 +99,17 @@ binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything 
 `getBoundingClientRect().left` on two elements that should share an edge, a class present after one render and absent
 after the next.
 
+- **`src/java-serialization.js` needs no browser at all, and it is the only thing here that does not.** It reaches for
+  `DataView`, `Uint8Array`, `Map` and `BigInt` and nothing else, so `node` imports it directly — which makes a refactor
+  of it checkable the way nothing else is: import the old copy and the new one side by side and compare the bytes
+  `dumps` writes over a corpus. Those bytes are the whole contract, because `loads` has no consumer. `pgsharp/backup.js`
+  calls it only to re-parse its own output as a self-check and throws the result away, so the reader's shape is private
+  to the module and only the writer's output is observable. Drive the page too for the real data — wrap
+  `URL.createObjectURL` before the module loads, click **Build backup**, hash the Blob — but it is the corpus that
+  reaches the branches a synthesized backup never will: `TC_LONGSTRING`, U+0000, a nested map, block data spliced into a
+  classAnnotation. And move something the bytes depend on before believing a digest that matches: `loadFactor` 0.75 →
+  0.5 shifted it while the length stayed 117,471, which is what says the digest is derived from the codec rather than
+  from the GPX files behind it.
 - **Run `chrome-headless-shell`, not `chrome`.**
   `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell` serves the
   protocol fine. The full browser beside it, `chromium-1208/chrome-linux64/chrome`, prints
