@@ -25,18 +25,38 @@ one more thing about it.
 
 - **`src/recurring-types.js` is in both worlds.** `src/events.js` imports it and so does `scripts/build-ics`, so it
   stays `.js` and must assume neither DOM nor Node. Both `tsconfig.json` files include it, which is what holds that.
-- **A data table's type describes its rows, never the set of rows.** `src/countries.js` is `Record<string, Country>` and
+- **A table's type follows how it is indexed, not what it holds.** `src/countries.js` is `Record<string, Country>` and
   `SPELLINGS` in `src/pokemon/names.js` is `Record<string, string>`, not unions of the countries and constants they
-  hold. A data change [lands on `master` on its own](#landing-a-change), so enumerating the keys would make every such
-  edit a type edit as well — and it would buy nothing, because the key sets that matter are already held better than a
-  type could hold them: `validate-gpx.mts` reads `COUNTRIES` against the GPX files in both directions, and `nameOf`'s
-  `??` says outright that a constant absent from `SPELLINGS` is the ordinary case. The index signature is what the
-  consumers wanted in any case. `COUNTRIES[country]?.code` was a `TS7053` implicit `any` in both `app.js` and
-  `backup.js` before it and is a checked `Country | undefined` after, which is what those `?.`s were written for.
+  hold, because both are indexed by a value that only exists at run time: a `<pgr:country>` read out of a GPX file, a
+  constant handed to `nameOf`. A union of the keys would make every such lookup an error. It would cost as well, since a
+  data change [lands on `master` on its own](#landing-a-change) and enumerating the keys makes every such edit a type
+  edit too — and buy nothing, because the key sets that matter are already held better than a type could hold them:
+  `validate-gpx.mts` reads `COUNTRIES` against the GPX files in both directions, and `nameOf`'s `??` says outright that
+  a constant absent from `SPELLINGS` is the ordinary case. The index signature is what the consumers wanted in any case.
+  `COUNTRIES[country]?.code` was a `TS7053` implicit `any` in both `app.js` and `backup.js` before it and is a checked
+  `Country | undefined` after, which is what those `?.`s were written for.
+- **Which is why `POKEMON` is left unannotated.** It is indexed by a literal written in source — `POKEMON.PANPOUR` in a
+  filter — so the object literal _is_ the enumeration, and inference names all 1,025 keys for free. That is the check
+  the constants exist for, and it works: `POKEMON.PANPOURR` is a `TS2551` against a type reading
+  `'{ BULBASAUR: Pokemon; … 1017 more …; PECHARUNT: Pokemon; }'` and suggesting `PANPOUR`. A `Record<string, Pokemon>`
+  here would throw that away for nothing, since adding a species adds the key and its type in the same line.
 - **Leave a constant to inference.** `export const GPX_PATHS = 'gpx-paths.json'` already has the literal type
   `'gpx-paths.json'` and `@type {string}` would only widen it; `src/pgsharp/scan-config.js` is the same, every field a
   literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
   inference cannot — an index signature, a `readonly`, a parameter — not by restating what it has already got right.
+- **A `this` type is sound on a return and unsound on a field.** `Pokemon`'s `#declared` and `#target` are seeded from
+  `this` in the constructor, so inference made them polymorphic — and every value they hold after that is something
+  `#variant` built with a bare `new Pokemon`, which is why eight
+  `TS2322: Type 'Pokemon' is not assignable to type 'this'` sat in that file before a single annotation was added to it.
+  Naming `Pokemon` on the two fields cleared all eight. The builders' own `return this` stays inferred, because there it
+  is true: they hand back the receiver, which is what keeps a chain typed as whatever it started as.
+- **Annotate from the inside out, because a return type is a claim nothing checks while the body answers `any`.**
+  Measured in two steps: with the parameters annotated but `#forms` still a bare `new Map()`, `form()`'s
+  `@returns {Pokemon}` was satisfied by the `any` a `Map<any, any>` hands back from `get`. Typing the field is what made
+  the return mean anything — and it then wanted `form` restructured, because a `has` and then a `get` are two lookups
+  the checker cannot join. Nothing at the type level says the two calls asked about the same key, so `get` still answers
+  `Pokemon | undefined` however the `has` above it went; read the result instead and the narrowing is real, which is the
+  check the throw was already making.
 - **Two `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/` — so the
   checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
   the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
@@ -111,6 +131,18 @@ binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything 
 `getBoundingClientRect().left` on two elements that should share an edge, a class present after one render and absent
 after the next.
 
+- **The five-page suite says a module loaded, never that it is right.** Making `Pokemon#region` answer the species
+  instead of throwing on a miss left all five pages reporting clean — 74 routes, 82 chips, 1025 cards, `6 of 6` — while
+  the differential over the dex reported 8,183 differences against the same build. What the pages do catch is a throw,
+  because `filters/shiny.js` makes 79 `form`, `forms` and `region` calls at module scope and one of them failing takes
+  the page down at load. So run both and do not let a 5/5 stand in for the differential; the deliberate break is what
+  tells you which of the two a given change needs.
+- **`events.html`'s figure is not a baseline.** `src/events.js` fetches the live upstream ScrapedDuck feed and merges
+  `data/events.json` into it, so `#typeFilters` holds one button per distinct `heading` across both and tracks upstream
+  rather than the checkout: 17 one morning and 16 that afternoon, with nothing here changed and `events.js` importing
+  nothing from `pokemon/` either way. Derive the number from the two feeds rather than comparing it against a previous
+  run — the merged feed had exactly 16 distinct headings — and treat anything else a page fetches over the network the
+  same way.
 - **Most of `src/` needs no browser: every module but the five entry points imports under `node` outright.** That is the
   strongest check available for anything whose output is a value rather than a rendering — import the old copy of a
   module and the new one side by side and compare them over a corpus. Only the entry points fail, each at module scope
