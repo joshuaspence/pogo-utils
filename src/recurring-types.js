@@ -6,5 +6,11 @@
  * more likely to care about, and the trimmed calendar feed (events.ics) leaves them out, so subscribing does not put a
  * Spotlight Hour and a Raid Hour into every week of your calendar. One list so the page and the feed cannot drift into
  * disagreeing about which types those are.
+ *
+ * `readonly` because the one list is the whole point. Both consumers copy it rather than hold it — a spread and a `Set`
+ * in `events.js`, a `Set` in `build-ics` — so a `push` into the export would be an extra type for whichever of them had
+ * not read it yet, which is the drift stated above arriving by the back door.
+ *
+ * @type {readonly string[]}
  */
 export default ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays', 'Season'];

@@ -25,6 +25,18 @@ one more thing about it.
 
 - **`src/recurring-types.js` is in both worlds.** `src/events.js` imports it and so does `scripts/build-ics`, so it
   stays `.js` and must assume neither DOM nor Node. Both `tsconfig.json` files include it, which is what holds that.
+- **A data table's type describes its rows, never the set of rows.** `src/countries.js` is `Record<string, Country>` and
+  `SPELLINGS` in `src/pokemon/names.js` is `Record<string, string>`, not unions of the countries and constants they
+  hold. A data change [lands on `master` on its own](#landing-a-change), so enumerating the keys would make every such
+  edit a type edit as well — and it would buy nothing, because the key sets that matter are already held better than a
+  type could hold them: `validate-gpx.mts` reads `COUNTRIES` against the GPX files in both directions, and `nameOf`'s
+  `??` says outright that a constant absent from `SPELLINGS` is the ordinary case. The index signature is what the
+  consumers wanted in any case. `COUNTRIES[country]?.code` was a `TS7053` implicit `any` in both `app.js` and
+  `backup.js` before it and is a checked `Country | undefined` after, which is what those `?.`s were written for.
+- **Leave a constant to inference.** `export const GPX_PATHS = 'gpx-paths.json'` already has the literal type
+  `'gpx-paths.json'` and `@type {string}` would only widen it; `src/pgsharp/scan-config.js` is the same, every field a
+  literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
+  inference cannot — an index signature, a `readonly`, a parameter — not by restating what it has already got right.
 - **Two `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/` — so the
   checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
   the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
@@ -99,17 +111,21 @@ binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything 
 `getBoundingClientRect().left` on two elements that should share an edge, a class present after one render and absent
 after the next.
 
-- **`src/java-serialization.js` needs no browser at all, and it is the only thing here that does not.** It reaches for
-  `DataView`, `Uint8Array`, `Map` and `BigInt` and nothing else, so `node` imports it directly — which makes a refactor
-  of it checkable the way nothing else is: import the old copy and the new one side by side and compare the bytes
-  `dumps` writes over a corpus. Those bytes are the whole contract, because `loads` has no consumer. `pgsharp/backup.js`
-  calls it only to re-parse its own output as a self-check and throws the result away, so the reader's shape is private
-  to the module and only the writer's output is observable. Drive the page too for the real data — wrap
-  `URL.createObjectURL` before the module loads, click **Build backup**, hash the Blob — but it is the corpus that
-  reaches the branches a synthesized backup never will: `TC_LONGSTRING`, U+0000, a nested map, block data spliced into a
-  classAnnotation. And move something the bytes depend on before believing a digest that matches: `loadFactor` 0.75 →
-  0.5 shifted it while the length stayed 117,471, which is what says the digest is derived from the codec rather than
-  from the GPX files behind it.
+- **Most of `src/` needs no browser: every module but the five entry points imports under `node` outright.** That is the
+  strongest check available for anything whose output is a value rather than a rendering — import the old copy of a
+  module and the new one side by side and compare them over a corpus. Only the entry points fail, each at module scope
+  rather than in its logic: `app.js` on Leaflet's `L`, and `events.js`, `pgsharp/backup.js`, `pokedex/page.js` and
+  `search/builder.js` on an `HTMLElement` or a sibling of one. Settle which is which by importing rather than by
+  grepping for `document` — `dom.js` names `HTMLElement` and imports fine, because that is a default argument evaluated
+  per call, and `gpx.js` calls `fetch`, which Node has.
+- **`src/java-serialization.js` is the clearest case of that**, because the bytes `dumps` writes are its whole contract:
+  `loads` has no consumer, since `pgsharp/backup.js` calls it only to re-parse its own output as a self-check and throws
+  the result away, so the reader's shape is private to the module and only the writer's output is observable. Drive the
+  page too for the real data — wrap `URL.createObjectURL` before the module loads, click **Build backup**, hash the Blob
+  — but it is the corpus that reaches the branches a synthesized backup never will: `TC_LONGSTRING`, U+0000, a nested
+  map, block data spliced into a classAnnotation. And move something the bytes depend on before believing a digest that
+  matches: `loadFactor` 0.75 → 0.5 shifted it while the length stayed 117,471, which is what says the digest is derived
+  from the codec rather than from the GPX files behind it.
 - **Run `chrome-headless-shell`, not `chrome`.**
   `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell` serves the
   protocol fine. The full browser beside it, `chromium-1208/chrome-linux64/chrome`, prints
