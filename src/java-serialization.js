@@ -30,6 +30,42 @@ export const JavaSer = (() => {
     SC_SERIALIZABLE = 0x02;
 
   /**
+   * The four things a value is, which is what makes the tags `content` reads and the shapes `value` writes cover the
+   * same ground from either end.
+   *
+   * @typedef {null | string | Box | JavaMap} JavaValue
+   * @typedef {Map<JavaValue, JavaValue>} JavaMap
+   */
+
+  /**
+   * A JVM field-type code this codec boxes, and the widths their values take. The pairing is the codec's own — I and F
+   * carry a Number, J a BigInt, Z a boolean — and nothing at the type level ties a `Box`'s two fields together, so it
+   * is checked where the bytes are written.
+   *
+   * @typedef {'I' | 'J' | 'F' | 'Z'} BoxCode
+   * @typedef {number | bigint | boolean} BoxValue
+   */
+
+  /**
+   * A class descriptor as the stream carries it. `fields` is a `[typeCode, name]` pair per declared field, in stream
+   * order, and `super` walks up the chain to the `null` that ends it.
+   *
+   * @typedef {{name: string, uid: bigint, flags: number, fields: [string, string][], super: ClassDesc | null}} ClassDesc
+   */
+
+  /**
+   * One back-reference table entry, tagged so a handle citing the wrong kind is caught at the citation.
+   *
+   * @typedef {{kind: 'value', value: JavaValue} | {kind: 'class', desc: ClassDesc}} Handle
+   */
+
+  /**
+   * What one declared field holds: anything `content` answers, or any primitive `readPrimitive` does.
+   *
+   * @typedef {JavaValue | number | bigint | boolean} FieldValue
+   */
+
+  /**
    * Boxed primitives, keyed by JVM field-type code. The value carried is a Number for I/F, a BigInt for J (a 64-bit
    * long won't fit a JS number and must round-trip exactly — PGSharp hides doubles inside longs), and a boolean for Z.
    */
@@ -39,6 +75,12 @@ export const JavaSer = (() => {
     F: { cls: 'java.lang.Float', uid: 0xdaedc9a2db3cf0ecn },
     Z: { cls: 'java.lang.Boolean', uid: 0xcd207280d59cfaeen },
   };
+  /**
+   * The same table the other way round, and an index signature rather than the four keys, because what indexes it is a
+   * class name read out of the stream.
+   *
+   * @type {Record<string, BoxCode>}
+   */
   const BOX_BY_CLASS = {
     'java.lang.Integer': 'I',
     'java.lang.Long': 'J',
@@ -48,6 +90,7 @@ export const JavaSer = (() => {
   const NUMBER = { name: 'java.lang.Number', uid: 0x86ac951d0b94e08bn };
   const HASHMAP_UID = 0x0507dac1c31660d1n;
 
+  /** @param {string} m */
   const err = (m) => new Error(m);
 
   /**
@@ -58,6 +101,10 @@ export const JavaSer = (() => {
    */
   // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- `instanceof` needs a constructor to narrow on
   class Box {
+    /**
+     * @param {BoxCode} code
+     * @param {BoxValue} value
+     */
     constructor(code, value) {
       if (!(code in BOX)) {
         throw err(`no boxed Java primitive for field type '${code}'`);
@@ -72,6 +119,7 @@ export const JavaSer = (() => {
    * Java's "modified UTF-8": U+0000 is C0 80 and non-BMP characters are written as their two UTF-16 surrogates (3 bytes
    * each), so we iterate UTF-16 code units rather than code points.
    */
+  /** @param {string} s */
   function encodeMutf8(s) {
     const out = [];
 
@@ -92,30 +140,38 @@ export const JavaSer = (() => {
     return out;
   }
 
+  /** @param {Uint8Array} bytes */
   function decodeMutf8(bytes) {
     let s = '',
       i = 0;
-    const n = bytes.length;
 
-    while (i < n) {
-      const c = bytes[i];
+    /**
+     * One byte of the sequence, or the truncation the two length tests used to make separately: reading past the end
+     * answers `undefined`, which is the same thing a bounds check was asking about one lookup earlier.
+     *
+     * @param {number} at
+     */
+    const byte = (at) => {
+      const b = bytes[at];
+
+      if (b === undefined) {
+        throw err('truncated modified UTF-8 sequence');
+      }
+
+      return b;
+    };
+
+    while (i < bytes.length) {
+      const c = byte(i);
 
       if (c < 0x80) {
         s += String.fromCharCode(c);
         i += 1;
       } else if ((c & 0xe0) === 0xc0) {
-        if (i + 1 >= n) {
-          throw err('truncated modified UTF-8 sequence');
-        }
-
-        s += String.fromCharCode(((c & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
+        s += String.fromCharCode(((c & 0x1f) << 6) | (byte(i + 1) & 0x3f));
         i += 2;
       } else if ((c & 0xf0) === 0xe0) {
-        if (i + 2 >= n) {
-          throw err('truncated modified UTF-8 sequence');
-        }
-
-        s += String.fromCharCode(((c & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f));
+        s += String.fromCharCode(((c & 0x0f) << 12) | ((byte(i + 1) & 0x3f) << 6) | (byte(i + 2) & 0x3f));
         i += 3;
       } else {
         throw err(`invalid modified UTF-8 byte 0x${c.toString(16)}`);
@@ -126,6 +182,7 @@ export const JavaSer = (() => {
   }
 
   class Reader {
+    /** @param {Uint8Array} bytes */
     constructor(bytes) {
       this.b = bytes;
       this.dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -136,15 +193,20 @@ export const JavaSer = (() => {
        * reference and a value reference read the same four bytes — only the caller knows which the stream should have
        * put there. Tagging the entries is what lets it say so, instead of a string travelling as a class descriptor
        * until something reads a `fields` off it.
+       *
+       * @type {Handle[]}
        */
       this.handles = [];
     }
     u1() {
-      if (this.p >= this.b.length) {
+      const v = this.b[this.p];
+
+      if (v === undefined) {
         throw err('truncated stream');
       }
 
-      return this.b[this.p++];
+      this.p += 1;
+      return v;
     }
     u2() {
       const v = this.dv.getUint16(this.p);
@@ -171,6 +233,7 @@ export const JavaSer = (() => {
       this.p += 8;
       return v;
     }
+    /** @param {number} n */
     raw(n) {
       const v = this.b.subarray(this.p, this.p + n);
 
@@ -184,10 +247,12 @@ export const JavaSer = (() => {
     peek() {
       return this.b[this.p];
     }
+    /** @param {JavaValue} value */
     newValueHandle(value) {
       this.handles.push({ kind: 'value', value });
       return value;
     }
+    /** @param {ClassDesc} desc */
     newClassHandle(desc) {
       this.handles.push({ kind: 'class', desc });
       return desc;
@@ -200,22 +265,31 @@ export const JavaSer = (() => {
       this.handles.push({ kind: 'value', value: null });
       return this.handles.length - 1;
     }
+    /**
+     * @param {number} slot
+     * @param {JavaValue} value
+     */
     resolveValueHandle(slot, value) {
       this.handles[slot] = { kind: 'value', value };
       return value;
     }
-    handleIndex() {
+    /**
+     * The entry a back-reference cites, with its index for the message. Reading the slot is the whole bounds check: a
+     * handle below the table or past its end answers `undefined` either way, where a range test and then an index are
+     * two lookups with nothing joining them.
+     */
+    refHandle() {
       const h = this.i4() - BASE_HANDLE;
+      const entry = this.handles[h];
 
-      if (h < 0 || h >= this.handles.length) {
+      if (entry === undefined) {
         throw err(`bad handle reference ${h}`);
       }
 
-      return h;
+      return { h, entry };
     }
     refValue() {
-      const h = this.handleIndex();
-      const entry = this.handles[h];
+      const { h, entry } = this.refHandle();
 
       if (entry.kind !== 'value') {
         throw err(`handle ${h} is a class descriptor, not a value`);
@@ -224,8 +298,7 @@ export const JavaSer = (() => {
       return entry.value;
     }
     refClass() {
-      const h = this.handleIndex();
-      const entry = this.handles[h];
+      const { h, entry } = this.refHandle();
 
       if (entry.kind !== 'class') {
         throw err(`handle ${h} is a value, not a class descriptor`);
@@ -301,6 +374,7 @@ export const JavaSer = (() => {
         }
       }
     }
+    /** @param {string} tcode */
     readPrimitive(tcode) {
       switch (tcode) {
         case 'I':
@@ -361,8 +435,11 @@ export const JavaSer = (() => {
      * One class's declared fields. Only HashMap's writeObject payload is needed downstream, so a value is read to
      * advance the stream rather than because anything looks at it — bar a box's `value`, which `object` takes from the
      * most-derived class in the chain.
+     *
+     * @param {[string, string][]} fields
      */
     readFields(fields) {
+      /** @type {Record<string, FieldValue>} */
       const values = {};
 
       for (const [tcode, fname] of fields) {
@@ -379,9 +456,13 @@ export const JavaSer = (() => {
       }
 
       const slot = this.claimValueHandle();
-      const chain = [];
 
-      for (let d = desc; d !== null; d = d.super) {
+      // Seeded from `desc.super` rather than from `desc`, because a loop variable takes its type from its initializer:
+      // starting at the descriptor makes `d` a `ClassDesc`, which the walk up to the `null` above `java.lang.Object`
+      // then cannot assign to.
+      const chain = [desc];
+
+      for (let d = desc.super; d !== null; d = d.super) {
         chain.push(d);
       }
 
@@ -393,7 +474,10 @@ export const JavaSer = (() => {
        * instance of the same class in between, a nested HashMap included — which the shape never said and nothing held
        * it to. Locals say it.
        */
+      /** @type {Record<string, FieldValue>} */
       let own = {};
+
+      /** @type {JavaMap | null} */
       let custom = null;
 
       for (const d of chain) {
@@ -409,13 +493,19 @@ export const JavaSer = (() => {
       }
 
       const name = desc.name;
+      const code = BOX_BY_CLASS[name];
 
-      if (name in BOX_BY_CLASS) {
-        if (!('value' in own)) {
-          throw err(`${name} declares no value field`);
+      if (code !== undefined) {
+        // One lookup rather than an `in` test and then an index, which also covers the field being declared at a width
+        // a box cannot hold: a descriptor naming `value` as an object reference reads back a string or a map, and
+        // `undefined` for no such field at all fails the same check.
+        const value = own.value;
+
+        if (typeof value !== 'number' && typeof value !== 'bigint' && typeof value !== 'boolean') {
+          throw err(`${name} declares no primitive value field`);
         }
 
-        return this.resolveValueHandle(slot, new Box(BOX_BY_CLASS[name], own.value));
+        return this.resolveValueHandle(slot, new Box(code, value));
       }
 
       if (name === 'java.util.HashMap') {
@@ -424,6 +514,7 @@ export const JavaSer = (() => {
 
       throw err(`unsupported class ${name}`);
     }
+    /** @param {string} className */
     customData(className) {
       if (className !== 'java.util.HashMap') {
         throw err(`no custom-data handler for ${className}`);
@@ -436,6 +527,7 @@ export const JavaSer = (() => {
       const payload = this.raw(this.u1());
       const pdv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
       const size = pdv.getInt32(4); // [capacity, size]; capacity is recomputed on write
+      /** @type {JavaMap} */
       const m = new Map();
 
       for (let i = 0; i < size; i++) {
@@ -451,6 +543,7 @@ export const JavaSer = (() => {
     }
   }
 
+  /** @param {Uint8Array} bytes */
   function loads(bytes) {
     const r = new Reader(bytes);
 
@@ -469,31 +562,46 @@ export const JavaSer = (() => {
 
   class Writer {
     constructor() {
+      /** @type {number[]} */
       this.out = [];
+
+      /** @type {Map<string, number>} */
       this.strHandles = new Map(); // value-keyed; a repeat becomes a back-reference
+
+      /** @type {Map<Box, number>} */
       this.boxHandles = new Map(); // identity-keyed
+
+      /** @type {Map<string, number>} */
       this.classHandles = new Map(); // name-keyed
+
       this.next = 0;
     }
     claim() {
       return this.next++;
     }
-    push(arr) {
-      for (let i = 0; i < arr.length; i++) {
-        this.out.push(arr[i]);
+    /** @param {Iterable<number>} bytes */
+    push(bytes) {
+      for (const b of bytes) {
+        this.out.push(b);
       }
     }
+    /** @param {number} v */
     u1(v) {
       this.out.push(v & 0xff);
     }
+    /** @param {number} v */
     u2(v) {
       this.out.push((v >> 8) & 0xff, v & 0xff);
     }
+    /** @param {number} v */
     i4(v) {
       this.out.push((v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
     }
+    /** @param {bigint} v */
     i8(v) {
-      let x = BigInt.asUintN(64, BigInt(v));
+      let x = BigInt.asUintN(64, v);
+
+      /** @type {number[]} */
       const bytes = new Array(8);
 
       for (let i = 7; i >= 0; i--) {
@@ -503,11 +611,13 @@ export const JavaSer = (() => {
 
       this.push(bytes);
     }
+    /** @param {number} v */
     f4(v) {
       const b = new Uint8Array(4);
       new DataView(b.buffer).setFloat32(0, v, false);
       this.push(b);
     }
+    /** @param {string} s */
     utf(s) {
       const b = encodeMutf8(s);
 
@@ -518,10 +628,12 @@ export const JavaSer = (() => {
       this.u2(b.length);
       this.push(b);
     }
+    /** @param {number} h */
     ref(h) {
       this.u1(TC_REFERENCE);
       this.i4(BASE_HANDLE + h);
     }
+    /** @param {string} s */
     string(s) {
       const h = this.strHandles.get(s);
 
@@ -543,7 +655,17 @@ export const JavaSer = (() => {
       this.push(b);
       this.strHandles.set(s, this.claim());
     }
-    classDesc(name, uid, flags, fields, superName, superUid) {
+    /**
+     * One superclass parameter rather than a name and a uid, because the two are meaningless apart and nothing at the
+     * type level could say that the second is present whenever the first is. `NUMBER` is already exactly this shape.
+     *
+     * @param {string} name
+     * @param {bigint} uid
+     * @param {number} flags
+     * @param {[string, string][]} fields
+     * @param {{name: string, uid: bigint}} [superclass]
+     */
+    classDesc(name, uid, flags, fields, superclass) {
       const h = this.classHandles.get(name);
 
       if (h !== undefined) {
@@ -565,12 +687,13 @@ export const JavaSer = (() => {
       this.u1(TC_ENDBLOCKDATA); // empty classAnnotation
       this.classHandles.set(name, this.claim());
 
-      if (superName == null) {
+      if (superclass === undefined) {
         this.u1(TC_NULL);
       } else {
-        this.classDesc(superName, superUid, SC_SERIALIZABLE, []);
+        this.classDesc(superclass.name, superclass.uid, SC_SERIALIZABLE, []);
       }
     }
+    /** @param {Box} b */
     box(b) {
       const info = BOX[b.code];
       this.u1(TC_OBJECT);
@@ -578,10 +701,23 @@ export const JavaSer = (() => {
       if (b.code === 'Z') {
         this.classDesc(info.cls, info.uid, SC_SERIALIZABLE, [['Z', 'value']]);
       } else {
-        this.classDesc(info.cls, info.uid, SC_SERIALIZABLE, [[b.code, 'value']], NUMBER.name, NUMBER.uid);
+        this.classDesc(info.cls, info.uid, SC_SERIALIZABLE, [[b.code, 'value']], NUMBER);
       }
 
       this.boxHandles.set(b, this.claim());
+
+      /**
+       * The value at the width `I` and `F` both name. A `Box` holds its code and its value in two fields, so nothing
+       * at the type level pairs them the way `BOX` documents — and a mismatch was silent rather than loud, since
+       * `box('I', 'x')` wrote four zero bytes for `'x' >>> 24`.
+       */
+      const asNumber = () => {
+        if (typeof b.value !== 'number') {
+          throw err(`boxed ${info.cls} needs a Number value, got ${typeof b.value}`);
+        }
+
+        return b.value;
+      };
 
       // A `switch` with a default rather than an `if` chain, so adding a `BOX` entry and forgetting to encode it fails
       // here instead of writing a class descriptor with no value after it.
@@ -589,20 +725,28 @@ export const JavaSer = (() => {
         case 'Z':
           this.u1(b.value ? 1 : 0);
           break;
+
         case 'I':
-          this.i4(b.value);
+          this.i4(asNumber());
           break;
-        case 'J':
-          this.i8(b.value);
-          break;
+
         case 'F':
-          this.f4(b.value);
+          this.f4(asNumber());
+          break;
+
+        case 'J':
+          if (typeof b.value !== 'bigint') {
+            throw err(`boxed ${info.cls} needs a BigInt value, got ${typeof b.value}`);
+          }
+
+          this.i8(b.value);
           break;
 
         default:
           throw err(`no encoding for boxed field type '${b.code}'`);
       }
     }
+    /** @param {JavaValue | undefined} v */
     value(v) {
       if (v === null || v === undefined) {
         this.u1(TC_NULL);
@@ -622,6 +766,7 @@ export const JavaSer = (() => {
         throw err(`cannot serialize ${typeof v}`);
       }
     }
+    /** @param {JavaMap} m */
     hashmap(m) {
       this.u1(TC_OBJECT);
       this.classDesc('java.util.HashMap', HASHMAP_UID, SC_WRITE_METHOD | SC_SERIALIZABLE, [
@@ -647,7 +792,12 @@ export const JavaSer = (() => {
     }
   }
 
-  // Mirror HashMap's power-of-two capacity growth for a given entry count.
+  /**
+   * Mirror HashMap's power-of-two capacity growth for a given entry count.
+   *
+   * @param {number} size
+   * @param {number} loadFactor
+   */
   function tableSizeFor(size, loadFactor) {
     let capacity = 16;
 
@@ -658,6 +808,7 @@ export const JavaSer = (() => {
     return capacity;
   }
 
+  /** @param {JavaValue} root */
   function dumps(root) {
     const w = new Writer();
     w.u2(STREAM_MAGIC);
@@ -666,5 +817,14 @@ export const JavaSer = (() => {
     return Uint8Array.from(w.out);
   }
 
-  return { loads, dumps, box: (t, v) => new Box(t, v) };
+  return {
+    loads,
+    dumps,
+
+    /**
+     * @param {BoxCode} code
+     * @param {BoxValue} value
+     */
+    box: (code, value) => new Box(code, value),
+  };
 })();
