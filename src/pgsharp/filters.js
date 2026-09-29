@@ -19,6 +19,14 @@ import XXL_POKEMON from '../filters/xxl.js';
 import XXS_POKEMON from '../filters/xxs.js';
 
 /**
+ * What `species` asks of an entry to decide whether it stays: the four flag predicates below, and whatever
+ * `filterRegion` hands back. Named rather than written out at each of the five, so a predicate answering something
+ * other than a boolean is rejected where it is declared instead of at whichever filter list first passes it along.
+ *
+ * @typedef {(pokemon: Pokemon) => boolean} Predicate
+ */
+
+/**
  * A filter's species list, checked, narrowed and collapsed to one entry per species. A form or a region the species
  * does not have has already thrown by the time we are called, so what is left to catch is a name pokemon.js does not
  * define at all, which reads as undefined and would reach the backup as a null where a species should be. The value is
@@ -34,6 +42,9 @@ import XXS_POKEMON from '../filters/xxs.js';
  * PGSharp stores, so a list naming several forms of one species names that number several times. The names are worth
  * keeping — they say which forms the list is for — but the repeats are not, so the first of each number survives and
  * the rest go, leaving the list PGSharp itself would write.
+ *
+ * @param {ReadonlySet<Pokemon>} entries
+ * @param {...Predicate} keep
  */
 function species(entries, ...keep) {
   const list = [...entries];
@@ -49,9 +60,17 @@ function species(entries, ...keep) {
 }
 
 // Reads as filter's predicate: `species([...], filterShinyEligible)` drops the ones with no shiny to find.
+
+/** @type {Predicate} */
 const filterRegional = (pokemon) => pokemon.regional;
+
+/** @type {Predicate} */
 const filterShinyEligible = (pokemon) => pokemon.shinyEligible;
+
+/** @type {Predicate} */
 const filterWildSpawns = (pokemon) => pokemon.spawns;
+
+/** @type {Predicate} */
 const filterReleased = (pokemon) => pokemon.released;
 
 /**
@@ -61,6 +80,8 @@ const filterReleased = (pokemon) => pokemon.released;
  * name. It is a factory rather than a predicate: handed a region it returns the predicate `species` runs, so it sits
  * in a filter list beside the flag ones. A form of a regional variant inherits the region, so naming the region
  * catches its forms without naming each.
+ *
+ * @type {(region: string) => Predicate}
  */
 const filterRegion = (region) => (pokemon) => pokemon.isFrom(region);
 

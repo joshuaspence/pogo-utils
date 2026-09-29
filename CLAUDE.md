@@ -40,6 +40,16 @@ one more thing about it.
   the constants exist for, and it works: `POKEMON.PANPOURR` is a `TS2551` against a type reading
   `'{ BULBASAUR: Pokemon; … 1017 more …; PECHARUNT: Pokemon; }'` and suggesting `PANPOUR`. A `Record<string, Pokemon>`
   here would throw that away for nothing, since adding a species adds the key and its type in the same line.
+- **`@satisfies` is the third answer, for a table read both ways.** `CONTROL_RESETS` in `src/pgsharp/controls.js` is
+  indexed at run time _and_ by a literal: `backup.js` walks it with `Object.entries` and also names
+  `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first and throws the second away, because
+  `noUncheckedIndexedAccess` reaches dotted access as well. Measured six runs: the same shape under `@type` costs two
+  errors at that one line — a `TS18048` and a `TS2345` — and catches nothing the shape check does not, where
+  `@satisfies` costs nothing and hands back the inferred keys. What either form buys is the value that is neither a Java
+  Float nor a filter string: a stray `iconX: true` is
+  `TS2322: Type 'boolean' is not assignable to type 'string | number'` on the entry itself, and silent unannotated,
+  since the codec's writer `switch` catches it no earlier than run time. So read the two bullets above as a question
+  about indexing and this one as the way out when the answer is "both".
 - **Leave a constant to inference.** `export const GPX_PATHS = 'gpx-paths.json'` already has the literal type
   `'gpx-paths.json'` and `@type {string}` would only widen it; `src/pgsharp/scan-config.js` is the same, every field a
   literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
@@ -63,14 +73,44 @@ one more thing about it.
   two: the stray alone, and the stray with the annotation removed — each against its own baseline, since removing an
   annotation moves the count in its own right. Dropping `@returns {State}` from `emptyState` _cleared_ four errors in
   `search/builder.js`, because those four are the `state.ranges.get(id) ?? {}` looseness that only exists once `Bounds`
-  is real.
+  is real. An accumulator is the cheapest instance of the same thing and has a number on it: a stray pushed onto
+  `dedupeByName`'s `/** @type {T[]} */ const out = []` is one
+  `TS2345: Argument of type 'string' is not assignable to parameter of type 'T'` at the push, and **five** errors
+  without the annotation, the first of them about `byName`'s signature — because an un-annotated `const out = []` is an
+  evolving array type that widens to `(T | string)[]` from the pushes, so the defect is reported at every consumer
+  instead of at the line that is wrong.
+- **A reversion has to be posed so that what it measures is the annotation.** Removing `@template {{name: string}} T`
+  from `dedupeByName` while `out` still said `@type {T[]}` answered `+1 TS2304: Cannot find name 'T'`, which measures an
+  unresolved name and says nothing about the generic. The honest reversion is the alternative the annotation was chosen
+  over — a structural `@param {readonly {name: string}[]}` with `out` to match — and that costs **+3 `TS2345`**, because
+  the caller sorts and timezones what it hands back and a parameter naming only the field the function reads answers
+  with only that field. Treat a `TS2304` or a `TS2552` out of a reversion as a sign the reversion is wrong rather than
+  as the measurement.
 - **Name a type from another module with `@import`, never a run-time import.**
   `/** @import Pokemon from '../pokemon/pokemon.js' */` is a comment, so a file the browser fetches verbatim pays
   nothing for it, where `import Pokemon from …` for a type alone would add a real request. Two things about where it
   goes: `@type` does attach to an `export default`, so an annotated default export needs no rewriting into a named
   `const`, and it sits directly above a `// prettier-ignore` without either comment losing its node — verified by
   control, since Prettier reporting a hand-spaced list as clean says nothing until you have watched it complain with the
-  ignore removed.
+  ignore removed. But a `@typedef` declared _inside_ a function is function-scoped like any other declaration, so
+  `src/java-serialization.js`, whose whole body is an IIFE assigned to `export const JavaSer`, has typedefs no other
+  module can name at all. There is nothing to import, so a consumer either writes the structural type out or leaves the
+  value opaque — which is why `downloadBytes` takes a `Uint8Array<ArrayBuffer>` rather than a named alias and the click
+  handler's `const root = new Map()` stays a `Map<any, any>` rather than claiming `JavaMap`. The same arithmetic decides
+  where a tiny _value_ ends up, in the opposite direction from the usual advice: `said`, the one-liner asking what a
+  caught value has to say, is written out in both `src/app.js` and `src/pgsharp/backup.js` rather than shared, because
+  `map.html` and `pgsharp.html` are separate pages with no bundler and an `errors.js` between them would cost each of
+  them a real round trip to save a line. Consolidating duplicates is right by default and this is the exception the
+  missing build step buys — so weigh an extension by the request it adds, and keep the threshold high enough that only
+  something this small stays copied.
+- **The obvious annotation is sometimes weaker than inference, and `Uint8Array` is the trap.** It has taken a type
+  parameter since TypeScript 5.7 — `interface Uint8Array<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike>` — and
+  the default is the _wide_ one. So `@param {Uint8Array} bytes` widens what the caller had: `JavaSer.dumps` returns
+  `Uint8Array.from(…)`, already a `Uint8Array<ArrayBuffer>`, and a `BlobPart` accepts only an `ArrayBuffer`-backed view
+  because a `SharedArrayBuffer` cannot be transferred into a Blob. The annotation therefore _created_ the one error it
+  was added to prevent, `TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'`. Naming the
+  buffer is the fix. Read a new error appearing directly beneath an annotation as a question about the annotation, since
+  a generic with a permissive default is the general case and the typed arrays are only where it bites first.
 - **A `this` type is sound on a return and unsound on a field.** `Pokemon`'s `#declared` and `#target` are seeded from
   `this` in the constructor, so inference made them polymorphic — and every value they hold after that is something
   `#variant` built with a bare `new Pokemon`, which is why eight
@@ -148,7 +188,12 @@ one more thing about it.
   and the `clearTimeout` and `setTimeout` either side of it were checked against nothing. `@type {number | undefined}`
   is what says it, and `undefined` rather than `null` because that is already what `clearTimeout` takes for "no timer".
   This is the one case where an annotation on a variable is not restating what inference got right: there is nothing for
-  inference to read.
+  inference to read. Which cuts the other way inside a function, and the two look alike enough to be worth naming
+  together: `let tz = null;` in `applyTimezones`, written and read in the same body, gets control-flow inference rather
+  than `any`, so a stray `tz = 42` is the same `TS2322: Type 'number' is not assignable to type 'string'` with
+  `@type {string | null}` on it and without. That annotation was written and then removed on the measurement — it
+  restates what inference already has. The distinction is the scope and where the writes are, not the `let` or the
+  `null`, so measure rather than pattern-match on the declaration.
 - **`filter(Boolean)` does not narrow, and two other array idioms lose the type the same way.** TypeScript infers a type
   predicate from `filter((span) => span !== null)` and nothing at all from `filter(Boolean)`, so the latter hands a
   `(Span | null)[]` to something wanting `Span[]` — one such call was every `'possibly null'` error in
@@ -358,6 +403,19 @@ after the next.
   in `pgsharp.html`, so a smoke test reading its child count was satisfied by the zero a page whose module had thrown
   would also report. Assert what the script writes rather than what the markup already carries — `'6 of 6'` in that
   span, 74 `.route` rows under `#list` — and keep a control that breaks one lookup on purpose.
+- **`Network.setBlockedURLs` matches the URL as requested, which is percent-encoded.** `backup.js` fetches through
+  `encodeURI`, so the pattern `*Melbourne Zoo, Melbourne, Victoria.gpx*` matched nothing — and a scenario meant to reach
+  the third `catch` site instead reported a _successful_ build carrying the same digest as the unblocked one, in the
+  same green as the eleven real steps beside it. `*Melbourne*` blocks it. The general form of this is worth more than
+  the flag: a probe whose whole purpose is to break something has to be shown breaking it, so assert the failure it is
+  there to cause rather than only diffing the two sides.
+- **An exemption that covers the field under test is worse than no check.** The differential asserts every step found
+  `typeof tzlookup === 'function'`, since a step silently missing the script would compare equal on both sides and read
+  as agreement — and the one scenario that takes the script away was therefore exempted by name. That exemption covered
+  exactly the observable the scenario existed to move, so when the patch turned out not to work the run reported
+  `tz=function`, the unblemished all-six digest and a clean pass. Pair every such exemption with a positive assertion
+  that the thing really did happen: `tz` is `function` in the scenario's own first snapshot and `undefined` after its
+  patch step, and the status line carries `44 waypoint(s) without a timezone`.
 - **`el.hidden` answers the attribute, not the layout.** It reads `true` however visible the element is, so a probe
   asserting it cannot see the one way hiding actually fails: the UA stylesheet's `[hidden] {display: none}` loses to any
   author `display` on the same element. `.newly {display: flex}` is one, so five suites in a row reported
@@ -451,6 +509,27 @@ after the next.
   `translate3d(593.741px, 532.344px, 0px) scale(2.21527)`, and every polyline and circle marker is an SVG `path` under
   `.leaflet-overlay-pane` whose `stroke`, `stroke-width`, `stroke-opacity`, `fill` and `d` encode style, stacking order
   and screen geometry.
+- **A pre-script outlives the run that installed it, and two copies chain rather than replace.**
+  `Page.addScriptToEvaluateOnNewDocument` is registered for the browser session, not the connection, so every earlier
+  run against the same `chrome-headless-shell` is still firing. They run in the order they were added and each captures
+  the previous one's wrapper as its "real" function, so with two copies installed one `URL.createObjectURL` pushes the
+  same Blob onto `window.__blobs` twice and a `fetch` wrapper that appends a path to the manifest appends it twice.
+  Nothing reports it, because the counts still look like counts. Restart Chrome between runs — `fuser -k 9222/tcp` — or
+  hold the identifier the call answers with and send `Page.removeScriptToEvaluateOnNewDocument`; a
+  `if (window.__wrapped) return;` guard at the top is worth having as well, since it makes the first copy win
+  deterministically.
+- **A global a classic script declares with `function` cannot be shadowed ahead of it; overwrite it afterwards.** Taking
+  tz-lookup away by installing `Object.defineProperty(window, 'tzlookup', {configurable: true, get: () => undefined})`
+  from a pre-script does nothing: the pre-script reported `notz: true, defined: "ok"` and the page still answered
+  `typeof tzlookup === 'function'`. CreateGlobalFunctionBinding — unlike `var`'s CreateGlobalVarBinding, which leaves an
+  existing property alone — _redefines_ the property whenever what is there is `configurable`, so a configurable
+  accessor is exactly what it will replace. What it leaves behind is a non-configurable, writable data property:
+  `delete` answers `false` and the descriptor reads `["value","writable","enumerable","configurable"]` with
+  `configurable: false`. Writable is the way in, so assign over it as a step _after_ the page has loaded. Two
+  assignments reach two different branches and both are worth driving — `undefined` for the `typeof` guard and a
+  throwing stub for the `catch` beside it — and since both end at the same counter the two backups must hash alike,
+  which is a cross-check neither makes alone. Probe the descriptor before designing around a global; `typeof` after the
+  fact is what tells you the patch did not take.
 - **A probe script needs `if __name__ == '__main__':` before anything can import from it.** Reusing one corpus's `PRE`
   script from a smaller harness ran the whole 18-scenario corpus as a side effect of the import — three minutes of GPX
   fetches against both ports — and then died on the importing script's own `sys.argv[1]`. And background a probe with
@@ -463,6 +542,17 @@ after the next.
   harness had written beside itself, which is why that copy is the point. Install the restore on SIGTERM, SIGINT and
   SIGHUP as well as in the `finally`, print that it ran, and check the tree is back before believing any figure the run
   produced.
+- **A break that survives may be unreachable with the data rather than missed by the corpus, and the two want different
+  answers.** Dropping the accent fold from `sortKey` — the `.replace(/\p{M}/gu, '')` after the `NFKD` — moved 0 of 53
+  snapshots. Not a weak corpus: exactly one of the 74 favourite names carries a combining mark after decomposition,
+  `São Paulo`, and the only other `sa…` names are `San Francisco, CA` and `Santa Monica Pier`. `n` sorts below both `o`
+  and the U+0303 the fold would have removed, so São Paulo is last of the three either way, and the fold can only change
+  an order where some name's third character falls in `p`–`z`. Derive that condition and state it rather than adding
+  data to reach it, since the fold is pre-existing and adding a favourite to exercise a sort is its own change. What the
+  pass must not do is let the 0 stand unexplained, because a mutation nothing catches and a mutation nothing _can_ catch
+  read identically in the log. The complementary case is in the same run: `dedupeByName` not deduplicating moved 2 of
+  53, both inside the one scenario that synthesizes a repeat by appending a path to the manifest — which is how a
+  scenario earns its place.
 - **A view that lands can still be taken away.** Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels
   as a CSS transition and applies the move at its end, from the centre and zoom captured when it began; `setView` stops
   a pan but not that. So a second view change issued in the same tick wins and then loses, several hundred milliseconds
