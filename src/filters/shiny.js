@@ -12,8 +12,11 @@
  * hand-set shape rather than letting one entry per line stretch it out.
  */
 
+/** @import Pokemon from '../pokemon/pokemon.js' */
+
 import POKEMON, { GALAR, HISUI, PALDEA } from '../pokemon/pokedex.js';
 
+/** @type {ReadonlySet<Pokemon>} */
 // prettier-ignore
 export default new Set([
   // Generation 1

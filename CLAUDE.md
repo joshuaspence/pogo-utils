@@ -44,6 +44,23 @@ one more thing about it.
   `'gpx-paths.json'` and `@type {string}` would only widen it; `src/pgsharp/scan-config.js` is the same, every field a
   literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
   inference cannot — an index signature, a `readonly`, a parameter — not by restating what it has already got right.
+- **An annotation reporting nothing today still earns its place if it can be shown to reject something.** The four
+  `src/filters/*.js` hunt lists are `ReadonlySet<Pokemon>` and added not one error when annotated, because the lists are
+  correct; the case for them is what they catch, measured by putting a stray `42` in each. All four answer
+  `TS2322: Type 'Set<number | Pokemon>' is not assignable to type 'ReadonlySet<Pokemon>'`, where the same stray in the
+  unannotated file was silent and the project stayed at 421. That silence cost something, and asymmetrically:
+  `pgsharp/filters.js` catches it at run time, because `species()` runs `instanceof Pokemon` over every member and
+  throws `species #495 is not a POKEMON constant`, while `pokedex/entries.js` has no guard at all and only asks
+  `members.has(pokemon)` — so the stray is a member nothing can equal and the hunt quietly stops wanting what was meant.
+  A Set holds by identity, so `25` never matches `POKEMON.PIKACHU` however much it looks like it should. The `readonly`
+  is the other half inference cannot say: both consumers only read, and `.add` and `.clear` are `TS2339` now.
+- **Name a type from another module with `@import`, never a run-time import.**
+  `/** @import Pokemon from '../pokemon/pokemon.js' */` is a comment, so a file the browser fetches verbatim pays
+  nothing for it, where `import Pokemon from …` for a type alone would add a real request. Two things about where it
+  goes: `@type` does attach to an `export default`, so an annotated default export needs no rewriting into a named
+  `const`, and it sits directly above a `// prettier-ignore` without either comment losing its node — verified by
+  control, since Prettier reporting a hand-spaced list as clean says nothing until you have watched it complain with the
+  ignore removed.
 - **A `this` type is sound on a return and unsound on a field.** `Pokemon`'s `#declared` and `#target` are seeded from
   `this` in the constructor, so inference made them polymorphic — and every value they hold after that is something
   `#variant` built with a bare `new Pokemon`, which is why eight
