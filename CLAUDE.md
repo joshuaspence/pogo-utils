@@ -96,7 +96,13 @@ one more thing about it.
   `TS2345: Argument of type 'FieldValue | undefined' is not assignable to parameter of type 'BoxValue'` on the box.
   `Array#pop` is the same answer from a different cause: it is declared `T | undefined` whatever the flags say, so
   `parts.pop()` is a `TS2345` against a `string` parameter even where `String#split` guarantees an element. `?? ''` is
-  the inert fix and says as much.
+  the inert fix and says as much. `Promise.allSettled` is the same shape one level up and the costliest instance of it:
+  `files[i]` read beside `results[i]` answers `string | undefined` however long either array is, because that positional
+  correspondence lives in the specification rather than in the type — and `res.reason` is `any`, so the `e.message`
+  taken off it was never checked at all. Settling each file's outcome inside its own callback makes the pairing
+  structural, and attaches the rejection handler as that fetch starts rather than once every earlier file has settled. A
+  tuple is the one exemption worth knowing: `a[0]` and `a[1]` on a `[number, number]` are `number`, not
+  `number | undefined`, which is half of why `coordsOf` in `src/app.js` hands back the pair as a tuple.
 - **Hold the node you made rather than asking the document for it again.** `search/builder.js` appended a chip's glyph
   span itself and then read it back with `node.querySelector('.state')`, which answers `Element | null` — the file
   asking the DOM a question it already knew the answer to and paying `TS18047: 'glyph' is possibly 'null'` for it.
@@ -136,6 +142,13 @@ one more thing about it.
   `ClassDesc`, because `desc` is already narrowed non-null, so the walk up to the `null` above `java.lang.Object` cannot
   assign to it — `TS2322: Type 'ClassDesc | null' is not assignable to type 'ClassDesc'`. Seeding from `desc.super` with
   `desc` pushed ahead of the loop needs no annotation at all.
+- **A module-scope `let` assigned only from inside a function is `any`, and both of its readers go unchecked.**
+  Inference takes such a binding's type from what is written to it _at module scope_, so `let toastTimer;` in
+  `src/app.js` — written in `toast()` and nowhere else — was a `TS7034` on the declaration and a `TS7005` on the use,
+  and the `clearTimeout` and `setTimeout` either side of it were checked against nothing. `@type {number | undefined}`
+  is what says it, and `undefined` rather than `null` because that is already what `clearTimeout` takes for "no timer".
+  This is the one case where an annotation on a variable is not restating what inference got right: there is nothing for
+  inference to read.
 - **`filter(Boolean)` does not narrow, and two other array idioms lose the type the same way.** TypeScript infers a type
   predicate from `filter((span) => span !== null)` and nothing at all from `filter(Boolean)`, so the latter hands a
   `(Span | null)[]` to something wanting `Span[]` — one such call was every `'possibly null'` error in
@@ -166,7 +179,13 @@ one more thing about it.
   `grep -c 'error TS'` answered `0` against the same run that printed `Found 330 errors`. Count from
   `pnpm exec tsc -b --force --pretty false tsconfig.json scripts/tsconfig.json`, and account for the whole delta rather
   than the files you opened — typing `search/terms.js` cleared three errors in two modules the slice never touched and
-  created four in a third, which was a real latent looseness the tables had been hiding.
+  created four in a third, which was a real latent looseness the tables had been hiding. Expect the count to _rise_
+  partway through a slice, because typing a leaf is what makes its consumers checkable: `gpx.js` went 8 to 0 and took
+  `app.js` from 81 up to **83** in the same run, since `eachTrack` yielding a real `Element` made the `<trkpt>`
+  `parseFloat` pair an error exactly like the `<wpt>` pair twenty lines below it already was. Read that as the
+  measurement it is rather than as a regression — two blocks erroring for one reason are one block duplicated, and it is
+  what said to collapse them into `coordsOf`. So annotate leaf-first and judge the slice on the total, not on the
+  intermediate.
 - **A `scripts/` file reaches `src/types.d.ts` as `'../src/types.js'`.** TypeScript resolves a `.js` specifier onto its
   declaration sibling, where naming `'../src/types.d.ts'` is rejected outright without `allowImportingTsExtensions`.
   Build mode also wants every file a project reads listed by the project that reads it, and two `noEmit` projects have
@@ -180,7 +199,13 @@ one more thing about it.
   `export as namespace L` — a UMD global, invisible from inside a module, which is what `allowUmdGlobalAccess` is for.
   Declaring `const L` in a `declare global` instead looks tidier and does not work: it shadows that namespace, so you
   get `TS2451: Cannot redeclare block-scoped variable 'L'` plus four `Cannot find namespace 'L'` errors from inside
-  `@types/leaflet` itself, reported against a file you did not write.
+  `@types/leaflet` itself, reported against a file you did not write. The same `allowUmdGlobalAccess` is what lets a
+  JSDoc type name reach through it: `L.Polyline`, `L.CircleMarker`, `L.PolylineOptions` and `L.CircleMarkerOptions` all
+  resolve in a `@typedef` or a `@param` with no `@import` and no `TS2503`, confirmed by the errors naming
+  `Polyline<LineString | MultiLineString, any>` and `CircleMarker<any>` back. What it will not do is guess a tuple:
+  `LatLngExpression` accepts `[number, number]` and an unannotated `[lat, lon]` infers `number[]`, which `L.polyline`
+  rejects — so a coordinate pair travelling through this file is declared as a tuple at every hop, which is also what
+  buys the indexed-access exemption above.
 - **`@ts-expect-error` takes a reason, in the same form as the `html-validate` exceptions above:**
   `// @ts-expect-error -- reason`, at least ten characters. `@typescript-eslint/ban-ts-comment` enforces both the reason
   and the choice of directive — `@ts-ignore` is rejected outright, because it does nothing once the line below it stops
@@ -267,7 +292,13 @@ after the next.
   across the interval instead: click, wait 1200ms, click, wait 350ms, so an uncleared first timer fires _between_ the
   second click and the read. That step is the only one of the 111 that caught dropping the call — the five snapshots of
   the unstaggered scenario beside it were every one of them blind — and it exists because that was noticed rather than
-  because any run had failed.
+  because any run had failed. Copying the recipe to another timer is how that goes wrong, because the numbers are not
+  the lesson. `toast` holds 1800ms, and click, wait 1600ms, click, wait 350ms caught nothing whatever — 0 of 56 — since
+  the driver itself sleeps 0.9s after every action, which put the second click at t=3.4 where the first timer had
+  already fired at 2.7. So the call had nothing left to clear and all five snapshots read alike. Draw the timeline with
+  that settle counted in and pick the gap off it: 0.7s rather than 1.6 leaves the second click at 2.5 with the timer
+  still pending, and the two reads at 3.4 and 3.75, both past where it would have fired and both short of the second.
+  Two of the five steps see the call then, where none of them did before.
 - **This machine's `curl` wrapper rejects bundled short flags.** `curl -sf` and `curl -s -f` both answer
   `option -sf: is badly used here`, so a readiness check over the two ports is cheaper written as
   `urllib.request.urlopen` in Python than argued with. Watch the obvious repair, too: rewriting `'curl -sf '` to
@@ -384,7 +415,15 @@ after the next.
   `prettier --write` on a commit message or a pull request body drafted under `$CLAUDE_JOB_DIR/tmp` finds no config,
   falls back to the default `proseWrap: 'preserve'` and reports the file unchanged with four lines still at 121. It
   looks exactly like a body that was already well-formed. Refill a scratch Markdown file with `textwrap` and measure it,
-  or draft it somewhere the config reaches.
+  or draft it somewhere the config reaches. Padding that file's tables is the same script's other half and carries a
+  trap of its own, since a cell quoting a union type holds an escaped `\|`: splitting a row on every `|` gives it more
+  cells than the header has, and the `zip` that pads them then drops the surplus without a word. Four `TS2345` messages
+  lost everything after `'string \` that way and the table still came out aligned to the character. Split on `(?<!\\)\|`
+  and assert each row has the header's cell count. The check earns its place twice over, because it is the only
+  automated reader a block comment has at all: two lines of slice 11 came back at 121 carrying a literal `\u2014` — six
+  characters spelling out an em-dash in prose, which `tsc` reads as comment, Prettier never reflows and ESLint never
+  sees. Both were one keystroke of habit from the `·` this file legitimately escapes _inside a string literal_. Treat an
+  unexpected overrun as a question about the line rather than only about its width.
 - **A probe step that carries on from the previous step's state may have nothing left to prove.** Step 11 accepted a
   suggestion, leaving `eevee` in the name box; step 12 then typed `ch` to open the list before blurring, but `eeveech`
   names no species, so the list was already shut and the assertion that a blur shuts it could not have failed. It read
@@ -398,6 +437,32 @@ after the next.
   `this` on the first one leaves the instance reachable from every later probe. Recording arguments that way is what
   found the deep-link zoom bug — `_resetView` was reached with zoom 12 and the map still finished at 2.147, which ruled
   out the call never happening and pointed at what undid it afterwards.
+- **Wrap `value.Map.prototype` inside that setter, and never install a second trap on the `Map` key.** Leaflet 1.9.4
+  assigns `window.L` **already fully populated** — the setter logged `set L: object keys=79 Map=function`, so it is not
+  the rollup shape where an empty `exports` is assigned and filled afterwards, and `value.Map` is simply there to patch.
+  Defending against the other shape is worse than unnecessary, because `Object.defineProperty(value, 'Map', {get: …})`
+  over a key that already holds a value _replaces_ that value: with `Map` an uninitialised `let` the accessor never
+  fired, `typeof window.L.Map` read `"undefined"` and `L.Map.prototype.setView` was gone for the rest of the page's
+  life. The page still drew all 74 paths, because `L.map()` closes over the module's internal binding rather than over
+  `exports.Map` — so the probe silently broke the API it was there to read while every figure it _could_ report looked
+  right. What gave it away was the wrapper's own output reading `NO MAP` on all 18 scenarios; treat that sentinel as a
+  bug in the probe rather than in the page. Two DOM-side observables corroborate the view without `L` at all, which is
+  worth having as a control: `.leaflet-proxy`'s `style.transform` carries the centre and zoom as
+  `translate3d(593.741px, 532.344px, 0px) scale(2.21527)`, and every polyline and circle marker is an SVG `path` under
+  `.leaflet-overlay-pane` whose `stroke`, `stroke-width`, `stroke-opacity`, `fill` and `d` encode style, stacking order
+  and screen geometry.
+- **A probe script needs `if __name__ == '__main__':` before anything can import from it.** Reusing one corpus's `PRE`
+  script from a smaller harness ran the whole 18-scenario corpus as a side effect of the import — three minutes of GPX
+  fetches against both ports — and then died on the importing script's own `sys.argv[1]`. And background a probe with
+  `python3 -u`: Python buffers stdout to a pipe, so the output file stays empty until the process exits and a run that
+  is working reads exactly like one that has hung.
+- **A harness that edits the tree in place has to restore on a signal, not only in a `finally`.** Python's default
+  SIGTERM handler terminates without unwinding, so stopping the mutation pass mid-run left `const a = entry.latlngs[1],`
+  in the worktree where the file says `latlngs[0]` — one character, in a file already 386 lines into a change, and
+  indistinguishable from work in progress. Nothing reported it; it turned up by diffing against the pristine copy the
+  harness had written beside itself, which is why that copy is the point. Install the restore on SIGTERM, SIGINT and
+  SIGHUP as well as in the `finally`, print that it ran, and check the tree is back before believing any figure the run
+  produced.
 - **A view that lands can still be taken away.** Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels
   as a CSS transition and applies the move at its end, from the centre and zoom captured when it began; `setView` stops
   a pan but not that. So a second view change issued in the same tick wins and then loses, several hundred milliseconds

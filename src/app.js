@@ -3,7 +3,17 @@ import { GPX_PATHS } from './generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
 import { byId } from './dom.js';
 
-const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+/** @param {string} name */
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/**
+ * What a caught value has to say. `catch` binds `unknown`, and a `throw` is not obliged to have thrown an `Error` — so
+ * the three places here that report a failure ask rather than assume, and a thrown string reads as itself instead of
+ * `undefined`.
+ *
+ * @param {unknown} e
+ */
+const said = (e) => (e instanceof Error ? e.message : String(e));
 
 /**
  * zoomSnap: 0 lets fitBounds land on a fractional zoom. Snapping to whole levels rounds down, which can leave the
@@ -21,16 +31,110 @@ const filterEl = byId('filter', HTMLInputElement);
 const bannerEl = byId('banner');
 const toastEl = byId('toast');
 
-const store = []; // { name, country, variant, event, file, gpx, latlngs, line, el, markers, distance }
-const cityStore = []; // { name, country, event, coords:[lat,lon], coordStr, marker, el }
+/**
+ * A drawable track as the file gives it. `latlngs` is a list of *pairs* rather than a list of lists, because that is
+ * what Leaflet means by a `LatLngExpression`: an unannotated `[lat, lon]` literal infers `number[]`, which `L.polyline`
+ * rejects, where a `[number, number]` tuple is accepted.
+ *
+ * @typedef {object} Route
+ * @property {[number, number][]} latlngs
+ * @property {string} name
+ * @property {string} country
+ * @property {string} variant
+ * @property {string} event
+ */
+
+/**
+ * One place to stand. `coordStr` is the file's own lat/lon text rather than the parsed pair restringified, so what the
+ * copy button hands over is exactly what the file said.
+ *
+ * @typedef {object} Waypoint
+ * @property {string} name
+ * @property {string} country
+ * @property {string} event
+ * @property {[number, number]} coords
+ * @property {string} coordStr
+ */
+
+/**
+ * A route once the page has it: the file it came from, the layer drawn for it, the row built for it and the distance
+ * measured off it. `markers` is the start and end dots, which exist only while the entry is selected.
+ *
+ * `el` is optional because it is not there when the entry is made — `buildSidebar` runs after every file has been read,
+ * and `buildRouteRow` is what assigns it. Read it through `rowOf`, which says so.
+ *
+ * @typedef {Route & {
+ *   file: string,
+ *   gpx: string,
+ *   line: L.Polyline,
+ *   markers: L.CircleMarker[] | null,
+ *   distance: number,
+ *   el?: HTMLElement,
+ * }} RouteEntry
+ */
+
+/**
+ * A waypoint once the page has it. No distance and no `markers`: the dot is the entry, so selecting it restyles the one
+ * layer rather than adding any.
+ *
+ * @typedef {Waypoint & {marker: L.CircleMarker, el?: HTMLElement}} CityEntry
+ */
+
+/** @type {RouteEntry[]} */
+const store = [];
+
+/** @type {CityEntry[]} */
+const cityStore = [];
+
 /**
  * What is selected, as lists rather than one of each: a link from the Events page names an event, not an entry, and an
  * event can have been given several routes and waypoints — all of which are selected together (see focusHashEvent).
+ *
+ * @type {RouteEntry[]}
  */
 const activeRoutes = [];
-const activeCities = [];
-let toastTimer = null;
 
+/** @type {CityEntry[]} */
+const activeCities = [];
+
+/**
+ * Every collapsible group in the sidebar, each with the badge in its own header. Recorded as the groups are built
+ * rather than found again by query: `applyFilter` is the only reader, the badge is a span `groupCount` made and this
+ * file appended, and `group.querySelector('.country .gcount')` answers `Element | null` about a node already in hand.
+ *
+ * Countries and continents share the list because they behave alike — both count the rows still showing anywhere
+ * beneath them — which is what the two calls to a parameterised `settle` used to say.
+ *
+ * @type {{group: HTMLElement, count: HTMLElement}[]}
+ */
+const groups = [];
+
+/**
+ * Left `undefined` rather than `null`, because that is what `clearTimeout` already accepts for "no timer". Annotated
+ * because nothing else can say so: the only assignment is inside `toast`, and a module-scope `let` takes its type from
+ * what is written to it *here* — so inference had it as `any` and neither call was checked.
+ *
+ * @type {number | undefined}
+ */
+let toastTimer;
+
+/**
+ * The sidebar row an entry was given. Assigned while the sidebar is built, which is after every file has been read and
+ * before anything can be selected, so a missing row is a page assembled in the wrong order rather than a case to
+ * handle — the reading `byId` takes of a stale id.
+ *
+ * @param {RouteEntry | CityEntry} entry
+ * @returns {HTMLElement}
+ */
+function rowOf(entry) {
+  if (!entry.el) {
+    throw new Error(`“${entry.name}” has no sidebar row`);
+  }
+
+  return entry.el;
+}
+
+/** @param {string} msg */
 function toast(msg) {
   toastEl.textContent = msg;
   toastEl.classList.add('show');
@@ -41,6 +145,9 @@ function toast(msg) {
 /**
  * Copy text to the clipboard, falling back to `execCommand` for insecure contexts (e.g. served over plain HTTP, where
  * the async Clipboard API is unavailable). Returns a promise that resolves to true on success.
+ *
+ * @param {string} text
+ * @returns {Promise<boolean>}
  */
 async function copyText(text) {
   try {
@@ -71,6 +178,9 @@ async function copyText(text) {
 /**
  * Flash a copy button through its outcome — "Copied" or "Failed" — then restore its label a moment later. The
  * button is optional, so a caller with none to flash still shares this path.
+ *
+ * @param {HTMLButtonElement | null} btn
+ * @param {boolean} ok
  */
 function flashButton(btn, ok) {
   if (!btn) {
@@ -86,31 +196,57 @@ function flashButton(btn, ok) {
   }, 1400);
 }
 
+/**
+ * @param {RouteEntry} entry
+ * @param {HTMLButtonElement} btn
+ */
 async function copyRoute(entry, btn) {
   const ok = await copyText(entry.gpx);
   flashButton(btn, ok);
   toast(ok ? `Copied “${entry.name}” GPX to clipboard` : 'Copy failed');
 }
 
+/**
+ * @param {readonly [number, number]} a
+ * @param {readonly [number, number]} b
+ * @returns {number}
+ */
 function haversine(a, b) {
   const R = 6371000,
-    toRad = (d) => (d * Math.PI) / 180;
+    toRad = (/** @type {number} */ d) => (d * Math.PI) / 180;
   const dLat = toRad(b[0] - a[0]),
     dLon = toRad(b[1] - a[1]);
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
+/**
+ * The walked length of a track, summed over consecutive pairs. The previous point is carried rather than read back out
+ * of the list by `i - 1`: an index and the length test above it are two questions nothing joins, where holding the
+ * point the loop has just had is one.
+ *
+ * @param {readonly [number, number][]} latlngs
+ * @returns {number}
+ */
 function routeDistance(latlngs) {
   let d = 0;
+  let previous;
 
-  for (let i = 1; i < latlngs.length; i++) {
-    d += haversine(latlngs[i - 1], latlngs[i]);
+  for (const at of latlngs) {
+    if (previous) {
+      d += haversine(previous, at);
+    }
+
+    previous = at;
   }
 
   return d;
 }
 
+/**
+ * @param {number} m
+ * @returns {string}
+ */
 function fmtDist(m) {
   return m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m';
 }
@@ -123,6 +259,30 @@ function fmtDist(m) {
 class FetchError extends Error {}
 
 /**
+ * Where a `<trkpt>` or a `<wpt>` says it is. `coordStr` is the file's own text for the pair, kept so the copy button
+ * hands over exactly what the file said rather than the parsed numbers printed back.
+ *
+ * One reader for both tags, because they are one format: `getAttribute` answers `string | null`, which is what made the
+ * `<trkpt>` pair an error as soon as `eachTrack` started yielding an `Element` — twenty lines above a `<wpt>` pair that
+ * was already erroring for the same reason. The element names itself in the message, so each keeps the wording it had.
+ *
+ * @param {Element} el
+ * @returns {{coords: [number, number], coordStr: string}}
+ */
+function coordsOf(el) {
+  const latStr = el.getAttribute('lat'),
+    lonStr = el.getAttribute('lon');
+  const lat = parseFloat(latStr ?? ''),
+    lon = parseFloat(lonStr ?? '');
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    throw new Error(`<${el.localName}> at ${latStr},${lonStr} has an unparseable coordinate`);
+  }
+
+  return { coords: [lat, lon], coordStr: `${latStr},${lonStr}` };
+}
+
+/**
  * Read one file, splitting it into routes and waypoints by element rather than by where it sits: a <trk> is a path to
  * walk, a <wpt> is one place to stand, and a file may hold either or both. This is how the backup writer has always
  * read these files (see parseGpxFavourites), so the two now agree about what a file contains instead of the viewer
@@ -132,6 +292,9 @@ class FetchError extends Error {}
  * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant
  * and event stay optional — empty for a route with no short/long counterpart and for a place that stands on its own. The
  * whole file text is returned once, for the copy button to hand over.
+ *
+ * @param {string} file
+ * @returns {Promise<{text: string, routes: Route[], waypoints: Waypoint[]}>}
  */
 async function loadGpxFile(file) {
   let res;
@@ -139,7 +302,7 @@ async function loadGpxFile(file) {
   try {
     res = await fetch(encodeURI(file));
   } catch (e) {
-    throw new FetchError(e.message);
+    throw new FetchError(said(e));
   }
 
   if (!res.ok) {
@@ -151,23 +314,11 @@ async function loadGpxFile(file) {
   const text = await res.text();
   const doc = parseGpxDocument(text);
 
+  /** @type {Route[]} */
   const routes = [];
 
   for (const { trk, trkpts } of eachTrack(doc)) {
-    const latlngs = [];
-
-    for (const p of trkpts) {
-      const latStr = p.getAttribute('lat'),
-        lonStr = p.getAttribute('lon');
-      const lat = parseFloat(latStr),
-        lon = parseFloat(lonStr);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        throw new Error(`<trkpt> at ${latStr},${lonStr} has an unparseable coordinate`);
-      }
-
-      latlngs.push([lat, lon]);
-    }
+    const latlngs = [...trkpts].map((p) => coordsOf(p).coords);
 
     if (latlngs.length < 2) {
       throw new Error('<trk> has fewer than two usable <trkpt>');
@@ -182,24 +333,14 @@ async function loadGpxFile(file) {
     });
   }
 
-  // coordStr preserves the file's exact lat/lon text for copying.
+  /** @type {Waypoint[]} */
   const waypoints = [];
 
   for (const w of doc.getElementsByTagName('wpt')) {
-    const latStr = w.getAttribute('lat'),
-      lonStr = w.getAttribute('lon');
-    const lat = parseFloat(latStr),
-      lon = parseFloat(lonStr);
-
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      throw new Error(`<wpt> at ${latStr},${lonStr} has an unparseable coordinate`);
-    }
-
     waypoints.push({
       country: entryCountry(w),
       name: placeName(w),
-      coords: [lat, lon],
-      coordStr: `${latStr},${lonStr}`,
+      ...coordsOf(w),
       event: extText(w, 'event') || '',
     });
   }
@@ -212,6 +353,7 @@ async function loadGpxFile(file) {
   return { text, routes, waypoints };
 }
 
+/** @param {RouteEntry} entry */
 function clearMarkers(entry) {
   if (entry.markers) {
     entry.markers.forEach((m) => map.removeLayer(m));
@@ -222,6 +364,12 @@ function clearMarkers(entry) {
 /**
  * Build a map popup: a bold title, a detail line, and a copy button. The copy handler is handed the button so it can
  * flash it (see flashButton). Returns the element to bind to a layer.
+ *
+ * @param {string} name
+ * @param {string} detail
+ * @param {string} copyLabel
+ * @param {(btn: HTMLButtonElement) => void} onCopy
+ * @returns {HTMLElement}
  */
 function buildPopup(name, detail, copyLabel, onCopy) {
   const popup = document.createElement('div');
@@ -243,11 +391,18 @@ function buildPopup(name, detail, copyLabel, onCopy) {
  * so the two cannot come to disagree about what "not selected" looks like — which matters now that the colour is a
  * decision rather than a constant: an entry added for an event is drawn in --event, and the sidebar row mirrors it (see
  * `.route::before` in styles.css).
+ *
+ * @param {Route} route
+ * @returns {L.PolylineOptions}
  */
 function routeStyle(route) {
   return { color: cssVar(route.event ? '--event' : '--track'), weight: 2, opacity: 0.55 };
 }
 
+/**
+ * @param {Waypoint} place
+ * @returns {L.CircleMarkerOptions}
+ */
 function cityStyle(place) {
   return {
     radius: 5,
@@ -264,12 +419,12 @@ function clearSelection() {
     entry.line.setStyle(routeStyle(entry));
     entry.line.bringToBack();
     clearMarkers(entry);
-    entry.el.classList.remove('active');
+    rowOf(entry).classList.remove('active');
   }
 
   for (const c of activeCities) {
     c.marker.setStyle(cityStyle(c));
-    c.el.classList.remove('active');
+    rowOf(c).classList.remove('active');
   }
 
   activeRoutes.length = 0;
@@ -280,16 +435,34 @@ function clearSelection() {
  * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever else
  * is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
  * focusHashEvent calls it once per entry instead, so an event's whole set is selected at once.
+ *
+ * @param {RouteEntry} entry
  */
 function highlightRoute(entry) {
   activeRoutes.push(entry);
-  entry.el.classList.add('active');
+  rowOf(entry).classList.add('active');
   entry.line.setStyle({ color: cssVar('--accent'), weight: 4, opacity: 1 });
   entry.line.bringToFront();
 
   clearMarkers(entry);
+
+  /**
+   * The two ends, read as slots rather than assumed. `loadGpxFile` rejects a `<trk>` with fewer than two usable
+   * `<trkpt>`, so neither can miss — but nothing carries that length from there to here, and a route that arrived with
+   * no points is the same kind of defect as a row that was never built (see rowOf) rather than a case to draw around.
+   */
   const a = entry.latlngs[0],
     b = entry.latlngs[entry.latlngs.length - 1];
+
+  if (!a || !b) {
+    throw new Error(`“${entry.name}” has no points to mark`);
+  }
+
+  /**
+   * @param {[number, number]} at
+   * @param {string} color
+   * @param {string} label
+   */
   const dot = (at, color, label) =>
     L.circleMarker(at, {
       radius: 6,
@@ -304,10 +477,14 @@ function highlightRoute(entry) {
   entry.line.bindPopup(buildPopup(entry.name, detail, 'Copy GPX', (btn) => copyRoute(entry, btn)));
 }
 
-/** Mirrors highlightRoute for a waypoint. */
+/**
+ * Mirrors highlightRoute for a waypoint.
+ *
+ * @param {CityEntry} c
+ */
 function highlightCity(c) {
   activeCities.push(c);
-  c.el.classList.add('active');
+  rowOf(c).classList.add('active');
   c.marker.setStyle({ radius: 8, fillColor: cssVar('--accent') });
   c.marker.bringToFront();
 
@@ -320,6 +497,8 @@ function highlightCity(c) {
  * Open the groups above every row given, then scroll the first of them into view. Several rows can be selected at once
  * and only one place can be scrolled to, so the first stands for the rest — which the groups now being open is what
  * makes reachable, rather than leaving the reader to guess which countries to expand.
+ *
+ * @param {readonly HTMLElement[]} els
  */
 function revealRows(els) {
   for (const el of els) {
@@ -330,6 +509,10 @@ function revealRows(els) {
   els[0]?.scrollIntoView({ block: 'nearest' });
 }
 
+/**
+ * @param {RouteEntry} entry
+ * @param {{pan?: boolean}} [options]
+ */
 function selectRoute(entry, { pan = true } = {}) {
   clearSelection();
   highlightRoute(entry);
@@ -339,9 +522,13 @@ function selectRoute(entry, { pan = true } = {}) {
     entry.line.openPopup();
   }
 
-  revealRows([entry.el]);
+  revealRows([rowOf(entry)]);
 }
 
+/**
+ * @param {CityEntry} c
+ * @param {{pan?: boolean}} [options]
+ */
 function selectCity(c, { pan = true } = {}) {
   clearSelection();
   highlightCity(c);
@@ -351,9 +538,13 @@ function selectCity(c, { pan = true } = {}) {
     c.marker.openPopup();
   }
 
-  revealRows([c.el]);
+  revealRows([rowOf(c)]);
 }
 
+/**
+ * @param {CityEntry} c
+ * @param {HTMLButtonElement} btn
+ */
 async function copyCoords(c, btn) {
   const ok = await copyText(c.coordStr);
   flashButton(btn, ok);
@@ -363,6 +554,8 @@ async function copyCoords(c, btn) {
 /**
  * The name to show for a `<pgr:event>`, which the files record only by `eventID`. data/events.json is where that name
  * lives — the same file validate-gpx.mts checks those IDs against — and it is read once into here.
+ *
+ * @type {Map<string, string>}
  */
 const eventNames = new Map();
 
@@ -383,7 +576,7 @@ async function loadEventNames() {
       eventNames.set(event.eventID, event.name);
     }
   } catch (e) {
-    console.error(`data/events.json: ${e.message} — entries will name their event by ID`);
+    console.error(`data/events.json: ${said(e)} — entries will name their event by ID`);
   }
 }
 
@@ -392,6 +585,9 @@ async function loadEventNames() {
  * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for a
  * name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
  * its text; the click is stopped short of the row, which would otherwise select the entry as the page unloads.
+ *
+ * @param {string} event
+ * @returns {HTMLElement}
  */
 function buildEventLine(event) {
   const line = document.createElement('span');
@@ -406,11 +602,13 @@ function buildEventLine(event) {
   return line;
 }
 
+/**
+ * @param {RouteEntry} entry
+ * @returns {HTMLElement}
+ */
 function buildRouteRow(entry) {
   const el = document.createElement('div');
   el.className = 'route';
-  el.dataset.country = entry.country;
-  el.dataset.name = entry.name.toLowerCase();
   const label = document.createElement('span');
   label.className = 'name';
   label.textContent = entry.name;
@@ -440,18 +638,25 @@ function buildRouteRow(entry) {
   return el;
 }
 
-/** An empty count badge for a group header. `applyFilter` puts the number in and keeps it current. */
+/**
+ * An empty count badge for a group header. `applyFilter` puts the number in and keeps it current, through the span the
+ * caller keeps rather than by asking the header for it again.
+ *
+ * @returns {HTMLElement}
+ */
 function groupCount() {
   const el = document.createElement('span');
   el.className = 'gcount';
   return el;
 }
 
-function buildCityRow(c, country) {
+/**
+ * @param {CityEntry} c
+ * @returns {HTMLElement}
+ */
+function buildCityRow(c) {
   const el = document.createElement('div');
   el.className = 'route city';
-  el.dataset.country = country;
-  el.dataset.name = c.name.toLowerCase();
   const label = document.createElement('span');
   label.className = 'name';
   label.textContent = c.name;
@@ -479,6 +684,27 @@ function buildCityRow(c, country) {
 }
 
 /**
+ * A row the sidebar is about to build, before the group that will hold it exists. `build` is a thunk rather than the
+ * row itself, and that is load-bearing: `buildEventLine` reads `eventNames`, which `init` only awaits *after* every
+ * entry has been made, so building a row eagerly would label its event by the raw ID the file carries.
+ *
+ * @typedef {{name: string, dist: number, build: () => HTMLElement}} Row
+ */
+
+/**
+ * Two keyed pairs in the order `Array#sort` with no comparator would have put their keys in. Both levels of the sidebar
+ * were sorted that way before each key started travelling beside its value, and this is that comparison written out
+ * rather than a different one — `<` over two distinct strings is exactly what the default does.
+ *
+ * @param {readonly [string, unknown]} a
+ * @param {readonly [string, unknown]} b
+ * @returns {number}
+ */
+function byKey(a, b) {
+  return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+}
+
+/**
  * Render one list grouped by country. Within each country, tracks and waypoints are interleaved and sorted
  * alphabetically by name.
  */
@@ -487,6 +713,7 @@ function buildSidebar() {
     ? `${store.length} tracks \u00b7 ${cityStore.length} waypoints`
     : `${store.length} tracks across ${new Set(store.map((s) => s.country)).size} countries`;
 
+  /** @type {Record<string, Row[]>} */
   const byCountry = {};
 
   for (const s of store) {
@@ -501,17 +728,24 @@ function buildSidebar() {
     (byCountry[c.country] ||= []).push({
       name: c.name,
       dist: 0,
-      build: () => buildCityRow(c, c.country),
+      build: () => buildCityRow(c),
     });
   }
 
+  /**
+   * Each continent's countries with their rows already attached, rather than a list of country names to look up in
+   * `byCountry` again further down. A key and then an index are two questions nothing joins, so the second answers
+   * `Row[] | undefined` however the first went — where the pair `Object.entries` hands over needs no second lookup.
+   *
+   * @type {Record<string, [string, Row[]][]>}
+   */
   const byContinent = {};
 
-  for (const country of Object.keys(byCountry)) {
-    (byContinent[COUNTRIES[country]?.continent || 'Other'] ||= []).push(country);
+  for (const entry of Object.entries(byCountry)) {
+    (byContinent[COUNTRIES[entry[0]]?.continent || 'Other'] ||= []).push(entry);
   }
 
-  for (const continent of Object.keys(byContinent).sort()) {
+  for (const [continent, countries] of Object.entries(byContinent).sort(byKey)) {
     const cg = document.createElement('div');
     cg.className = 'continent-group collapsed';
     const chead = document.createElement('div');
@@ -521,13 +755,15 @@ function buildSidebar() {
     cchev.textContent = '▾';
     const clabel = document.createElement('span');
     clabel.textContent = continent;
-    chead.append(cchev, clabel, groupCount());
+    const ccount = groupCount();
+    chead.append(cchev, clabel, ccount);
     chead.addEventListener('click', () => cg.classList.toggle('collapsed'));
     cg.appendChild(chead);
+    groups.push({ group: cg, count: ccount });
     const citems = document.createElement('div');
     citems.className = 'continent-items';
 
-    for (const country of byContinent[continent].sort()) {
+    for (const [country, rows] of countries.sort(byKey)) {
       const group = document.createElement('div');
       group.className = 'country-group collapsed';
       const head = document.createElement('div');
@@ -538,14 +774,16 @@ function buildSidebar() {
       chev.textContent = '▾';
       const label = document.createElement('span');
       label.textContent = country;
-      head.append(chev, label, groupCount());
+      const count = groupCount();
+      head.append(chev, label, count);
       head.addEventListener('click', () => group.classList.toggle('collapsed'));
       group.appendChild(head);
+      groups.push({ group, count });
       const items = document.createElement('div');
       items.className = 'country-items';
 
-      for (const item of byCountry[country].sort((a, b) => a.name.localeCompare(b.name) || a.dist - b.dist)) {
-        items.appendChild(item.build());
+      for (const row of rows.sort((a, b) => a.name.localeCompare(b.name) || a.dist - b.dist)) {
+        items.appendChild(row.build());
       }
 
       group.appendChild(items);
@@ -572,28 +810,26 @@ filterEl.addEventListener('input', applyFilter);
 function applyFilter() {
   const q = filterEl.value.trim().toLowerCase();
 
-  for (const el of document.querySelectorAll('.route')) {
-    const hit = !q || el.dataset.name.includes(q) || el.dataset.country.toLowerCase().includes(q);
-    el.classList.toggle('hidden', !hit);
+  /**
+   * Matched against the entries rather than against `data-name` and `data-country` written onto their rows. The store
+   * already holds both as strings, so stringifying them into the DOM and reading them back was the page asking itself a
+   * question it was holding the answer to — and the answer came back `string | undefined`, since a `dataset` cannot
+   * promise a key was ever set.
+   */
+  for (const entry of [...store, ...cityStore]) {
+    const hit = !q || entry.name.toLowerCase().includes(q) || entry.country.toLowerCase().includes(q);
+    rowOf(entry).classList.toggle('hidden', !hit);
   }
 
-  /**
-   * A country group and a continent group behave alike — both count the rows still showing anywhere beneath them — so
-   * one pass serves for either level of the tree.
-   */
-  const settle = (groupClass, headClass) => {
-    for (const group of document.querySelectorAll(groupClass)) {
-      const shown = group.querySelectorAll('.route:not(.hidden)').length;
-      group.classList.toggle('hidden', !shown);
-      group.classList.toggle('collapsed', q ? !shown : true);
-      group.querySelector(`${headClass} .gcount`).textContent = String(shown);
-    }
-  };
-
-  settle('.country-group', '.country');
-  settle('.continent-group', '.continent');
+  for (const { group, count } of groups) {
+    const shown = group.querySelectorAll('.route:not(.hidden)').length;
+    group.classList.toggle('hidden', !shown);
+    group.classList.toggle('collapsed', q ? !shown : true);
+    count.textContent = String(shown);
+  }
 }
 
+/** @param {string} html */
 function showBanner(html) {
   bannerEl.innerHTML = html;
   bannerEl.style.display = 'block';
@@ -604,6 +840,9 @@ function showBanner(html) {
  * kinds want opposite things from the reader, so a server that is down must not read as metadata to go and correct.
  * The banner stays up for both: a defect is there to fix, and a file that never arrived is not something the map can
  * show a placeholder for either.
+ *
+ * @param {string} heading
+ * @param {readonly {file: string, reason: string}[]} failures
  */
 function appendFailures(heading, failures) {
   const head = document.createElement('b');
@@ -656,10 +895,13 @@ function focusHashEvent() {
    * what follows, where no one of them can own the view or be the one the popup names.
    */
   if (routes.length + places.length === 1) {
-    if (routes.length) {
-      selectRoute(routes[0]);
-    } else {
-      selectCity(places[0]);
+    const [route] = routes;
+    const [place] = places;
+
+    if (route) {
+      selectRoute(route);
+    } else if (place) {
+      selectCity(place);
     }
 
     return true;
@@ -668,7 +910,7 @@ function focusHashEvent() {
   clearSelection();
   routes.forEach((s) => highlightRoute(s));
   places.forEach((c) => highlightCity(c));
-  revealRows([...routes, ...places].map((entry) => entry.el));
+  revealRows([...routes, ...places].map(rowOf));
 
   /**
    * One fit, not two. Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels as a CSS transition and
@@ -689,9 +931,17 @@ function focusHashEvent() {
 window.addEventListener('hashchange', focusHashEvent);
 
 async function init() {
+  /** @type {{file: string, reason: string}[]} */
   const unreachable = [];
+
+  /** @type {{file: string, reason: string}[]} */
   const rejected = [];
-  const note = (file, e) => (e instanceof FetchError ? unreachable : rejected).push({ file, reason: e.message });
+
+  /**
+   * @param {string} file
+   * @param {unknown} e
+   */
+  const note = (file, e) => (e instanceof FetchError ? unreachable : rejected).push({ file, reason: said(e) });
 
   /**
    * Nothing can be drawn without the list, and reading it is the page's first fetch — so this is also where opening
@@ -703,7 +953,7 @@ async function init() {
     files = await loadManifest();
   } catch (e) {
     showBanner(
-      `<b>Could not read <code>${GPX_PATHS}</code> — ${e.message}.</b><br>` +
+      `<b>Could not read <code>${GPX_PATHS}</code> — ${said(e)}.</b><br>` +
         'This page reads the route list and the <code>.gpx</code> files over HTTP, ' +
         'so it needs to be served rather than opened directly from disk. Try:<br>' +
         '<code>python3 -m http.server</code> then open ' +
@@ -716,17 +966,33 @@ async function init() {
   // otherwise queue behind this one.
   const names = loadEventNames();
 
-  // One bad file does not hide the others, but it is still reported.
-  const results = await Promise.allSettled(files.map((file) => loadGpxFile(file)));
-  results.forEach((res, i) => {
-    const file = files[i];
+  /**
+   * One bad file does not hide the others, but it is still reported. Each file's outcome is caught inside its own
+   * callback rather than read back out of `Promise.allSettled` by index: the file and what went wrong then travel
+   * together, where two arrays joined by number is a pairing nothing can state — `files[i]` answers
+   * `string | undefined` however long `results` is, and `res.reason` answers `any`, so the message taken off it was
+   * never checked at all.
+   *
+   * Catching there also attaches the handler as the fetch starts, so no rejection waits on an earlier file for someone
+   * to listen; and the loop below still reports in the manifest's order rather than in the order the files finished.
+   */
+  const results = await Promise.all(
+    files.map(async (file) => {
+      try {
+        return { file, read: await loadGpxFile(file), failure: null };
+      } catch (e) {
+        return { file, read: null, failure: e };
+      }
+    }),
+  );
 
-    if (res.status === 'rejected') {
-      note(file, res.reason);
-      return;
+  for (const { file, read, failure } of results) {
+    if (!read) {
+      note(file, failure);
+      continue;
     }
 
-    const { text, routes, waypoints } = res.value;
+    const { text, routes, waypoints } = read;
 
     for (const route of routes) {
       const line = L.polyline(route.latlngs, routeStyle(route)).addTo(map);
@@ -749,7 +1015,7 @@ async function init() {
       marker.on('click', () => selectCity(entry, { pan: false }));
       cityStore.push(entry);
     }
-  });
+  }
 
   await names;
   buildSidebar();
