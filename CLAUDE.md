@@ -50,6 +50,17 @@ one more thing about it.
   `TS2322: Type 'boolean' is not assignable to type 'string | number'` on the entry itself, and silent unannotated,
   since the codec's writer `switch` catches it no earlier than run time. So read the two bullets above as a question
   about indexing and this one as the way out when the answer is "both".
+- **A mapped type parses inside a JSDoc `@typedef`, which is what a table indexing a class by a string id wants.**
+  `pokedex/entries.js` files a species under a category by reading `pokemon[id]`, and the honest type for that `id` is
+  not `keyof Pokemon`: the class carries a builder beside almost every flag — `isRegional` and `region` either side of
+  `regional` — and a method is truthy for every species, so a category naming one would file the whole dex under it.
+  `keyof Pokemon` accepts both of those **silently**, where
+  `{[K in keyof Pokemon]: Pokemon[K] extends boolean ? K : never}[keyof Pokemon]` answers
+  `TS2820: Type '"region"' is not assignable to type 'Flag'. Did you mean '"regional"'?` for each. It rejects `'dex'`
+  and `'variants'` as `TS2322` and admits `'released'`, `'spawns'` and `'shinyEligible'`, so the union is the eight
+  boolean getters rather than the five categories the page shows — which is the right answer rather than a loose one,
+  since nothing in `Pokemon` says which of them a page calls a category, and a type that did would be the page's own
+  list wearing the class's name.
 - **Leave a constant to inference.** `export const GPX_PATHS = 'gpx-paths.json'` already has the literal type
   `'gpx-paths.json'` and `@type {string}` would only widen it; `src/pgsharp/scan-config.js` is the same, every field a
   literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
@@ -178,6 +189,16 @@ one more thing about it.
   where the bug was — unchecked. What the type _can_ say, say: `classDesc`'s `superName, superUid` became one optional
   `superclass` object, because nothing said the second was present whenever the first was, and passing
   `{ name: NUMBER.name }` alone is a `TS2345` now.
+- **Where the type _does_ pair the fields, narrow on the object and test against `null` rather than for truth.**
+  `Pokemon#variants` is the discriminated union `Box` above is not —
+  `{region: string, form: null, pokemon: Pokemon} | {region: null, form: string, pokemon: Pokemon}` — and two things
+  still went wrong with it in `pokedex/entries.js`. Truthiness does not discriminate a `string | null`, because `''` is
+  a falsy `string`: `variant.region ? … : formNameOf(variant.form)` is
+  `TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'`, the falsy branch being
+  unable to rule out the member whose region is empty, where `variant.region !== null` has no such hole and clears it.
+  And destructuring throws the pairing away, since the correlation lives in the union of objects rather than in either
+  field: narrowing a `const { region }` says nothing whatever about a separately-bound `form`. So keep hold of such a
+  union by the object, and reserve truthiness for a type with no falsy inhabitant to fall through.
 - **A loop variable takes its type from its initializer.** `for (let d = desc; d !== null; d = d.super)` infers `d` as
   `ClassDesc`, because `desc` is already narrowed non-null, so the walk up to the `null` above `java.lang.Object` cannot
   assign to it — `TS2322: Type 'ClassDesc | null' is not assignable to type 'ClassDesc'`. Seeding from `desc.super` with
@@ -202,7 +223,18 @@ one more thing about it.
   `Span[] | never[]` and `U` is `Span`. And a pair of pairs is not a list of pairs —
   `for (const [key, set] of [['i', a], ['x', b]])` types both bindings `string | Set<string> | undefined`, where
   `Object.entries({ i: a, x: b })` is a `[string, Set<string>][]` and destructures as one. All three are the same
-  lesson: say what the array holds wherever the idiom cannot.
+  lesson: say what the array holds wherever the idiom cannot. `pokedex/page.js` carries both of the ways that last one
+  bites: `[[$.flags, FLAGS], [$.hunts, HUNT_FLAGS]]` is the union above, at a `TS2488`, a `TS18048` and a `TS2339`,
+  while the two search links' pairs of a label and a term hold a union of two strings that costs nothing and are _still_
+  `string | undefined` per element under `noUncheckedIndexedAccess`, which `encodeURIComponent` rejects. An object per
+  row rather than a pair answers both, and reads better at the loop head than a destructured pair did.
+- **A contextual type from `@type` on an array reaches the literals written beneath it and stops at a `map`.**
+  `@type {readonly Toggle[]}` on `FLAGS` in `pokedex/page.js` types the three objects spelled out in the literal, so
+  their `(entry) => entry.shiny` callbacks are checked against `Toggle` with no annotation of their own — and it reaches
+  neither the objects a spread `...CATEGORIES.map(…)` contributes nor `HUNT_FLAGS`, built by a `map` of its own, whose
+  callback parameters stayed `TS7006` implicit `any` until each `map` said what it answers with a
+  `/** @returns {Toggle} */` of its own. So read such an annotation as covering what is typed out below it rather than
+  everything that ends up in the array.
 - **A hoisted `function` does not see a module-scope narrowing; an arrow does.** `const DEX = RANGES.find(…)` above a
   `throw` on `undefined` leaves `DEX.max` clean inside an IIFE and `TS18048: 'DEX' is possibly 'undefined'` inside an
   `export function`, because a declaration could be called before the narrowing ever ran. So a guard over a table lookup
@@ -331,6 +363,26 @@ after the next.
   the corpus is sensitive per step rather than only in aggregate. Two scenarios that look redundant often are not:
   arrowing eleven times down a four-row list wraps `active` back to 0, so `offered[0]` and `offered[active]` agree there
   and only the shorter walk catches Enter taking the wrong row.
+- **Where the change alters the markup, the snapshot has to name observables rather than markup.** Typing
+  `pokedex/page.js` deletes `data-dex` from all 1,025 cards and `data-flag` from every chip, holding both in a `Map`
+  keyed by the same values instead, so a diff over `innerHTML` would report all 82 snapshots as changed and say nothing
+  whatever about behaviour. Name the things the page is _for_ — the visible count, each chip's `aria-pressed`, the
+  marks' titles, the dialog's facts and variant rows, `location.hash`, `document.activeElement` — and the two trees are
+  comparable again. It follows that no step may reach a control through either attribute either: cards are found by the
+  `#0025` they print and chips by index, which is the same control on both sides. `activeElement` is the one worth
+  naming twice, because it is what proves a focus handler rather than assuming one — and reading it is also what
+  explains a ceiling. Six of the seven closes report the card, `BUTTON.card:#0025Pikachu✨shiny available` after a walk
+  through the arrows; the seventh reports `BODY`, because that scenario typed `pika` first and **a hidden element cannot
+  take focus**, so `cards.get(133).card.focus()` really runs and lands nowhere. Breaking the handler therefore moves 6
+  snapshots rather than 7, which is the DOM's answer rather than a weak corpus — and the reason the `dex !== null` guard
+  beside it has to be measured against the checker instead, since removing the call and inverting the guard move the
+  very same 6.
+- **`SimpleHTTPRequestHandler.directory` cannot be set as a class attribute.** `__init__` assigns it from its own
+  keyword argument, defaulting to `os.getcwd()`, so a
+  `type('Handler', (SimpleHTTPRequestHandler,), {'directory': str(root)})` is overwritten on every request and both
+  ports serve the harness's own working directory. It surfaces as a bare
+  `urllib.error.HTTPError: HTTP Error 404: File not found` against the page under test rather than as a server pointed
+  at the wrong tree. Subclass properly and pass `directory=` through to `super().__init__`.
 - **Two clicks in the same tick say nothing about the timer between them.** Copy sets a 1400ms timer and clears the
   previous one, so clicking twice back to back and reading the label 1.7 seconds later reports `Copy` whether the
   `clearTimeout` is there or not — both timers land inside the wait and both write the same word. Stagger the pair
@@ -553,6 +605,38 @@ after the next.
   read identically in the log. The complementary case is in the same run: `dedupeByName` not deduplicating moved 2 of
   53, both inside the one scenario that synthesizes a repeat by appending a path to the manifest — which is how a
   scenario earns its place.
+- **A snapshot field no step ever fills compares equal on both trees forever, which reads exactly like agreement.** That
+  is [a selector that matches nothing](#checking-the-pages-in-a-browser) one level up, and the mutation pass is the only
+  thing that finds it: two breaks in `variantTable` — never appending the header row, never appending a body row — each
+  moved 0 of 74 snapshots, and the recorded run says why rather than leaving it to be guessed at. `variantTitle`,
+  `variantHead` and `variantRows` were empty in all 74 on both trees, because not one of the eight species the corpus
+  opened carries a variant — Bulbasaur, Eevee, Ivysaur, Mew, Phione, Pikachu, Vaporeon and Venusaur, where 125 of the
+  1,025 do. The scenario was even named `dialog-variants`. So the differential's 0 differences was honest and said
+  nothing whatever about the `head`/`body` rewrite the slice had just made. Extending the corpus is half the fix —
+  Tauros `#0128` for a region with forms beneath it and Darmanitan `#0555` for rows that are not released, which takes
+  the run to 80 snapshots and 17 variant rows — and asserting that coverage is the other half, since a corpus can
+  quietly lose it again. Put the assertion outside the function the mutation pass shares with the differential, so a
+  tree broken on purpose still reports how many snapshots moved instead of throwing on the coverage check and being
+  counted as caught for the wrong reason. The same hole came back one run later in a subtler shape, which is what says
+  to expect it rather than to treat it as one mistake: negating `huntsOf`'s quantifier — `wanted.every(watched)` for
+  `wanted.some(watched)` — moved 0 of 80 with every field of every snapshot filled. The field was populated and never
+  with a value that could discriminate, because `huntsOf` is called once per variant with a single-element list, where
+  the two quantifiers are the same function, and once per entry over the species and all its variants. Ask the data
+  before touching the corpus: importing `entries.js` under Node finds 45 (entry, hunt) pairs wanting two or more members
+  and exactly 3 where some but not all are watched — Braviary, Sliggoo and Goodra, each on the shiny hunt with 2 wanted
+  and 1 watched. Reachable and missed, so it wants a scenario, where the accent fold's 0 of 53 above wanted a
+  derivation. Opening Braviary `#0628` takes the run to 82 snapshots, and that coverage assertion has to name the three
+  species rather than an observable, because `variantTable` renders a hunt's label and not its watched state — so
+  nothing in a snapshot says a row was answered by two members rather than by one.
+- **A harness that turns its own failure into a figure reports its strongest result for its worst run.** The mutation
+  pass counted a corpus that threw as having moved every snapshot, reasoning that a break taking the page down at load
+  is caught. That is true of `variant.region === null`, where `formNameOf(null)` reaches `titleise(null)` and
+  `null.toLowerCase()` throws while `ENTRIES` is still being built at module scope, so the page serves 0 cards and the
+  run fails at its _first_ snapshot. It is not true of a browser hiccup at the eighteenth scenario, which was banked as
+  `80 of 80` for the one break in the pass that moves nothing at all — `22 of 22 breaks caught`, and it read perfectly.
+  A figure and a failure are different kinds of thing, so print the failure as one rather than as a number, retry once,
+  since a real module-scope break fails every time and a flake does not, and count the load failures apart from the
+  snapshot movements.
 - **A view that lands can still be taken away.** Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels
   as a CSS transition and applies the move at its end, from the centre and zoom captured when it began; `setView` stops
   a pan but not that. So a second view change issued in the same tick wins and then loses, several hundred milliseconds

@@ -16,7 +16,50 @@ import XXL_POKEMON from '../filters/xxl.js';
 import XXS_POKEMON from '../filters/xxs.js';
 import { GENERATIONS } from '../search/terms.js';
 
-/** What the nearby feed can ever report: a wild spawn of something in the game, as `pgsharp/filters.js` narrows to. */
+/** @import Pokemon from '../pokemon/pokemon.js' */
+
+/**
+ * A key of `Pokemon` answering a boolean, which is all a category or a hunt asks about one. Derived rather than written
+ * out, because the class carries a builder method beside almost every flag — `isRegional` and `region` either side of
+ * `regional` — and a method is truthy for every species, so a category naming one would file the whole dex under it.
+ * Both of those are a `TS2820` suggesting `regional` against this and both are silent against `keyof Pokemon`. The
+ * union is the eight boolean getters rather than the five categories, since nothing in `Pokemon` says which of them
+ * this page shows as one.
+ *
+ * @typedef {{[K in keyof Pokemon]: Pokemon[K] extends boolean ? K : never}[keyof Pokemon]} Flag
+ */
+
+/**
+ * @typedef {(pokemon: Pokemon) => boolean} Predicate
+ * @typedef {{id: string, label: string, members: ReadonlySet<Pokemon>, watched: Predicate}} Hunt
+ * @typedef {{id: string, watched: boolean}} EntryHunt
+ * @typedef {{name: string, pokemon: Pokemon, hunts: EntryHunt[]}} Variant
+ */
+
+/**
+ * One row of the dex as the page reads it. Exported for `page.js`, which filters and renders these and has no other
+ * source for what an entry carries.
+ *
+ * @typedef {object} Entry
+ * @property {string} constant
+ * @property {number} dex
+ * @property {string} name
+ * @property {string} folded
+ * @property {number | null} generation
+ * @property {Pokemon} species
+ * @property {Variant[]} variants
+ * @property {boolean} released
+ * @property {boolean} shiny
+ * @property {boolean} spawns
+ * @property {Flag[]} categories
+ * @property {EntryHunt[]} hunts
+ */
+
+/**
+ * What the nearby feed can ever report: a wild spawn of something in the game, as `pgsharp/filters.js` narrows to.
+ *
+ * @type {Predicate}
+ */
 const feedable = (pokemon) => pokemon.released && pokemon.spawns;
 
 /**
@@ -26,6 +69,8 @@ const feedable = (pokemon) => pokemon.released && pokemon.spawns;
  * A list is a checklist of what is still wanted, and the feed PGSharp is handed is that list narrowed to what it can
  * actually alert on. `watched` is that narrowing, so the page can tell "wanted, and the feed is looking" apart from
  * "wanted, but only a raid or an egg will turn one up".
+ *
+ * @type {readonly Hunt[]}
  */
 export const HUNTS = [
   {
@@ -42,6 +87,8 @@ export const HUNTS = [
 /**
  * The categories a species can belong to, as the getter on `Pokemon` that says so. Legendary, Mythical, Ultra Beast and
  * Baby are exclusive in practice; Regional is not, which is why this is a list of flags rather than a single field.
+ *
+ * @type {readonly {id: Flag, label: string}[]}
  */
 export const CATEGORIES = [
   { id: 'legendary', label: 'Legendary' },
@@ -51,10 +98,20 @@ export const CATEGORIES = [
   { id: 'regional', label: 'Regional' },
 ];
 
-/** The generations as the dex numbers each ends on, parsed from the search builder's ranges so there is one table. */
-const LAST_OF_GENERATION = GENERATIONS.map(([number, range]) => [Number(number), Number(range.split('-')[1])]);
+/**
+ * The generations as the dex numbers each ends on, parsed from the search builder's ranges so there is one table. The
+ * pair is a tuple, which is the one shape `noUncheckedIndexedAccess` lets an index read without a guard.
+ */
+const LAST_OF_GENERATION = GENERATIONS.map(
+  /** @returns {[number, number]} */
+  ([number, range]) => [Number(number), Number(range.split('-')[1])],
+);
 
-/** The generation a dex number falls in, or null for one past the last range `search/terms.js` knows about. */
+/**
+ * The generation a dex number falls in, or null for one past the last range `search/terms.js` knows about.
+ *
+ * @param {number} dex
+ */
 export const generationOf = (dex) => LAST_OF_GENERATION.find(([, last]) => dex <= last)?.[0] ?? null;
 
 export const GENERATION_NUMBERS = LAST_OF_GENERATION.map(([number]) => number);
@@ -63,12 +120,20 @@ export const GENERATION_NUMBERS = LAST_OF_GENERATION.map(([number]) => number);
  * Every variant under one, depth first, each carrying the name it reads as. A form of a regional variant is named by
  * both, so Paldean Tauros's breeds read as `Paldean Tauros (Combat Breed)` rather than as a breed of the Kantonian
  * bull.
+ *
+ * @param {Pokemon} pokemon
+ * @param {string} name
+ * @returns {Variant[]}
  */
 function variantsOf(pokemon, name) {
-  return pokemon.variants.flatMap(({ region, form, pokemon: variant }) => {
-    const label = region ? `${region} ${name}` : `${name} (${formNameOf(form)})`;
+  return pokemon.variants.flatMap((variant) => {
+    // A variant is a region or a form and never both, which is a pairing the object holds and two bindings lose. The
+    // test is `!== null` rather than truthiness because `''` is a falsy string, so truthiness cannot rule the region
+    // out and leaves the form nullable in the branch that names it.
+    const label = variant.region !== null ? `${variant.region} ${name}` : `${name} (${formNameOf(variant.form)})`;
+    const child = variant.pokemon;
 
-    return [{ name: label, pokemon: variant, hunts: huntsOf([variant]) }, ...variantsOf(variant, label)];
+    return [{ name: label, pokemon: child, hunts: huntsOf([child]) }, ...variantsOf(child, label)];
   });
 }
 
@@ -76,6 +141,8 @@ function variantsOf(pokemon, name) {
  * The hunts that want any one of these, each saying whether the feed watches for any member it wants. A species can be
  * on a list and unwatched — Terapagos is wanted as an XXL like the rest of the dex, and nothing will turn one up in the
  * wild to alert on.
+ *
+ * @param {readonly Pokemon[]} pokemon
  */
 function huntsOf(pokemon) {
   return HUNTS.flatMap(({ id, members, watched }) => {
@@ -91,6 +158,8 @@ function huntsOf(pokemon) {
  * The species-level answers ask the species and its variants together: an entry is in the game if any of it is, and
  * has a shiny if any released part of it does — Galarian Darumaka's shiny is still a Darumaka shiny to hunt. `spawns`
  * reads the same way, so Paldean Tauros not spawning does not stop Tauros from counting as a wild spawn.
+ *
+ * @type {readonly Entry[]}
  */
 export const ENTRIES = Object.entries(POKEMON).map(([constant, species]) => {
   const name = nameOf(constant);
@@ -114,13 +183,20 @@ export const ENTRIES = Object.entries(POKEMON).map(([constant, species]) => {
   };
 });
 
-/** The dex number zero-padded to four places, the way the games print it. */
+/**
+ * The dex number zero-padded to four places, the way the games print it.
+ *
+ * @param {number} dex
+ */
 export const numbered = (dex) => `#${String(dex).padStart(4, '0')}`;
 
 /**
  * Where a species' picture comes from: PokeAPI's sprite set, which covers the whole national dex by number and has a
  * shiny beside each. Hotlinked rather than vendored, since 2050 images would be most of this repository's weight; a
  * sprite that fails to load leaves the card its number and name, which is the part that matters.
+ *
+ * @param {number} dex
+ * @param {boolean} [shiny]
  */
 export const spriteOf = (dex, shiny = false) =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${shiny ? 'shiny/' : ''}${dex}.png`;

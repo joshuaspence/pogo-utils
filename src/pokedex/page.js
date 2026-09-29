@@ -11,6 +11,26 @@ import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, spriteOf } fr
 import { fold } from '../pokemon/names.js';
 import { byId, el } from '../dom.js';
 
+/** @import {Entry, Flag} from './entries.js' */
+
+/**
+ * @typedef {'' | 'in' | 'out'} Availability
+ * @typedef {{id: string, label: string, test: (entry: Entry) => boolean}} Toggle
+ * @typedef {{item: HTMLLIElement, card: HTMLButtonElement}} Card
+ */
+
+/**
+ * What the controls are set to, and which species is open. Held as one object so a link, Reset and a control change are
+ * the same kind of thing: replace or amend it and call `update`.
+ *
+ * @typedef {object} State
+ * @property {string} q
+ * @property {number | null} generation
+ * @property {Availability} availability
+ * @property {Set<string>} flags
+ * @property {number | null} open
+ */
+
 const $ = {
   q: byId('q', HTMLInputElement),
   generation: byId('generation', HTMLSelectElement),
@@ -33,29 +53,50 @@ const $ = {
 /**
  * The toggles, each with the question it asks of an entry. Every one that is on has to hold, so two of them narrow to
  * what both are true of — Legendary with Shiny is the legendaries that have one.
+ *
+ * @type {readonly Toggle[]}
  */
 const FLAGS = [
   { id: 'shiny', label: '✨ Has a shiny', test: (entry) => entry.shiny },
   { id: 'wild', label: '🌿 Spawns in the wild', test: (entry) => entry.spawns },
   { id: 'forms', label: 'Has forms', test: (entry) => entry.variants.length > 0 },
-  ...CATEGORIES.map(({ id, label }) => ({ id, label, test: (entry) => entry.categories.includes(id) })),
+  // The `@type` above reaches the three literals written here and stops at the `map`, so the callback says what it
+  // answers itself — as `HUNT_FLAGS` below has to for the same reason.
+  ...CATEGORIES.map(
+    /** @returns {Toggle} */
+    ({ id, label }) => ({ id, label, test: (entry) => entry.categories.includes(id) }),
+  ),
 ];
 
-const HUNT_FLAGS = HUNTS.map(({ id, label }) => ({
-  id: `hunt-${id}`,
-  label,
-  test: (entry) => entry.hunts.some((hunt) => hunt.id === id),
-}));
+const HUNT_FLAGS = HUNTS.map(
+  /** @returns {Toggle} */
+  ({ id, label }) => ({
+    id: `hunt-${id}`,
+    label,
+    test: (entry) => entry.hunts.some((hunt) => hunt.id === id),
+  }),
+);
 
 const TOGGLES = new Map([...FLAGS, ...HUNT_FLAGS].map((flag) => [flag.id, flag]));
 
 const HUNT_LABELS = new Map(HUNTS.map(({ id, label }) => [id, label]));
 const CATEGORY_LABELS = new Map(CATEGORIES.map(({ id, label }) => [id, label]));
 
+/**
+ * Which of the three the availability control is set to. Both the fragment and the `<select>` are read through this:
+ * the one is a reader's URL and the other is markup the script does not own, so neither can be taken at its word.
+ *
+ * @param {string | null} value
+ * @returns {Availability}
+ */
+const availabilityOf = (value) => (value === 'in' || value === 'out' ? value : '');
+
+/** @returns {State} */
 function emptyState() {
   return { q: '', generation: null, availability: '', flags: new Set(), open: null };
 }
 
+/** @param {string} fragment */
 function fromFragment(fragment) {
   const params = new URLSearchParams(fragment.replace(/^#/, ''));
   const state = emptyState();
@@ -64,13 +105,14 @@ function fromFragment(fragment) {
 
   state.q = params.get('q') ?? '';
   state.generation = GENERATION_NUMBERS.includes(generation) ? generation : null;
-  state.availability = ['in', 'out'].includes(params.get('a')) ? params.get('a') : '';
+  state.availability = availabilityOf(params.get('a'));
   state.flags = new Set((params.get('f') ?? '').split('.').filter((id) => TOGGLES.has(id)));
   state.open = ENTRIES.some((entry) => entry.dex === open) ? open : null;
 
   return state;
 }
 
+/** @param {State} state */
 function toFragment(state) {
   const params = new URLSearchParams();
 
@@ -79,7 +121,7 @@ function toFragment(state) {
   }
 
   if (state.generation) {
-    params.set('g', state.generation);
+    params.set('g', String(state.generation));
   }
 
   if (state.availability) {
@@ -91,7 +133,7 @@ function toFragment(state) {
   }
 
   if (state.open) {
-    params.set('n', state.open);
+    params.set('n', String(state.open));
   }
 
   return params.toString();
@@ -103,6 +145,9 @@ let state = fromFragment(location.hash);
  * Whether an entry answers what was typed. A number is a dex number — `25`, `#25` and `#0025` all mean Pikachu, and
  * only Pikachu, since a reader typing a number has one species in mind rather than every number with a 25 in it. Any
  * other text is part of a name, folded the way the search page folds it so `flabebe` still finds Flabébé.
+ *
+ * @param {Entry} entry
+ * @param {string} query
  */
 function matchesQuery(entry, query) {
   const typed = query.trim();
@@ -120,6 +165,7 @@ function matchesQuery(entry, query) {
   return entry.folded.includes(fold(typed));
 }
 
+/** @param {Entry} entry */
 function matches(entry) {
   if (!matchesQuery(entry, state.q)) {
     return false;
@@ -137,12 +183,19 @@ function matches(entry) {
     return false;
   }
 
-  return [...state.flags].every((id) => TOGGLES.get(id).test(entry));
+  // Reading the slot rather than testing `has` first, since nothing at the type level joins the two lookups. An id no
+  // toggle answers to is a bug rather than a case — `fromFragment` drops them and the chips only ever add their own —
+  // and an empty grid says so where the `TypeError` this used to throw took the page down.
+  return [...state.flags].every((id) => TOGGLES.get(id)?.test(entry));
 }
 
 /**
  * A sprite that says nothing when it fails. The name and number beside it are the card; a hotlinked picture that does
  * not arrive — offline, or blocked — should leave a blank tile rather than the browser's broken-image glyph.
+ *
+ * @param {number} dex
+ * @param {boolean} shiny
+ * @param {number} size
  */
 function sprite(dex, shiny, size) {
   const img = el('img', 'sprite');
@@ -156,25 +209,32 @@ function sprite(dex, shiny, size) {
   return img;
 }
 
-/** A mark whose glyph is for the eye and whose words are for a screen reader. */
+/**
+ * A mark whose glyph is for the eye and whose words are for a screen reader.
+ *
+ * @param {string} className
+ * @param {string} glyph
+ * @param {string} words
+ */
 function mark(className, glyph, words) {
   const node = el('span', `mark ${className}`);
+  const icon = el('span', null, glyph);
+  icon.setAttribute('aria-hidden', 'true');
   node.title = words;
-  node.append(el('span', null, glyph), el('span', 'sr', words));
-  node.firstChild.setAttribute('aria-hidden', 'true');
+  node.append(icon, el('span', 'sr', words));
   return node;
 }
 
+/** @type {Map<number, Card>} */
 const cards = new Map();
 
 function buildGrid() {
   const fragment = document.createDocumentFragment();
 
   for (const entry of ENTRIES) {
-    const li = el('li');
+    const item = el('li');
     const card = el('button', 'card');
     card.type = 'button';
-    card.dataset.dex = entry.dex;
 
     if (!entry.released) {
       card.classList.add('unreleased');
@@ -198,29 +258,38 @@ function buildGrid() {
     );
 
     card.addEventListener('click', () => open(entry.dex));
-    li.append(card);
-    fragment.append(li);
-    cards.set(entry.dex, li);
+    item.append(card);
+    fragment.append(item);
+    cards.set(entry.dex, { item, card });
   }
 
   $.grid.append(fragment);
 }
 
+/**
+ * The toggle chips by the id they stand for, so `update` writes their state without asking the document for them.
+ *
+ * @type {Map<string, HTMLButtonElement>}
+ */
+const chips = new Map();
+
 function buildControls() {
   for (const number of GENERATION_NUMBERS) {
     const option = el('option', null, `Generation ${number}`);
-    option.value = number;
+    option.value = String(number);
     $.generation.append(option);
   }
 
-  for (const [container, flags] of [
-    [$.flags, FLAGS],
-    [$.hunts, HUNT_FLAGS],
+  // Objects rather than pairs, since a pair of pairs is not a list of pairs: `[[$.flags, FLAGS], …]` types both
+  // bindings as the union of an element and a toggle list.
+  for (const { container, flags } of [
+    { container: $.flags, flags: FLAGS },
+    { container: $.hunts, flags: HUNT_FLAGS },
   ]) {
     for (const flag of flags) {
       const chip = el('button', 'chip', flag.label);
       chip.type = 'button';
-      chip.dataset.flag = flag.id;
+      chips.set(flag.id, chip);
       chip.addEventListener('click', () => {
         if (state.flags.has(flag.id)) {
           state.flags.delete(flag.id);
@@ -245,7 +314,7 @@ function buildControls() {
   });
 
   $.availability.addEventListener('change', () => {
-    state.availability = $.availability.value;
+    state.availability = availabilityOf($.availability.value);
     update();
   });
 
@@ -255,7 +324,11 @@ function buildControls() {
   });
 }
 
-/** The entries the filters leave, in dex order — what the grid shows and what the dialog's arrows step through. */
+/**
+ * The entries the filters leave, in dex order — what the grid shows and what the dialog's arrows step through.
+ *
+ * @type {Entry[]}
+ */
 let visible = [];
 
 function update() {
@@ -265,18 +338,18 @@ function update() {
     $.q.value = state.q;
   }
 
-  $.generation.value = state.generation ?? '';
+  $.generation.value = String(state.generation ?? '');
   $.availability.value = state.availability;
 
-  for (const chip of document.querySelectorAll('.chip[data-flag]')) {
-    chip.setAttribute('aria-pressed', String(state.flags.has(chip.dataset.flag)));
+  for (const [id, chip] of chips) {
+    chip.setAttribute('aria-pressed', String(state.flags.has(id)));
   }
 
   visible = ENTRIES.filter(matches);
   const shown = new Set(visible.map((entry) => entry.dex));
 
-  for (const [dex, li] of cards) {
-    li.hidden = !shown.has(dex);
+  for (const [dex, { item }] of cards) {
+    item.hidden = !shown.has(dex);
   }
 
   const filtered = visible.length !== ENTRIES.length;
@@ -290,14 +363,25 @@ function update() {
   history.replaceState(null, '', fragment ? `#${fragment}` : location.pathname);
 }
 
-/** A yes or a no, a tick or a dash to the eye and said as words to a screen reader. */
+/**
+ * A yes or a no, a tick or a dash to the eye and said as words to a screen reader.
+ *
+ * @type {(value: boolean, yes: string, no: string) => HTMLSpanElement}
+ */
 const yesNo = (value, yes, no) => (value ? mark('yes', '✓', yes) : mark('no', '—', no));
 
-/** One fact about the species, as a term and what it is. */
+/**
+ * One fact about the species, as a term and what it is.
+ *
+ * @param {HTMLElement} list
+ * @param {string} term
+ * @param {string} value
+ */
 function fact(list, term, value) {
   list.append(el('dt', null, term), el('dd', null, value));
 }
 
+/** @param {Entry} entry */
 function renderDetail(entry) {
   $.detailNum.textContent = numbered(entry.dex);
   $.detailName.textContent = entry.name;
@@ -364,9 +448,9 @@ function renderDetail(entry) {
     const links = el('p', 'links');
     const name = entry.name.toLowerCase();
 
-    for (const [text, term] of [
-      ['Search for it', name],
-      ['Search its family', `+${name}`],
+    for (const { text, term } of [
+      { text: 'Search for it', term: name },
+      { text: 'Search its family', term: `+${name}` },
     ]) {
       const link = el('a', 'ghost', text);
       link.href = `search.html#t=${encodeURIComponent(term)}`;
@@ -389,21 +473,26 @@ function renderDetail(entry) {
   $.next.disabled = at === -1 || at >= visible.length - 1;
 }
 
+/** @param {Entry} entry */
 function variantTable(entry) {
   const section = el('section', 'variants');
   section.append(el('h3', null, `Forms and variants (${entry.variants.length})`));
 
   const table = el('table');
-  const head = el('tr');
+  const headers = el('tr');
 
   for (const title of ['Form', 'In GO', 'Shiny', 'Wild', 'Hunts']) {
     const th = el('th', null, title);
     th.scope = 'col';
-    head.append(th);
+    headers.append(th);
   }
 
-  table.append(el('thead'), el('tbody'));
-  table.tHead.append(head);
+  // Holding the two sections rather than asking the table for them back: `tHead` is nullable and `tBodies[0]` is an
+  // index, so both want a guard for a node this function just appended.
+  const head = el('thead');
+  const body = el('tbody');
+  head.append(headers);
+  table.append(head, body);
 
   for (const { name, pokemon, hunts } of entry.variants) {
     const row = el('tr');
@@ -422,7 +511,7 @@ function variantTable(entry) {
       cell(yesNo(pokemon.released && pokemon.spawns, 'spawns in the wild', 'does not spawn')),
       el('td', 'hunts', hunts.map(({ id }) => HUNT_LABELS.get(id)).join(', ') || '—'),
     );
-    table.tBodies[0].append(row);
+    body.append(row);
   }
 
   const wrap = el('div', 'scroll');
@@ -431,12 +520,14 @@ function variantTable(entry) {
   return section;
 }
 
+/** @param {Node} child */
 function cell(child) {
   const td = el('td');
   td.append(child);
   return td;
 }
 
+/** @param {number} dex */
 function open(dex) {
   const entry = ENTRIES.find((candidate) => candidate.dex === dex);
 
@@ -456,6 +547,8 @@ function open(dex) {
 
 /**
  * Step to the neighbouring species among those the filters leave, so the arrows walk the list the reader is looking at.
+ *
+ * @param {number} by
  */
 function step(by) {
   const at = visible.findIndex((entry) => entry.dex === state.open);
@@ -463,7 +556,7 @@ function step(by) {
 
   if (at !== -1 && target) {
     open(target.dex);
-    cards.get(target.dex).scrollIntoView({ block: 'nearest' });
+    cards.get(target.dex)?.item.scrollIntoView({ block: 'nearest' });
   }
 }
 
@@ -493,8 +586,11 @@ $.detail.addEventListener('close', () => {
   update();
 
   // showModal() hands focus back to whatever had it, which after stepping with the arrows is the arrow button inside a
-  // dialog now closed. Send it to the card for the species last shown, which is where the reader is in the list.
-  cards.get(dex)?.querySelector('button').focus();
+  // dialog now closed. Send it to the card for the species last shown, which is where the reader is in the list. A
+  // close with nothing open has nowhere to send it: the hashchange handler clears `open` before closing the dialog.
+  if (dex !== null) {
+    cards.get(dex)?.card.focus();
+  }
 });
 
 addEventListener('hashchange', () => {
