@@ -13,8 +13,11 @@
  * generations is named in each, since the grouping follows the dex rather than the chain.
  */
 
+/** @import Pokemon from '../pokemon/pokemon.js' */
+
 import POKEMON from '../pokemon/pokedex.js';
 
+/** @type {ReadonlySet<Pokemon>} */
 // prettier-ignore
 export default new Set([
   // Generation 1
