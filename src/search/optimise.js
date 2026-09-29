@@ -20,9 +20,17 @@
  * reached a shorter way are the same families.
  */
 
+/** @import { State } from './query.js' */
+
 import POKEMON from '../pokemon/pokedex.js';
 import { GROUPS, RANGES } from './terms.js';
 import { rangeClause } from './query.js';
+
+/**
+ * A run of dex numbers, inclusive at both ends, which is every shape of number the game reads: `4` is `[4, 4]`.
+ *
+ * @typedef {[number, number]} Span
+ */
 
 /**
  * The three species whose English name the dex cannot spell. `pokedex.js` names a species by the constant it is bound
@@ -46,7 +54,12 @@ const SPECIES = Object.values(POKEMON).map((species) => ({
 /** A dex number or a span of them, which is how the game reads a number and how a clause is read back into one. */
 const SPAN = /^(\d+)(?:-(\d+))?$/;
 
-/** One span from the text of a clause, or null where that text is not a number at all. */
+/**
+ * One span from the text of a clause, or null where that text is not a number at all.
+ *
+ * @param {string} text
+ * @returns {Span | null}
+ */
 function spanOf(text) {
   const found = SPAN.exec(text);
 
@@ -60,9 +73,16 @@ function spanOf(text) {
   return [Math.min(from, to), Math.max(from, to)];
 }
 
-/** Spans sorted and run together, so `4,5,6` is `4-6` and `1-151,152-251` is the single span it describes. */
+/**
+ * Spans sorted and run together, so `4,5,6` is `4-6` and `1-151,152-251` is the single span it describes.
+ *
+ * @param {readonly Span[]} spans
+ * @returns {Span[]}
+ */
 function merged(spans) {
   const sorted = [...spans].sort((one, two) => one[0] - two[0] || one[1] - two[1]);
+
+  /** @type {Span[]} */
   const runs = [];
 
   for (const [from, to] of sorted) {
@@ -79,8 +99,15 @@ function merged(spans) {
   return runs;
 }
 
-/** Two sets of spans AND'd, which is every pair's overlap, because the clauses they came from are AND'd. */
+/**
+ * Two sets of spans AND'd, which is every pair's overlap, because the clauses they came from are AND'd.
+ *
+ * @param {readonly Span[]} one
+ * @param {readonly Span[]} two
+ * @returns {Span[]}
+ */
 function intersected(one, two) {
+  /** @type {Span[]} */
   const overlaps = [];
 
   for (const [from, to] of one) {
@@ -97,7 +124,11 @@ function intersected(one, two) {
   return merged(overlaps);
 }
 
-/** Spans as the game writes them: a bare number where the ends meet, `1-3` where they do not. */
+/**
+ * Spans as the game writes them: a bare number where the ends meet, `1-3` where they do not.
+ *
+ * @param {readonly Span[]} spans
+ */
 const written = (spans) => spans.map(([from, to]) => (from === to ? `${from}` : `${from}-${to}`)).join(',');
 
 /**
@@ -109,6 +140,9 @@ const written = (spans) => spans.map(([from, to]) => (from === to ? `${from}` : 
  * matching anywhere in it. `char` reaches Charmander under both readings; `saur` reaches Bulbasaur under one and
  * nothing under the other. So a fragment whose two readings disagree is refused rather than guessed at. That costs
  * `saur` and `mime` their reductions and leaves every reduction that is taken true whichever reading is right.
+ *
+ * @param {string} fragment
+ * @returns {number[] | null}
  */
 function dexOf(fragment) {
   const contains = SPECIES.filter((species) => species.name.includes(fragment));
@@ -133,6 +167,11 @@ function dexOf(fragment) {
  * A name that resolves to nothing is passed through untouched — a nickname, a misspelling, or a fragment landing on a
  * species the dex cannot spell. There is nothing to prove about a word that names no species, and the reductions here
  * are only for what can be proved.
+ *
+ * `spans` is the dex numbers the text stands for, or null where it stands for a name the arithmetic below cannot join.
+ *
+ * @param {string} token
+ * @returns {{text: string, spans: Span[] | null, numbered: boolean}}
  */
 function shortName(token) {
   const span = spanOf(token);
@@ -175,8 +214,14 @@ function shortName(token) {
     : { text: shortest, spans: null, numbered: false };
 }
 
-/** Whether a set of spans is the whole dex, in which case it says nothing and has earned no clause. */
-const everything = (spans, whole) => spans.length === 1 && spans[0][0] <= whole[0][0] && spans[0][1] >= whole[0][1];
+/**
+ * Whether a set of spans is the whole dex, in which case it says nothing and has earned no clause.
+ *
+ * @param {readonly Span[]} spans
+ * @param {Span} whole
+ */
+const everything = (spans, whole) =>
+  spans.length === 1 && spans.every(([from, to]) => from <= whole[0] && to >= whole[1]);
 
 /**
  * The state the same choices compose to in fewer characters, and what was done to get there.
@@ -189,8 +234,11 @@ const everything = (spans, whole) => spans.length === 1 && spans[0][0] <= whole[
  * to trust on a mass transfer with no way to check it. `lossy` marks the one reduction that is not an equivalence — a
  * name matches nicknames as well as species, the wiki being explicit that `Tyranitar` returns "all Tyranitar (including
  * any Tyranitar nicknamed as other)", where a dex number matches the species alone.
+ *
+ * @param {State} state
  */
 export function optimise(state) {
+  /** @type {[string, string][]} */
   const rewrites = [];
   const short = {
     ...state,
@@ -237,24 +285,45 @@ export function optimise(state) {
 
   const lossy = named.some((name) => name.numbered);
   const dexRange = RANGES.find((range) => range.id === 'dex');
-  const whole = [[dexRange.min, dexRange.max]];
   const generation = GROUPS.find((group) => group.id === 'generation');
-  const generations = generation.terms.filter((term) => state.include.has(term.id)).map((term) => spanOf(term.term));
+
+  // Every reduction below is about the dex, so neither of these is optional and a table missing one is a broken page
+  // rather than a query to shorten — the same reading `dom.js` takes of markup a script cannot find its element in.
+  if (!dexRange || !generation) {
+    throw new Error('`terms.js` declares no `dex` range or no `generation` group');
+  }
+
+  /** @type {Span} */
+  const whole = [dexRange.min ?? 0, dexRange.max];
+
+  // Every generation term is a span, since that is what a generation is searched as, so nothing is dropped here — but
+  // the span is read out of the table's own text and a table saying something else would sort as `undefined` before.
+  const generations = generation.terms
+    .filter((term) => state.include.has(term.id))
+    .map((term) => spanOf(term.term))
+    .filter((span) => span !== null);
 
   // Read back through the writer that produced it, so the two cannot drift over which bound an empty box falls back to.
   const box = spanOf(rangeClause(dexRange, state) ?? '');
 
   // The names join this arithmetic only once every one of them has become a number. They are OR'd with each other and
   // AND'd with everything else, so one name still spelled as a name leaves the clause unable to be folded in.
-  const numbers = named.length > 0 && named.every((name) => name.spans) ? merged(named.flatMap((n) => n.spans)) : null;
-  const sources = [numbers, generations.length > 0 ? merged(generations) : null, box && [box]].filter(Boolean);
-  const dex = sources.reduce(intersected, whole);
+  const numbers =
+    named.length > 0 && named.every((name) => name.spans) ? merged(named.flatMap((name) => name.spans ?? [])) : null;
+  const sources = [numbers, generations.length > 0 ? merged(generations) : null, box && [box]].filter(
+    (source) => source !== null,
+  );
+  const dex = sources.reduce(intersected, [whole]);
+  const [only] = dex;
 
   // Nothing can match — a dex number asked to be inside two spans that do not overlap, which the chips and the boxes
   // can say between them. Writing their intersection would be writing an empty clause, turning a search that finds
   // nothing into one that finds everything, so the spans stay as separate clauses. The names keep the shortening they
   // have already had, which stands on its own: what one species is called is not a question the other clauses answer.
-  if (sources.length === 0 || dex.length === 0) {
+  //
+  // Reading the first span is the emptiness test rather than a second question about it, and it is the span the dex
+  // boxes are filled from at the end where there turns out to be only the one.
+  if (sources.length === 0 || only === undefined) {
     return { state: short, rewrites, lossy };
   }
 
@@ -274,7 +343,7 @@ export function optimise(state) {
     short.ranges.delete('dex');
   } else {
     short.text = '';
-    short.ranges.set('dex', { from: dex[0][0], to: dex[0][1] });
+    short.ranges.set('dex', { from: only[0], to: only[1] });
   }
 
   return { state: short, rewrites, lossy };

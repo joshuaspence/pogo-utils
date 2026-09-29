@@ -54,6 +54,16 @@ one more thing about it.
   `members.has(pokemon)` — so the stray is a member nothing can equal and the hunt quietly stops wanting what was meant.
   A Set holds by identity, so `25` never matches `POKEMON.PIKACHU` however much it looks like it should. The `readonly`
   is the other half inference cannot say: both consumers only read, and `.add` and `.clear` are `TS2339` now.
+- **Where rejecting is not in question, localising still is.** `@type {readonly Group[]}` on `GROUPS` reports nothing
+  when added and nothing is wrong with a table that has no type, so the case for it is the two-sided measurement above —
+  and half of it comes back caught either way. A term with no `label` is a
+  `TS2741: Property 'label' is missing … but required in type 'Term'` on the term itself with the annotation, and
+  without it the same mistake surfaces forty lines down as a `TS2345` at a consumer, against a 400-character union of
+  all fifteen groups' inferred shapes. Same defect, unreadable message, wrong file. So measure four runs rather than
+  two: the stray alone, and the stray with the annotation removed — each against its own baseline, since removing an
+  annotation moves the count in its own right. Dropping `@returns {State}` from `emptyState` _cleared_ four errors in
+  `search/builder.js`, because those four are the `state.ranges.get(id) ?? {}` looseness that only exists once `Bounds`
+  is real.
 - **Name a type from another module with `@import`, never a run-time import.**
   `/** @import Pokemon from '../pokemon/pokemon.js' */` is a comment, so a file the browser fetches verbatim pays
   nothing for it, where `import Pokemon from …` for a type alone would add a real request. Two things about where it
@@ -98,6 +108,21 @@ one more thing about it.
   `ClassDesc`, because `desc` is already narrowed non-null, so the walk up to the `null` above `java.lang.Object` cannot
   assign to it — `TS2322: Type 'ClassDesc | null' is not assignable to type 'ClassDesc'`. Seeding from `desc.super` with
   `desc` pushed ahead of the loop needs no annotation at all.
+- **`filter(Boolean)` does not narrow, and two other array idioms lose the type the same way.** TypeScript infers a type
+  predicate from `filter((span) => span !== null)` and nothing at all from `filter(Boolean)`, so the latter hands a
+  `(Span | null)[]` to something wanting `Span[]` — one such call was every `'possibly null'` error in
+  `search/optimise.js`. `flatMap` is that shape one step along: a callback answering `Span[] | null` matches
+  `U | ReadonlyArray<U>` twice over, so `U` widens to `Span | null`, where `?? []` in the callback leaves
+  `Span[] | never[]` and `U` is `Span`. And a pair of pairs is not a list of pairs —
+  `for (const [key, set] of [['i', a], ['x', b]])` types both bindings `string | Set<string> | undefined`, where
+  `Object.entries({ i: a, x: b })` is a `[string, Set<string>][]` and destructures as one. All three are the same
+  lesson: say what the array holds wherever the idiom cannot.
+- **A hoisted `function` does not see a module-scope narrowing; an arrow does.** `const DEX = RANGES.find(…)` above a
+  `throw` on `undefined` leaves `DEX.max` clean inside an IIFE and `TS18048: 'DEX' is possibly 'undefined'` inside an
+  `export function`, because a declaration could be called before the narrowing ever ran. So a guard over a table lookup
+  belongs inside the function that needs it rather than at module scope: `search/optimise.js` throws on a `terms.js`
+  carrying no `dex` range when it is asked to shorten a query, which is the reading `dom.js` takes of markup a script
+  cannot find its element in.
 - **Two `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/` — so the
   checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
   the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
@@ -107,6 +132,13 @@ one more thing about it.
   fails. It does require `composite: true` in each, which writes a `tsconfig.tsbuildinfo` beside each config even though
   both are `noEmit`; `.gitignore` covers it. The cost of one check is that `scripts/` cannot gate separately while
   `src/` is still being annotated, so a type error there rides along with the migration's error count until the flip.
+- **Counting that error total needs `--force` and `--pretty false`, and both traps read as a pass.** Build mode says
+  nothing whatever about a project it thinks is up to date, so a second `pnpm lint:types` over an unchanged tree prints
+  an empty report that looks exactly like a clean one; and the colour codes sit between the two words, so
+  `grep -c 'error TS'` answered `0` against the same run that printed `Found 330 errors`. Count from
+  `pnpm exec tsc -b --force --pretty false tsconfig.json scripts/tsconfig.json`, and account for the whole delta rather
+  than the files you opened — typing `search/terms.js` cleared three errors in two modules the slice never touched and
+  created four in a third, which was a real latent looseness the tables had been hiding.
 - **A `scripts/` file reaches `src/types.d.ts` as `'../src/types.js'`.** TypeScript resolves a `.js` specifier onto its
   declaration sibling, where naming `'../src/types.d.ts'` is rejected outright without `allowImportingTsExtensions`.
   Build mode also wants every file a project reads listed by the project that reads it, and two `noEmit` projects have
