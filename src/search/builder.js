@@ -8,11 +8,42 @@
  * state is read first, and the chips are drawn already wearing it.
  */
 
+/** @import { Range } from './terms.js' */
+/** @import { Offer } from './species.js' */
+
 import { GROUPS, PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
 import { compose, emptyState, fromFragment, names, toFragment } from './query.js';
 import { optimise } from './optimise.js';
 import { suggestions, written } from './species.js';
 import { byId, el } from '../dom.js';
+
+/**
+ * Where a chip is. The three are a closed set rather than strings, so a `NEXT` that named a fourth or a `setChipState`
+ * handed one would be caught here rather than painting a chip nothing styles.
+ *
+ * @typedef {'off' | 'in' | 'out'} ChipState
+ */
+
+/**
+ * One chip: the button, the span wearing its glyph, and the words the label is built from. The glyph span is held
+ * rather than found again, because `node.querySelector('.state')` asks the document about a child this file appended
+ * itself and gets `Element | null` back for the trouble.
+ *
+ * @typedef {object} Chip
+ * @property {HTMLButtonElement} node
+ * @property {HTMLSpanElement} glyph
+ * @property {string} label
+ */
+
+/**
+ * One numeric range: its two boxes and the row they sit in, held for the same reason — `from.closest('.range')` is the
+ * row this file just built, asked for the long way round.
+ *
+ * @typedef {object} RangeRow
+ * @property {HTMLDivElement} row
+ * @property {HTMLInputElement} from
+ * @property {HTMLInputElement} to
+ */
 
 const els = {
   query: byId('query'),
@@ -34,21 +65,34 @@ let state = fromFragment(location.hash);
 
 // Every chip and range input by the id it answers to, so re-rendering after a preset or a link is a walk over the
 // state rather than a rebuild of the DOM — the focus ring stays where the reader left it.
+/** @type {Map<string, Chip>} */
 const chips = new Map();
+
+/** @type {Map<string, RangeRow>} */
 const rangeInputs = new Map();
 
-let copied = null;
+/** @type {number | undefined} */
+let copied;
 
-/** Where a chip goes when it is clicked: unused, required, ruled out, and round again. */
+/**
+ * Where a chip goes when it is clicked: unused, required, ruled out, and round again.
+ *
+ * @type {Record<ChipState, ChipState>}
+ */
 const NEXT = { off: 'in', in: 'out', out: 'off' };
 
-/** What a chip wears in each state — the glyph, and the words a screen reader is given instead of the colour. */
+/**
+ * What a chip wears in each state — the glyph, and the words a screen reader is given instead of the colour.
+ *
+ * @type {Record<ChipState, { glyph: string, said: string }>}
+ */
 const STATE = {
   off: { glyph: '+', said: 'not used' },
   in: { glyph: '✓', said: 'required' },
   out: { glyph: '!', said: 'ruled out' },
 };
 
+/** @param {string} id */
 const stateOf = (id) => (state.include.has(id) ? 'in' : state.exclude.has(id) ? 'out' : 'off');
 
 /**
@@ -57,6 +101,10 @@ const stateOf = (id) => (state.include.has(id) ? 'in' : state.exclude.has(id) ? 
  */
 const cleared = () => ({ ...emptyState(), optimise: state.optimise });
 
+/**
+ * @param {string} id
+ * @param {ChipState} next
+ */
 function setChipState(id, next) {
   state.include.delete(id);
   state.exclude.delete(id);
@@ -68,12 +116,15 @@ function setChipState(id, next) {
   }
 }
 
-function paintChip(id) {
-  const { node, label } = chips.get(id);
+/**
+ * @param {string} id
+ * @param {Chip} chip
+ */
+function paintChip(id, { node, glyph, label }) {
   const current = stateOf(id);
 
   node.dataset.state = current;
-  node.querySelector('.state').textContent = STATE[current].glyph;
+  glyph.textContent = STATE[current].glyph;
   node.setAttribute('aria-label', `${label} — ${STATE[current].said}`);
 }
 
@@ -103,11 +154,15 @@ function current() {
 }
 
 /** The length of the string, said in words. A one-character query is what the shortening makes reachable. */
+/** @param {number} length */
 const characters = (length) => `${length} character${length === 1 ? '' : 's'}`;
 
 /**
  * The substitutions behind the string on screen, and nothing when it is the plain one. A reader handed `4` where they
  * typed `charmander` cannot otherwise check what they are about to paste over a storage box full of Pokémon.
+ *
+ * @param {readonly [string, string][]} rewrites
+ * @param {boolean} lossy
  */
 function paintRewrites(rewrites, lossy) {
   els.rewritten.textContent = '';
@@ -160,15 +215,16 @@ function paintAll() {
   // no longer what it holds and the list under it would be describing text that has gone.
   closeSuggestions();
 
-  for (const id of chips.keys()) {
-    paintChip(id);
+  for (const [id, chip] of chips) {
+    paintChip(id, chip);
   }
 
-  for (const [id, { from, to }] of rangeInputs) {
-    const bounds = state.ranges.get(id) ?? {};
-    from.value = bounds.from ?? '';
-    to.value = bounds.to ?? '';
-    from.closest('.range').classList.toggle('set', bounds.from != null || bounds.to != null);
+  for (const [id, { row, from, to }] of rangeInputs) {
+    const bounds = state.ranges.get(id);
+
+    from.value = String(bounds?.from ?? '');
+    to.value = String(bounds?.to ?? '');
+    row.classList.toggle('set', bounds?.from != null || bounds?.to != null);
   }
 
   // Last, because this is what calls render. Every name that arrived this way was chosen somewhere else — in a preset,
@@ -194,10 +250,6 @@ function buildPresets() {
         state.exclude.add(id);
       }
 
-      for (const [id, bounds] of Object.entries(preset.ranges ?? {})) {
-        state.ranges.set(id, bounds);
-      }
-
       paintAll();
     });
 
@@ -208,25 +260,29 @@ function buildPresets() {
 function buildGroups() {
   for (const group of GROUPS) {
     const section = el('section', 'group');
-    section.style.setProperty('--hue', group.hue);
+    section.style.setProperty('--hue', String(group.hue));
     section.append(el('h2', 'label', group.label));
 
     const row = el('div', 'chips');
 
     for (const term of group.terms) {
       const node = el('button', 'chip');
+      const glyph = el('span', 'state', '+');
+
       node.type = 'button';
       node.dataset.state = 'off';
       node.title = `${term.term} — click to require, again to rule out`;
-      node.append(el('span', 'state', '+'), el('span', null, term.label));
+      node.append(glyph, el('span', null, term.label));
+
+      const chip = { node, glyph, label: term.label };
 
       node.addEventListener('click', () => {
         setChipState(term.id, NEXT[stateOf(term.id)]);
-        paintChip(term.id);
+        paintChip(term.id, chip);
         render();
       });
 
-      chips.set(term.id, { node, label: term.label });
+      chips.set(term.id, chip);
       row.append(node);
     }
 
@@ -235,7 +291,12 @@ function buildGroups() {
   }
 }
 
-/** A bound as the state should hold it: a number inside the range's limits, or nothing where the box is empty. */
+/**
+ * A bound as the state should hold it: a number inside the range's limits, or nothing where the box is empty.
+ *
+ * @param {HTMLInputElement} input
+ * @param {Range} range
+ */
 function readBound(input, range) {
   if (input.value.trim() === '') {
     return null;
@@ -252,20 +313,21 @@ function buildRanges() {
     const from = el('input');
     const to = el('input');
 
-    for (const [input, placeholder] of [
-      [from, String(range.min ?? 0)],
-      [to, String(range.max)],
-    ]) {
+    for (const input of [from, to]) {
       input.type = 'number';
       input.min = String(range.min ?? 0);
       input.max = String(range.max);
-      input.placeholder = placeholder;
       input.addEventListener('input', () => {
         state.ranges.set(range.id, { from: readBound(from, range), to: readBound(to, range) });
         row.classList.toggle('set', from.value.trim() !== '' || to.value.trim() !== '');
         render();
       });
     }
+
+    // Each box is placeheld by the bound it would take if left empty, read back off the attribute just set rather than
+    // composed a second time from the same number.
+    from.placeholder = from.min;
+    to.placeholder = to.max;
 
     // The label names the pair, so it is tied to the first box rather than wrapping both — a label cannot label two.
     from.id = `range-${range.id}-from`;
@@ -274,7 +336,7 @@ function buildRanges() {
     from.setAttribute('aria-label', `${range.label}, lowest`);
 
     row.append(name, from, el('span', 'dash', '–'), to);
-    rangeInputs.set(range.id, { from, to });
+    rangeInputs.set(range.id, { row, from, to });
     els.ranges.append(row);
   }
 }
@@ -292,8 +354,12 @@ function buildRanges() {
  * `offered` is what the list is showing and `active` which row the keyboard has reached, -1 for none. The three
  * together are the state of the control, and every path out of here leaves them agreeing with what is on screen.
  */
+/** @type {string[]} */
 let taken = [];
+
+/** @type {Offer[]} */
 let offered = [];
+
 let active = -1;
 
 /** The placeholder the markup gives the input, read rather than repeated so it can be taken away and put back. */
@@ -348,8 +414,12 @@ function paintNames() {
  * game reads as one and a reader reads as a mistake. `charmander` and `+charmander` are two different searches and both
  * can be here. The spaces around a name are dropped here rather than by each caller, so a pasted `pikachu, eevee` and a
  * row taken from the list arrive the same shape and can be compared with one another.
+ *
+ * @param {readonly string[]} chosen
+ * @param {string} typing
  */
 function setNames(chosen, typing) {
+  /** @param {readonly string[]} all */
   const unique = (all) => all.filter((name, index) => name && all.indexOf(name) === index);
 
   taken = unique(chosen.map((name) => name.trim()));
@@ -379,16 +449,20 @@ function closeSuggestions() {
  * class beside it: one attribute cannot fall out of step with itself, where a class and an attribute can.
  */
 function paintActive() {
-  for (const [index, option] of [...els.suggestions.children].entries()) {
+  const options = [...els.suggestions.children];
+
+  for (const [index, option] of options.entries()) {
     option.setAttribute('aria-selected', String(index === active));
   }
 
-  if (active < 0) {
+  // Reading the row is the test for there being one: the `-1` meaning none and a row past the end both answer
+  // `undefined`, where asking `active < 0` and then indexing are two questions nothing joins.
+  const option = options[active];
+
+  if (option === undefined) {
     els.text.removeAttribute('aria-activedescendant');
     return;
   }
-
-  const option = els.suggestions.children[active];
 
   els.text.setAttribute('aria-activedescendant', option.id);
   option.scrollIntoView({ block: 'nearest' });
@@ -439,20 +513,27 @@ function openSuggestions() {
  *
  * The list is closed rather than reopened, because the empty input the reader is left in names every species and so has
  * nothing to offer until two letters of the next one are typed.
+ *
+ * @param {string} name
  */
 function take(name) {
   setNames([...taken, name], '');
   closeSuggestions();
 }
 
-/** The arrow keys, as the step each one takes through the list. */
+/**
+ * The arrow keys, as the step each one takes through the list. Indexed by whatever key was pressed, so a miss is the
+ * ordinary case rather than a mistake — which is what the index signature says and a union of the two keys could not.
+ *
+ * @type {Record<string, number>}
+ */
 const STEPS = { ArrowDown: 1, ArrowUp: -1 };
 
 // A comma is what separates names in the string, so typing or pasting one commits the name in front of it — which is
 // also how a pasted `pikachu, eevee, snorlax` arrives as three chips rather than as one name with commas in it.
 els.text.addEventListener('input', () => {
   const parts = els.text.value.split(',');
-  const typing = parts.pop();
+  const typing = parts.pop() ?? '';
 
   setNames([...taken, ...parts], typing);
   openSuggestions();
@@ -479,7 +560,8 @@ els.text.addEventListener('keydown', (event) => {
   // Enter takes the row the keyboard has reached, or else the name as it was typed — a nickname is not in the dex and
   // has no row, so this is the only way one can be asked for.
   if (event.key === 'Enter') {
-    const name = active >= 0 ? written(offered[active]) : els.text.value.trim();
+    const offer = offered[active];
+    const name = offer ? written(offer) : els.text.value.trim();
 
     if (name) {
       event.preventDefault();

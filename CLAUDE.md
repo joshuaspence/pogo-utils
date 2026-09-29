@@ -94,6 +94,34 @@ one more thing about it.
   load-bearing rather than tidier, measured by reverting them one at a time — `TS18048` on `u1`'s callers and inside
   `decodeMutf8`, `TS2339: Property 'value' does not exist on type 'Handle'` where the union goes unnarrowed, and
   `TS2345: Argument of type 'FieldValue | undefined' is not assignable to parameter of type 'BoxValue'` on the box.
+  `Array#pop` is the same answer from a different cause: it is declared `T | undefined` whatever the flags say, so
+  `parts.pop()` is a `TS2345` against a `string` parameter even where `String#split` guarantees an element. `?? ''` is
+  the inert fix and says as much.
+- **Hold the node you made rather than asking the document for it again.** `search/builder.js` appended a chip's glyph
+  span itself and then read it back with `node.querySelector('.state')`, which answers `Element | null` — the file
+  asking the DOM a question it already knew the answer to and paying `TS18047: 'glyph' is possibly 'null'` for it.
+  Carrying the span in the `Chip` beside the button removes the question rather than answering it, and
+  `from.closest('.range')` is the same shape one step along: the row `buildRanges` had just built, asked for the long
+  way round, at `TS2531: Object is possibly 'null'`. Both measured by reverting them one at a time. It is the bullet
+  above with the lookup in the document rather than in an array — a query is not the way to reach something you are
+  already holding — and `els.suggestions.children[active]` is the third instance, where reading the slot replaced an
+  `active < 0` test and the unjoined index after it.
+- **Naming an element interface rejects only a tag that is missing something, and the relation is asymmetric.**
+  `Chip.glyph` is an `HTMLSpanElement` and `glyph: el('div')` type-checks clean: `HTMLSpanElement` adds nothing at all
+  over `HTMLElement` while `HTMLDivElement` adds a deprecated `align`, so a div structurally _is_ a span. The other
+  direction is caught, `RangeRow.row` being an `HTMLDivElement` and a span in its place
+  `TS2741: Property 'align' is missing in type 'HTMLSpanElement' but required in type 'HTMLDivElement'`. So such a
+  typedef is worth having for what it tells a reader and for the members it does carry — `Chip.node` as an
+  `HTMLButtonElement` rejects a div over `command`, `disabled`, `form` and 17 more — but do not expect it to police
+  which tag was passed, and probe the direction you care about rather than assuming it cuts both ways.
+- **A deletion is proved by the two measurements a mutation cannot make.** `buildPresets` held a loop over
+  `preset.ranges`, which no preset carries: `Preset` declares `text`, `include` and `exclude`, and the `PRESETS`
+  docblock enumerates the same three, so it was walking `Object.entries(undefined ?? {})`. Nothing is left to break once
+  it is gone, so say instead that it was dead and that it cannot come back unnoticed — put the loop back with a `throw`
+  in it and watch the corpus click the preset, over a range it has already set, without tripping it; then add `ranges:`
+  to a preset and watch
+  `TS2353: Object literal may only specify known properties, and 'ranges' does not exist in type 'Preset'`, silent
+  without the `@type {readonly Preset[]}`. The annotation is what makes the deletion safe rather than merely tidy.
 - **Where a type cannot pair two fields, the guard belongs where they are finally used together.** `Box` carries a
   `code: BoxCode` and a `value: BoxValue`, so `b.code === 'I'` cannot narrow `b.value` to a number — a class holds no
   discriminated pairing across two fields, and `JavaSer.box('J', 5)` type-checks clean as a result. The writer's
@@ -223,6 +251,27 @@ after the next.
   `search/builder.js` on an `HTMLElement` or a sibling of one. Settle which is which by importing rather than by
   grepping for `document` — `dom.js` names `HTMLElement` and imports fine, because that is a default argument evaluated
   per call, and `gpx.js` calls `fetch`, which Node has.
+- **An entry point cannot be differentialled under Node, so serve both trees and drive one corpus over each.** The page
+  is the only interface it has. `git archive <base>` the old tree beside the worktree and `diff -rq` the two, so the
+  file under test is the only one that differs and every disagreement is attributable to it; serve each from its own
+  `http.server` on its own port, so neither can serve the other's cache; then drive the same interaction corpus over
+  both and compare a full snapshot of the page after every step, naming controls by index rather than by id so the same
+  step reaches the same control on both sides. 22 scenarios and 111 snapshots read identically for `search/builder.js`,
+  and eleven deliberate breaks were all caught — two of them by a single snapshot each, which is the figure that says
+  the corpus is sensitive per step rather than only in aggregate. Two scenarios that look redundant often are not:
+  arrowing eleven times down a four-row list wraps `active` back to 0, so `offered[0]` and `offered[active]` agree there
+  and only the shorter walk catches Enter taking the wrong row.
+- **Two clicks in the same tick say nothing about the timer between them.** Copy sets a 1400ms timer and clears the
+  previous one, so clicking twice back to back and reading the label 1.7 seconds later reports `Copy` whether the
+  `clearTimeout` is there or not — both timers land inside the wait and both write the same word. Stagger the pair
+  across the interval instead: click, wait 1200ms, click, wait 350ms, so an uncleared first timer fires _between_ the
+  second click and the read. That step is the only one of the 111 that caught dropping the call — the five snapshots of
+  the unstaggered scenario beside it were every one of them blind — and it exists because that was noticed rather than
+  because any run had failed.
+- **This machine's `curl` wrapper rejects bundled short flags.** `curl -sf` and `curl -s -f` both answer
+  `option -sf: is badly used here`, so a readiness check over the two ports is cheaper written as
+  `urllib.request.urlopen` in Python than argued with. Watch the obvious repair, too: rewriting `'curl -sf '` to
+  `'curl -s -f'` drops the trailing space and produces `curl -s -fhttp://…`, which is the same failure one step along.
 - **`src/java-serialization.js` is the clearest case of that**, because the bytes `dumps` writes are its whole contract:
   `loads` has no consumer, since `pgsharp/backup.js` calls it only to re-parse its own output as a self-check and throws
   the result away, so the reader's shape is private to the module and only the writer's output is observable. Drive the
