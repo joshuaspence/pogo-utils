@@ -31,9 +31,47 @@
  */
 
 /**
+ * @typedef {object} Term
+ * @property {string} id
+ * @property {string} term
+ * @property {string} label
+ */
+
+/**
+ * @typedef {object} Group
+ * @property {string} id
+ * @property {string} label
+ * @property {number} hue
+ * @property {string} help
+ * @property {readonly Term[]} terms
+ * @property {string} [join]
+ */
+
+/**
+ * @typedef {object} Range
+ * @property {string} id
+ * @property {string} prefix
+ * @property {string} label
+ * @property {number} max
+ * @property {number} [min]
+ */
+
+/**
+ * @typedef {object} Preset
+ * @property {string} id
+ * @property {string} label
+ * @property {string} note
+ * @property {string} [text]
+ * @property {readonly string[]} [include]
+ * @property {readonly string[]} [exclude]
+ */
+
+/**
  * The generations, as the dex-number ranges the game actually searches. A generation is not a search term — there is no
  * `gen1` — so each is the range it spans, which is why they sit here as terms rather than in the numeric ranges below.
  * The upper bound of the last one moves when a generation is added to the game.
+ *
+ * @type {readonly [string, string][]}
  */
 export const GENERATIONS = [
   ['1', '1-151'],
@@ -73,8 +111,10 @@ const TYPES = [
   'fairy',
 ];
 
-const capitalise = (word) => word[0].toUpperCase() + word.slice(1);
+/** @param {string} word */
+const capitalise = (word) => word.charAt(0).toUpperCase() + word.slice(1);
 
+/** @type {readonly Group[]} */
 export const GROUPS = [
   {
     id: 'status',
@@ -275,6 +315,8 @@ export const GROUPS = [
  * Buddy and Mega level belong here rather than among the terms above, even though the game documents them as the eleven
  * separate words `buddy0` to `buddy5` and `mega0` to `mega3`: they are levels, so a reader wants a span of them — `Good
  * Buddy or better` is `buddy2-5` — and eleven chips could not write that.
+ *
+ * @type {readonly Range[]}
  */
 export const RANGES = [
   { id: 'cp', prefix: 'cp', label: 'CP', max: 5000 },
@@ -294,6 +336,8 @@ export const RANGES = [
  * Only one of these earns its place. Safe to transfer is a long list of exclusions, every one of which matters, and
  * forgetting any single one of them is how a shiny ends up as candy. A start a reader could have clicked together out
  * of two chips saves them nothing and costs every reader a button to read past, so the chips carry those.
+ *
+ * @type {readonly Preset[]}
  */
 export const PRESETS = [
   {
@@ -321,5 +365,9 @@ export const PRESETS = [
   },
 ];
 
-/** Every term by id, for the link reader and the query writer — both are handed ids and need the term behind one. */
+/**
+ * Every term by id, for the link reader and the query writer — both are handed ids and need the term behind one.
+ *
+ * @type {ReadonlyMap<string, Term>}
+ */
 export const TERMS_BY_ID = new Map(GROUPS.flatMap((group) => group.terms).map((term) => [term.id, term]));

@@ -44,6 +44,14 @@ const SHORTEST = 2;
 const FAMILY = '+';
 
 /**
+ * One row of the list: a species, and whether the row asks for its family rather than for the species alone.
+ *
+ * @typedef {object} Offer
+ * @property {string} name
+ * @property {boolean} family
+ */
+
+/**
  * What the list offers for the name being typed, as the species each row names and whether that row is its family. The
  * box holds one name at a time — the ones already chosen are chips beside it and carry no caret — so there is nothing
  * to scope this to but the value.
@@ -62,6 +70,9 @@ const FAMILY = '+';
  * The marker is not part of the name, so `+charm` offers what `charm` offers — as families alone, since a reader who
  * has typed the marker has already said which of the two they mean. Without that they would be the one reader the list
  * refuses to help.
+ *
+ * @param {string} value
+ * @returns {Offer[]}
  */
 export function suggestions(value) {
   const typed = value.trim();
@@ -104,5 +115,7 @@ export function suggestions(value) {
  *
  * Written in lower case, matching the placeholder and every term the chips write. The game does not care, and a string
  * that is lower case throughout reads as one thing rather than as two pasted together.
+ *
+ * @param {Offer} offer
  */
 export const written = (offer) => (offer.family ? FAMILY : '') + offer.name.toLowerCase();

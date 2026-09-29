@@ -8,9 +8,35 @@
  * Nothing here holds a node.
  */
 
+/** @import { Group, Range } from './terms.js' */
+
 import { GROUPS, RANGES, TERMS_BY_ID } from './terms.js';
 
-/** An empty state, which every reader of a link starts from and the Clear button returns to. */
+/**
+ * What one numeric range's two boxes hold. `null` is an empty box rather than a zero, which is the difference between a
+ * bound the reader left to the range's own floor and one they asked for.
+ *
+ * @typedef {object} Bounds
+ * @property {number | null} from
+ * @property {number | null} to
+ */
+
+/**
+ * The state above, named. The two sets hold term ids rather than terms, which is what makes a link a lookup.
+ *
+ * @typedef {object} State
+ * @property {string} text
+ * @property {Set<string>} include
+ * @property {Set<string>} exclude
+ * @property {Map<string, Bounds>} ranges
+ * @property {boolean} optimise
+ */
+
+/**
+ * An empty state, which every reader of a link starts from and the Clear button returns to.
+ *
+ * @returns {State}
+ */
 export const emptyState = () => ({
   text: '',
   include: new Set(),
@@ -25,6 +51,8 @@ export const emptyState = () => ({
  * with the string about where one name ends, which a second copy of this split would eventually stop doing.
  *
  * A name is left otherwise alone, since the game matches partial names and a reader typing `char` means it.
+ *
+ * @param {string} text
  */
 export const names = (text) =>
   text
@@ -32,7 +60,11 @@ export const names = (text) =>
     .map((name) => name.trim())
     .filter(Boolean);
 
-/** Those names as one clause: rejoined without the spaces, so the game is not handed a name with one in front of it. */
+/**
+ * Those names as one clause: rejoined without the spaces, so the game is not handed a name with one in front of it.
+ *
+ * @param {string} text
+ */
 function nameClause(text) {
   const chosen = names(text);
 
@@ -46,6 +78,9 @@ function nameClause(text) {
  * The refused ones are negated and AND'd whatever the group joins with, because refusing both means neither. That
  * asymmetry is not a choice — `!fire,!water` would match everything that is not Fire *or* not Water, which is
  * everything.
+ *
+ * @param {Group} group
+ * @param {State} state
  */
 function groupClause(group, state) {
   const wanted = group.terms.filter((term) => state.include.has(term.id)).map((term) => term.term);
@@ -67,6 +102,9 @@ function groupClause(group, state) {
  *
  * Exported for the optimiser, which reads the dex clause back into the span it describes: asking the writer what it
  * wrote is what keeps the two from drifting over which bound an empty box falls back to.
+ *
+ * @param {Range} range
+ * @param {State} state
  */
 export function rangeClause(range, state) {
   const bounds = state.ranges.get(range.id);
@@ -92,6 +130,8 @@ export function rangeClause(range, state) {
  * mixes `,` and `&` cannot say which binds tighter, and `fire,water&shiny` is open to being read as either "Fire, or a
  * shiny Water" or "a shiny, and Fire or Water". The builder writes the clauses in a fixed order and says so when the
  * question can arise, which is better than quietly picking a reading on the reader's behalf.
+ *
+ * @param {State} state
  */
 export function compose(state) {
   const clauses = [
@@ -120,6 +160,8 @@ export function compose(state) {
  * `s=1` is the optimiser being on, so a link arrives showing the string its sender was looking at. It carries only the
  * toggle and never the compression: the choices travel as themselves, and the short string is composed again at the
  * other end from a state that still says `charmander`.
+ *
+ * @param {State} state
  */
 export function toFragment(state) {
   const parts = [];
@@ -149,9 +191,15 @@ export function toFragment(state) {
   return parts.join('&');
 }
 
-/** A bound from a link, which is whatever a stranger put there: a number, or nothing at all. */
+/**
+ * A bound from a link, which is whatever a stranger put there: a number, or nothing at all. `dex=5` splits into one
+ * part rather than two, so the missing half arrives as `undefined` and reads as the empty box it is.
+ *
+ * @param {string | undefined} text
+ * @param {Range} range
+ */
 function bound(text, range) {
-  const value = Number.parseInt(text, 10);
+  const value = Number.parseInt(text ?? '', 10);
 
   if (Number.isNaN(value)) {
     return null;
@@ -164,6 +212,8 @@ function bound(text, range) {
  * The state a fragment describes. Every part is checked against the tables rather than trusted — an id that names no
  * term and a bound that is not a number are both dropped, so a link that has rotted past a renamed id or been typed by
  * hand restores the parts that still mean something instead of failing whole.
+ *
+ * @param {string} fragment
  */
 export function fromFragment(fragment) {
   const state = emptyState();
@@ -173,10 +223,9 @@ export function fromFragment(fragment) {
   state.text = params.get('t') ?? '';
   state.optimise = params.get('s') === '1';
 
-  for (const [key, set] of [
-    ['i', state.include],
-    ['x', state.exclude],
-  ]) {
+  // Keyed by the letter the fragment uses, so the pair travels as an object: an array of two-element arrays is a list
+  // of arrays to the checker as much as to a reader, where `Object.entries` of this is a list of pairs to both.
+  for (const [key, set] of Object.entries({ i: state.include, x: state.exclude })) {
     for (const id of (params.get(key) ?? '').split('.').filter(Boolean)) {
       if (TERMS_BY_ID.has(id)) {
         set.add(id);
