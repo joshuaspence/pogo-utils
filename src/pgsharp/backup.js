@@ -31,16 +31,37 @@ const newRouteState = () => ({
 });
 
 /**
+ * The two favourite schemas, one per key. Both stay local: `src/types.d.ts` holds the wire formats with no owner, and
+ * these have one — nothing outside this file reads or writes either, since the map viewer reads the GPX files
+ * themselves and never sees a backup.
+ *
+ * Three fields are optional because the code as written allows each. `tz` is written by `applyTimezones` onto points
+ * `parseGpxFavourites` built without one, and `mode` and `state` are what `encodeRoutes` falls back for. A route point
+ * is a fixed triple rather than a list of numbers — latitude, longitude and `ROUTE_POINT_FLAG` — which is what
+ * `encodeRoutes` re-emits positionally, and `state` is read off `newRouteState` rather than transcribed beside it.
+ *
+ * @typedef {[number, number, number]} RoutePoint
+ * @typedef {{name: string, lat: number, lng: number, tz?: string}} Point
+ * @typedef {{name: string, points: RoutePoint[], mode?: number, state?: ReturnType<typeof newRouteState>}} Route
+ */
+
+/**
  * Gson's JSON spelling: no spaces, forward slashes escaped. Points escape non-ASCII as \uXXXX (what "hlfavor"
  * contains); Routes write it literally ("São Paulo") — the two keys differ, so they don't share an encoder. A flag is
  * escaped per UTF-16 code unit either way, matching hot places for Points and leaving the Route stream to write the
  * surrogates as Java's modified UTF-8 does.
  */
+
+/** @type {(s: string) => string} */
 const escSlashes = (s) => s.replace(/\//g, '\\/');
+
+/** @type {(s: string) => string} */
 const asciiEscape = (s) => s.replace(/[\u0080-\uFFFF]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 
+/** @param {readonly Point[]} entries */
 function encodePoints(entries) {
   const arr = entries.map((e) => {
+    /** @type {Point} */
     const o = { name: e.name, lat: e.lat, lng: e.lng };
 
     if (e.tz) {
@@ -52,6 +73,7 @@ function encodePoints(entries) {
   return escSlashes(asciiEscape(JSON.stringify(arr)));
 }
 
+/** @param {readonly Route[]} entries */
 function encodeRoutes(entries) {
   const arr = entries.map((e) => ({
     points: e.points,
@@ -67,6 +89,8 @@ function encodeRoutes(entries) {
  * variant: "Kings Park, Perth, Western Australia, Australia (long)". PGSharp lists and deletes favourites by name, so
  * this is the only identity a favourite has, which is why every part of it comes from the file rather than the path —
  * this mirrors pgsedit's entry_name.
+ *
+ * @param {Element} el
  */
 function entryName(el) {
   const label = `${placeName(el)}, ${entryCountry(el)}`;
@@ -92,6 +116,8 @@ const BLACK_FLAG = '\u{1F3F4}';
  *
  * The country comes from a <pgr:country>, so it must have an entry in COUNTRIES; one that does not errors rather than
  * importing without a flag.
+ *
+ * @param {string} country
  */
 function countryFlag(country) {
   const code = COUNTRIES[country]?.code;
@@ -108,14 +134,25 @@ function countryFlag(country) {
   return [...code].map((c) => String.fromCodePoint(REGIONAL_INDICATOR_A + c.charCodeAt(0) - 65)).join('');
 }
 
-// A favourite's name with its country's flag in front.
+/**
+ * A favourite's name with its country's flag in front.
+ *
+ * @param {Element} el
+ */
 function flaggedName(el) {
   return `${countryFlag(entryCountry(el))} ${entryName(el)}`;
 }
 
+/**
+ * The pair a `<wpt>` or `<trkpt>` carries, as a tuple rather than a list, so that destructuring it gives two numbers
+ * rather than two `number | undefined` — the same reason `coordsOf` in `src/app.js` hands back a tuple.
+ *
+ * @param {Element} el
+ * @returns {[number, number]}
+ */
 function coord(el) {
-  const lat = parseFloat(el.getAttribute('lat'));
-  const lng = parseFloat(el.getAttribute('lon'));
+  const lat = parseFloat(el.getAttribute('lat') ?? '');
+  const lng = parseFloat(el.getAttribute('lon') ?? '');
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     throw new Error(`<${el.localName}> has an unparseable coordinate`);
@@ -129,12 +166,17 @@ function coord(el) {
  * is a path (a Route keeping all of its <trkpt>). A file may hold either or both. Mirrors pgsedit's parse_gpx — an
  * empty <trk> is skipped (gpx.studio writes one for a cleared track) rather than treated as a route. Both kinds are
  * flagged, so the two lists read alike in the app even though PGSharp shows them on separate tabs.
+ *
+ * @param {string} text
  */
 function parseGpxFavourites(text) {
   const doc = parseGpxDocument(text);
 
-  const points = [],
-    routes = [];
+  /** @type {Point[]} */
+  const points = [];
+
+  /** @type {Route[]} */
+  const routes = [];
 
   for (const wpt of doc.getElementsByTagName('wpt')) {
     const [lat, lng] = coord(wpt);
@@ -142,6 +184,7 @@ function parseGpxFavourites(text) {
   }
 
   for (const { trk, trkpts } of eachTrack(doc)) {
+    /** @type {RoutePoint[]} */
     const pts = [];
 
     for (const p of trkpts) {
@@ -154,6 +197,17 @@ function parseGpxFavourites(text) {
 
   return { points, routes };
 }
+
+/**
+ * What a caught value has to say. `catch` binds `unknown`, and a `throw` is not obliged to have thrown an `Error` — so
+ * the three places here that report a failure ask rather than assume, and a thrown string reads as itself instead of
+ * `undefined`. It is a copy of the one-liner in `src/app.js` rather than a shared import: the two are different pages
+ * with no bundler between them, so an `errors.js` would cost `map.html` and `pgsharp.html` a real request each to save
+ * one line.
+ *
+ * @param {unknown} e
+ */
+const said = (e) => (e instanceof Error ? e.message : String(e));
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -172,22 +226,29 @@ async function buildRepoFavourites() {
   try {
     files = await loadManifest();
   } catch (e) {
-    throw new Error(`${GPX_PATHS}: ${e.message}`, { cause: e });
+    throw new Error(`${GPX_PATHS}: ${said(e)}`, { cause: e });
   }
 
   const texts = await Promise.all(
-    files.map(async (file) => {
-      const res = await fetch(encodeURI(file));
+    files.map(
+      /** @returns {Promise<[string, string]>} */
+      async (file) => {
+        const res = await fetch(encodeURI(file));
 
-      if (!res.ok) {
-        throw new Error(`${file}: ${res.status} ${res.statusText}`);
-      }
+        if (!res.ok) {
+          throw new Error(`${file}: ${res.status} ${res.statusText}`);
+        }
 
-      return [file, await res.text()];
-    }),
+        return [file, await res.text()];
+      },
+    ),
   );
-  const points = [],
-    routes = [];
+
+  /** @type {Point[]} */
+  const points = [];
+
+  /** @type {Route[]} */
+  const routes = [];
 
   for (const [file, text] of texts) {
     let parsed;
@@ -195,7 +256,7 @@ async function buildRepoFavourites() {
     try {
       parsed = parseGpxFavourites(text);
     } catch (e) {
-      throw new Error(`${file}: ${e.message}`, { cause: e });
+      throw new Error(`${file}: ${said(e)}`, { cause: e });
     }
 
     points.push(...parsed.points);
@@ -212,6 +273,8 @@ async function buildRepoFavourites() {
  * data tz-lookup carries. Routes have no tz field, so nothing is looked up for them. A point whose zone cannot be found
  * is left without one, which is how a missing script or an unlocatable coordinate looks; the count is returned so the
  * caller can say so once rather than per point. PGSharp accepts entries with no tz.
+ *
+ * @param {Point[]} points
  */
 function applyTimezones(points) {
   let unknown = 0;
@@ -237,9 +300,18 @@ function applyTimezones(points) {
   return unknown;
 }
 
-// Names must be unique within a kind (PGSharp lists and deletes by name), so drop any repeated name, keeping the first.
+/**
+ * Names must be unique within a kind (PGSharp lists and deletes by name), so drop any repeated name, keeping the first.
+ * It is generic over the two kinds rather than taking a `{name: string}`, because the caller sorts and timezones what
+ * it hands back: a parameter naming only the field this reads would answer with only that field.
+ *
+ * @template {{name: string}} T
+ * @param {readonly T[]} entries
+ */
 function dedupeByName(entries) {
   const seen = new Set();
+
+  /** @type {T[]} */
   const out = [];
   let dropped = 0;
 
@@ -262,6 +334,8 @@ function dedupeByName(entries) {
  * exact spelling, so names differing only by accent still order deterministically. Each kind is sorted within itself,
  * as PGSharp lists them separately. A favourite's leading flag is decoration rather than part of how the list reads, so
  * it is folded out too — otherwise every place would sort by its country's regional-indicator code instead of by name.
+ *
+ * @param {string} name
  */
 const sortKey = (name) =>
   (name || '')
@@ -270,6 +344,10 @@ const sortKey = (name) =>
     .replace(/\p{M}/gu, '')
     .toLowerCase();
 
+/**
+ * @param {{name: string}} a
+ * @param {{name: string}} b
+ */
 function byName(a, b) {
   const ka = sortKey(a.name),
     kb = sortKey(b.name);
@@ -288,6 +366,10 @@ function byName(a, b) {
 const backupRunEl = byId('backupRun', HTMLButtonElement);
 const backupStatusEl = byId('backupStatus');
 
+/**
+ * @param {string} msg
+ * @param {string} [kind]
+ */
 function backupStatus(msg, kind) {
   backupStatusEl.textContent = msg;
   backupStatusEl.className = 'status' + (kind ? ' ' + kind : '');
@@ -326,6 +408,15 @@ const feedCount = JSON.parse(CONTROL_RESETS.resetFeeds.hlfeeds).length;
 byId('feedNote').textContent =
   `Replaces every feed filter in the profile with these ${feedCount} rather than adding to them.`;
 
+/**
+ * `Uint8Array` takes a type argument for the buffer behind it and defaults it to the wide `ArrayBufferLike`, so naming
+ * the buffer is what lets the view be a `BlobPart` — a `SharedArrayBuffer` cannot be one. `dumps` builds its answer
+ * with `Uint8Array.from`, which is an `ArrayBuffer` already, so the bare annotation is weaker than inference rather
+ * than stronger.
+ *
+ * @param {Uint8Array<ArrayBuffer>} bytes
+ * @param {string} name
+ */
 function downloadBytes(bytes, name) {
   const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
@@ -414,7 +505,7 @@ backupRunEl.addEventListener('click', async () => {
       'ok',
     );
   } catch (e) {
-    backupStatus(`Failed to build backup: ${e.message}`, 'err');
+    backupStatus(`Failed to build backup: ${said(e)}`, 'err');
   } finally {
     backupRunEl.disabled = false;
   }
