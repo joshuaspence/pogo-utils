@@ -540,6 +540,25 @@ after the next.
   as a pass in the same green as the ten real ones around it. Establish each step's precondition from a fresh page, and
   print the state you are about to disturb — `open: block 802x252 ['Charmander', …]` is the half that catches this,
   where `open: none` was the bug.
+- **A control's effect and what it reports about itself are two assertions, and the second is the one that gets left
+  out.** A type chip on the Events page was probed by clicking it and counting the cards that went away, which passed
+  against a deliberately broken `typeChips` pairing every chip with the wrong heading: the click handler closes over its
+  own `heading`, so the filtering is right whatever the row is holding, and the mispairing surfaces only in the
+  `aria-pressed` that a later render writes from that pairing. A chip that filters perfectly and shows itself as on is a
+  legend for a set nobody is reading, and no card count can see it. Assert the state of the control you touched, and
+  that no other control's moved.
+- **Serve the probe its own data where the repository's cannot discriminate.** `data/events.json` is 39 events of one
+  heading, so "the chips come out sorted" was a one-element list and "the chip hides its own heading" hid all 31 cards —
+  both green, neither able to fail, and the second indistinguishable from a chip wired to any heading at all. A
+  `Page.addScriptToEvaluateOnNewDocument` replacing `window.fetch` for the one remote URL answers a crafted feed before
+  the module runs, which buys several headings in a deliberately unsorted order, a bucket per `Status` kind, and a
+  partial delta instead of a total one. Rejecting from the same patch is how the both-feeds-failed banner gets tested
+  without touching the network.
+- **`about:blank` owns no storage, so `localStorage.clear()` there throws `SecurityError`.** Navigating via it is
+  necessary — anything else risks a same-document navigation — but it has an opaque origin, so the clear has to go
+  through the browser rather than the page: `Storage.clearDataForOrigin` with `storageTypes: 'local_storage'` works
+  whatever document is loaded. This matters for the Events page in particular, where a first visit marks every event
+  seen and writes that, so the second run of a probe is not a first visit and nothing is new.
 - **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.js` holds the
   Leaflet map in a `const`, so `Runtime.evaluate` finds only the `<div id="map">` and answers
   `map.getZoom is not a function`. Send a `Page.addScriptToEvaluateOnNewDocument` that defines a setter for `window.L`
