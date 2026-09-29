@@ -74,6 +74,30 @@ one more thing about it.
   the checker cannot join. Nothing at the type level says the two calls asked about the same key, so `get` still answers
   `Pokemon | undefined` however the `has` above it went; read the result instead and the narrowing is real, which is the
   check the throw was already making.
+- **`noUncheckedIndexedAccess` makes that a rule rather than a Map's quirk, and dotted access is not exempt.** A
+  `Record<string, T>` answers `T | undefined` to `r.value` as much as to `r['value']`, and a `Uint8Array` answers
+  `number | undefined` to `bytes[0]` — all three probed, all three a `TS2322` against a `@type {null}`. So every bounds
+  test in `src/java-serialization.js` was the shape `form()` had been, a length test and then an index with nothing
+  joining them. Reading the slot instead _is_ the bounds check, because a slot past the end and a slot below the start
+  both answer `undefined`, and it is one lookup rather than two: `Reader#u1`, `decodeMutf8`'s two length tests collapsed
+  into a single `byte()` accessor, `refHandle`'s table lookup and `object()`'s `BOX_BY_CLASS` all went that way. Each is
+  load-bearing rather than tidier, measured by reverting them one at a time — `TS18048` on `u1`'s callers and inside
+  `decodeMutf8`, `TS2339: Property 'value' does not exist on type 'Handle'` where the union goes unnarrowed, and
+  `TS2345: Argument of type 'FieldValue | undefined' is not assignable to parameter of type 'BoxValue'` on the box.
+- **Where a type cannot pair two fields, the guard belongs where they are finally used together.** `Box` carries a
+  `code: BoxCode` and a `value: BoxValue`, so `b.code === 'I'` cannot narrow `b.value` to a number — a class holds no
+  discriminated pairing across two fields, and `JavaSer.box('J', 5)` type-checks clean as a result. The writer's
+  `switch` is therefore the type: it asks `typeof b.value` per code and throws, which is worth having rather than merely
+  tidy, since `box('I', 'x')` wrote four zero bytes for `'x' >>> 24` and 163 bytes of valid-looking stream before it.
+  Two shapes were weighed and rejected as more machinery for less: a `@template` with a conditional typedef still cannot
+  infer `C` from `b.code === 'I'`, and `@overload`s on the public `box` constrain the caller while leaving the writer —
+  where the bug was — unchecked. What the type _can_ say, say: `classDesc`'s `superName, superUid` became one optional
+  `superclass` object, because nothing said the second was present whenever the first was, and passing
+  `{ name: NUMBER.name }` alone is a `TS2345` now.
+- **A loop variable takes its type from its initializer.** `for (let d = desc; d !== null; d = d.super)` infers `d` as
+  `ClassDesc`, because `desc` is already narrowed non-null, so the walk up to the `null` above `java.lang.Object` cannot
+  assign to it — `TS2322: Type 'ClassDesc | null' is not assignable to type 'ClassDesc'`. Seeding from `desc.super` with
+  `desc` pushed ahead of the loop needs no annotation at all.
 - **Two `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/` — so the
   checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
   the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
@@ -175,6 +199,17 @@ after the next.
   map, block data spliced into a classAnnotation. And move something the bytes depend on before believing a digest that
   matches: `loadFactor` 0.75 → 0.5 shifted it while the length stayed 117,471, which is what says the digest is derived
   from the codec rather than from the GPX files behind it.
+- **Reach one of the reader's guards by patching a valid stream, not by writing bytes by hand.** A truncation is a
+  `subarray`, a bad handle is nine bytes, and everything else is cheaper as a patch: renaming the boxed `value` field is
+  one byte and leaves a class in `BOX_BY_CLASS` declaring no `value` at all, which is the only way to reach that throw.
+  Derive each offset by searching for it and assert it matched once, because the obvious guesses are wrong — the four
+  bytes of a boxed `7` are not the last four, since the HashMap's own `TC_ENDBLOCKDATA` follows them. One trap beyond
+  that: an `L` field carries its type name as a `TC_STRING` the reader consumes, so retyping a field is a splice rather
+  than a poke, and a stream with no back-reference in it is what makes the handle that string claims free to insert. Run
+  the messages rather than reading them off the diff. Slice 8's were preserved verbatim by construction except one,
+  where the condition genuinely broadened and `declares no value field` became `declares no primitive value field` — and
+  the same patched stream is what showed why, since a descriptor naming `value` as an object reference used to read back
+  as an `I`-coded box holding the string `'v'` and now throws.
 - **Run `chrome-headless-shell`, not `chrome`.**
   `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell` serves the
   protocol fine. The full browser beside it, `chromium-1208/chrome-linux64/chrome`, prints
