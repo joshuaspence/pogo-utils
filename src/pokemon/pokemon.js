@@ -26,10 +26,17 @@ export default class Pokemon {
   #dex;
   #name;
 
-  // The region this variant belongs to — its adjective (`PALDEA`), or null for the base species and a plain form.
+  /**
+   * The region this variant belongs to — its adjective (`PALDEA`), or null for the base species and a plain form.
+   *
+   * @type {string | null}
+   */
   #region = null;
 
+  /** @type {Map<string, Pokemon>} */
   #forms = new Map();
+
+  /** @type {Map<string, Pokemon>} */
   #regions = new Map();
 
   #released = true;
@@ -46,12 +53,27 @@ export default class Pokemon {
   // shared, exported species. See freeze.
   #frozen = false;
 
-  // The cursor a marker lands on: the species until a form or region is declared, then whatever was declared last.
+  /**
+   * The cursor a marker lands on: the species until a form or region is declared, then whatever was declared last.
+   *
+   * `Pokemon`, rather than the `this` type inference reaches for. The constructor seeds this from `this`, which is what
+   * made it polymorphic, and every value after that is something `#variant` built with a bare `new Pokemon` — so a
+   * subclass would find base instances in here and the `this` type would be saying otherwise. The builders' own
+   * `return this` stays inferred, because there it is true: they hand back the receiver, which is what lets a chain
+   * stay typed as whatever it started as.
+   *
+   * @type {Pokemon[]}
+   */
   #declared;
 
-  // The target a new form or region hangs off: the species, until `withForm`/`withRegion` descends into a variant.
+  /**
+   * The target a new form or region hangs off: the species, until `withForm`/`withRegion` descends into a variant.
+   *
+   * @type {Pokemon}
+   */
   #target;
 
+  /** @param {number} dex */
   constructor(dex) {
     this.#dex = dex;
     this.#name = `#${dex}`;
@@ -68,6 +90,9 @@ export default class Pokemon {
    * ```js
    * new Pokemon(999).addForm('SPEED', (form) => form.isShinyEligible());
    * ```
+   *
+   * @param {string} name
+   * @param {(form: Pokemon) => void} [configure]
    */
   addForm(name, configure) {
     const variant = this.#target.#createForm(name);
@@ -85,6 +110,8 @@ export default class Pokemon {
    *
    * Each is a Pokemon of its own, hung off the current target — the species, or a region `withRegion` last descended
    * into. The target does not move, so a later `addForms` adds more siblings rather than nesting under the first.
+   *
+   * @param {...string} names
    */
   addForms(...names) {
     this.#declared = names.map((name) => this.#target.#createForm(name));
@@ -99,6 +126,9 @@ export default class Pokemon {
    * ```js
    * new Pokemon(999).addRegion(ALOLA, (alolan) => alolan.isShinyEligible());
    * ```
+   *
+   * @param {string} region
+   * @param {(variant: Pokemon) => void} [configure]
    */
   addRegion(region, configure) {
     const variant = this.#target.#createRegion(region);
@@ -116,6 +146,8 @@ export default class Pokemon {
    *
    * Each is a Pokemon of its own, hung off the current target, which does not move — for a single region to descend
    * into, reach for `withRegion`.
+   *
+   * @param {...string} regions
    */
   addRegions(...regions) {
     this.#declared = regions.map((region) => this.#target.#createRegion(region));
@@ -125,6 +157,9 @@ export default class Pokemon {
   /**
    * One form to descend into: declared as a peer would be, then made the target, so what follows — its own forms, or
    * a trailing marker — lands on it rather than on the species. Reach for this when a form carries forms of its own.
+   *
+   * @param {string} name
+   * @param {(form: Pokemon) => void} [configure]
    */
   withForm(name, configure) {
     const variant = this.#target.#createForm(name);
@@ -145,6 +180,9 @@ export default class Pokemon {
    * ```js
    * new Pokemon(128).withRegion(PALDEA).doesNotSpawn().addForms('COMBAT_BREED', 'BLAZE_BREED', 'AQUA_BREED');
    * ```
+   *
+   * @param {string} region
+   * @param {(variant: Pokemon) => void} [configure]
    */
   withRegion(region, configure) {
     const variant = this.#target.#createRegion(region);
@@ -322,6 +360,8 @@ export default class Pokemon {
 
   /**
    * Names this species for the errors below, from the constant it is bound to, and renames its forms with it.
+   *
+   * @param {string} name
    */
   as(name) {
     this.#assertMutable();
@@ -362,18 +402,30 @@ export default class Pokemon {
    * One of this species' forms.
    *
    * A name it does not have stops here rather than reaching the backup as a null.
+   *
+   * One `get` and a check on what came back, rather than a `has` and then a `get`. The two calls are two lookups and
+   * the checker cannot join them — nothing at the type level says they asked the same key, so `get` still answers
+   * `Pokemon | undefined` however the `has` above it went. Reading the result is the check that narrows, and it is the
+   * check the throw was already making.
+   *
+   * @param {string} name
+   * @returns {Pokemon}
    */
   form(name) {
-    if (!this.#forms.has(name)) {
+    const variant = this.#forms.get(name);
+
+    if (variant === undefined) {
       throw new Error(`${this.#name} has no ${name} form — check it against pokedex.js`);
     }
 
-    return this.#forms.get(name);
+    return variant;
   }
 
   /**
    * Several of this species' forms at once, in the order named — a list to spread into a filter's species list, where
    * naming each one by hand would say the species over and over.
+   *
+   * @param {...string} names
    */
   forms(...names) {
     return names.map((name) => this.form(name));
@@ -382,14 +434,20 @@ export default class Pokemon {
   /**
    * This species as one region sees it.
    *
-   * A region it has no variant in stops here for the same reason.
+   * A region it has no variant in stops here for the same reason, and reads what came back rather than asking twice,
+   * as `form` above does.
+   *
+   * @param {string} region
+   * @returns {Pokemon}
    */
   region(region) {
-    if (!this.#regions.has(region)) {
+    const variant = this.#regions.get(region);
+
+    if (variant === undefined) {
       throw new Error(`${this.#name} has no ${region} form — check it against pokedex.js`);
     }
 
-    return this.#regions.get(region);
+    return variant;
   }
 
   /**
@@ -397,6 +455,8 @@ export default class Pokemon {
    * region so they answer too, while the base species and a plain form belong to none. The region is data the variant
    * carries, not the adjective spelled at the front of its name, so a filter for one region's own asks this rather than
    * reading that name. Distinct from `regional`, which asks whether a species is a region-locked spawn at all.
+   *
+   * @param {string} region
    */
   isFrom(region) {
     return this.#region === region;
@@ -485,7 +545,7 @@ export default class Pokemon {
     }
   }
 
-  /** Creates a form of this Pokemon and files it under the name the games give it. */
+  /** Creates a form of this Pokemon and files it under the name the games give it. @param {string} name */
   #createForm(name) {
     this.#assertMutable();
     const variant = this.#variant(`${this.#name} (${name})`);
@@ -493,7 +553,7 @@ export default class Pokemon {
     return variant;
   }
 
-  /** Creates this Pokemon as one region sees it and files it under that region. */
+  /** Creates this Pokemon as one region sees it and files it under that region. @param {string} region */
   #createRegion(region) {
     this.#assertMutable();
     const variant = this.#variant(`${region} ${this.#name}`);
@@ -502,7 +562,7 @@ export default class Pokemon {
     return variant;
   }
 
-  /** A form of this species, starting from where the species stands. */
+  /** A form of this species, starting from where the species stands. @param {string} name */
   #variant(name) {
     const variant = new Pokemon(this.#dex);
     variant.#name = name;
