@@ -14,7 +14,7 @@ import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 import XXL_POKEMON from '../filters/xxl.js';
 import XXS_POKEMON from '../filters/xxs.js';
-import { GENERATIONS } from '../search/terms.js';
+import { GENERATIONS } from '../pokemon/generations.js';
 import type Pokemon from '../pokemon/pokemon.js';
 
 /**
@@ -89,20 +89,12 @@ export const CATEGORIES: readonly { id: Flag; label: string }[] = [
 ];
 
 /**
- * The generations as the dex numbers each ends on, parsed from the search builder's ranges so there is one table. The
- * pair is a tuple, which is the one shape `noUncheckedIndexedAccess` lets an index read without a guard.
+ * The generation a dex number falls in, or null for one past the last generation `pokemon/generations.js` knows about.
+ * The generations are in dex order, so the first whose `last` the number reaches is the one it belongs to.
  */
-const LAST_OF_GENERATION = GENERATIONS.map(([number, range]): [number, number] => [
-  Number(number),
-  Number(range.split('-')[1]),
-]);
+export const generationOf = (dex: number) => GENERATIONS.find(({ last }) => dex <= last)?.number ?? null;
 
-/**
- * The generation a dex number falls in, or null for one past the last range `search/terms.js` knows about.
- */
-export const generationOf = (dex: number) => LAST_OF_GENERATION.find(([, last]) => dex <= last)?.[0] ?? null;
-
-export const GENERATION_NUMBERS = LAST_OF_GENERATION.map(([number]) => number);
+export const GENERATION_NUMBERS = GENERATIONS.map(({ number }) => number);
 
 /**
  * Every variant under one, depth first, each carrying the name it reads as. A form of a regional variant is named by

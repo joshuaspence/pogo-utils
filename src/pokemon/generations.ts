@@ -1,0 +1,22 @@
+/**
+ * Where the national dex divides into generations: each generation number beside the first and last dex number it
+ * covers. A fact about the games rather than about either page that reads it, which is why it lives here — the search
+ * builder renders it as the `1-151` the game's search box takes and the Pokédex reads the bounds to label a card, and
+ * neither owns the boundaries themselves.
+ *
+ * The bounds are numbers rather than a rendered `'1-151'`, so the one consumer that wants that string writes it and the
+ * other compares dex numbers without parsing it back out again.
+ *
+ * The last generation's `last` is the dex itself, and moves when a generation is added to the game.
+ */
+export const GENERATIONS: readonly { number: number; first: number; last: number }[] = [
+  { number: 1, first: 1, last: 151 },
+  { number: 2, first: 152, last: 251 },
+  { number: 3, first: 252, last: 386 },
+  { number: 4, first: 387, last: 493 },
+  { number: 5, first: 494, last: 649 },
+  { number: 6, first: 650, last: 721 },
+  { number: 7, first: 722, last: 809 },
+  { number: 8, first: 810, last: 905 },
+  { number: 9, first: 906, last: 1025 },
+];

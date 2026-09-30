@@ -30,6 +30,8 @@
  * group wants a second cue rather than another hue.
  */
 
+import { GENERATIONS } from '../pokemon/generations.js';
+
 export interface Term {
   id: string;
   term: string;
@@ -61,23 +63,6 @@ export interface Preset {
   include?: readonly string[];
   exclude?: readonly string[];
 }
-
-/**
- * The generations, as the dex-number ranges the game actually searches. A generation is not a search term — there is no
- * `gen1` — so each is the range it spans, which is why they sit here as terms rather than in the numeric ranges below.
- * The upper bound of the last one moves when a generation is added to the game.
- */
-export const GENERATIONS: readonly [string, string][] = [
-  ['1', '1-151'],
-  ['2', '152-251'],
-  ['3', '252-386'],
-  ['4', '387-493'],
-  ['5', '494-649'],
-  ['6', '650-721'],
-  ['7', '722-809'],
-  ['8', '810-905'],
-  ['9', '906-1025'],
-];
 
 /**
  * The eighteen types. Listed in the games' own order rather than alphabetically, which is the order a player has seen
@@ -293,7 +278,16 @@ export const GROUPS: readonly Group[] = [
     label: 'Generation',
     hue: 240,
     help: 'A generation is searched as the dex numbers it spans — the game has no `gen1`.',
-    terms: GENERATIONS.map(([number, range]) => ({ id: `gen${number}`, term: range, label: `Gen ${number}` })),
+    /**
+     * A generation is not a search term — there is no `gen1` — so each chip is the dex span it covers, which is why
+     * these are terms rather than one of the numeric ranges below. `pokemon/generations.js` owns the boundaries; this
+     * is the only place that renders them as the `1-151` the game reads.
+     */
+    terms: GENERATIONS.map(({ number, first, last }) => ({
+      id: `gen${number}`,
+      term: `${first}-${last}`,
+      label: `Gen ${number}`,
+    })),
   },
 ];
 
