@@ -1,10 +1,6 @@
 export default {
   extends: ['stylelint-config-standard'],
-
-  // The artifact holds copies of the stylesheets checked in their own right, so linting it reports every fault twice
-  // and names the copy.
   ignoreFiles: ['dist/**'],
-
   reportNeedlessDisables: true,
   rules: {
     'no-descending-specificity': null,
