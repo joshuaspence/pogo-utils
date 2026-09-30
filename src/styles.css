@@ -121,8 +121,8 @@ header .sub {
 
 /**
  * How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent names
- * and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows there, and
- * the count follows the filter (see the input handler in app.js) so it never contradicts what is on screen.
+ * and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows there,
+ * and the count follows the filter (see the input handler in app.js) so it never contradicts what is on screen.
  */
 .continent .gcount,
 .country .gcount {
