@@ -508,17 +508,34 @@ export default class Pokemon {
     }
   }
 
-  /** Creates a form of this Pokemon and files it under the name the games give it. */
+  /**
+   * Creates a form of this Pokemon and files it under the name the games give it.
+   *
+   * A name already filed here stops the declaration rather than replacing what is under it: a bare `set` would hand the
+   * second `addForm('X')` a fresh variant carrying none of the first one's markers, leaving the first unreachable
+   * through `form` and its `isNotReleased` silently undone. Every other disagreement in this model is loud — `form` and
+   * `region` throw on a name the species does not have, `#assertMutable` throws after `freeze` — so this one is too.
+   */
   #createForm(name: string) {
     this.#assertMutable();
+
+    if (this.#forms.has(name)) {
+      throw new Error(`${this.#name} already has a ${name} form — declare each one once in pokedex.js`);
+    }
+
     const variant = this.#variant(`${this.#name} (${name})`);
     this.#forms.set(name, variant);
     return variant;
   }
 
-  /** Creates this Pokemon as one region sees it and files it under that region. */
+  /** Creates this Pokemon as one region sees it and files it under that region, refusing a repeat as `#createForm`. */
   #createRegion(region: string) {
     this.#assertMutable();
+
+    if (this.#regions.has(region)) {
+      throw new Error(`${this.#name} already has a ${region} variant — declare each one once in pokedex.js`);
+    }
+
     const variant = this.#variant(`${region} ${this.#name}`);
     variant.#region = region;
     this.#regions.set(region, variant);
