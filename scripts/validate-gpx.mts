@@ -3,7 +3,7 @@
  * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is one
  * the viewer knows, with nothing in that table the files never name (src/countries.ts); and that gpx-paths.json and
  * entries-by-event.json, the two files that tell the pages what the repository holds, still agree with it. `--write`
- * regenerates the latter, which is derived from the same pass.
+ * regenerates both, each derived from the same pass that checks it.
  *
  * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
@@ -17,7 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { validateXML } from 'xmllint-wasm';
 
-// `--write` regenerates the event index rather than checking it, the way `prettier --write` is to `prettier --check`.
+// `--write` regenerates the two indexes rather than checking them, the way `prettier --write` is to `prettier --check`.
 const writeIndex = process.argv.includes('--write');
 
 const files = execFileSync('git', ['ls-files', '-z', '*.gpx'], { encoding: 'utf8' }).split('\0').filter(Boolean);
@@ -220,23 +220,37 @@ if (unusedCountries.length === 0) {
  * Static hosting cannot list a directory, so the viewer is handed its paths in GPX_PATHS. Nothing else notices when
  * that file falls out of step with the repository, and the failure is silent in the worst way: a route that is
  * perfectly good GPX, and that this script has just validated, simply never appears on the map.
+ *
+ * `git ls-files` sorts its own output, so what this writes is what the check below accepts and two runs over the same
+ * repository produce the same bytes. Unlike ENTRIES_BY_EVENT the content comes from git rather than from inside the
+ * files, so nothing above can make it wrong and the write is not gated on the validation passing.
  */
-const listed: string[] = JSON.parse(readFileSync(GPX_PATHS, 'utf8'));
-const unlisted = files.filter((file) => !listed.includes(file));
-const phantom = listed.filter((file) => !files.includes(file));
+const paths = `${JSON.stringify(files, null, 2)}\n`;
 
-for (const file of unlisted) {
-  problems.push(`${file}: tracked but missing from ${GPX_PATHS} — the map will not show it`);
-}
-
-for (const file of phantom) {
-  problems.push(`${file}: listed in ${GPX_PATHS} but not tracked — the map will fail to fetch it`);
-}
-
-if (unlisted.length || phantom.length) {
-  problems.push('Regenerate it with the command in the README.');
+if (writeIndex) {
+  writeFileSync(GPX_PATHS, paths);
+  console.log(`Wrote ${GPX_PATHS} — ${files.length} files.`);
 } else {
-  console.log(`${GPX_PATHS} lists all ${listed.length} files.`);
+  const current = readFileSync(GPX_PATHS, 'utf8');
+  const listed: string[] = JSON.parse(current);
+
+  for (const file of files.filter((file) => !listed.includes(file))) {
+    problems.push(`${file}: tracked but missing from ${GPX_PATHS} — the map will not show it`);
+  }
+
+  for (const file of listed.filter((file) => !files.includes(file))) {
+    problems.push(`${file}: listed in ${GPX_PATHS} but not tracked — the map will fail to fetch it`);
+  }
+
+  /**
+   * Compared as bytes rather than as sets, so an order the map does not care about but a diff does — the same two
+   * entries swapped — is reported too, with no per-file line above it to explain it, hence the message naming the file.
+   */
+  if (current === paths) {
+    console.log(`${GPX_PATHS} lists all ${listed.length} files.`);
+  } else {
+    problems.push(`${GPX_PATHS}: out of step with the tracked files — regenerate it with \`pnpm lint:xml:fix\`.`);
+  }
 }
 
 /**

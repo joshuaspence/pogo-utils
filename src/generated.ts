@@ -4,8 +4,8 @@
  * those files, `ENTRIES_BY_EVENT` the `<pgr:event>` associations inside them, counted per event.
  *
  * Named here because seven places read them — the map, the events page, the PGSharp builder, the validator that writes
- * one of them and the calendar generator that reads it. Renaming the pair once already broke that last one, which
- * spelled the old name in a script `npm run lint` does not run: the build was dead for a commit and nothing said so.
+ * both and the calendar generator that reads one. Renaming the pair once already broke that last one, which spelled the
+ * old name in a script `npm run lint` does not run: the build was dead for a commit and nothing said so.
  *
  * Neither name needs a second spelling for the two kinds of consumer that share it. A page resolves a relative URL
  * against its own, and the pages sit at the repository root — which is also where a script is run from.
