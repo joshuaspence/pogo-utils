@@ -16,14 +16,14 @@
 
 ## Types
 
-Everything here is TypeScript, and the line between the two halves is **does this file emit**. `src/` is compiled to
-`dist/src/` and Pages deploys that artifact, so every specifier in it has to survive into the output and name the `.js`
-file the browser will fetch; `scripts/` never emits at all — Node runs it by stripping types in place — so Node resolves
-its specifiers literally and a value import from `src/` has to name the `.ts` file. Both halves are
-`erasableSyntaxOnly`, so neither gets an `enum`, a `namespace` or a parameter property. A data change still lands on
-`master` directly — adding a species to `src/filters/shiny.ts` is one line — but it is no longer served as written:
-`pages.yml` runs `pnpm build` and deploys what comes out, so what a browser fetches is the compiler's output, and
-`pnpm lint:types` is that same build rather than a separate check over it.
+Everything here is TypeScript, and the line between the two halves is **does this file emit**. `src/` is checked by
+`tsc` and bundled by esbuild into `dist/src/`, which Pages deploys, so every specifier in it names the `.js` file a
+browser could have fetched rather than the `.ts` file on disk; `scripts/` never emits at all — Node runs it by stripping
+types in place — so Node resolves its specifiers literally and a value import from `src/` has to name the `.ts` file.
+Both halves are `erasableSyntaxOnly`, so neither gets an `enum`, a `namespace` or a parameter property. A data change
+still lands on `master` directly — adding a species to `src/filters/shiny.ts` is one line — but it is no longer served
+as written: `pages.yml` runs `pnpm build` and deploys what comes out, so what a browser fetches is a bundle of its
+page's whole graph, and `pnpm lint:types` is that same build rather than a separate check over it.
 
 - **`src/recurring-types.ts` is in neither half, and `tsconfig.shared.json` is what holds that.** `src/events.ts`
   imports it and so does `scripts/build-ics`, so it must assume neither DOM nor Node. A third project with no `DOM` in
@@ -148,13 +148,13 @@ its specifiers literally and a value import from `src/` has to name the `.ts` fi
   whole body is an IIFE assigned to `export const JavaSer`, and that is as true of a `type` or an `interface` as it was
   of a `@typedef`. There is nothing to import, so a consumer either writes the structural type out or leaves the value
   opaque — which is why `downloadBytes` takes a `Uint8Array<ArrayBuffer>` rather than a named alias and the click
-  handler's `const root = new Map()` stays a `Map<any, any>` rather than claiming `JavaMap`. The same arithmetic still
-  decides where a tiny _value_ ends up, in the opposite direction from the usual advice: `said`, the one-liner asking
-  what a caught value has to say, is written out in both `src/app.ts` and `src/pgsharp/backup.ts` rather than shared,
-  because `map.html` and `pgsharp.html` load separate module graphs with nothing bundling them and an `errors.ts`
-  between them would cost each page a real round trip to save a line. Compiling changed nothing about that, since `tsc`
-  emits one file per module — so the exception outlives the JSDoc idiom that framed it, and retires only when something
-  bundles.
+  handler's `const root = new Map()` stays a `Map<any, any>` rather than claiming `JavaMap`. What no longer follows is
+  the arithmetic that used to keep a tiny _value_ duplicated: `said` was written out in both `src/app.ts` and
+  `src/pgsharp/backup.ts` because the two pages load separate graphs and, while `tsc` emitted one file per module, an
+  `errors.ts` between them would have cost each page a real request — 6 for `map.html` rather than 5 and 16 for
+  `pgsharp.html` rather than 15, measured. Bundling inlines it into both for nothing, so `src/errors.ts` exists and the
+  exception is gone. Read it as the shape of the argument rather than as a standing licence to duplicate: what decided
+  it was a request, and nothing about the two _pages_ changed.
 - **The obvious annotation is sometimes weaker than inference, and `Uint8Array` is the trap.** It has taken a type
   parameter since TypeScript 5.7 — `interface Uint8Array<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike>` — and
   the default is the _wide_ one. So `bytes: Uint8Array` widens what the caller had: `JavaSer.dumps` returns
@@ -291,10 +291,37 @@ its specifiers literally and a value import from `src/` has to name the `.ts` fi
   `pnpm build`, so the tree the lint compiled is the tree that gets deployed and there is no second compilation to
   disagree with the first. Build mode takes the project paths directly — no solution-style config to keep in step —
   reports every project rather than stopping at the first that fails, and follows `references` into the shared one on
-  its own. It requires `composite: true` in each, which forces declarations nothing serves; both the declarations and
-  the per-project `tsconfig.tsbuildinfo` are named into `.types/` rather than left to default, because the default is
-  derived from `outDir` and would put them inside `dist/` — which is to say, deploy them. The allowlist cannot catch
-  that, since it governs what is copied in and these are written before it runs.
+  its own. It requires `composite: true` in each, which forces declarations nothing serves, and both those and the
+  per-project `tsconfig.tsbuildinfo` are named into `.types/` so that one `rm -rf` clears everything the compiler wrote.
+  Naming them was not cosmetic while there was an `outDir`: the default for each is derived from it, which put the build
+  cache at `dist/tsconfig.tsbuildinfo` and deployed it to the live site, and the allowlist cannot catch that since it
+  governs what is copied in and these are written before it runs. `emitDeclarationOnly` retires the hazard rather than
+  the setting — there is no `outDir` left to derive from.
+- **`tsc` checks and esbuild emits, which is `emitDeclarationOnly` in both browser projects.** The bundler does no type
+  analysis whatever and the compiler writes nothing a browser reads, so the two own disjoint halves of `pnpm build` and
+  `dist/src/` has one file per page rather than one per module. That is the point of it: a page used to fetch its graph
+  a request at a time, 16 of them for `pgsharp.html`, each a round trip before the next import was even known about — 46
+  across the five pages against 5 now, for the same bytes per page. On disk the total grows about 20%, from 368,749 to
+  441,989, because a module imported by two pages is inlined into both; code splitting would remove that at the cost of
+  a shared chunk being a second request again, which is the thing being bought out.
+- **esbuild resolves `'./dom.js'` onto `dom.ts` as well, so the specifier convention is untouched.** That is worth
+  knowing precisely because it looks like the sort of thing a bundler would need telling: nothing in `src/` was
+  rewritten and no `<script src>` moved. The paths hold for the same reason — `outbase: 'src'` with `outdir: 'dist/src'`
+  reproduces the source tree's shape, so `src/pgsharp/backup.ts` lands exactly where `pgsharp.html` was already
+  pointing. `scripts/bundle.mts` therefore reads its entry points **out of those tags** rather than listing them, since
+  the markup is the authority on which modules are entry points and a list beside it could only drift; a regex matching
+  none of them would bundle nothing and exit 0, so it throws on an empty list instead.
+- **`charset: 'utf8'`, or every non-ASCII character in a string literal is written as a `\u` escape.** These modules
+  carry 184 of them across the five bundles — `✓`, `✨`, `♀`, the type glyphs, the em-dashes in the status strings — and
+  escaping all of them is valid, identical JavaScript that simply reads as noise in the output. The two `\u` escapes
+  that remain are the ones `src/pgsharp/backup.ts` wrote itself for the MUTF-8 range bounds, which is how you tell the
+  setting took: `src/app.ts`'s `·` came back through as a literal `·`.
+- **No cycles in the graph is what makes bundling semantically inert here, and it is one query.** Concatenating modules
+  into one scope in topological order evaluates them in exactly the order the ESM loader would have, so nothing that ran
+  at module scope can move — but only because there is nothing to order ambiguously: 50 value edges over 17 modules and
+  not one cycle, with the 6 type-only edges erased before they could contribute. Ask the graph before reaching for a
+  browser, since a cycle is the one thing a flattening changes and the five-page suite would report it as a page that
+  simply failed to load.
 - **Counting that error total needs `--force` and `--pretty false`, and both traps read as a pass.** Build mode says
   nothing whatever about a project it thinks is up to date, so a second `pnpm lint:types` over an unchanged tree prints
   an empty report that looks exactly like a clean one; and the colour codes sit between the two words, so
@@ -356,6 +383,13 @@ its specifiers literally and a value import from `src/` has to name the `.ts` fi
   ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)). TypeScript 6.0.3
   accepts the same configuration and reports the same errors; the whole project checks in about a second either way, so
   the Go compiler buys nothing here worth a broken linter.
+- **pnpm 11 gates install scripts in `pnpm-workspace.yaml`, and a `pnpm.ignoredBuiltDependencies` in `package.json` is
+  silently ineffective.** Adding esbuild left `ERR_PNPM_IGNORED_BUILDS` and pnpm then refused _every_ command,
+  `pnpm exec` included, until the question was answered — and answered in the right file, since the setting moved and
+  the block in `package.json` is accepted without complaint and does nothing. Answer it measurably rather than by
+  guessing at the privilege: `allowBuilds: {esbuild: false}` is right here because the native binary arrives from the
+  `@esbuild/linux-x64` optional dependency and the postinstall only verifies it, which
+  `./node_modules/.bin/esbuild --version` answering `0.28.2` with the script ignored is the whole of the proof.
 - **Every page reaches the DOM through `src/dom.ts`.** `byId` throws where the markup and the script disagree, so a
   stale id is a broken page at load rather than a `null` travelling until something further along trips over it. Name a
   class only where the code depends on one — `byId('q', HTMLInputElement)` because a `.value` is read off it, a plain
@@ -404,8 +438,11 @@ it can fail and that the artifact is what makes the pages work. Rebuild before e
 edit-not-served trap one level up from the browser cache and disabling the cache does nothing about it.
 
 - **The five-page suite says a module loaded, never that it is right.** Making `Pokemon#region` answer the species
-  instead of throwing on a miss left all five pages reporting clean — 74 routes, 82 chips, 1025 cards, `6 of 6` — while
-  the differential over the dex reported 8,183 differences against the same build. What the pages do catch is a throw,
+  instead of throwing on a miss left all five pages reporting clean — 74 `.route` rows under `#list` on `map.html`, 82
+  `.chip`s on `search.html`, 1,025 `.card`s on `pokedex.html`, `6 of 6` in `#optTally` on `pgsharp.html` and a card per
+  event on `events.html` — while the differential over the dex reported 8,183 differences against the same build. Name
+  the page and the selector beside each figure, because the numbers do not identify themselves: 82 reads as the
+  Pokédex's chip count and the Pokédex has 12, which cost two runs to work out. What the pages do catch is a throw,
   because `filters/shiny.ts` makes 79 `form`, `forms` and `region` calls at module scope and one of them failing takes
   the page down at load. So run both and do not let a 5/5 stand in for the differential; the deliberate break is what
   tells you which of the two a given change needs.
@@ -488,6 +525,24 @@ edit-not-served trap one level up from the browser cache and disabling the cache
   where the condition genuinely broadened and `declares no value field` became `declares no primitive value field` — and
   the same patched stream is what showed why, since a descriptor naming `value` as an object reference used to read back
   as an `I`-coded box holding the string `'v'` and now throws.
+- **A change to the build wants a byte digest, not a page that still renders.** Bundling rewrites every line of the
+  output, so a diff over the emitted JavaScript says nothing and the five-page figures only say the modules still run.
+  What discriminates is the one contract expressed in bytes: wrap `URL.createObjectURL` from a pre-script, click
+  **Generate & download** on `pgsharp.html`, hash what the Blob was handed — and drive the _deployed_ site as the
+  baseline, since production is serving the previous build until the merge. 117,459 bytes at sha256 `237886a2` from
+  both, which is `src/java-serialization.ts` untouched through a whole change of toolchain. Assert the Blob count as
+  well, because an empty `window.__blobs` hashes to nothing and the digest line would simply be absent: 1 against
+  `dist/` and 0 against the root control, where the click lands on a button no handler is attached to.
+- **Two `chrome-headless-shell` instances fight over the default profile, and the loser answers `/json/list` first.**
+  Restarting Chrome between runs is right — a pre-script is registered per browser session and two copies chain rather
+  than replace — but without `--user-data-dir` the new instance takes the profile lock the old one has not released, and
+  what happens is not a startup error: the port answers, `Page.enable`, `Runtime.enable` and `Network.enable` all
+  succeed, and the socket then dies during the first navigation with `no close frame received`. Pass a fresh
+  `--user-data-dir` per run, and read a mid-run close as contention rather than as the page.
+- **`websockets` closes the connection under you if the probe sleeps.** An `asyncio.sleep` between calls blocks the recv
+  loop, so a keepalive ping goes unanswered and the library hangs up with `1011 keepalive ping timeout` — 25 seconds
+  waiting for a backup to build is enough. Connect with `ping_interval=None`; these probes drive one page at a time and
+  have nothing to gain from a liveness check they are structurally unable to answer.
 - **Run `chrome-headless-shell`, not `chrome`.**
   `~/.cache/ms-playwright/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell` serves the
   protocol fine. The full browser beside it, `chromium-1208/chrome-linux64/chrome`, prints
