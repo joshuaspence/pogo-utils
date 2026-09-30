@@ -1,3 +1,14 @@
+/**
+ * Leaflet by name rather than by member, which is what leaves all thirteen `L.` references and the four `L.Polyline`-
+ * style type annotations in this file exactly as the UMD global left them — the import replaces where `L` comes from and
+ * nothing about how it is spelled. Its stylesheet is imported beside it because this module is what needs it: esbuild
+ * emits the CSS as `app.css` beside `app.js`, which is the path `map.html` links, so the two cannot drift apart any more
+ * than the `<script src>` and the bundle can.
+ */
+
+import * as L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
 import COUNTRIES from './countries.js';
 import { said } from './errors.js';
 import { GPX_PATHS } from './generated.js';

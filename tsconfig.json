@@ -33,14 +33,11 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
 
-    // Only Leaflet, so that installing any other @types package cannot silently hand Node's globals to a browser
-    // module. Naming it is also what pulls it in at all, since an empty list would leave `L` undeclared.
-    "types": ["leaflet"],
-
-    // `L` arrives from a CDN <script> in map.html, and @types/leaflet declares it with `export as namespace L` — a UMD
-    // global, which a module cannot otherwise see. Declaring it by hand instead does not work: a `declare global` for
-    // `L` shadows that namespace, which breaks the package's own internal references to it.
-    "allowUmdGlobalAccess": true,
+    // Nothing ambient at all, as in `tsconfig.shared.json`: every type these modules use is either in the lib set above
+    // or reached through an import. An unset `types` would pull in every installed @types package instead, which is how
+    // Node's globals would reach a browser module — so the empty list is the setting rather than the absence of one.
+    // `@types/leaflet` and `@types/tz-lookup` are unaffected, being found through their packages rather than as globals.
+    "types": [],
 
     // Pages serves what this emits, and a browser has no loader to erase anything for it, so a construct needing one is
     // not available here at all — the same rejection `scripts/` takes for Node's type stripping, for a different
