@@ -750,3 +750,27 @@ appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
   screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
   walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
 
+### What the detail screen tells you without OCR
+
+Three of the CSV's columns are pixels rather than text, and one that looks as though it should be is not.
+
+- **CP is derived, never read.** It is a pure function of the base stats, the three IVs and the level's multiplier, all
+  of which the overlay and the game master hand over exactly, so `cpOf` answers 635 for a level 31 Shroomish at 10/7/10
+  where OCR answered null. Where OCR does read a CP, a disagreement is worth a note rather than a correction: the
+  arithmetic cannot be wrong, so the two differing means the level or the form is.
+- **A favourite's star is solid gold and an ordinary one a white outline**, which colour settles outright — 19.4% of
+  that corner gold against 0.00%, over eighteen captures from two phones. The star is the game's own furniture rather
+  than PGSharp's, so it scales with the screen and a fraction holds where one for the overlay did not: 0.900, 0.074 of
+  one phone against 0.903, 0.080 of the other.
+- **Gender is shape, not colour.** Both symbols are drawn in the same pale blue-grey, so only the outline separates
+  them: a male's arrow leaves the circle up and to the right and a female's stem hangs below it, making the female's ink
+  taller than wide and the male's square. 1.51 against 0.99 on one phone and 1.51 against 1.00 on the other, so one
+  threshold serves both. Find it by where the HP is rather than by a fraction of the screen, and read no ink as no
+  gender rather than as a failure — all seven Xerneas captures report none, which is right.
+- **Do not take shiny from the `✨` PGSharp appends to its overlay, however much it looks like a free answer.** The box
+  it sits in is translucent, so the artwork behind it shows through, and a Hisuian Lilligant's yellow flower gives
+  **202** gold pixels inside that box against the sparkle's **121** — the false positive is the larger signal.
+  Restricting the search to the rows the text occupies does not separate them either, since the flower reaches into
+  them. Shiny comes from the game's own `shiny` search, as a flag pass, which is authoritative and costs a walk of every
+  shiny in storage.
+
