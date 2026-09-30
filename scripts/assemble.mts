@@ -11,6 +11,7 @@
  * the check at the end turns that into a failed build instead of something found by opening the site.
  */
 
+import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
 
@@ -30,8 +31,8 @@ const PUBLISHED = [
   'icons/*.png',
 
   'events.ics',
-  'entries-by-event.json',
-  'gpx-paths.json',
+  ENTRIES_BY_EVENT,
+  GPX_PATHS,
   'data',
   'src/*.css',
 ];
