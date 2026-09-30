@@ -200,15 +200,18 @@ without timezones and the page says how many were left out; PGSharp accepts entr
 
 ## Installing as an app
 
-[`manifest.webmanifest`](manifest.webmanifest) lets a phone add the site to its home screen and open it without the
-browser's toolbar, starting on the Events page, with a long-press shortcut to each of the four tabs. Its paths are
-relative, so it works under the Pages subdirectory as well as from a local server.
+[`manifest.json`](manifest.json) lets a phone add the site to its home screen and open it without the browser's toolbar,
+starting on the Events page, with a long-press shortcut to each of the five tabs. Its paths are relative, so it works
+under the Pages subdirectory as well as from a local server, and [`scripts/assemble.mts`](scripts/assemble.mts) resolves
+every one of them inside the build the same way it resolves the markup's: an icon or a shortcut naming a file that moved
+fails the build rather than drawing a letter tile on somebody's home screen.
 
 The icons under [`icons/`](icons) are PNGs because Android's installed-app icons are raster. `192.png` and `512.png` are
 [`favicon.svg`](favicon.svg) rendered with the light theme's dark rim; `maskable-512.png` is
 [`icons/maskable.svg`](icons/maskable.svg), the same ball shrunk into the safe zone a launcher keeps when it crops the
-icon to its own shape. Nothing regenerates them, so after editing either SVG render it again at the listed size — any
-browser will do, with `prefers-color-scheme` set to light for `favicon.svg`.
+icon to its own shape. That SVG is the one file in the directory the site does not serve, which is why the build copies
+`icons/*.png` rather than `icons/`. Nothing regenerates the PNGs, so after editing either SVG render it again at the
+listed size — any browser will do, with `prefers-color-scheme` set to light for `favicon.svg`.
 
 ## Prior art
 
