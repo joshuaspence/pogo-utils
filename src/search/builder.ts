@@ -381,8 +381,8 @@ function paintNames() {
  * reader is part-way through is never silently dropped — Copy takes what is on screen, including the last three letters
  * they typed and did not press anything after.
  *
- * A name is not held twice, as a chip or as the one being typed: the same name twice is the same clause twice, which the
- * game reads as one and a reader reads as a mistake. `charmander` and `+charmander` are two different searches and both
+ * A name is not held twice, as a chip or as the one being typed: the same name twice is the same clause twice,
+ * which the game reads as one and a reader reads as a mistake. `charmander` and `+charmander` are two different
  * can be here. The spaces around a name are dropped here rather than by each caller, so a pasted `pikachu, eevee` and a
  * row taken from the list arrive the same shape and can be compared with one another.
  */
