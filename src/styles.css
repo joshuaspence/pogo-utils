@@ -213,8 +213,8 @@ header .sub {
 }
 
 /**
- * Pushed to the right edge from here rather than by `space-between` on the row, which would spread the free space either
- * side of the name and leave it floating away from the marker that belongs to it.
+ * Pushed to the right edge from here rather than by `space-between` on the row, which would spread the free space
+ * either side of the name and leave it floating away from the marker that belongs to it.
  */
 .route .end {
   display: flex;
