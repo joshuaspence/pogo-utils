@@ -15,7 +15,7 @@ The Events page merges two sources, and this skill audits the gap between them a
 - **The ScrapedDuck feed** mirrors Leek Duck and covers the game's scheduled content thoroughly. It is the bulk of the
   page and needs no help.
 - **`data/events.json`** is the repository's own list, for events the feed does not carry. Every entry in it is a
-  `regional-event` — a type ScrapedDuck never emits, registered locally in `src/events.js` — because what Leek Duck
+  `regional-event` — a type ScrapedDuck never emits, registered locally in `src/events.ts` — because what Leek Duck
   systematically omits is the region-locked, in-person kind: City Safari, a campus festival, a mall tour, a national
   partnership.
 - **`pokemongo.com`** is the source of truth for what has been announced, and is what this skill reads: the news

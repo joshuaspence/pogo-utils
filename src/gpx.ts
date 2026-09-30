@@ -11,18 +11,15 @@ import { GPX_PATHS } from './generated.js';
  * The file list, checked to be one. `Response#json` answers `any`, and the guard below is the whole of what says
  * otherwise — `Array.isArray` narrows no further than `any[]` and nothing at the type level reads the `some`, so the
  * return type is a claim this function's own throw enforces rather than one the checker verified.
- *
- * @returns {Promise<readonly string[]>}
  */
-export async function loadManifest() {
+export async function loadManifest(): Promise<readonly string[]> {
   const res = await fetch(GPX_PATHS);
 
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
   }
 
-  /** @type {unknown} */
-  const files = await res.json();
+  const files: unknown = await res.json();
 
   if (!Array.isArray(files) || files.some((f) => typeof f !== 'string')) {
     throw new Error('is not a list of paths');
@@ -34,11 +31,8 @@ export async function loadManifest() {
 /**
  * Parse a GPX file's text into a document, rejecting one that is not valid XML. The single place either consumer turns
  * bytes into a tree, so both fail the same way on a malformed file.
- *
- * @param {string} text
- * @returns {Document}
  */
-export function parseGpxDocument(text) {
+export function parseGpxDocument(text: string): Document {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
 
   if (doc.querySelector('parsererror')) {
@@ -53,11 +47,8 @@ export function parseGpxDocument(text) {
  * for a cleared route. Yielding the pair keeps the empty-track skip in one place, so the viewer and the backup builder
  * never disagree about which tracks a file holds. A <trk> that kept a single point is a different thing
  * — a track that cannot be drawn — and is left to each caller to reject.
- *
- * @param {Document} doc
- * @returns {Generator<{trk: Element, trkpts: HTMLCollectionOf<Element>}>}
  */
-export function* eachTrack(doc) {
+export function* eachTrack(doc: Document): Generator<{ trk: Element; trkpts: HTMLCollectionOf<Element> }> {
   for (const trk of doc.getElementsByTagName('trk')) {
     const trkpts = trk.getElementsByTagName('trkpt');
 
@@ -72,12 +63,8 @@ export function* eachTrack(doc) {
 /**
  * The text of a direct child <tag>, or null. Read from the element itself, not its descendants, so a gpx.studio file's
  * <metadata><author><name> is never mistaken for an entry's name.
- *
- * @param {Element} el
- * @param {string} tag
- * @returns {string | null}
  */
-function childText(el, tag) {
+function childText(el: Element, tag: string): string | null {
   for (const child of el.children) {
     if (child.localName === tag && child.textContent && child.textContent.trim()) {
       return child.textContent.trim();
@@ -95,12 +82,8 @@ function childText(el, tag) {
  * Worth knowing when editing: an editor that does not model foreign extensions drops the whole block on export —
  * gpx.studio is one — so a round trip through such a tool loses these fields, and the viewer will say so rather than
  * fall back to the path.
- *
- * @param {Element} el
- * @param {string} tag
- * @returns {string | null}
  */
-export function extText(el, tag) {
+export function extText(el: Element, tag: string): string | null {
   const ext = [...el.children].find((child) => child.localName === 'extensions');
   return ext ? childText(ext, tag) : null;
 }
@@ -111,11 +94,8 @@ export function extText(el, tag) {
  *
  * These readers say what is wrong with the element without naming the file; each caller already knows which file it is
  * reading, and says so once.
- *
- * @param {Element} el
- * @returns {string}
  */
-export function placeName(el) {
+export function placeName(el: Element): string {
   const name = childText(el, 'name');
 
   if (!name) {
@@ -129,11 +109,8 @@ export function placeName(el) {
 /**
  * The country a <trk> or <wpt> is in. Required: a countryless entry cannot be grouped, flagged or named, and guessing
  * one from the path is the papering over this file format exists to avoid.
- *
- * @param {Element} el
- * @returns {string}
  */
-export function entryCountry(el) {
+export function entryCountry(el: Element): string {
   const country = extText(el, 'country');
 
   if (!country) {

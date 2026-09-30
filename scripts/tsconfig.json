@@ -22,13 +22,19 @@
     // Node's globals, deliberately absent from the browser project next door.
     "types": ["node"],
 
-    // These scripts import `src/countries.js`, `src/generated.js`, `src/recurring-types.js` and `src/types.d.ts`, which
-    // belong to the browser project. Build mode wants every file a project reads listed by the project that reads it,
-    // and there is no declaration output to reach them through because both projects are `noEmit`. Listing them here is
-    // what satisfies that; it also means the three `.js` files are checked twice, once under each lib set, which is the
-    // point for `recurring-types.js` — it is imported by `src/events.js` too and must assume neither DOM nor Node.
-    "allowJs": true,
-    "checkJs": true
+    // A value import from `src/` has to name the `.ts` file, because Node runs these by stripping types in place and
+    // resolves the specifier literally — where `tsc` would have resolved `'../src/generated.js'` onto its `.ts` sibling
+    // and said nothing, which is a check passing over an `ERR_MODULE_NOT_FOUND`. Permitted here because nothing in this
+    // project emits, so no specifier has to survive into an output file. A *type* import is exempt and stays `.js`,
+    // since it is erased before Node sees it — and `src/types.d.ts` could not be named any other way.
+    "allowImportingTsExtensions": true
   },
-  "include": ["*.mts", "../src/countries.js", "../src/generated.js", "../src/recurring-types.js", "../src/types.d.ts"]
+  "include": ["*.mts"],
+
+  // These scripts import `src/countries.ts`, `src/generated.ts`, `src/recurring-types.ts` and `src/types.d.ts`. Build
+  // mode wants every file a project reads listed by the project that reads it, and this used to mean naming those four
+  // in the `include` above and checking them a second time under this lib set. A reference is what it wanted all along:
+  // the shared project emits declarations now, so this one reads those rather than the sources — and the files stay
+  // environment-agnostic because that project says so, rather than because two lib sets happen to agree about them.
+  "references": [{ "path": "../tsconfig.shared.json" }]
 }

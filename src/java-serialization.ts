@@ -32,38 +32,33 @@ export const JavaSer = (() => {
   /**
    * The four things a value is, which is what makes the tags `content` reads and the shapes `value` writes cover the
    * same ground from either end.
-   *
-   * @typedef {null | string | Box | JavaMap} JavaValue
-   * @typedef {Map<JavaValue, JavaValue>} JavaMap
    */
+  type JavaValue = null | string | Box | JavaMap;
+  type JavaMap = Map<JavaValue, JavaValue>;
 
   /**
    * A JVM field-type code this codec boxes, and the widths their values take. The pairing is the codec's own — I and F
    * carry a Number, J a BigInt, Z a boolean — and nothing at the type level ties a `Box`'s two fields together, so it
    * is checked where the bytes are written.
-   *
-   * @typedef {'I' | 'J' | 'F' | 'Z'} BoxCode
-   * @typedef {number | bigint | boolean} BoxValue
    */
+  type BoxCode = 'I' | 'J' | 'F' | 'Z';
+  type BoxValue = number | bigint | boolean;
 
   /**
    * A class descriptor as the stream carries it. `fields` is a `[typeCode, name]` pair per declared field, in stream
    * order, and `super` walks up the chain to the `null` that ends it.
-   *
-   * @typedef {{name: string, uid: bigint, flags: number, fields: [string, string][], super: ClassDesc | null}} ClassDesc
    */
+  type ClassDesc = { name: string; uid: bigint; flags: number; fields: [string, string][]; super: ClassDesc | null };
 
   /**
    * One back-reference table entry, tagged so a handle citing the wrong kind is caught at the citation.
-   *
-   * @typedef {{kind: 'value', value: JavaValue} | {kind: 'class', desc: ClassDesc}} Handle
    */
+  type Handle = { kind: 'value'; value: JavaValue } | { kind: 'class'; desc: ClassDesc };
 
   /**
    * What one declared field holds: anything `content` answers, or any primitive `readPrimitive` does.
-   *
-   * @typedef {JavaValue | number | bigint | boolean} FieldValue
    */
+  type FieldValue = JavaValue | number | bigint | boolean;
 
   /**
    * Boxed primitives, keyed by JVM field-type code. The value carried is a Number for I/F, a BigInt for J (a 64-bit
@@ -78,10 +73,8 @@ export const JavaSer = (() => {
   /**
    * The same table the other way round, and an index signature rather than the four keys, because what indexes it is a
    * class name read out of the stream.
-   *
-   * @type {Record<string, BoxCode>}
    */
-  const BOX_BY_CLASS = {
+  const BOX_BY_CLASS: Record<string, BoxCode> = {
     'java.lang.Integer': 'I',
     'java.lang.Long': 'J',
     'java.lang.Float': 'F',
@@ -90,8 +83,7 @@ export const JavaSer = (() => {
   const NUMBER = { name: 'java.lang.Number', uid: 0x86ac951d0b94e08bn };
   const HASHMAP_UID = 0x0507dac1c31660d1n;
 
-  /** @param {string} m */
-  const err = (m) => new Error(m);
+  const err = (m: string) => new Error(m);
 
   /**
    * A boxed primitive, the one value shape that is neither a string nor a map. A class rather than a `{box, value}`
@@ -99,13 +91,11 @@ export const JavaSer = (() => {
    * property test would have to be guarded, since `'box' in v` throws on the very primitives `dumps` exists to reject.
    * The field type is checked here so that an unsupported one fails at the call that named it.
    */
-  // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- `instanceof` needs a constructor to narrow on
   class Box {
-    /**
-     * @param {BoxCode} code
-     * @param {BoxValue} value
-     */
-    constructor(code, value) {
+    code: BoxCode;
+    value: BoxValue;
+
+    constructor(code: BoxCode, value: BoxValue) {
       if (!(code in BOX)) {
         throw err(`no boxed Java primitive for field type '${code}'`);
       }
@@ -119,8 +109,7 @@ export const JavaSer = (() => {
    * Java's "modified UTF-8": U+0000 is C0 80 and non-BMP characters are written as their two UTF-16 surrogates (3 bytes
    * each), so we iterate UTF-16 code units rather than code points.
    */
-  /** @param {string} s */
-  function encodeMutf8(s) {
+  function encodeMutf8(s: string) {
     const out = [];
 
     for (let i = 0; i < s.length; i++) {
@@ -140,18 +129,15 @@ export const JavaSer = (() => {
     return out;
   }
 
-  /** @param {Uint8Array} bytes */
-  function decodeMutf8(bytes) {
+  function decodeMutf8(bytes: Uint8Array) {
     let s = '',
       i = 0;
 
     /**
      * One byte of the sequence, or the truncation the two length tests used to make separately: reading past the end
      * answers `undefined`, which is the same thing a bounds check was asking about one lookup earlier.
-     *
-     * @param {number} at
      */
-    const byte = (at) => {
+    const byte = (at: number) => {
       const b = bytes[at];
 
       if (b === undefined) {
@@ -182,21 +168,21 @@ export const JavaSer = (() => {
   }
 
   class Reader {
-    /** @param {Uint8Array} bytes */
-    constructor(bytes) {
+    b: Uint8Array;
+    dv: DataView;
+    p = 0;
+
+    /**
+     * The back-reference table. Handles are positional and both kinds share the one sequence, so a classdesc reference
+     * and a value reference read the same four bytes — only the caller knows which the stream should have put there.
+     * Tagging the entries is what lets it say so, instead of a string travelling as a class descriptor until something
+     * reads a `fields` off it.
+     */
+    handles: Handle[] = [];
+
+    constructor(bytes: Uint8Array) {
       this.b = bytes;
       this.dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-      this.p = 0;
-
-      /**
-       * The back-reference table. Handles are positional and both kinds share the one sequence, so a classdesc
-       * reference and a value reference read the same four bytes — only the caller knows which the stream should have
-       * put there. Tagging the entries is what lets it say so, instead of a string travelling as a class descriptor
-       * until something reads a `fields` off it.
-       *
-       * @type {Handle[]}
-       */
-      this.handles = [];
     }
     u1() {
       const v = this.b[this.p];
@@ -233,8 +219,7 @@ export const JavaSer = (() => {
       this.p += 8;
       return v;
     }
-    /** @param {number} n */
-    raw(n) {
+    raw(n: number) {
       const v = this.b.subarray(this.p, this.p + n);
 
       if (v.length !== n) {
@@ -247,13 +232,11 @@ export const JavaSer = (() => {
     peek() {
       return this.b[this.p];
     }
-    /** @param {JavaValue} value */
-    newValueHandle(value) {
+    newValueHandle(value: JavaValue) {
       this.handles.push({ kind: 'value', value });
       return value;
     }
-    /** @param {ClassDesc} desc */
-    newClassHandle(desc) {
+    newClassHandle(desc: ClassDesc) {
       this.handles.push({ kind: 'class', desc });
       return desc;
     }
@@ -266,10 +249,8 @@ export const JavaSer = (() => {
       return this.handles.length - 1;
     }
     /**
-     * @param {number} slot
-     * @param {JavaValue} value
      */
-    resolveValueHandle(slot, value) {
+    resolveValueHandle(slot: number, value: JavaValue) {
       this.handles[slot] = { kind: 'value', value };
       return value;
     }
@@ -374,8 +355,7 @@ export const JavaSer = (() => {
         }
       }
     }
-    /** @param {string} tcode */
-    readPrimitive(tcode) {
+    readPrimitive(tcode: string) {
       switch (tcode) {
         case 'I':
           return this.i4();
@@ -435,12 +415,9 @@ export const JavaSer = (() => {
      * One class's declared fields. Only HashMap's writeObject payload is needed downstream, so a value is read to
      * advance the stream rather than because anything looks at it — bar a box's `value`, which `object` takes from the
      * most-derived class in the chain.
-     *
-     * @param {[string, string][]} fields
      */
-    readFields(fields) {
-      /** @type {Record<string, FieldValue>} */
-      const values = {};
+    readFields(fields: [string, string][]) {
+      const values: Record<string, FieldValue> = {};
 
       for (const [tcode, fname] of fields) {
         values[fname] = tcode === 'L' || tcode === '[' ? this.content() : this.readPrimitive(tcode);
@@ -474,11 +451,9 @@ export const JavaSer = (() => {
        * instance of the same class in between, a nested HashMap included — which the shape never said and nothing held
        * it to. Locals say it.
        */
-      /** @type {Record<string, FieldValue>} */
-      let own = {};
+      let own: Record<string, FieldValue> = {};
 
-      /** @type {JavaMap | null} */
-      let custom = null;
+      let custom: JavaMap | null = null;
 
       for (const d of chain) {
         const values = this.readFields(d.fields);
@@ -514,8 +489,7 @@ export const JavaSer = (() => {
 
       throw err(`unsupported class ${name}`);
     }
-    /** @param {string} className */
-    customData(className) {
+    customData(className: string) {
       if (className !== 'java.util.HashMap') {
         throw err(`no custom-data handler for ${className}`);
       }
@@ -527,8 +501,7 @@ export const JavaSer = (() => {
       const payload = this.raw(this.u1());
       const pdv = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
       const size = pdv.getInt32(4); // [capacity, size]; capacity is recomputed on write
-      /** @type {JavaMap} */
-      const m = new Map();
+      const m: JavaMap = new Map();
 
       for (let i = 0; i < size; i++) {
         const k = this.content();
@@ -543,8 +516,7 @@ export const JavaSer = (() => {
     }
   }
 
-  /** @param {Uint8Array} bytes */
-  function loads(bytes) {
+  function loads(bytes: Uint8Array) {
     const r = new Reader(bytes);
 
     if (r.u2() !== STREAM_MAGIC || r.u2() !== STREAM_VERSION) {
@@ -561,48 +533,33 @@ export const JavaSer = (() => {
   }
 
   class Writer {
-    constructor() {
-      /** @type {number[]} */
-      this.out = [];
+    out: number[] = [];
+    strHandles = new Map<string, number>(); // value-keyed; a repeat becomes a back-reference
+    boxHandles = new Map<Box, number>(); // identity-keyed
+    classHandles = new Map<string, number>(); // name-keyed
+    next = 0;
 
-      /** @type {Map<string, number>} */
-      this.strHandles = new Map(); // value-keyed; a repeat becomes a back-reference
-
-      /** @type {Map<Box, number>} */
-      this.boxHandles = new Map(); // identity-keyed
-
-      /** @type {Map<string, number>} */
-      this.classHandles = new Map(); // name-keyed
-
-      this.next = 0;
-    }
     claim() {
       return this.next++;
     }
-    /** @param {Iterable<number>} bytes */
-    push(bytes) {
+    push(bytes: Iterable<number>) {
       for (const b of bytes) {
         this.out.push(b);
       }
     }
-    /** @param {number} v */
-    u1(v) {
+    u1(v: number) {
       this.out.push(v & 0xff);
     }
-    /** @param {number} v */
-    u2(v) {
+    u2(v: number) {
       this.out.push((v >> 8) & 0xff, v & 0xff);
     }
-    /** @param {number} v */
-    i4(v) {
+    i4(v: number) {
       this.out.push((v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff);
     }
-    /** @param {bigint} v */
-    i8(v) {
+    i8(v: bigint) {
       let x = BigInt.asUintN(64, v);
 
-      /** @type {number[]} */
-      const bytes = new Array(8);
+      const bytes: number[] = new Array(8);
 
       for (let i = 7; i >= 0; i--) {
         bytes[i] = Number(x & 0xffn);
@@ -611,14 +568,12 @@ export const JavaSer = (() => {
 
       this.push(bytes);
     }
-    /** @param {number} v */
-    f4(v) {
+    f4(v: number) {
       const b = new Uint8Array(4);
       new DataView(b.buffer).setFloat32(0, v, false);
       this.push(b);
     }
-    /** @param {string} s */
-    utf(s) {
+    utf(s: string) {
       const b = encodeMutf8(s);
 
       if (b.length > 0xffff) {
@@ -628,13 +583,11 @@ export const JavaSer = (() => {
       this.u2(b.length);
       this.push(b);
     }
-    /** @param {number} h */
-    ref(h) {
+    ref(h: number) {
       this.u1(TC_REFERENCE);
       this.i4(BASE_HANDLE + h);
     }
-    /** @param {string} s */
-    string(s) {
+    string(s: string) {
       const h = this.strHandles.get(s);
 
       if (h !== undefined) {
@@ -658,14 +611,14 @@ export const JavaSer = (() => {
     /**
      * One superclass parameter rather than a name and a uid, because the two are meaningless apart and nothing at the
      * type level could say that the second is present whenever the first is. `NUMBER` is already exactly this shape.
-     *
-     * @param {string} name
-     * @param {bigint} uid
-     * @param {number} flags
-     * @param {[string, string][]} fields
-     * @param {{name: string, uid: bigint}} [superclass]
      */
-    classDesc(name, uid, flags, fields, superclass) {
+    classDesc(
+      name: string,
+      uid: bigint,
+      flags: number,
+      fields: [string, string][],
+      superclass?: { name: string; uid: bigint },
+    ) {
       const h = this.classHandles.get(name);
 
       if (h !== undefined) {
@@ -693,8 +646,7 @@ export const JavaSer = (() => {
         this.classDesc(superclass.name, superclass.uid, SC_SERIALIZABLE, []);
       }
     }
-    /** @param {Box} b */
-    box(b) {
+    box(b: Box) {
       const info = BOX[b.code];
       this.u1(TC_OBJECT);
 
@@ -746,8 +698,7 @@ export const JavaSer = (() => {
           throw err(`no encoding for boxed field type '${b.code}'`);
       }
     }
-    /** @param {JavaValue | undefined} v */
-    value(v) {
+    value(v: JavaValue | undefined) {
       if (v === null || v === undefined) {
         this.u1(TC_NULL);
       } else if (typeof v === 'string') {
@@ -766,8 +717,7 @@ export const JavaSer = (() => {
         throw err(`cannot serialize ${typeof v}`);
       }
     }
-    /** @param {JavaMap} m */
-    hashmap(m) {
+    hashmap(m: JavaMap) {
       this.u1(TC_OBJECT);
       this.classDesc('java.util.HashMap', HASHMAP_UID, SC_WRITE_METHOD | SC_SERIALIZABLE, [
         ['F', 'loadFactor'],
@@ -794,11 +744,8 @@ export const JavaSer = (() => {
 
   /**
    * Mirror HashMap's power-of-two capacity growth for a given entry count.
-   *
-   * @param {number} size
-   * @param {number} loadFactor
    */
-  function tableSizeFor(size, loadFactor) {
+  function tableSizeFor(size: number, loadFactor: number) {
     let capacity = 16;
 
     while (size > capacity * loadFactor) {
@@ -808,8 +755,7 @@ export const JavaSer = (() => {
     return capacity;
   }
 
-  /** @param {JavaValue} root */
-  function dumps(root) {
+  function dumps(root: JavaValue) {
     const w = new Writer();
     w.u2(STREAM_MAGIC);
     w.u2(STREAM_VERSION);
@@ -820,11 +766,6 @@ export const JavaSer = (() => {
   return {
     loads,
     dumps,
-
-    /**
-     * @param {BoxCode} code
-     * @param {BoxValue} value
-     */
-    box: (code, value) => new Box(code, value),
+    box: (code: BoxCode, value: BoxValue) => new Box(code, value),
   };
 })();

@@ -43,13 +43,11 @@ const SHORTEST = 2;
 /** The game's mark for a species and the rest of its evolutionary line, written in front of the name. */
 const FAMILY = '+';
 
-/**
- * One row of the list: a species, and whether the row asks for its family rather than for the species alone.
- *
- * @typedef {object} Offer
- * @property {string} name
- * @property {boolean} family
- */
+/** One row of the list: a species, and whether the row asks for its family rather than for the species alone. */
+export interface Offer {
+  name: string;
+  family: boolean;
+}
 
 /**
  * What the list offers for the name being typed, as the species each row names and whether that row is its family. The
@@ -70,11 +68,8 @@ const FAMILY = '+';
  * The marker is not part of the name, so `+charm` offers what `charm` offers — as families alone, since a reader who
  * has typed the marker has already said which of the two they mean. Without that they would be the one reader the list
  * refuses to help.
- *
- * @param {string} value
- * @returns {Offer[]}
  */
-export function suggestions(value) {
+export function suggestions(value: string): Offer[] {
   const typed = value.trim();
   const family = typed.startsWith(FAMILY);
   const needle = fold(family ? typed.slice(FAMILY.length) : typed);
@@ -115,7 +110,5 @@ export function suggestions(value) {
  *
  * Written in lower case, matching the placeholder and every term the chips write. The game does not care, and a string
  * that is lower case throughout reads as one thing rather than as two pasted together.
- *
- * @param {Offer} offer
  */
-export const written = (offer) => (offer.family ? FAMILY : '') + offer.name.toLowerCase();
+export const written = (offer: Offer) => (offer.family ? FAMILY : '') + offer.name.toLowerCase();

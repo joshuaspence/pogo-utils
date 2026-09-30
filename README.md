@@ -130,8 +130,8 @@ The **Search** page ([`search.html`](search.html)) builds a string for the searc
 screen. Chips are three-state — click once to require a term, again to rule it out, again to drop it — and the string is
 written live, with a link that carries the choices so one can be shared or bookmarked.
 
-The terms live in one table, [`src/search/terms.js`](src/search/terms.js), and the page is rendered from it, so adding
-or correcting one is a single line. [`src/search/query.js`](src/search/query.js) turns the state into the string and
+The terms live in one table, [`src/search/terms.ts`](src/search/terms.ts), and the page is rendered from it, so adding
+or correcting one is a single line. [`src/search/query.ts`](src/search/query.ts) turns the state into the string and
 holds no DOM, which is where to look to check what the builder actually writes.
 
 Three things the composition decides, since none of them is obvious. Groups are AND'd together, and each group says how
@@ -153,7 +153,7 @@ they collapse into their overlap — Gen 1 with Gen 2 is `1-251`, and `charmande
 that makes the string plainer as well as shorter: `shiny&1-151,152-251` mixes `,` with `&` and earns the warning above,
 where `shiny&1-251` says the same thing and does not.
 
-[`src/search/optimise.js`](src/search/optimise.js) rewrites the _state_ rather than the string, handing a second state
+[`src/search/optimise.ts`](src/search/optimise.ts) rewrites the _state_ rather than the string, handing a second state
 to the same composer, so the short string goes through the same clause writer and the same ambiguity check as the long
 one — and the chips, the boxes and the link never stop carrying what was actually chosen, so switching the toggle back
 off restores the original rather than leaving a rewrite to undo. The substitutions are listed under the string, because
@@ -171,8 +171,8 @@ species: its normal and shiny sprite, what is true of it, each of its forms and 
 and a link into the **Search** page for it or its family. The arrows step through the species the filters left, and the
 link carries both the filters and the open species.
 
-Nothing on it is kept by hand. [`src/pokedex/entries.js`](src/pokedex/entries.js) reads
-[`src/pokemon/pokedex.js`](src/pokemon/pokedex.js) for the flags and the hunt lists in [`src/filters/`](src/filters) for
+Nothing on it is kept by hand. [`src/pokedex/entries.ts`](src/pokedex/entries.ts) reads
+[`src/pokemon/pokedex.ts`](src/pokemon/pokedex.ts) for the flags and the hunt lists in [`src/filters/`](src/filters) for
 what is still wanted — the same Sets the PGSharp backup is built from — so crossing a species off `xxl.js` takes it off
 the page's XXL filter too. A list is a checklist and the backup's feed is that list narrowed to what the wild can turn
 up, so the page says when a species is wanted but the feed cannot alert on it: Mewtwo is still wanted as a 100%, and

@@ -7,29 +7,25 @@
  * What is chosen lives in the fragment, as on the search page, so a filtered view or an open species is a link.
  */
 
-import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, spriteOf } from './entries.js';
+import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, spriteOf, type Entry } from './entries.js';
 import { fold } from '../pokemon/names.js';
 import { byId, el } from '../dom.js';
 
-/** @import {Entry, Flag} from './entries.js' */
-
-/**
- * @typedef {'' | 'in' | 'out'} Availability
- * @typedef {{id: string, label: string, test: (entry: Entry) => boolean}} Toggle
- * @typedef {{item: HTMLLIElement, card: HTMLButtonElement}} Card
- */
+type Availability = '' | 'in' | 'out';
+type Toggle = { id: string; label: string; test: (entry: Entry) => boolean };
+type Card = { item: HTMLLIElement; card: HTMLButtonElement };
 
 /**
  * What the controls are set to, and which species is open. Held as one object so a link, Reset and a control change are
  * the same kind of thing: replace or amend it and call `update`.
- *
- * @typedef {object} State
- * @property {string} q
- * @property {number | null} generation
- * @property {Availability} availability
- * @property {Set<string>} flags
- * @property {number | null} open
  */
+interface State {
+  q: string;
+  generation: number | null;
+  availability: Availability;
+  flags: Set<string>;
+  open: number | null;
+}
 
 const $ = {
   q: byId('q', HTMLInputElement),
@@ -53,29 +49,21 @@ const $ = {
 /**
  * The toggles, each with the question it asks of an entry. Every one that is on has to hold, so two of them narrow to
  * what both are true of — Legendary with Shiny is the legendaries that have one.
- *
- * @type {readonly Toggle[]}
  */
-const FLAGS = [
+const FLAGS: readonly Toggle[] = [
   { id: 'shiny', label: '✨ Has a shiny', test: (entry) => entry.shiny },
   { id: 'wild', label: '🌿 Spawns in the wild', test: (entry) => entry.spawns },
   { id: 'forms', label: 'Has forms', test: (entry) => entry.variants.length > 0 },
-  // The `@type` above reaches the three literals written here and stops at the `map`, so the callback says what it
+  // The annotation above reaches the three literals written here and stops at the `map`, so the callback says what it
   // answers itself — as `HUNT_FLAGS` below has to for the same reason.
-  ...CATEGORIES.map(
-    /** @returns {Toggle} */
-    ({ id, label }) => ({ id, label, test: (entry) => entry.categories.includes(id) }),
-  ),
+  ...CATEGORIES.map(({ id, label }): Toggle => ({ id, label, test: (entry) => entry.categories.includes(id) })),
 ];
 
-const HUNT_FLAGS = HUNTS.map(
-  /** @returns {Toggle} */
-  ({ id, label }) => ({
-    id: `hunt-${id}`,
-    label,
-    test: (entry) => entry.hunts.some((hunt) => hunt.id === id),
-  }),
-);
+const HUNT_FLAGS = HUNTS.map(({ id, label }): Toggle => ({
+  id: `hunt-${id}`,
+  label,
+  test: (entry) => entry.hunts.some((hunt) => hunt.id === id),
+}));
 
 const TOGGLES = new Map([...FLAGS, ...HUNT_FLAGS].map((flag) => [flag.id, flag]));
 
@@ -85,19 +73,14 @@ const CATEGORY_LABELS = new Map(CATEGORIES.map(({ id, label }) => [id, label]));
 /**
  * Which of the three the availability control is set to. Both the fragment and the `<select>` are read through this:
  * the one is a reader's URL and the other is markup the script does not own, so neither can be taken at its word.
- *
- * @param {string | null} value
- * @returns {Availability}
  */
-const availabilityOf = (value) => (value === 'in' || value === 'out' ? value : '');
+const availabilityOf = (value: string | null): Availability => (value === 'in' || value === 'out' ? value : '');
 
-/** @returns {State} */
-function emptyState() {
+function emptyState(): State {
   return { q: '', generation: null, availability: '', flags: new Set(), open: null };
 }
 
-/** @param {string} fragment */
-function fromFragment(fragment) {
+function fromFragment(fragment: string) {
   const params = new URLSearchParams(fragment.replace(/^#/, ''));
   const state = emptyState();
   const generation = Number(params.get('g'));
@@ -112,8 +95,7 @@ function fromFragment(fragment) {
   return state;
 }
 
-/** @param {State} state */
-function toFragment(state) {
+function toFragment(state: State) {
   const params = new URLSearchParams();
 
   if (state.q.trim()) {
@@ -145,11 +127,8 @@ let state = fromFragment(location.hash);
  * Whether an entry answers what was typed. A number is a dex number — `25`, `#25` and `#0025` all mean Pikachu, and
  * only Pikachu, since a reader typing a number has one species in mind rather than every number with a 25 in it. Any
  * other text is part of a name, folded the way the search page folds it so `flabebe` still finds Flabébé.
- *
- * @param {Entry} entry
- * @param {string} query
  */
-function matchesQuery(entry, query) {
+function matchesQuery(entry: Entry, query: string) {
   const typed = query.trim();
 
   if (!typed) {
@@ -165,8 +144,7 @@ function matchesQuery(entry, query) {
   return entry.folded.includes(fold(typed));
 }
 
-/** @param {Entry} entry */
-function matches(entry) {
+function matches(entry: Entry) {
   if (!matchesQuery(entry, state.q)) {
     return false;
   }
@@ -192,12 +170,8 @@ function matches(entry) {
 /**
  * A sprite that says nothing when it fails. The name and number beside it are the card; a hotlinked picture that does
  * not arrive — offline, or blocked — should leave a blank tile rather than the browser's broken-image glyph.
- *
- * @param {number} dex
- * @param {boolean} shiny
- * @param {number} size
  */
-function sprite(dex, shiny, size) {
+function sprite(dex: number, shiny: boolean, size: number) {
   const img = el('img', 'sprite');
   img.src = spriteOf(dex, shiny);
   img.alt = '';
@@ -211,12 +185,8 @@ function sprite(dex, shiny, size) {
 
 /**
  * A mark whose glyph is for the eye and whose words are for a screen reader.
- *
- * @param {string} className
- * @param {string} glyph
- * @param {string} words
  */
-function mark(className, glyph, words) {
+function mark(className: string, glyph: string, words: string) {
   const node = el('span', `mark ${className}`);
   const icon = el('span', null, glyph);
   icon.setAttribute('aria-hidden', 'true');
@@ -225,8 +195,7 @@ function mark(className, glyph, words) {
   return node;
 }
 
-/** @type {Map<number, Card>} */
-const cards = new Map();
+const cards = new Map<number, Card>();
 
 function buildGrid() {
   const fragment = document.createDocumentFragment();
@@ -268,10 +237,8 @@ function buildGrid() {
 
 /**
  * The toggle chips by the id they stand for, so `update` writes their state without asking the document for them.
- *
- * @type {Map<string, HTMLButtonElement>}
  */
-const chips = new Map();
+const chips = new Map<string, HTMLButtonElement>();
 
 function buildControls() {
   for (const number of GENERATION_NUMBERS) {
@@ -326,10 +293,8 @@ function buildControls() {
 
 /**
  * The entries the filters leave, in dex order — what the grid shows and what the dialog's arrows step through.
- *
- * @type {Entry[]}
  */
-let visible = [];
+let visible: Entry[] = [];
 
 function update() {
   // Controls are written from the state rather than trusted to already agree with it, since a link or Reset changes the
@@ -365,24 +330,17 @@ function update() {
 
 /**
  * A yes or a no, a tick or a dash to the eye and said as words to a screen reader.
- *
- * @type {(value: boolean, yes: string, no: string) => HTMLSpanElement}
  */
-const yesNo = (value, yes, no) => (value ? mark('yes', '✓', yes) : mark('no', '—', no));
+const yesNo = (value: boolean, yes: string, no: string) => (value ? mark('yes', '✓', yes) : mark('no', '—', no));
 
 /**
  * One fact about the species, as a term and what it is.
- *
- * @param {HTMLElement} list
- * @param {string} term
- * @param {string} value
  */
-function fact(list, term, value) {
+function fact(list: HTMLElement, term: string, value: string) {
   list.append(el('dt', null, term), el('dd', null, value));
 }
 
-/** @param {Entry} entry */
-function renderDetail(entry) {
+function renderDetail(entry: Entry) {
   $.detailNum.textContent = numbered(entry.dex);
   $.detailName.textContent = entry.name;
 
@@ -473,8 +431,7 @@ function renderDetail(entry) {
   $.next.disabled = at === -1 || at >= visible.length - 1;
 }
 
-/** @param {Entry} entry */
-function variantTable(entry) {
+function variantTable(entry: Entry) {
   const section = el('section', 'variants');
   section.append(el('h3', null, `Forms and variants (${entry.variants.length})`));
 
@@ -520,15 +477,13 @@ function variantTable(entry) {
   return section;
 }
 
-/** @param {Node} child */
-function cell(child) {
+function cell(child: Node) {
   const td = el('td');
   td.append(child);
   return td;
 }
 
-/** @param {number} dex */
-function open(dex) {
+function open(dex: number) {
   const entry = ENTRIES.find((candidate) => candidate.dex === dex);
 
   if (!entry) {
@@ -547,10 +502,8 @@ function open(dex) {
 
 /**
  * Step to the neighbouring species among those the filters leave, so the arrows walk the list the reader is looking at.
- *
- * @param {number} by
  */
-function step(by) {
+function step(by: number) {
   const at = visible.findIndex((entry) => entry.dex === state.open);
   const target = visible[at + by];
 

@@ -25,12 +25,17 @@
  * could: validate-gpx.mts reads it against the files in both directions. What the shape does buy is the row itself. A
  * misspelled `continent` is a type error where inference simply gave that country a field of its own and let the
  * sidebar file it under "Other".
- *
- * @typedef {{code: string, continent: string}} Country
  */
+export interface Country {
+  code: string;
+  continent: string;
+}
 
-/** @type {Record<string, Country>} */
-export default {
+/**
+ * Bound to a name rather than exported as a literal, because an `export default` takes an expression and there is
+ * nowhere on one to write the annotation that makes the table `Record<string, Country>` rather than its own 25 keys.
+ */
+const COUNTRIES: Record<string, Country> = {
   'Argentina': { code: 'AR', continent: 'South America' },
   'Australia': { code: 'AU', continent: 'Oceania' },
   'Brazil': { code: 'BR', continent: 'South America' },
@@ -57,3 +62,5 @@ export default {
   'United Arab Emirates': { code: 'AE', continent: 'Asia' },
   'United States': { code: 'US', continent: 'North America' },
 };
+
+export default COUNTRIES;

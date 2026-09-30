@@ -16,8 +16,8 @@
  * files are committed, and a run that cannot see the feed has nothing better to say than what is already there.
  */
 
-import { ENTRIES_BY_EVENT } from '../src/generated.js';
-import RECURRING_TYPES from '../src/recurring-types.js';
+import { ENTRIES_BY_EVENT } from '../src/generated.ts';
+import RECURRING_TYPES from '../src/recurring-types.ts';
 import type { FeedEvent, RouteCounts, RouteIndex } from '../src/types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -127,7 +127,7 @@ function fold(line: string): string {
 
 /**
  * "2 routes · 1 waypoint" — the same summary the card carries, each kind the event has and none it does not. Kept in
- * step with routeSummary() in src/events.js by hand; it is three lines and the two outputs are read side by side.
+ * step with routeSummary() in src/events.ts by hand; it is three lines and the two outputs are read side by side.
  */
 function routeSummary({ routes, waypoints }: RouteCounts): string {
   const parts = [];
@@ -231,7 +231,7 @@ const local: FeedEvent[] = JSON.parse(readFileSync(LOCAL_PATH, 'utf8'));
 const index: RouteIndex = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
 
 // Keyed by eventID with the local pass last, so a repo entry overrides a feed event of the same ID rather than
-// duplicating it — the merge src/events.js does, in the same order.
+// duplicating it — the merge src/events.ts does, in the same order.
 const byId = new Map<string, FeedEvent>();
 
 for (const ev of [...feed, ...local]) {

@@ -1,5 +1,11 @@
 /node_modules/
 
-# `tsc -b` needs `composite` in both projects, and `composite` writes this beside each config even though both are
-# `noEmit`. Unanchored because there is one per project.
-tsconfig.tsbuildinfo
+# The build. `dist/` is what Pages serves and `.types/` is the declarations `composite` insists on emitting, which
+# nothing serves and nothing reads except the project next door.
+/dist/
+/.types/
+
+# `tsc -b` needs `composite` in both projects, and `composite` writes a build cache per project. The browser one is
+# named into `.types/` above, since its default position is derived from `outDir` and so falls inside the artifact;
+# `scripts/` emits nothing, so its own stays beside its config.
+/scripts/tsconfig.tsbuildinfo

@@ -16,107 +16,148 @@
 
 ## Types
 
-There are two idioms here and the line between them is **does a browser fetch this file**. Pages serves `master` at `/`
-in `legacy` mode and `map.html` loads `<script type="module" src="src/app.js">`, so the browser reads source verbatim
-and there is no build step to put a compiler in. So `src/` is `.js` typed by JSDoc, checked by `tsc --noEmit` and never
-emitted; `scripts/` is real TypeScript, run by Node's own type stripping with no compiler at all. A data change still
-lands on `master` directly — adding a species to `src/filters/shiny.js` needs no build, and `pnpm lint` simply checks
-one more thing about it.
+Everything here is TypeScript, and the line between the two halves is **does this file emit**. `src/` is compiled to
+`dist/src/` and Pages deploys that artifact, so every specifier in it has to survive into the output and name the `.js`
+file the browser will fetch; `scripts/` never emits at all — Node runs it by stripping types in place — so Node resolves
+its specifiers literally and a value import from `src/` has to name the `.ts` file. Both halves are
+`erasableSyntaxOnly`, so neither gets an `enum`, a `namespace` or a parameter property. A data change still lands on
+`master` directly — adding a species to `src/filters/shiny.ts` is one line — but it is no longer served as written:
+`pages.yml` runs `pnpm build` and deploys what comes out, so what a browser fetches is the compiler's output, and
+`pnpm lint:types` is that same build rather than a separate check over it.
 
-- **`src/recurring-types.js` is in both worlds.** `src/events.js` imports it and so does `scripts/build-ics`, so it
-  stays `.js` and must assume neither DOM nor Node. Both `tsconfig.json` files include it, which is what holds that.
-- **A table's type follows how it is indexed, not what it holds.** `src/countries.js` is `Record<string, Country>` and
-  `SPELLINGS` in `src/pokemon/names.js` is `Record<string, string>`, not unions of the countries and constants they
+- **`src/recurring-types.ts` is in neither half, and `tsconfig.shared.json` is what holds that.** `src/events.ts`
+  imports it and so does `scripts/build-ics`, so it must assume neither DOM nor Node. A third project with no `DOM` in
+  its `lib` and an empty `types` is what says so, and both of the other two reference it — so a `Document` or a
+  `process` creeping in is an error in that project rather than something only one consumer happens to notice.
+  `src/countries.ts`, `src/generated.ts` and `src/types.d.ts` are in it for the same reason.
+- **A `.ts` file ignores a JSDoc annotation entirely, so a rename is not a conversion.** Renaming `events.js` before
+  converting its tags produced about 90 errors — `TS7006`, `TS7005`, `TS7034`, `TS7053`, `TS7022` and `TS7031`, with a
+  tail of `TS2345` and `TS2339` against `never` — because the JSDoc that was authoritative under `checkJs` becomes inert
+  comment the moment the extension changes. There is no half-way state to land in: the tags and the extension move
+  together, per file.
+- **`tsc` erases a `type` or an `interface` together with its docblock, which is the largest thing the conversion cost
+  the emitted output.** A `@typedef`'s prose was a comment in a file the browser fetched; the same prose above a type
+  alias is deleted by the compiler. That is most of the 995 lines the conversion took out of `dist/`, and it is not a
+  regression, since the prose is still in `src/` where a reader is. Two smaller effects travel with it, both of which
+  look like behaviour changing until they are read: deleting a comment between two statements can join them into one
+  emitted line, and a docblock on a class field _survives_ where a `@type` comment did not, so `Reader#handles` gained
+  six lines of prose in the output rather than losing them.
+- **`useDefineForClassFields` hoists state out of a constructor, and the way to show that is inert is the bytes.** Under
+  `target: ES2023` a `constructor() { this.out = []; … }` emits as field declarations, so `src/java-serialization.ts`
+  reads very differently in `dist/` from the file it replaced. It is safe because none of `Box`, `Reader` or `Writer`
+  extends anything — but that is an argument, not a measurement. The measurement is driving the baseline emit and the
+  new one over the 14-root corpus and getting `IDENTICAL` back, whole-corpus sha256 `17ee3e5e`. A file whose contract is
+  the bytes it writes has a cheap proof available; use it rather than reasoning about field order.
+- **A directive stops being needed when the syntax becomes real, and ESLint says so.** `class Box` held only a
+  constructor in the JSDoc idiom, so `no-extraneous-class` fired and carried an `eslint-disable-next-line`; with
+  `code: BoxCode` and `value: BoxValue` declared it is a genuine class, the rule goes quiet, and the directive itself
+  becomes an `Unused eslint-disable directive` warning. Read that warning as the rule reporting that its own reason has
+  expired.
+- **A `files` glob matching nothing is silent, and the tools disagree about which way that fails.** Prettier covers
+  `.ts` by default, so files converted ahead of the tooling were being checked all along and simply failing; whereas
+  `eslint.config.mjs`'s browser-globals block named `src/**/*.js` and therefore matched not one of them, which reads
+  exactly like a clean lint. Move such a glob in the same commit as the rename — and note that
+  `.github/workflows/calendar.yml`'s `paths` filter is the same hazard with no linter over it at all, where a stale path
+  stops the trigger firing and reports nothing whatever.
+- **A table's type follows how it is indexed, not what it holds.** `src/countries.ts` is `Record<string, Country>` and
+  `SPELLINGS` in `src/pokemon/names.ts` is `Record<string, string>`, not unions of the countries and constants they
   hold, because both are indexed by a value that only exists at run time: a `<pgr:country>` read out of a GPX file, a
   constant handed to `nameOf`. A union of the keys would make every such lookup an error. It would cost as well, since a
   data change [lands on `master` on its own](#landing-a-change) and enumerating the keys makes every such edit a type
   edit too — and buy nothing, because the key sets that matter are already held better than a type could hold them:
   `validate-gpx.mts` reads `COUNTRIES` against the GPX files in both directions, and `nameOf`'s `??` says outright that
   a constant absent from `SPELLINGS` is the ordinary case. The index signature is what the consumers wanted in any case.
-  `COUNTRIES[country]?.code` was a `TS7053` implicit `any` in both `app.js` and `backup.js` before it and is a checked
+  `COUNTRIES[country]?.code` was a `TS7053` implicit `any` in both `app.ts` and `backup.ts` before it and is a checked
   `Country | undefined` after, which is what those `?.`s were written for.
 - **Which is why `POKEMON` is left unannotated.** It is indexed by a literal written in source — `POKEMON.PANPOUR` in a
   filter — so the object literal _is_ the enumeration, and inference names all 1,025 keys for free. That is the check
   the constants exist for, and it works: `POKEMON.PANPOURR` is a `TS2551` against a type reading
   `'{ BULBASAUR: Pokemon; … 1017 more …; PECHARUNT: Pokemon; }'` and suggesting `PANPOUR`. A `Record<string, Pokemon>`
   here would throw that away for nothing, since adding a species adds the key and its type in the same line.
-- **`@satisfies` is the third answer, for a table read both ways.** `CONTROL_RESETS` in `src/pgsharp/controls.js` is
-  indexed at run time _and_ by a literal: `backup.js` walks it with `Object.entries` and also names
+- **`satisfies` is the third answer, for a table read both ways.** `CONTROL_RESETS` in `src/pgsharp/controls.ts` is
+  indexed at run time _and_ by a literal: `backup.ts` walks it with `Object.entries` and also names
   `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first and throws the second away, because
-  `noUncheckedIndexedAccess` reaches dotted access as well. Measured six runs: the same shape under `@type` costs two
-  errors at that one line — a `TS18048` and a `TS2345` — and catches nothing the shape check does not, where
-  `@satisfies` costs nothing and hands back the inferred keys. What either form buys is the value that is neither a Java
+  `noUncheckedIndexedAccess` reaches dotted access as well. Measured six runs: the same shape under a plain annotation
+  costs two errors at that one line — a `TS18048` and a `TS2345` — and catches nothing the shape check does not, where
+  `satisfies` costs nothing and hands back the inferred keys. What either form buys is the value that is neither a Java
   Float nor a filter string: a stray `iconX: true` is
   `TS2322: Type 'boolean' is not assignable to type 'string | number'` on the entry itself, and silent unannotated,
   since the codec's writer `switch` catches it no earlier than run time. So read the two bullets above as a question
   about indexing and this one as the way out when the answer is "both".
-- **A mapped type parses inside a JSDoc `@typedef`, which is what a table indexing a class by a string id wants.**
-  `pokedex/entries.js` files a species under a category by reading `pokemon[id]`, and the honest type for that `id` is
-  not `keyof Pokemon`: the class carries a builder beside almost every flag — `isRegional` and `region` either side of
-  `regional` — and a method is truthy for every species, so a category naming one would file the whole dex under it.
-  `keyof Pokemon` accepts both of those **silently**, where
-  `{[K in keyof Pokemon]: Pokemon[K] extends boolean ? K : never}[keyof Pokemon]` answers
+- **A mapped type is what a table indexing a class by a string id wants.** `pokedex/entries.ts` files a species under a
+  category by reading `pokemon[id]`, and the honest type for that `id` is not `keyof Pokemon`: the class carries a
+  builder beside almost every flag — `isRegional` and `region` either side of `regional` — and a method is truthy for
+  every species, so a category naming one would file the whole dex under it. `keyof Pokemon` accepts both of those
+  **silently**, where `{[K in keyof Pokemon]: Pokemon[K] extends boolean ? K : never}[keyof Pokemon]` answers
   `TS2820: Type '"region"' is not assignable to type 'Flag'. Did you mean '"regional"'?` for each. It rejects `'dex'`
   and `'variants'` as `TS2322` and admits `'released'`, `'spawns'` and `'shinyEligible'`, so the union is the eight
   boolean getters rather than the five categories the page shows — which is the right answer rather than a loose one,
   since nothing in `Pokemon` says which of them a page calls a category, and a type that did would be the page's own
   list wearing the class's name.
 - **Leave a constant to inference.** `export const GPX_PATHS = 'gpx-paths.json'` already has the literal type
-  `'gpx-paths.json'` and `@type {string}` would only widen it; `src/pgsharp/scan-config.js` is the same, every field a
-  literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
+  `'gpx-paths.json'` and annotating it `string` would only widen it; `src/pgsharp/scan-config.ts` is the same, every
+  field a literal and its one consumer stringifying the object whole. An annotation earns its place by saying something
   inference cannot — an index signature, a `readonly`, a parameter — not by restating what it has already got right.
 - **An annotation reporting nothing today still earns its place if it can be shown to reject something.** The four
-  `src/filters/*.js` hunt lists are `ReadonlySet<Pokemon>` and added not one error when annotated, because the lists are
+  `src/filters/*.ts` hunt lists are `ReadonlySet<Pokemon>` and added not one error when annotated, because the lists are
   correct; the case for them is what they catch, measured by putting a stray `42` in each. All four answer
   `TS2322: Type 'Set<number | Pokemon>' is not assignable to type 'ReadonlySet<Pokemon>'`, where the same stray in the
   unannotated file was silent and the project stayed at 421. That silence cost something, and asymmetrically:
-  `pgsharp/filters.js` catches it at run time, because `species()` runs `instanceof Pokemon` over every member and
-  throws `species #495 is not a POKEMON constant`, while `pokedex/entries.js` has no guard at all and only asks
+  `pgsharp/filters.ts` catches it at run time, because `species()` runs `instanceof Pokemon` over every member and
+  throws `species #495 is not a POKEMON constant`, while `pokedex/entries.ts` has no guard at all and only asks
   `members.has(pokemon)` — so the stray is a member nothing can equal and the hunt quietly stops wanting what was meant.
   A Set holds by identity, so `25` never matches `POKEMON.PIKACHU` however much it looks like it should. The `readonly`
   is the other half inference cannot say: both consumers only read, and `.add` and `.clear` are `TS2339` now.
-- **Where rejecting is not in question, localising still is.** `@type {readonly Group[]}` on `GROUPS` reports nothing
-  when added and nothing is wrong with a table that has no type, so the case for it is the two-sided measurement above —
-  and half of it comes back caught either way. A term with no `label` is a
+- **Where rejecting is not in question, localising still is.** `readonly Group[]` on `GROUPS` reports nothing when added
+  and nothing is wrong with a table that has no type, so the case for it is the two-sided measurement above — and half
+  of it comes back caught either way. A term with no `label` is a
   `TS2741: Property 'label' is missing … but required in type 'Term'` on the term itself with the annotation, and
   without it the same mistake surfaces forty lines down as a `TS2345` at a consumer, against a 400-character union of
   all fifteen groups' inferred shapes. Same defect, unreadable message, wrong file. So measure four runs rather than
   two: the stray alone, and the stray with the annotation removed — each against its own baseline, since removing an
-  annotation moves the count in its own right. Dropping `@returns {State}` from `emptyState` _cleared_ four errors in
-  `search/builder.js`, because those four are the `state.ranges.get(id) ?? {}` looseness that only exists once `Bounds`
-  is real. An accumulator is the cheapest instance of the same thing and has a number on it: a stray pushed onto
-  `dedupeByName`'s `/** @type {T[]} */ const out = []` is one
+  annotation moves the count in its own right. Dropping the `State` return type from `emptyState` _cleared_ four errors
+  in `search/builder.ts`, because those four are the `state.ranges.get(id) ?? {}` looseness that only exists once
+  `Bounds` is real. An accumulator is the cheapest instance of the same thing and has a number on it: a stray pushed
+  onto `dedupeByName`'s `const out: T[] = []` is one
   `TS2345: Argument of type 'string' is not assignable to parameter of type 'T'` at the push, and **five** errors
   without the annotation, the first of them about `byName`'s signature — because an un-annotated `const out = []` is an
   evolving array type that widens to `(T | string)[]` from the pushes, so the defect is reported at every consumer
   instead of at the line that is wrong.
-- **A reversion has to be posed so that what it measures is the annotation.** Removing `@template {{name: string}} T`
-  from `dedupeByName` while `out` still said `@type {T[]}` answered `+1 TS2304: Cannot find name 'T'`, which measures an
+- **A reversion has to be posed so that what it measures is the annotation.** Removing `<T extends {name: string}>` from
+  `dedupeByName` while `out` was still declared `T[]` answered `+1 TS2304: Cannot find name 'T'`, which measures an
   unresolved name and says nothing about the generic. The honest reversion is the alternative the annotation was chosen
-  over — a structural `@param {readonly {name: string}[]}` with `out` to match — and that costs **+3 `TS2345`**, because
-  the caller sorts and timezones what it hands back and a parameter naming only the field the function reads answers
-  with only that field. Treat a `TS2304` or a `TS2552` out of a reversion as a sign the reversion is wrong rather than
-  as the measurement.
-- **Name a type from another module with `@import`, never a run-time import.**
-  `/** @import Pokemon from '../pokemon/pokemon.js' */` is a comment, so a file the browser fetches verbatim pays
-  nothing for it, where `import Pokemon from …` for a type alone would add a real request. Two things about where it
-  goes: `@type` does attach to an `export default`, so an annotated default export needs no rewriting into a named
-  `const`, and it sits directly above a `// prettier-ignore` without either comment losing its node — verified by
-  control, since Prettier reporting a hand-spaced list as clean says nothing until you have watched it complain with the
-  ignore removed. But a `@typedef` declared _inside_ a function is function-scoped like any other declaration, so
-  `src/java-serialization.js`, whose whole body is an IIFE assigned to `export const JavaSer`, has typedefs no other
-  module can name at all. There is nothing to import, so a consumer either writes the structural type out or leaves the
-  value opaque — which is why `downloadBytes` takes a `Uint8Array<ArrayBuffer>` rather than a named alias and the click
-  handler's `const root = new Map()` stays a `Map<any, any>` rather than claiming `JavaMap`. The same arithmetic decides
-  where a tiny _value_ ends up, in the opposite direction from the usual advice: `said`, the one-liner asking what a
-  caught value has to say, is written out in both `src/app.js` and `src/pgsharp/backup.js` rather than shared, because
-  `map.html` and `pgsharp.html` are separate pages with no bundler and an `errors.js` between them would cost each of
-  them a real round trip to save a line. Consolidating duplicates is right by default and this is the exception the
-  missing build step buys — so weigh an extension by the request it adds, and keep the threshold high enough that only
-  something this small stays copied.
+  over — a structural `readonly {name: string}[]` parameter with `out` to match — and that costs **+3 `TS2345`**,
+  because the caller sorts and timezones what it hands back and a parameter naming only the field the function reads
+  answers with only that field. Treat a `TS2304` or a `TS2552` out of a reversion as a sign the reversion is wrong
+  rather than as the measurement.
+- **Name a type from another module with `import type`, never a value import.** It is erased before anything runs, so it
+  costs nothing in the output — which is why the request-counting that used to decide this no longer applies: a JSDoc
+  `@import` was a comment and an `import type` is syntax that leaves no trace behind, and the two cost the same. What
+  the real import buys is a check. An unused `@import` was invisible to `tsc` **and** to ESLint, where an unused
+  `import type` is reported by `@typescript-eslint/no-unused-vars`; `tsc` still says nothing, `noUnusedLocals` being
+  deliberately unset so that the two tools have separate jobs rather than overlapping ones. `pokedex/page.ts` lost a
+  `Flag` it had been importing unused that way, which nothing in the old idiom could have told us.
+- **An annotated default export has to be bound to a name first.** `export default` takes an expression, so there is
+  nowhere for an annotation to sit, and `countries.ts`, `recurring-types.ts` and all four `filters/*.ts` therefore
+  declare a `const` and export it on the next line. `readonly` is the same constraint one step along: on an expression
+  it could only be asserted with an `as`, where on a declaration it is checked. A `// prettier-ignore` is no longer in
+  competition for that node, since it guards the `const` the annotation is part of — but the way that was established is
+  worth keeping, because Prettier reporting a hand-spaced list as clean says nothing until you have watched it complain
+  with the ignore removed.
+- **A type declared inside a function is function-scoped, so `src/java-serialization.ts` exports none of its own.** Its
+  whole body is an IIFE assigned to `export const JavaSer`, and that is as true of a `type` or an `interface` as it was
+  of a `@typedef`. There is nothing to import, so a consumer either writes the structural type out or leaves the value
+  opaque — which is why `downloadBytes` takes a `Uint8Array<ArrayBuffer>` rather than a named alias and the click
+  handler's `const root = new Map()` stays a `Map<any, any>` rather than claiming `JavaMap`. The same arithmetic still
+  decides where a tiny _value_ ends up, in the opposite direction from the usual advice: `said`, the one-liner asking
+  what a caught value has to say, is written out in both `src/app.ts` and `src/pgsharp/backup.ts` rather than shared,
+  because `map.html` and `pgsharp.html` load separate module graphs with nothing bundling them and an `errors.ts`
+  between them would cost each page a real round trip to save a line. Compiling changed nothing about that, since `tsc`
+  emits one file per module — so the exception outlives the JSDoc idiom that framed it, and retires only when something
+  bundles.
 - **The obvious annotation is sometimes weaker than inference, and `Uint8Array` is the trap.** It has taken a type
   parameter since TypeScript 5.7 — `interface Uint8Array<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike>` — and
-  the default is the _wide_ one. So `@param {Uint8Array} bytes` widens what the caller had: `JavaSer.dumps` returns
+  the default is the _wide_ one. So `bytes: Uint8Array` widens what the caller had: `JavaSer.dumps` returns
   `Uint8Array.from(…)`, already a `Uint8Array<ArrayBuffer>`, and a `BlobPart` accepts only an `ArrayBuffer`-backed view
   because a `SharedArrayBuffer` cannot be transferred into a Blob. The annotation therefore _created_ the one error it
   was added to prevent, `TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'`. Naming the
@@ -129,22 +170,22 @@ one more thing about it.
   Naming `Pokemon` on the two fields cleared all eight. The builders' own `return this` stays inferred, because there it
   is true: they hand back the receiver, which is what keeps a chain typed as whatever it started as.
 - **Annotate from the inside out, because a return type is a claim nothing checks while the body answers `any`.**
-  Measured in two steps: with the parameters annotated but `#forms` still a bare `new Map()`, `form()`'s
-  `@returns {Pokemon}` was satisfied by the `any` a `Map<any, any>` hands back from `get`. Typing the field is what made
-  the return mean anything — and it then wanted `form` restructured, because a `has` and then a `get` are two lookups
-  the checker cannot join. Nothing at the type level says the two calls asked about the same key, so `get` still answers
+  Measured in two steps: with the parameters annotated but `#forms` still a bare `new Map()`, `form()`'s its `Pokemon`
+  return type was satisfied by the `any` a `Map<any, any>` hands back from `get`. Typing the field is what made the
+  return mean anything — and it then wanted `form` restructured, because a `has` and then a `get` are two lookups the
+  checker cannot join. Nothing at the type level says the two calls asked about the same key, so `get` still answers
   `Pokemon | undefined` however the `has` above it went; read the result instead and the narrowing is real, which is the
   check the throw was already making.
 - **`noUncheckedIndexedAccess` makes that a rule rather than a Map's quirk, and dotted access is not exempt.** A
   `Record<string, T>` answers `T | undefined` to `r.value` as much as to `r['value']`, and a `Uint8Array` answers
-  `number | undefined` to `bytes[0]` — all three probed, all three a `TS2322` against a `@type {null}`. So every bounds
-  test in `src/java-serialization.js` was the shape `form()` had been, a length test and then an index with nothing
-  joining them. Reading the slot instead _is_ the bounds check, because a slot past the end and a slot below the start
-  both answer `undefined`, and it is one lookup rather than two: `Reader#u1`, `decodeMutf8`'s two length tests collapsed
-  into a single `byte()` accessor, `refHandle`'s table lookup and `object()`'s `BOX_BY_CLASS` all went that way. Each is
-  load-bearing rather than tidier, measured by reverting them one at a time — `TS18048` on `u1`'s callers and inside
-  `decodeMutf8`, `TS2339: Property 'value' does not exist on type 'Handle'` where the union goes unnarrowed, and
-  `TS2345: Argument of type 'FieldValue | undefined' is not assignable to parameter of type 'BoxValue'` on the box.
+  `number | undefined` to `bytes[0]` — all three probed, all three a `TS2322` against an annotation of `null`. So every
+  bounds test in `src/java-serialization.ts` was the shape `form()` had been, a length test and then an index with
+  nothing joining them. Reading the slot instead _is_ the bounds check, because a slot past the end and a slot below the
+  start both answer `undefined`, and it is one lookup rather than two: `Reader#u1`, `decodeMutf8`'s two length tests
+  collapsed into a single `byte()` accessor, `refHandle`'s table lookup and `object()`'s `BOX_BY_CLASS` all went that
+  way. Each is load-bearing rather than tidier, measured by reverting them one at a time — `TS18048` on `u1`'s callers
+  and inside `decodeMutf8`, `TS2339: Property 'value' does not exist on type 'Handle'` where the union goes unnarrowed,
+  and `TS2345: Argument of type 'FieldValue | undefined' is not assignable to parameter of type 'BoxValue'` on the box.
   `Array#pop` is the same answer from a different cause: it is declared `T | undefined` whatever the flags say, so
   `parts.pop()` is a `TS2345` against a `string` parameter even where `String#split` guarantees an element. `?? ''` is
   the inert fix and says as much. `Promise.allSettled` is the same shape one level up and the costliest instance of it:
@@ -153,8 +194,8 @@ one more thing about it.
   taken off it was never checked at all. Settling each file's outcome inside its own callback makes the pairing
   structural, and attaches the rejection handler as that fetch starts rather than once every earlier file has settled. A
   tuple is the one exemption worth knowing: `a[0]` and `a[1]` on a `[number, number]` are `number`, not
-  `number | undefined`, which is half of why `coordsOf` in `src/app.js` hands back the pair as a tuple.
-- **Hold the node you made rather than asking the document for it again.** `search/builder.js` appended a chip's glyph
+  `number | undefined`, which is half of why `coordsOf` in `src/app.ts` hands back the pair as a tuple.
+- **Hold the node you made rather than asking the document for it again.** `search/builder.ts` appended a chip's glyph
   span itself and then read it back with `node.querySelector('.state')`, which answers `Element | null` — the file
   asking the DOM a question it already knew the answer to and paying `TS18047: 'glyph' is possibly 'null'` for it.
   Carrying the span in the `Chip` beside the button removes the question rather than answering it, and
@@ -178,21 +219,21 @@ one more thing about it.
   in it and watch the corpus click the preset, over a range it has already set, without tripping it; then add `ranges:`
   to a preset and watch
   `TS2353: Object literal may only specify known properties, and 'ranges' does not exist in type 'Preset'`, silent
-  without the `@type {readonly Preset[]}`. The annotation is what makes the deletion safe rather than merely tidy.
+  without the `readonly Preset[]` on `PRESETS`. The annotation is what makes the deletion safe rather than merely tidy.
 - **Where a type cannot pair two fields, the guard belongs where they are finally used together.** `Box` carries a
   `code: BoxCode` and a `value: BoxValue`, so `b.code === 'I'` cannot narrow `b.value` to a number — a class holds no
   discriminated pairing across two fields, and `JavaSer.box('J', 5)` type-checks clean as a result. The writer's
   `switch` is therefore the type: it asks `typeof b.value` per code and throws, which is worth having rather than merely
   tidy, since `box('I', 'x')` wrote four zero bytes for `'x' >>> 24` and 163 bytes of valid-looking stream before it.
-  Two shapes were weighed and rejected as more machinery for less: a `@template` with a conditional typedef still cannot
-  infer `C` from `b.code === 'I'`, and `@overload`s on the public `box` constrain the caller while leaving the writer —
+  Two shapes were weighed and rejected as more machinery for less: a type parameter with a conditional type still cannot
+  infer `C` from `b.code === 'I'`, and overloads on the public `box` constrain the caller while leaving the writer —
   where the bug was — unchecked. What the type _can_ say, say: `classDesc`'s `superName, superUid` became one optional
   `superclass` object, because nothing said the second was present whenever the first was, and passing
   `{ name: NUMBER.name }` alone is a `TS2345` now.
 - **Where the type _does_ pair the fields, narrow on the object and test against `null` rather than for truth.**
   `Pokemon#variants` is the discriminated union `Box` above is not —
   `{region: string, form: null, pokemon: Pokemon} | {region: null, form: string, pokemon: Pokemon}` — and two things
-  still went wrong with it in `pokedex/entries.js`. Truthiness does not discriminate a `string | null`, because `''` is
+  still went wrong with it in `pokedex/entries.ts`. Truthiness does not discriminate a `string | null`, because `''` is
   a falsy `string`: `variant.region ? … : formNameOf(variant.form)` is
   `TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'`, the falsy branch being
   unable to rule out the member whose region is empty, where `variant.region !== null` has no such hole and clears it.
@@ -205,69 +246,84 @@ one more thing about it.
   `desc` pushed ahead of the loop needs no annotation at all.
 - **A module-scope `let` assigned only from inside a function is `any`, and both of its readers go unchecked.**
   Inference takes such a binding's type from what is written to it _at module scope_, so `let toastTimer;` in
-  `src/app.js` — written in `toast()` and nowhere else — was a `TS7034` on the declaration and a `TS7005` on the use,
-  and the `clearTimeout` and `setTimeout` either side of it were checked against nothing. `@type {number | undefined}`
-  is what says it, and `undefined` rather than `null` because that is already what `clearTimeout` takes for "no timer".
-  This is the one case where an annotation on a variable is not restating what inference got right: there is nothing for
-  inference to read. Which cuts the other way inside a function, and the two look alike enough to be worth naming
-  together: `let tz = null;` in `applyTimezones`, written and read in the same body, gets control-flow inference rather
-  than `any`, so a stray `tz = 42` is the same `TS2322: Type 'number' is not assignable to type 'string'` with
-  `@type {string | null}` on it and without. That annotation was written and then removed on the measurement — it
-  restates what inference already has. The distinction is the scope and where the writes are, not the `let` or the
-  `null`, so measure rather than pattern-match on the declaration.
+  `src/app.ts` — written in `toast()` and nowhere else — was a `TS7034` on the declaration and a `TS7005` on the use,
+  and the `clearTimeout` and `setTimeout` either side of it were checked against nothing. Declaring it
+  `number | undefined` is what says it, and `undefined` rather than `null` because that is already what `clearTimeout`
+  takes for "no timer". This is the one case where an annotation on a variable is not restating what inference got
+  right: there is nothing for inference to read. Which cuts the other way inside a function, and the two look alike
+  enough to be worth naming together: `let tz = null;` in `applyTimezones`, written and read in the same body, gets
+  control-flow inference rather than `any`, so a stray `tz = 42` is the same
+  `TS2322: Type 'number' is not assignable to type 'string'` with a `string | null` annotation on it and without. That
+  annotation was written and then removed on the measurement — it restates what inference already has. The distinction
+  is the scope and where the writes are, not the `let` or the `null`, so measure rather than pattern-match on the
+  declaration.
 - **`filter(Boolean)` does not narrow, and two other array idioms lose the type the same way.** TypeScript infers a type
   predicate from `filter((span) => span !== null)` and nothing at all from `filter(Boolean)`, so the latter hands a
   `(Span | null)[]` to something wanting `Span[]` — one such call was every `'possibly null'` error in
-  `search/optimise.js`. `flatMap` is that shape one step along: a callback answering `Span[] | null` matches
+  `search/optimise.ts`. `flatMap` is that shape one step along: a callback answering `Span[] | null` matches
   `U | ReadonlyArray<U>` twice over, so `U` widens to `Span | null`, where `?? []` in the callback leaves
   `Span[] | never[]` and `U` is `Span`. And a pair of pairs is not a list of pairs —
   `for (const [key, set] of [['i', a], ['x', b]])` types both bindings `string | Set<string> | undefined`, where
   `Object.entries({ i: a, x: b })` is a `[string, Set<string>][]` and destructures as one. All three are the same
-  lesson: say what the array holds wherever the idiom cannot. `pokedex/page.js` carries both of the ways that last one
+  lesson: say what the array holds wherever the idiom cannot. `pokedex/page.ts` carries both of the ways that last one
   bites: `[[$.flags, FLAGS], [$.hunts, HUNT_FLAGS]]` is the union above, at a `TS2488`, a `TS18048` and a `TS2339`,
   while the two search links' pairs of a label and a term hold a union of two strings that costs nothing and are _still_
   `string | undefined` per element under `noUncheckedIndexedAccess`, which `encodeURIComponent` rejects. An object per
   row rather than a pair answers both, and reads better at the loop head than a destructured pair did.
-- **A contextual type from `@type` on an array reaches the literals written beneath it and stops at a `map`.**
-  `@type {readonly Toggle[]}` on `FLAGS` in `pokedex/page.js` types the three objects spelled out in the literal, so
-  their `(entry) => entry.shiny` callbacks are checked against `Toggle` with no annotation of their own — and it reaches
-  neither the objects a spread `...CATEGORIES.map(…)` contributes nor `HUNT_FLAGS`, built by a `map` of its own, whose
-  callback parameters stayed `TS7006` implicit `any` until each `map` said what it answers with a
-  `/** @returns {Toggle} */` of its own. So read such an annotation as covering what is typed out below it rather than
-  everything that ends up in the array.
+- **A contextual type on an array reaches the literals written beneath it and stops at a `map`.** `readonly Toggle[]` on
+  `FLAGS` in `pokedex/page.ts` types the three objects spelled out in the literal, so their `(entry) => entry.shiny`
+  callbacks are checked against `Toggle` with no annotation of their own — and it reaches neither the objects a spread
+  `...CATEGORIES.map(…)` contributes nor `HUNT_FLAGS`, built by a `map` of its own, whose callback parameters stayed
+  `TS7006` implicit `any` until each `map` said what it answers with a `Toggle` return type of its own. So read such an
+  annotation as covering what is typed out below it rather than everything that ends up in the array.
 - **A hoisted `function` does not see a module-scope narrowing; an arrow does.** `const DEX = RANGES.find(…)` above a
   `throw` on `undefined` leaves `DEX.max` clean inside an IIFE and `TS18048: 'DEX' is possibly 'undefined'` inside an
   `export function`, because a declaration could be called before the narrowing ever ran. So a guard over a table lookup
-  belongs inside the function that needs it rather than at module scope: `search/optimise.js` throws on a `terms.js`
-  carrying no `dex` range when it is asked to shorten a query, which is the reading `dom.js` takes of markup a script
+  belongs inside the function that needs it rather than at module scope: `search/optimise.ts` throws on a `terms.ts`
+  carrying no `dex` range when it is asked to shorten a query, which is the reading `dom.ts` takes of markup a script
   cannot find its element in.
-- **Two `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/` — so the
-  checker can still say that a browser module reached for something a browser does not have. `"types": ["leaflet"]` in
-  the root config is the other half: an empty list would leave `L` undeclared, and an unrestricted one lets any
-  installed `@types` package hand Node's globals to a browser module.
-- **One `tsc -b` over both of them, so `pnpm lint:types` is a single check.** Build mode takes the two project paths
-  directly — no solution-style config to keep in step — and reports both projects rather than stopping at the first that
-  fails. It does require `composite: true` in each, which writes a `tsconfig.tsbuildinfo` beside each config even though
-  both are `noEmit`; `.gitignore` covers it. The cost of one check is that `scripts/` cannot gate separately while
-  `src/` is still being annotated, so a type error there rides along with the migration's error count until the flip.
+- **Three `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/`, neither for
+  the files both of them read — so the checker can still say that a browser module reached for something a browser does
+  not have. `"types": ["leaflet"]` in the root config is the other half: an empty list would leave `L` undeclared, and
+  an unrestricted one lets any installed `@types` package hand Node's globals to a browser module.
+  `tsconfig.shared.json` takes the empty list instead, because nothing ambient belongs in a file `scripts/` also reads.
+- **One `tsc -b`, and `pnpm lint:types` is the build itself rather than a check beside it.** The script runs
+  `pnpm build`, so the tree the lint compiled is the tree that gets deployed and there is no second compilation to
+  disagree with the first. Build mode takes the project paths directly — no solution-style config to keep in step —
+  reports every project rather than stopping at the first that fails, and follows `references` into the shared one on
+  its own. It requires `composite: true` in each, which forces declarations nothing serves; both the declarations and
+  the per-project `tsconfig.tsbuildinfo` are named into `.types/` rather than left to default, because the default is
+  derived from `outDir` and would put them inside `dist/` — which is to say, deploy them. The allowlist cannot catch
+  that, since it governs what is copied in and these are written before it runs.
 - **Counting that error total needs `--force` and `--pretty false`, and both traps read as a pass.** Build mode says
   nothing whatever about a project it thinks is up to date, so a second `pnpm lint:types` over an unchanged tree prints
   an empty report that looks exactly like a clean one; and the colour codes sit between the two words, so
   `grep -c 'error TS'` answered `0` against the same run that printed `Found 330 errors`. Count from
   `pnpm exec tsc -b --force --pretty false tsconfig.json scripts/tsconfig.json`, and account for the whole delta rather
-  than the files you opened — typing `search/terms.js` cleared three errors in two modules the slice never touched and
+  than the files you opened — typing `search/terms.ts` cleared three errors in two modules the slice never touched and
   created four in a third, which was a real latent looseness the tables had been hiding. Expect the count to _rise_
-  partway through a slice, because typing a leaf is what makes its consumers checkable: `gpx.js` went 8 to 0 and took
-  `app.js` from 81 up to **83** in the same run, since `eachTrack` yielding a real `Element` made the `<trkpt>`
+  partway through a slice, because typing a leaf is what makes its consumers checkable: `gpx.ts` went 8 to 0 and took
+  `app.ts` from 81 up to **83** in the same run, since `eachTrack` yielding a real `Element` made the `<trkpt>`
   `parseFloat` pair an error exactly like the `<wpt>` pair twenty lines below it already was. Read that as the
   measurement it is rather than as a regression — two blocks erroring for one reason are one block duplicated, and it is
   what said to collapse them into `coordsOf`. So annotate leaf-first and judge the slice on the total, not on the
   intermediate.
-- **A `scripts/` file reaches `src/types.d.ts` as `'../src/types.js'`.** TypeScript resolves a `.js` specifier onto its
-  declaration sibling, where naming `'../src/types.d.ts'` is rejected outright without `allowImportingTsExtensions`.
-  Build mode also wants every file a project reads listed by the project that reads it, and two `noEmit` projects have
-  no declaration output to reach each other through — which is why `scripts/tsconfig.json` names the four `src/` files
-  it imports in its own `include`.
+- **A `scripts/` _value_ import from `src/` has to name the `.ts` file, and this is the trap the whole repository was
+  blind to.** TypeScript's `.js`-onto-`.ts` resolution is a fiction for a project that emits: it is how the browser half
+  writes `'./dom.js'` and means `dom.ts`. `scripts/` never emits, so Node runs the file by stripping types in place and
+  resolves the specifier _literally_ — and `tsc` resolved `'../src/generated.js'` onto its `.ts` sibling and said
+  nothing. `pnpm lint` was clean, all six checks, over a `pnpm build:ics` that died of `ERR_MODULE_NOT_FOUND`: `tsc`
+  resolved it, ESLint does not resolve imports at all, and `pnpm build` only builds the other half. Only _running_ the
+  script could catch it, which is the argument for `build:ics` and `lint:xml` being `package.json` scripts rather than
+  documentation. `allowImportingTsExtensions` is what permits the `.ts`, legal precisely because nothing here emits and
+  so no specifier has to survive into an output file. A **type** import is exempt and stays `'../src/types.js'`: it is
+  erased before Node sees it, and `src/types.d.ts` could not be named any other way, since `'../src/types.d.ts'` is
+  rejected outright.
+- **Build mode wants every file a project reads listed by the project that reads it, and a `references` entry is the way
+  to say it.** `scripts/tsconfig.json` used to name the four shared `src/` files in its own `include`, checking them a
+  second time under the Node lib set; now it references `tsconfig.shared.json` and reads that project's declarations
+  instead. The files stay environment-agnostic because a project says so rather than because two lib sets happened to
+  agree about them.
 - **Run a script through pnpm, never as a bare `node`.** `devEngines.runtime` pins the Node floor that guarantees type
   stripping, and it governs only what pnpm invokes — so `pnpm build:ics` is safe where `node scripts/build-ics.mts` will
   fail outright on a Node older than 22.18. Every entry point therefore has a `package.json` script, and `calendar.yml`
@@ -276,33 +332,38 @@ one more thing about it.
   `export as namespace L` — a UMD global, invisible from inside a module, which is what `allowUmdGlobalAccess` is for.
   Declaring `const L` in a `declare global` instead looks tidier and does not work: it shadows that namespace, so you
   get `TS2451: Cannot redeclare block-scoped variable 'L'` plus four `Cannot find namespace 'L'` errors from inside
-  `@types/leaflet` itself, reported against a file you did not write. The same `allowUmdGlobalAccess` is what lets a
-  JSDoc type name reach through it: `L.Polyline`, `L.CircleMarker`, `L.PolylineOptions` and `L.CircleMarkerOptions` all
-  resolve in a `@typedef` or a `@param` with no `@import` and no `TS2503`, confirmed by the errors naming
-  `Polyline<LineString | MultiLineString, any>` and `CircleMarker<any>` back. What it will not do is guess a tuple:
-  `LatLngExpression` accepts `[number, number]` and an unannotated `[lat, lon]` infers `number[]`, which `L.polyline`
-  rejects — so a coordinate pair travelling through this file is declared as a tuple at every hop, which is also what
-  buys the indexed-access exemption above.
+  `@types/leaflet` itself, reported against a file you did not write. `src/globals.d.ts` is where a CDN global _does_
+  get declared — `tzlookup`, which no package ships a type for — and it leaves `L` out for exactly this reason. The same
+  `allowUmdGlobalAccess` is what lets a type reference reach through: `L.Polyline`, `L.CircleMarker`,
+  `L.PolylineOptions` and `L.CircleMarkerOptions` all resolve in a type alias or a parameter annotation with no import
+  and no `TS2503`, confirmed by the errors naming `Polyline<LineString | MultiLineString, any>` and `CircleMarker<any>`
+  back. What it will not do is guess a tuple: `LatLngExpression` accepts `[number, number]` and an unannotated
+  `[lat, lon]` infers `number[]`, which `L.polyline` rejects — so a coordinate pair travelling through this file is
+  declared as a tuple at every hop, which is also what buys the indexed-access exemption above.
 - **`@ts-expect-error` takes a reason, in the same form as the `html-validate` exceptions above:**
   `// @ts-expect-error -- reason`, at least ten characters. `@typescript-eslint/ban-ts-comment` enforces both the reason
   and the choice of directive — `@ts-ignore` is rejected outright, because it does nothing once the line below it stops
   erroring where `@ts-expect-error` tells you it is no longer needed.
-- **`any` is banned by convention only, because nothing can enforce it.** `no-explicit-any` reads TypeScript syntax, and
-  a JSDoc `/** @type {any} */` is a comment the rule never sees — verified by probing it, where the bare
-  `@ts-expect-error` on the next line was caught and the `any` above it was not. Reach for `unknown` and narrow.
+- **`any` is enforced now, where it used to be convention only.** `no-explicit-any` reads TypeScript syntax, so a JSDoc
+  `/** @type {any} */` was a comment the rule never saw and the ban could only be asked for. A real `: any` is
+  `error @typescript-eslint/no-explicit-any` at the line that wrote it — probed at `src/dom.ts:60`, where `tsc` stayed
+  at exit 0 and said nothing about it, which is the division of labour the two tools are set up for. Reach for `unknown`
+  and narrow. What the rule still cannot see is an `any` nobody wrote: the `Map<any, any>` in
+  `src/java-serialization.ts` is inferred, so it is silent there, and the reason that value is opaque is that a type
+  declared inside an IIFE cannot be imported.
 - **TypeScript is pinned to 6.x on purpose.** `typescript-eslint` throws on import against TypeScript 7 and takes
   `pnpm lint:js` down with it
   ([typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940)). TypeScript 6.0.3
   accepts the same configuration and reports the same errors; the whole project checks in about a second either way, so
   the Go compiler buys nothing here worth a broken linter.
-- **Every page reaches the DOM through `src/dom.js`.** `byId` throws where the markup and the script disagree, so a
+- **Every page reaches the DOM through `src/dom.ts`.** `byId` throws where the markup and the script disagree, so a
   stale id is a broken page at load rather than a `null` travelling until something further along trips over it. Name a
   class only where the code depends on one — `byId('q', HTMLInputElement)` because a `.value` is read off it, a plain
   `byId('grid')` for a container whose tag the script has no opinion about — since the argument states a dependency
   rather than describing the markup. Note that this is the half `tsc` cannot check: typing a `<div>` as an
   `HTMLInputElement` is what you asked for, and only the run-time `instanceof` says otherwise.
-- **Two `@overload`s, not one `@template` defaulting to `HTMLElement`.** A type parameter appearing only in the return
-  position is inferred from the caller's own annotation, so `@template {HTMLElement} [T=HTMLElement]` leaves
+- **Two overloads, not one type parameter defaulting to `HTMLElement`.** A type parameter appearing only in the return
+  position is inferred from the caller's own annotation, so `<T extends HTMLElement = HTMLElement>` leaves
   `byId('grid')` answering `HTMLInputElement` to anyone who asks for one — the default never applies and the check is
   worth nothing. Verified by probing both forms: the overloads reject it, the default accepts it silently.
 
@@ -310,11 +371,13 @@ one more thing about it.
 
 Which route a change takes turns on whether it changes what the code _does_ or only what it is _told_.
 
-- **A data change lands on `master` directly.** A species added to or removed from a filter (`src/filters/*.js`), a
-  `.gpx` file and the index regenerated beside it, an event in `data/events.json`, a country in `src/countries.js`, a
-  `released` or `shinyEligible` flag in `src/pokemon/pokedex.js` — the lists this repository exists to hold. Single
+- **A data change lands on `master` directly.** A species added to or removed from a filter (`src/filters/*.ts`), a
+  `.gpx` file and the index regenerated beside it, an event in `data/events.json`, a country in `src/countries.ts`, a
+  `released` or `shinyEligible` flag in `src/pokemon/pokedex.ts` — the lists this repository exists to hold. Single
   maintainer and linear history, so these need no branch and no review: the entry is the whole of the change, and
-  `pnpm lint` already says whether it is well-formed and whether the generated files still agree with it.
+  `pnpm lint` already says whether it is well-formed and whether the generated files still agree with it. The push is
+  still the whole of the publishing too, even though the pages are built now — `pages.yml` fires on `master` and deploys
+  what `pnpm build` produces, so a data change needs no local build and nothing is committed from one.
 - **A feature or a logic change needs a pull request.** Anything that changes behaviour rather than content: a new page
   or control, a rendering, filtering or sorting rule, the shape of a file the pages read, a script, a workflow, a
   refactor. Branch, push, and open it against `master`.
@@ -328,43 +391,49 @@ Which route a change takes turns on whether it changes what the code _does_ or o
 ## Checking the pages in a browser
 
 There is no test suite, and `npm run lint` says nothing about whether a page looks right or a class reaches the element
-it was written for. Serve the repository with `python3 -m http.server` and drive headless Chrome over the DevTools
-Protocol from Python `websockets` — no Playwright or Puppeteer package is installed, though Playwright's browser
-binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything assertable: a computed colour, a
-`getBoundingClientRect().left` on two elements that should share an edge, a class present after one render and absent
-after the next.
+it was written for. Run `pnpm build` and serve **`dist/`** with `python3 -m http.server`, then drive headless Chrome
+over the DevTools Protocol from Python `websockets` — no Playwright or Puppeteer package is installed, though
+Playwright's browser binaries are cached. Screenshot for layout, and `Runtime.evaluate` for anything assertable: a
+computed colour, a `getBoundingClientRect().left` on two elements that should share an edge, a class present after one
+render and absent after the next.
+
+Serving the repository root instead is now a mistake that announces itself, which is worth knowing in both directions:
+no page can load at all, because `src/app.js` is not in the checkout. That makes the root the cheapest available
+**control** — a suite that cannot be shown failing says nothing, and running it against the root is what shows both that
+it can fail and that the artifact is what makes the pages work. Rebuild before every run, since a stale `dist/` is the
+edit-not-served trap one level up from the browser cache and disabling the cache does nothing about it.
 
 - **The five-page suite says a module loaded, never that it is right.** Making `Pokemon#region` answer the species
   instead of throwing on a miss left all five pages reporting clean — 74 routes, 82 chips, 1025 cards, `6 of 6` — while
   the differential over the dex reported 8,183 differences against the same build. What the pages do catch is a throw,
-  because `filters/shiny.js` makes 79 `form`, `forms` and `region` calls at module scope and one of them failing takes
+  because `filters/shiny.ts` makes 79 `form`, `forms` and `region` calls at module scope and one of them failing takes
   the page down at load. So run both and do not let a 5/5 stand in for the differential; the deliberate break is what
   tells you which of the two a given change needs.
-- **`events.html`'s figure is not a baseline.** `src/events.js` fetches the live upstream ScrapedDuck feed and merges
+- **`events.html`'s figure is not a baseline.** `src/events.ts` fetches the live upstream ScrapedDuck feed and merges
   `data/events.json` into it, so `#typeFilters` holds one button per distinct `heading` across both and tracks upstream
-  rather than the checkout: 17 one morning and 16 that afternoon, with nothing here changed and `events.js` importing
+  rather than the checkout: 17 one morning and 16 that afternoon, with nothing here changed and `events.ts` importing
   nothing from `pokemon/` either way. Derive the number from the two feeds rather than comparing it against a previous
   run — the merged feed had exactly 16 distinct headings — and treat anything else a page fetches over the network the
   same way.
 - **Most of `src/` needs no browser: every module but the five entry points imports under `node` outright.** That is the
   strongest check available for anything whose output is a value rather than a rendering — import the old copy of a
   module and the new one side by side and compare them over a corpus. Only the entry points fail, each at module scope
-  rather than in its logic: `app.js` on Leaflet's `L`, and `events.js`, `pgsharp/backup.js`, `pokedex/page.js` and
-  `search/builder.js` on an `HTMLElement` or a sibling of one. Settle which is which by importing rather than by
-  grepping for `document` — `dom.js` names `HTMLElement` and imports fine, because that is a default argument evaluated
-  per call, and `gpx.js` calls `fetch`, which Node has.
+  rather than in its logic: `app.ts` on Leaflet's `L`, and `events.ts`, `pgsharp/backup.ts`, `pokedex/page.ts` and
+  `search/builder.ts` on an `HTMLElement` or a sibling of one. Settle which is which by importing rather than by
+  grepping for `document` — `dom.ts` names `HTMLElement` and imports fine, because that is a default argument evaluated
+  per call, and `gpx.ts` calls `fetch`, which Node has.
 - **An entry point cannot be differentialled under Node, so serve both trees and drive one corpus over each.** The page
   is the only interface it has. `git archive <base>` the old tree beside the worktree and `diff -rq` the two, so the
   file under test is the only one that differs and every disagreement is attributable to it; serve each from its own
   `http.server` on its own port, so neither can serve the other's cache; then drive the same interaction corpus over
   both and compare a full snapshot of the page after every step, naming controls by index rather than by id so the same
-  step reaches the same control on both sides. 22 scenarios and 111 snapshots read identically for `search/builder.js`,
+  step reaches the same control on both sides. 22 scenarios and 111 snapshots read identically for `search/builder.ts`,
   and eleven deliberate breaks were all caught — two of them by a single snapshot each, which is the figure that says
   the corpus is sensitive per step rather than only in aggregate. Two scenarios that look redundant often are not:
   arrowing eleven times down a four-row list wraps `active` back to 0, so `offered[0]` and `offered[active]` agree there
   and only the shorter walk catches Enter taking the wrong row.
 - **Where the change alters the markup, the snapshot has to name observables rather than markup.** Typing
-  `pokedex/page.js` deletes `data-dex` from all 1,025 cards and `data-flag` from every chip, holding both in a `Map`
+  `pokedex/page.ts` deletes `data-dex` from all 1,025 cards and `data-flag` from every chip, holding both in a `Map`
   keyed by the same values instead, so a diff over `innerHTML` would report all 82 snapshots as changed and say nothing
   whatever about behaviour. Name the things the page is _for_ — the visible count, each chip's `aria-pressed`, the
   marks' titles, the dialog's facts and variant rows, `location.hash`, `document.activeElement` — and the two trees are
@@ -400,8 +469,8 @@ after the next.
   `option -sf: is badly used here`, so a readiness check over the two ports is cheaper written as
   `urllib.request.urlopen` in Python than argued with. Watch the obvious repair, too: rewriting `'curl -sf '` to
   `'curl -s -f'` drops the trailing space and produces `curl -s -fhttp://…`, which is the same failure one step along.
-- **`src/java-serialization.js` is the clearest case of that**, because the bytes `dumps` writes are its whole contract:
-  `loads` has no consumer, since `pgsharp/backup.js` calls it only to re-parse its own output as a self-check and throws
+- **`src/java-serialization.ts` is the clearest case of that**, because the bytes `dumps` writes are its whole contract:
+  `loads` has no consumer, since `pgsharp/backup.ts` calls it only to re-parse its own output as a self-check and throws
   the result away, so the reader's shape is private to the module and only the writer's output is observable. Drive the
   page too for the real data — wrap `URL.createObjectURL` before the module loads, click **Build backup**, hash the Blob
   — but it is the corpus that reaches the branches a synthesized backup never will: `TC_LONGSTRING`, U+0000, a nested
@@ -424,6 +493,12 @@ after the next.
   protocol fine. The full browser beside it, `chromium-1208/chrome-linux64/chrome`, prints
   `DevTools listening on ws://…` and then dies of a trace/breakpoint trap with `--headless=new`, so the port is gone by
   the time you connect.
+- **`/json/version` answers the _browser_ target, which carries neither a `Runtime` nor a `Page` domain.** Its
+  `webSocketDebuggerUrl` accepts the connection and then answers every single call
+  `-32601 'Runtime.evaluate' wasn't found`, which reads like a protocol version mismatch rather than like the wrong
+  target. Take the page target from `/json/list` filtered on `type == 'page'`. And assert `'error' not in msg` on every
+  call, because a rejected call read past does not surface where it happened: it surfaced as a `KeyError: 'result'`
+  several steps later, in code that looked unrelated to the connection.
 - **Send `Network.setCacheDisabled` before navigating.** Chrome serves the CSS and JS it already has, so a re-run after
   an edit reports the _old_ file. This looked exactly like every change having failed — a `::before` with no background,
   a count of zero, `box-shadow: none` — when all of them were in fact fine.
@@ -462,7 +537,7 @@ after the next.
   in `pgsharp.html`, so a smoke test reading its child count was satisfied by the zero a page whose module had thrown
   would also report. Assert what the script writes rather than what the markup already carries — `'6 of 6'` in that
   span, 74 `.route` rows under `#list` — and keep a control that breaks one lookup on purpose.
-- **`Network.setBlockedURLs` matches the URL as requested, which is percent-encoded.** `backup.js` fetches through
+- **`Network.setBlockedURLs` matches the URL as requested, which is percent-encoded.** `backup.ts` fetches through
   `encodeURI`, so the pattern `*Melbourne Zoo, Melbourne, Victoria.gpx*` matched nothing — and a scenario meant to reach
   the third `catch` site instead reported a _successful_ build carrying the same digest as the unblocked one, in the
   same green as the eleven real steps beside it. `*Melbourne*` blocks it. The general form of this is worth more than
@@ -566,7 +641,7 @@ after the next.
   through the browser rather than the page: `Storage.clearDataForOrigin` with `storageTypes: 'local_storage'` works
   whatever document is loaded. This matters for the Events page in particular, where a first visit marks every event
   seen and writes that, so the second run of a probe is not a first visit and nothing is new.
-- **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.js` holds the
+- **Reach a module-scoped object by wrapping the library, not by hunting for it on `window`.** `src/app.ts` holds the
   Leaflet map in a `const`, so `Runtime.evaluate` finds only the `<div id="map">` and answers
   `map.getZoom is not a function`. Send a `Page.addScriptToEvaluateOnNewDocument` that defines a setter for `window.L`
   and wraps the prototype methods in question: it runs before the deferred module, so it sees every call, and stashing
@@ -648,7 +723,7 @@ after the next.
   `wanted.some(watched)` — moved 0 of 80 with every field of every snapshot filled. The field was populated and never
   with a value that could discriminate, because `huntsOf` is called once per variant with a single-element list, where
   the two quantifiers are the same function, and once per entry over the species and all its variants. Ask the data
-  before touching the corpus: importing `entries.js` under Node finds 45 (entry, hunt) pairs wanting two or more members
+  before touching the corpus: importing `entries.ts` under Node finds 45 (entry, hunt) pairs wanting two or more members
   and exactly 3 where some but not all are watched — Braviary, Sliggoo and Goodra, each on the shiny hunt with 2 wanted
   and 1 watched. Reachable and missed, so it wants a scenario, where the accent fold's 0 of 53 above wanted a
   derivation. Opening Braviary `#0628` takes the run to 82 snapshots, and that coverage assertion has to name the three
@@ -675,7 +750,7 @@ after the next.
   heredoc writing the file puts them in the same shell's `argv`, so the `pgrep` inside the script matches its own
   parent, which skipping `$$` alone will not catch.
 
-## Cross-checking `src/pokemon/pokedex.js` against the web
+## Cross-checking `src/pokemon/pokedex.ts` against the web
 
 Three sources cover a variant's `released` and `shinyEligible` state. Each has a demonstrated failure mode, so take a
 change only where two of the three agree. Checked September 2026.
@@ -699,17 +774,17 @@ Reading them:
 
 - **Fetch the raw HTML with `curl` and parse it.** `WebFetch` answers a prompt through a small model, which drops rows
   from the 1,195 that `/go/pokedex` carries.
-- **Diff the whole table rather than spot-checking.** Copy `src/pokemon/pokemon.js`, add a getter over its private
-  fields and import the copy of `pokedex.js`: `as()` has run by then, so every variant reports a name like
+- **Diff the whole table rather than spot-checking.** Copy `src/pokemon/pokemon.ts`, add a getter over its private
+  fields and import the copy of `pokedex.ts`: `as()` has run by then, so every variant reports a name like
   `Hisuian ZORUA`.
 - **Compare at dex level, with form names only as a fallback.** `/go/shiny` collapses Unown and Spinda to one card each
   yet lists Vivillon per pattern, so per-card matching reports 28 Unown forms as missing when they are not. The labels
   are the sites' own rather than ours — `Poké Ball Pattern` for `POKE_BALL`.
 
-## Cross-checking `src/search/terms.js` against the game
+## Cross-checking `src/search/terms.ts` against the game
 
 Three sources cover what the search box actually accepts, and each has a demonstrated failure mode, so take a term only
-where two of the three agree — the same rule as [`pokedex.js`](#cross-checking-srcpokemonpokedexjs-against-the-web).
+where two of the three agree — the same rule as [`pokedex.ts`](#cross-checking-srcpokemonpokedexts-against-the-web).
 That rule has already paid for itself twice: `mega4` appeared in one source alone and does not exist, the Mega levels
 stopping at `mega3`, and a `remote` the table had carried since it was written turned out to be attested nowhere.
 
@@ -745,17 +820,17 @@ Three things anything reasoning about a search string runs into, none of which t
   has a partial name matching anywhere in it — `char` finding Charizard as well as Charmander. Only one source speaks to
   it, so the cross-checking rule above cannot resolve it and a reduction is sound only where both readings give the same
   answer: `char` reaches Charmander either way, where `saur` reaches Bulbasaur under one reading and nothing under the
-  other. `src/search/optimise.js` tests that by counting — everything beginning with a fragment also contains it, so the
+  other. `src/search/optimise.ts` tests that by counting — everything beginning with a fragment also contains it, so the
   begins-set sits inside the contains-set and equal sizes are equal sets — and refuses the fragment where they differ,
   which is what costs `saur` and `mime` their reductions. It is also why the candidates are leading fragments rather
   than fragments from anywhere: `rman` reaches Charmander under one reading and nothing under the other.
 - **Nothing here knows which species share an evolution family.** `grep -ric evol src/pokemon/` answers 0 for both
-  files: `pokedex.js` carries forms, regions, rarity, `released` and `shinyEligible` and no evolution links, and the
-  families in `src/filters/xxs.js` are a line break for a human reading the list rather than data, which is what the
+  files: `pokedex.ts` carries forms, regions, rarity, `released` and `shinyEligible` and no evolution links, and the
+  families in `src/filters/xxs.ts` are a line break for a human reading the list rather than data, which is what the
   `// prettier-ignore` above it exists to hold. So a `+` prefix cannot be reasoned about — `+charmander` is not
   rewritable as `4,5,6`, nor shortenable to `+charm` by reaching the family through another of its members. It gets the
   name shortening alone, which is sound because the same species reached a shorter way are the same families.
-- **The generation group joins with `,`, not `&`.** Nothing is two generations, so `terms.js` gives it the default OR
+- **The generation group joins with `,`, not `&`.** Nothing is two generations, so `terms.ts` gives it the default OR
   and several generations compose to a single clause — `1-151,152-251`, not two clauses AND'd. Anything folding dex
   spans together therefore unions the generations first and intersects that union with the other sources. Merging them
   can take the ambiguity warning with it as well as the characters: `shiny&1-151,152-251` mixes `,` with `&` and earns

@@ -13,13 +13,11 @@
  * generations is named in each, since the grouping follows the dex rather than the chain.
  */
 
-/** @import Pokemon from '../pokemon/pokemon.js' */
-
+import type Pokemon from '../pokemon/pokemon.js';
 import POKEMON from '../pokemon/pokedex.js';
 
-/** @type {ReadonlySet<Pokemon>} */
 // prettier-ignore
-export default new Set([
+const XXS_POKEMON: ReadonlySet<Pokemon> = new Set([
   // Generation 1
   POKEMON.PIDGEY, POKEMON.PIDGEOTTO, POKEMON.PIDGEOT,
   POKEMON.SPEAROW, POKEMON.FEAROW,
@@ -281,3 +279,5 @@ export default new Set([
   POKEMON.IRON_CROWN,
   POKEMON.TERAPAGOS,
 ]);
+
+export default XXS_POKEMON;

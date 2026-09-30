@@ -1,5 +1,6 @@
 export default {
   extends: ['stylelint-config-standard'],
+  ignoreFiles: ['dist/**'],
   reportNeedlessDisables: true,
   rules: {
     'no-descending-specificity': null,

@@ -19,13 +19,11 @@ const SNIPE2 = {
  * is preserved (these ids are non-integer string keys), and it decides the order the keys land in the backup, so the
  * entries stay in the order PGSharp wrote them.
  *
- * `@satisfies` rather than `@type`, because this table is read both ways: `backup.js` iterates it with `Object.entries`
- * and also names `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first and throws the
- * second away — measured, it costs two errors at that line and catches nothing the shape check does not — where
- * `@satisfies` checks the shape and hands back the inferred keys. What it rejects is a value that is neither a Java
- * Float nor a filter string, which the codec's writer otherwise catches no earlier than run time.
- *
- * @satisfies {Record<string, Record<string, number | string>>}
+ * `satisfies` rather than an annotation, because this table is read both ways: `backup.ts` iterates it with
+ * `Object.entries` and also names `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first
+ * and throws the second away, measured at two errors on that line for nothing the shape check does not already catch,
+ * where `satisfies` checks the shape and hands back the inferred keys. What it rejects is a value that is neither a
+ * Java Float nor a filter string, which the codec's writer otherwise catches no earlier than run time.
  */
 export const CONTROL_RESETS = {
   resetIcon: {
@@ -62,4 +60,4 @@ export const CONTROL_RESETS = {
   resetFeeds: {
     hlfeeds: JSON.stringify(FEED_FILTERS),
   },
-};
+} satisfies Record<string, Record<string, number | string>>;

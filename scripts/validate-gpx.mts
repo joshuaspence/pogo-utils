@@ -1,7 +1,7 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
  * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is one
- * the viewer knows, with nothing in that table the files never name (src/countries.js); and that gpx-paths.json and
+ * the viewer knows, with nothing in that table the files never name (src/countries.ts); and that gpx-paths.json and
  * entries-by-event.json, the two files that tell the pages what the repository holds, still agree with it. `--write`
  * regenerates the latter, which is derived from the same pass.
  *
@@ -9,8 +9,8 @@
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
  */
 
-import COUNTRIES from '../src/countries.js';
-import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.js';
+import COUNTRIES from '../src/countries.ts';
+import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
 import type { FeedEvent, RouteCounts } from '../src/types.js';
 import { DOMParser, Node, type Document, type Element } from '@xmldom/xmldom';
 import { execFileSync } from 'node:child_process';
@@ -162,10 +162,10 @@ for (const { fileName, contents } of sources) {
         report(fileName, field, `<${field.tagName}> is "${text}" — not an eventID in data/events.json`);
       } else if (name === 'country' && !Object.hasOwn(COUNTRIES, text)) {
         /**
-         * The viewer groups by continent and flags each favourite from this table (src/countries.js); a country missing
+         * The viewer groups by continent and flags each favourite from this table (src/countries.ts); a country missing
          * from it has no continent and no flag, so the backup build throws rather than importing it. Catch it here.
          */
-        report(fileName, field, `<${field.tagName}> is "${text}" — not a country in COUNTRIES (src/countries.js)`);
+        report(fileName, field, `<${field.tagName}> is "${text}" — not a country in COUNTRIES (src/countries.ts)`);
       }
     }
 
@@ -209,11 +209,11 @@ if (problems.length === beforePgr) {
 const unusedCountries = Object.keys(COUNTRIES).filter((country) => !usedCountries.has(country));
 
 for (const country of unusedCountries) {
-  problems.push(`src/countries.js: "${country}" is in COUNTRIES but no file names it — remove it, or add its route`);
+  problems.push(`src/countries.ts: "${country}" is in COUNTRIES but no file names it — remove it, or add its route`);
 }
 
 if (unusedCountries.length === 0) {
-  console.log(`src/countries.js lists exactly the ${Object.keys(COUNTRIES).length} countries in use.`);
+  console.log(`src/countries.ts lists exactly the ${Object.keys(COUNTRIES).length} countries in use.`);
 }
 
 /**

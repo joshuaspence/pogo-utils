@@ -4,6 +4,10 @@ import prettier from 'eslint-config-prettier/flat';
 import tseslint from 'typescript-eslint';
 
 export default [
+  // The build, which is the compiler's output rather than anything anyone wrote: `dist/` would be linted as a second
+  // copy of every module, and `.types/` is generated declarations.
+  { ignores: ['dist/**', '.types/**'] },
+
   js.configs.recommended,
 
   // Ahead of `prettier` so that anything formatting-related it brings is still disabled by it. The types themselves are
@@ -24,7 +28,7 @@ export default [
   },
 
   {
-    files: ['**/*.js'],
+    files: ['src/**/*.ts'],
     languageOptions: {
       sourceType: 'module',
       globals: {

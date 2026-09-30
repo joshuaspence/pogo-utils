@@ -10,14 +10,12 @@
 /**
  * An element, optionally with a class and some text. An empty `className` is skipped where an empty `text` is not, so
  * `el('span', null, '')` is a classless empty span rather than one reading `null`.
- *
- * @template {keyof HTMLElementTagNameMap} K
- * @param {K} tag
- * @param {string | null} [className]
- * @param {string | null} [text]
- * @returns {HTMLElementTagNameMap[K]}
  */
-export function el(tag, className, text) {
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string | null,
+  text?: string | null,
+): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
 
   if (className) {
@@ -36,28 +34,15 @@ export function el(tag, className, text) {
  * depends on one, since that is what the argument says: `byId('q', HTMLInputElement)` because a `.value` is read off
  * it, and a plain `byId('grid')` for a container whose tag the script has no opinion about.
  *
- * Two overloads rather than one `@template` defaulting to `HTMLElement`, because a type parameter appearing only in the
- * return position is inferred from the caller's own annotation: with the default, `byId('grid')` answers
+ * Two overloads rather than one type parameter defaulting to `HTMLElement`, because a type parameter appearing only in
+ * the return position is inferred from the caller's own annotation: with the default, `byId('grid')` answers
  * `HTMLInputElement` to anyone who asks for one and the check is worth nothing. A fixed return type has nothing to
  * infer.
- *
- * @overload
- * @param {string} id
- * @returns {HTMLElement}
  */
-/**
- * @template {HTMLElement} T
- * @overload
- * @param {string} id
- * @param {abstract new (...args: never) => T} type
- * @returns {T}
- */
-/**
- * @param {string} id
- * @param {abstract new (...args: never) => HTMLElement} [type]
- * @returns {HTMLElement}
- */
-export function byId(id, type = HTMLElement) {
+export function byId(id: string): HTMLElement;
+export function byId<T extends HTMLElement>(id: string, type: abstract new (...args: never) => T): T;
+
+export function byId(id: string, type: abstract new (...args: never) => HTMLElement = HTMLElement): HTMLElement {
   const node = document.getElementById(id);
 
   // Read before the check rather than inside it. `type` is erased to `HTMLElement` in this signature, so the checker
