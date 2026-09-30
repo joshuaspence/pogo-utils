@@ -14,6 +14,7 @@
  */
 
 import { FEED_URL, HAS_ZONE, LOCAL_EVENTS, routeSummary } from './event-feed.js';
+import { said } from './errors.js';
 import { ENTRIES_BY_EVENT } from './generated.js';
 import RECURRING_TYPES from './recurring-types.js';
 import { byId, el } from './dom.js';
@@ -1387,8 +1388,6 @@ async function fetchRouteIndex(): Promise<RouteIndex> {
 
   return res.json();
 }
-
-const said = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 async function load() {
   els.count.textContent = 'Loading events…';
