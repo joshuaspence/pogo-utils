@@ -27,7 +27,49 @@ export interface Line {
  * of paragraphs, and the default mode drops a lone number like a CP rather than guessing at a column around it.
  */
 export async function ocr(image: Image, offset = { x: 0, y: 0 }): Promise<Line[]> {
-  const tsv = await run('tesseract', ['stdin', 'stdout', '--psm', '11', 'tsv'], encodePng(image));
+  return group(await run('tesseract', ['stdin', 'stdout', '--psm', '11', 'tsv'], encodePng(image)), offset);
+}
+
+/**
+ * One line of text from an image cropped down to hold nothing else. Page segmentation mode 7 tells Tesseract the whole
+ * image is that one line, which is the opposite of the sparse mode above and the right answer whenever a caller has
+ * already narrowed the picture to something it knows the shape of. The difference is not small: a band of a screen
+ * holding `L1 IV48 5/2/15` over a bright background reads as `r '` sparse and as `L1 1V48 5/2/15` as a line, because
+ * sparse mode takes the blocks either side of it for pictures rather than for the margins they are.
+ *
+ * `whitelist` narrows the alphabet to the characters the line can contain, which is what stops a stray glyph splitting
+ * a number in two. The box comes back as well as the text, so a caller sweeping for something can also say where it
+ * found it.
+ */
+export async function ocrLine(image: Image, whitelist?: string): Promise<Line | null> {
+  const options = whitelist === undefined ? [] : ['-c', `tessedit_char_whitelist=${whitelist}`];
+  const tsv = await run('tesseract', ['stdin', 'stdout', '--psm', '7', ...options, 'tsv'], encodePng(image));
+  const [line] = group(tsv, { x: 0, y: 0 });
+
+  return line ?? null;
+}
+
+/** Lowercase with accents and punctuation gone, so `POKéMON`, `Pokémon` and `pokemon` compare equal. */
+export function fold(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/** The first line whose folded text matches, top to bottom. */
+export function findLine(lines: readonly Line[], pattern: RegExp): Line | undefined {
+  return lines.find((line) => pattern.test(fold(line.text)));
+}
+
+export function centre(line: Line): [number, number] {
+  return [line.left + line.width / 2, line.top + line.height / 2];
+}
+
+/** Tesseract's TSV rows grouped into lines, in the coordinates of whatever the crop came from. */
+function group(tsv: string, offset: { x: number; y: number }): Line[] {
   const lines = new Map<string, { words: string[]; left: number; top: number; right: number; bottom: number }>();
 
   for (const row of tsv.split('\n').slice(1)) {
@@ -62,38 +104,6 @@ export async function ocr(image: Image, offset = { x: 0, y: 0 }): Promise<Line[]
       height: l.bottom - l.top,
     }))
     .sort((a, b) => a.top - b.top || a.left - b.left);
-}
-
-/**
- * One line of text from an image cropped down to hold nothing else, as a string rather than as boxes. Page
- * segmentation mode 7 tells Tesseract the whole image is that one line, which is the opposite of the sparse mode
- * above and the right answer once a caller has already found what it wants to read. `whitelist` narrows the alphabet
- * to the characters the line can contain, which is what stops a stray glyph splitting a number in two.
- */
-export async function ocrLine(image: Image, whitelist?: string): Promise<string> {
-  const options = whitelist === undefined ? [] : ['-c', `tessedit_char_whitelist=${whitelist}`];
-  const text = await run('tesseract', ['stdin', 'stdout', '--psm', '7', ...options], encodePng(image));
-
-  return text.trim().replace(/\s+/g, ' ');
-}
-
-/** Lowercase with accents and punctuation gone, so `POKéMON`, `Pokémon` and `pokemon` compare equal. */
-export function fold(text: string): string {
-  return text
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-/** The first line whose folded text matches, top to bottom. */
-export function findLine(lines: readonly Line[], pattern: RegExp): Line | undefined {
-  return lines.find((line) => pattern.test(fold(line.text)));
-}
-
-export function centre(line: Line): [number, number] {
-  return [line.left + line.width / 2, line.top + line.height / 2];
 }
 
 function run(command: string, args: string[], input: Buffer): Promise<string> {

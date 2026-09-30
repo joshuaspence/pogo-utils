@@ -150,25 +150,47 @@ const OVERLAY_TO = 0.45;
 const OVERLAY_BAND = 0.03;
 
 /**
+ * How much of the width to sweep, centred. PGSharp centres the overlay — measured at 718 and 720 against a screen
+ * centre of 720 on one phone and 501 against 504 on another — and the widest of those boxes is 38% of its screen, so
+ * this is generous. What it buys is leaving out whatever sits along the edges, the movable PGSharp toolbar in
+ * particular, which is otherwise read as part of the same line.
+ */
+const OVERLAY_SPAN = 0.7;
+
+/**
  * Where the overlay sits, found by sweeping narrow bands down the upper screen, isolating each and reading it. The
  * obvious cheaper thing — looking for the triple among the lines a whole-screen read already produced — was tried and
- * dropped: it found the box on nine of twelve captures from one phone and on none at all from another, where the
- * text sat across the boundary of the inverted crop `readLines` makes and was too low in contrast against the artwork
- * for the sparse pass either side of it. Isolating first is what makes the line legible, and a band is small enough
- * that the rest of the screen cannot drown it. Ten of those same twelve and the second phone's first capture, in
- * about one to four seconds — which is a price worth paying once, and it is only ever paid once.
+ * dropped: it found the box on nine of twelve captures from one phone and on none at all from another, where the text
+ * sat across the boundary of the inverted crop `readLines` makes and was too low in contrast against the artwork for
+ * the sparse pass either side of it. Isolating first is what makes the line legible, and a band is small enough that
+ * the rest of the screen cannot drown it. Each band is read as a line rather than sparsely, which is what a band is by
+ * construction and is not a detail: the same band holding `L1 IV48 5/2/15` reads as `r '` sparse, because sparse mode
+ * takes the isolated blocks either side for pictures. A sweep costs a second or two and is only ever paid once.
  */
 export async function findOverlay(image: Image): Promise<OverlayBox | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
   const step = Math.max(1, Math.round(height / 3));
+  const width = Math.round(image.width * OVERLAY_SPAN);
+  const left = Math.round((image.width - width) / 2);
 
   for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
-    const band = isolate(crop(image, 0, top, image.width, height), OVERLAY_LUMINANCE, OVERLAY_CHROMA);
-    const line = (await ocr(scale(band, 2))).find((l) => TRIPLE.test(l.text));
+    const band = isolate(crop(image, left, top, width, height), OVERLAY_LUMINANCE, OVERLAY_CHROMA);
+    const line = await ocrLine(scale(band, 2));
 
-    if (line) {
-      // Back out of the doubling the band was read at, and back into the screenshot's own coordinates.
-      return boxAround({ ...line, left: line.left / 2, top: top + line.top / 2, width: line.width / 2 }, image);
+    if (line && TRIPLE.test(line.text)) {
+      // The band itself, which is already the right shape: as wide as the sweep, and tall enough to hold the line it
+      // was just read out of. Sizing a box from that line instead does not work, because reading a band as one line
+      // is exactly what makes its width meaningless — everything in the band comes back as one box, which on one
+      // capture spanned 626 pixels against a true 329 and on another sat 250 to the right of the text. So the band is
+      // the floor, and `tighten` improves on it where it can.
+      const band = {
+        x: left / image.width,
+        y: top / image.height,
+        width: width / image.width,
+        height: height / image.height,
+      };
+
+      return (await tighten(image, band)) ?? band;
     }
   }
 
@@ -176,13 +198,35 @@ export async function findOverlay(image: Image): Promise<OverlayBox | null> {
 }
 
 /**
+ * A second look at the band the sweep matched, measured from the three IVs alone. A band is a good enough crop to read
+ * from — ten of twelve captures on one phone and both on another — but a tight box is better, twelve of twelve, and a
+ * crop is small enough for the sparse mode to pick the triple out where it could not in the band it came from.
+ *
+ * Answers null where the sparse pass finds nothing, which is not a failure and must not be treated as one: the band it
+ * was handed already contains the text, and on the second phone this null is the difference between reading the
+ * overlay and reading nothing at all.
+ */
+async function tighten(image: Image, box: OverlayBox): Promise<OverlayBox | null> {
+  const left = box.x * image.width;
+  const top = box.y * image.height;
+  const region = crop(image, left, top, box.width * image.width, box.height * image.height);
+  const inner = (await ocr(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2))).find((l) =>
+    TRIPLE.test(l.text),
+  );
+
+  return inner
+    ? boxAround({ ...inner, left: left + inner.left / 2, top: top + inner.top / 2, width: inner.width / 2 }, image)
+    : null;
+}
+
+/**
  * The box around a line the overlay was recognised in. It is sized from the width of one character rather than from
- * the height Tesseract reports, because that height is not trustworthy: measured over twelve captures the same
- * overlay came back 25, 28, 49 and 54 pixels tall as the row was merged with whatever fragment of the artwork sat
- * beside it, and padding a 54 by half of itself reaches far enough into the picture to undo the whole point of
- * cropping. Character width does not wander — 270/17, 264/17 and 130/8 across those captures are within a pixel of
- * each other. It is anchored on the right edge and extended left, since the part that goes missing is always the
- * left: where only the three IVs are legible the level and the percentage ahead of them are still there to be read.
+ * the height Tesseract reports, because that height is not trustworthy: measured over twelve captures the same overlay
+ * came back 25, 28, 49 and 54 pixels tall as the row was merged with whatever fragment of the artwork sat beside it,
+ * and padding a 54 by half of itself reaches far enough into the picture to undo the whole point of cropping.
+ * Character width does not wander — 270/17, 264/17 and 130/8 across those captures are within a pixel of each other.
+ * It is anchored on the right edge and extended left, since the part that goes missing is always the left: where only
+ * the three IVs are legible the level and the percentage ahead of them are still there to be read.
  */
 function boxAround(line: { left: number; top: number; width: number; text: string }, image: Image): OverlayBox {
   const em = line.width / Math.max(1, line.text.length);
@@ -211,7 +255,8 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     box.width * image.width,
     box.height * image.height,
   );
-  const text = await ocrLine(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2), OVERLAY_ALPHABET);
+  const line = await ocrLine(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2), OVERLAY_ALPHABET);
+  const text = line?.text ?? '';
   const triple = TRIPLE.exec(text);
 
   if (!triple) {
@@ -228,26 +273,25 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 }
 
 /**
- * Every level the digits ahead of the IVs could be. Only the first run of them is considered, since that is where the
- * level is and the percentage behind it would only add noise; within that run every one and two digit piece counts,
- * because which end carries the stray `1` is exactly what cannot be told from the text. Being generous is safe here:
- * this is a shortlist for the HP to choose from, not an answer.
+ * Every level the digits ahead of the IVs could be: each one and two digit piece of every run of them, since which end
+ * of a run carries the stray `1` is exactly what cannot be told from the text. Restricting this to the first run was
+ * tried, on the reasoning that the percentage behind the level only adds noise, and it is the artwork ahead of the
+ * level that adds more — a band wide enough to find the overlay on one phone is wide enough to read a stray `4` to the
+ * left of it, which was then the only candidate and disagreed with an HP that was perfectly clear. Being generous is
+ * safe here: this is a shortlist for the HP to choose from, not an answer.
  */
 function levelsIn(text: string): number[] {
-  const digits = /\d+/.exec(text)?.[0];
-
-  if (digits === undefined) {
-    return [];
-  }
-
   const levels = new Set<number>();
 
-  for (let at = 0; at < digits.length; at++) {
-    for (const length of [1, 2]) {
-      const level = Number(digits.slice(at, at + length));
+  for (const [digits] of text.matchAll(/\d+/g)) {
+    for (let at = 0; at < digits.length; at++) {
+      for (const length of [1, 2]) {
+        const piece = digits.slice(at, at + length);
+        const level = Number(piece);
 
-      if (digits.slice(at, at + length).length === length && level >= 1 && level <= MAX_LEVEL) {
-        levels.add(level);
+        if (piece.length === length && level >= 1 && level <= MAX_LEVEL) {
+          levels.add(level);
+        }
       }
     }
   }

@@ -683,12 +683,30 @@ appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
   whichever Pokémon first yields one, and crop every later screen out of it. Do not write the fractions down as a
   default, because they are fractions of one phone's screen; finding it per run is what makes a new phone need no
   configuration at all.
-- **Size that crop from character width, never from the height Tesseract reports.** The same overlay row came back 25,
-  28, 49 and 54 pixels tall across twelve captures, as Tesseract merged it with whatever fragment of artwork sat beside
-  it — and padding a 54 by half of itself reaches far enough into the picture to undo the crop. Character width does not
-  wander: 270/17, 264/17 and 130/8 on those same captures are all within a pixel. Anchor on the right edge and extend
-  left, too, since the half that goes missing is always the left one — twice, only `10/11/14` was located, with the
-  level and percentage still on screen ahead of it.
+- **Find it by sweeping isolated bands, not by looking through a whole-screen read.** Searching the lines `readLines`
+  already produced is the cheap and obvious thing and it does not work: nine of twelve captures on one phone and none at
+  all on the next, where the overlay straddled the boundary of the inverted top-fifth crop and was too low in contrast
+  for the sparse pass either side of it. Isolating first is what makes the line legible, and a band a few percent of the
+  screen tall is small enough that the rest of the screen cannot drown it. Keep only a box that actually yielded a
+  reading, since one that merely looked right goes on being wrong for every Pokémon behind it.
+- **Read each band as a line, not sparsely, and do not size the box from what comes back.** A band is one line by
+  construction, and the mode matters more than anything else in the sweep: the band holding `L1 IV48 5/2/15` on a bright
+  screen reads as `r '` under sparse mode and as `L1 1V48 5/2/15` as a line, because isolating turns the bright artwork
+  either side into blocks that sparse mode files as pictures. The cost is that everything in the band comes back as one
+  box, so a box measured from it spanned 626 pixels against a true 329 on one capture and sat 250 pixels right of the
+  text on another. Use the band itself as the box and let a second sparse pass over that crop tighten it where it can —
+  twelve of twelve on the first phone with the tightening, both captures on the second without it. The null it answers
+  when it cannot tighten must not be read as a failure: the band it was handed already holds the text.
+- **PGSharp centres its overlay, which is what makes sweeping the middle 70% safe** — 718 and 720 against a screen
+  centre of 720 on one phone, 501 against 504 on another, and the widest of those boxes 38% of its screen. Sweeping the
+  full width works too; sweeping the middle leaves out whatever sits along the edges, the movable PGSharp toolbar in
+  particular, which is otherwise read as part of the same line.
+- **Where a box is sized from a line, size it from character width, never from the height Tesseract reports.** The same
+  overlay row came back 25, 28, 49 and 54 pixels tall across twelve captures, as Tesseract merged it with whatever
+  fragment of artwork sat beside it — and padding a 54 by half of itself reaches far enough into the picture to undo the
+  crop. Character width does not wander: 270/17, 264/17 and 130/8 on those same captures are all within a pixel. Anchor
+  on the right edge and extend left, too, since the half that goes missing is always the left one — twice, only
+  `10/11/14` was located, with the level and percentage still on screen ahead of it.
 - **Upscale 2x and no further.** At 1x Tesseract read `14/18/12` for `14/13/12`; at 2x it read it correctly in every
   treatment tried; at 3x and 4x it began reading the level's `L` as a `1`. Nearest-neighbour is enough.
 - **The IV percentage is colour-coded by quality and cannot be thresholded alongside the white text** — magenta at 93,
@@ -700,11 +718,18 @@ appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
 - **The level is the one field of the three to distrust, and the way out is to read it as a shortlist.** The small-caps
   `L` comes back as `L` on one phone and `1` on another, and the `IV` label behind it as another `1`, so `151` is `L15`
   and a stray or a stray and `51` and the string cannot say which — `131` for `L31` is the same question on the other
-  phone. Do not pick. Offer every one and two digit piece of that first run of digits and let `levelsOf` intersect it
-  with the levels that reproduce the HP: generous where it is cheap to be and exact where it matters. It resolves the
-  HP's own ambiguity in the same step, which is the part worth remembering — HP alone answered `30.5 or 31` for the
-  Shroomish and the digits alone `1, 13, 3 or 31`, and together they answer 31. Measured, 12 of 12 levels across the
-  older phone's captures and the newer phone's.
+  phone. Do not pick. Offer every one and two digit piece of every run of digits ahead of the IVs and let `levelsOf`
+  intersect them with the levels that reproduce the HP: generous where it is cheap to be and exact where it matters. It
+  resolves the HP's own ambiguity in the same step, which is the part worth remembering — HP alone answered `30.5 or 31`
+  for the Shroomish and the digits alone `1, 13, 3 or 31`, and together they answer 31. Restricting this to the first
+  run was tried and is wrong: a band wide enough to find the overlay is wide enough to read a stray `4` to the left of
+  it, and that was then the only candidate, disagreeing with an HP that was perfectly clear. Measured, 12 of 12 levels
+  across the older phone's captures and both of the newer phone's.
+- **PGSharp's toolbar covers the first letter of whatever is behind it, so do not key off a heading.** Storage's
+  suggestions panel has to be recognised before it can be dismissed, and its `Recent` heading OCRs as `serccemt` with
+  the toolbar over the `R` while `Recommended` is not read at all. Recognise it by what it lacks instead: an empty
+  search matches everything, so a grid with no `CP` anywhere in it is that panel and can be nothing else. The user can
+  move that toolbar, which is the other reason not to depend on where it sits.
 - **A key that needs the CP is a key that does not exist.** `keyOf` required CP and HP, so with CP unreadable every
   screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
   walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
