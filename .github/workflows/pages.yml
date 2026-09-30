@@ -9,9 +9,6 @@ on:
 permissions:
   contents: 'read'
 
-# One deploy at a time and never cancelled part-way, for the reason `calendar.yml` gives about its own commit: a run
-# killed mid-upload may have replaced some of the site and not the rest. Overlapping deploys are ordinary here rather
-# than a corner case, because that workflow pushes `events.ics` to `master` on a six-hourly cron.
 concurrency:
   group: 'pages'
   cancel-in-progress: false
@@ -22,30 +19,22 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
       - uses: 'actions/checkout@v7'
-
-      # The repository root, which is what `legacy` published from: every page loads its stylesheets and modules
-      # straight out of `src/`, so there is nothing to compile. `include-hidden-files` is left at its default, which
-      # excludes every dotfile as well as `.git` and `.github` — the linter and formatter configuration Jekyll was
-      # already skipping, and nothing any page fetches.
       - uses: 'actions/upload-pages-artifact@v5'
         with:
           path: '.'
 
   deploy:
     name: 'Deploy'
-    needs: ['build']
+    needs: 'build'
     runs-on: 'ubuntu-latest'
 
-    # `pages` to publish and `id-token` for the OIDC token `deploy-pages` exchanges for permission to do it, which is
-    # the minimum that action documents. Declared on this job so that `build` — the one that runs third-party code over
-    # the checkout — cannot write the live site.
     permissions:
-      pages: 'write'
       id-token: 'write'
+      pages: 'write'
 
     environment:
       name: 'github-pages'
       url: '${{ steps.deploy.outputs.page_url }}'
+
     steps:
-      - id: 'deploy'
-        uses: 'actions/deploy-pages@v5'
+      - uses: 'actions/deploy-pages@v5'
