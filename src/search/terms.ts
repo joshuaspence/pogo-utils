@@ -292,8 +292,8 @@ export const GROUPS: readonly Group[] = [
 ];
 
 /**
- * The numeric ranges, each written as its prefix and a span: `cp100-2000`. A bound left empty is left out, so one box
- * filled writes the open-ended range the game accepts (`cp3000-`) rather than inventing the other end.
+ * The numeric ranges, each written as its prefix and a span: `cp100-2000`. A bound left empty falls back to the range's
+ * own `min` or `max` rather than to an open end, so one box filled writes `cp3000-5000`; `rangeClause` says why.
  *
  * `max` bounds the input so a typo cannot write a range nothing can match, and is the ceiling the game itself has where
  * there is one — 1025 is the dex, and a CP above 5000 belongs to nothing.
