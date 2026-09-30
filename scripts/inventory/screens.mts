@@ -75,12 +75,21 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     return value === undefined ? null : Number(value.replace(',', '.'));
   };
 
+  const row = lines.find((l) => /\d\s*(kg|m)\b/i.test(l.text));
+  let weightKg = number(/(\d+(?:[.,]\d+)?)\s*kg\b/i);
+  let heightM = number(/(\d+(?:[.,]\d+)?)\s*m\b/i);
+
+  if (row) {
+    weightKg ??= await measured(image, row, 0);
+    heightM ??= await measured(image, row, 1 - MEASURE_WIDTH);
+  }
+
   return {
     cp,
     name,
     hp,
-    weightKg: number(/(\d+(?:[.,]\d+)?)\s*kg\b/i),
-    heightM: number(/(\d+(?:[.,]\d+)?)\s*m\b/i),
+    weightKg,
+    heightM,
     types: await typesOf(lines, data, image),
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
@@ -161,6 +170,30 @@ function genderOf(image: Image, hp: Line): Gender | null {
   return (bottom - top + 1) / Math.max(1, right - left + 1) >= GENDER_TALL ? 'female' : 'male';
 }
 
+/** Only what a weight or a height is written with; the `g` of `kg` is dropped often enough not to be relied on. */
+const MEASURE_ALPHABET = '0123456789.,kgm ';
+const MEASURE_WIDTH = 0.38;
+
+/**
+ * The weight or the height read off its own end of the row they share, for when the whole-screen pass missed it. The
+ * number rather than the unit is what is matched, because the unit is the part that goes: a Cyndaquil's `5.42kg` came
+ * back as `5.42k` and was rejected for want of a `g`. A decimal point is what makes a bare number safe to take — every
+ * weight and height the game shows carries one, and the stray digits this crop picks up out of the artwork do not.
+ */
+async function measured(image: Image, row: Line, from: number): Promise<number | null> {
+  const band = crop(
+    image,
+    image.width * from,
+    row.top - row.height * 0.25,
+    image.width * MEASURE_WIDTH,
+    row.height * 1.5,
+  );
+  const text = (await ocrLine(scale(band, 2), MEASURE_ALPHABET))?.text ?? '';
+  const value = /(\d+[.,]\d+)/.exec(text)?.[1];
+
+  return value === undefined ? null : Number(value.replace(',', '.'));
+}
+
 /** Only letters and the slash between two types; the row also holds `WEIGHT` and `HEIGHT`, which are letters too. */
 const TYPE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ/ ';
 
@@ -214,26 +247,38 @@ async function typesOf(lines: readonly Line[], data: GameData, image: Image): Pr
 }
 
 /**
- * The moves, read as whichever lines are near enough to a move's name, in the order they sit: the fast move first and
- * the charged moves beneath it. Anything level with or above the weight and height is left out, since that row holds
- * the types and a type can also be a move — Psychic is both — and above it is the name, which a nickname can make look
- * like one. How far the scroll went varies, so when neither row is still on screen every line is a candidate.
+ * The moves, read out of the rows beneath the `GYMS & RAIDS` tabs. That tab row is the anchor because it is the one
+ * thing that sits immediately above the moves and nothing else does — found on all fifty screens of a corpus — where
+ * the weight and height it used to be measured from are most of a screen away and leave everything between them in
+ * play. Bounding the region below matters as much: `CAUGHT IN THE WILD` and the rest are ordinary prose that a fuzzy
+ * match will happily take for a short move, and reading down into them produced a `Rest` and a `Fly` that neither
+ * Pokémon could learn.
  *
- * The HP anchor has to name HP rather than match a pair of numbers around a slash, because two other things on that
- * screen are also a pair of numbers around a slash and both of them ruin it. `30/09/2026` in the catch details sits
- * *below* the moves, so it pushed the floor past them and left nothing at all to read — every Pokémon of a live scan
- * came back `moves not fully read` against a screenshot with `Astonish 7` and `Struggle 35` plainly on it. PGSharp's
- * own overlay is the other, since three IVs are separated the same way.
+ * Each row is matched against the moves that form can actually hold before the whole list is considered, which is a
+ * choice among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type
+ * icon has come through as two letters, is two edits from `Tackle` and was rejected outright against the full list.
+ * A row that still does not match is cropped and read again on its own, and that rescue answers only to the pool,
+ * since it is the reading least worth trusting against everything.
+ *
+ * Measured over fifty screens from two phones: 45 of 50 fast moves and 45 charged before, 50 and 50 after, with
+ * nothing read that its Pokémon could not learn, for half a rescue read per screen.
  */
-export function parseMoves(lines: readonly Line[], data: GameData): Moves {
-  const anchors = lines.filter(
-    (l) => /\d\s*(kg|m)\b/i.test(l.text) || (/\d\s*\/\s*\d/.test(l.text) && /hp/i.test(l.text)),
-  );
-  const floor = Math.max(-Infinity, ...anchors.map((l) => l.top + l.height));
-  const found = lines
-    .filter((l) => l.top > floor)
-    .map((l) => moveOn(l.text, data))
-    .filter((m) => m !== null);
+export async function parseMoves(
+  lines: readonly Line[],
+  data: GameData,
+  form: Form | null,
+  image: Image,
+): Promise<Moves> {
+  const pool = form?.moves ?? [];
+  const found: Move[] = [];
+
+  for (const row of moveRows(lines)) {
+    const move = moveIn(row.text, pool, data.moves) ?? (await moveUnder(image, row, pool));
+
+    if (move) {
+      found.push(move);
+    }
+  }
 
   return {
     fast: found.find((m) => m.fast)?.name ?? null,
@@ -244,19 +289,45 @@ export function parseMoves(lines: readonly Line[], data: GameData): Moves {
   };
 }
 
-/** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
+/** The lines that can be a move: under the tabs, above the catch details, and carrying letters rather than a power. */
+function moveRows(lines: readonly Line[]): Line[] {
+  const tab = lines.find((l) => MOVE_TAB.test(fold(l.text)));
+  // Without the tabs, fall back on the weight and height, which are at least above the moves. The HP has to be named
+  // rather than matched as a pair of numbers around a slash, since `30/09/2026` in the catch details is one too, and
+  // sits *below* the moves — measured, that alone lost every move of a live scan.
+  const above = lines.filter(
+    (l) => /\d\s*(kg|m)\b/i.test(l.text) || (/\d\s*\/\s*\d/.test(l.text) && /hp/i.test(l.text)),
+  );
+  const floor = tab ? tab.top + tab.height : Math.max(-Infinity, ...above.map((l) => l.top + l.height));
+  const rows: Line[] = [];
+
+  for (const line of [...lines].filter((l) => l.top > floor).sort((a, b) => a.top - b.top)) {
+    if (BELOW_MOVES.test(fold(line.text))) {
+      break;
+    }
+
+    if (line.text.replace(/[^A-Za-z]/g, '').length >= 3) {
+      rows.push(line);
+    }
+  }
+
+  return rows.slice(0, MOVE_ROWS);
+}
+
 /**
- * The move a row names, if any. A charged move is followed by its energy bar, which OCRs as a couple of short nonsense
- * tokens — `© Energy Ball ay Ay` — and four characters of them is enough to put the row past `closest`'s slack and
- * lose the move altogether. So the whole row is tried first and short trailing tokens are dropped one at a time only
- * while nothing has matched: trying the longest form first is what keeps `Aqua Jet` from being shortened to `Aqua`,
- * which matches nothing and would trade one silent loss for another.
+ * The move a row names. A charged move is followed by its energy bar, which comes through as a couple of short
+ * nonsense tokens — `© Energy Ball ay Ay` — and four characters of them is enough to put the row past the slack. So
+ * the whole row is tried first and short trailing tokens dropped one at a time only while nothing has matched:
+ * longest-first is what stops `Aqua Jet` being shortened to `Aqua`, which matches nothing at all.
  */
-function moveOn(text: string, data: GameData): Move | null {
+function moveIn(text: string, pool: readonly Move[], all: readonly Move[]): Move | null {
   let words = text.replace(/\d+/g, '').split(/\s+/).filter(Boolean);
 
   for (;;) {
-    const move = closest(words.join(' '), data.moves, (m) => m.name, MOVE_SLACK);
+    const joined = words.join(' ');
+    const move =
+      (pool.length > 0 ? closest(joined, pool, (m) => m.name, POOL_SLACK) : null) ??
+      (all.length > 0 ? closest(joined, all, (m) => m.name, MOVE_SLACK) : null);
     const last = words.at(-1);
 
     if (move !== null || last === undefined || last.length > MOVE_NOISE) {
@@ -266,6 +337,21 @@ function moveOn(text: string, data: GameData): Move | null {
     words = words.slice(0, -1);
   }
 }
+
+/** A row read again on its own, doubled, for the rows the whole-screen pass only half caught — `t Breath` for `Frost
+ * Breath`, where the icon and the first letters were lost. Only the pool is offered, since a rescue read is the least
+ * trustworthy text on the screen and the whole list would take almost anything. */
+async function moveUnder(image: Image, row: Line, pool: readonly Move[]): Promise<Move | null> {
+  if (pool.length === 0) {
+    return null;
+  }
+
+  const band = crop(image, 0, row.top - row.height * 0.3, image.width * MOVE_WIDTH, row.height * 1.6);
+
+  return moveIn((await ocrLine(scale(band, 2), MOVE_ALPHABET))?.text ?? '', pool, []);
+}
+
+/** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
 
 export interface OverlayBox {
   x: number;
@@ -294,12 +380,33 @@ const OVERLAY_CHROMA = 55;
 
 const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
 
-/** `L25 IV86 14/13/12` and a character's slack, which is what the box is measured in. */
-const OVERLAY_CHARACTERS = 19;
+/**
+ * How far left of the three IVs the box reaches, in characters, which is what it is measured in. `L25 IV86 14/13/12`
+ * is eighteen, and the generosity beyond that is not spare: the em it is multiplied by is estimated from whatever
+ * line was recognised, often the triple alone, and a short triple under-estimates it. At 19 a box tightened on one
+ * Pokémon clipped the `L31` off the next while keeping its IVs — which reads as a success, so nothing widened the box
+ * and the level was simply lost. Measured per phone over 62 screens, 19 reads 49 of 50 levels and 30 reads all of
+ * them, with no reading gained or lost elsewhere.
+ */
+const OVERLAY_CHARACTERS = 30;
 
 /** How far a row may be from a move's name, and how short a trailing token has to be to be an energy bar. */
 const MOVE_SLACK = 0.2;
 const MOVE_NOISE = 3;
+
+/** A form's own pool is a median of seven moves against 328, so a row may be much further from one of those. */
+const POOL_SLACK = 0.45;
+
+/** The tabs directly above the moves, and the first of whatever follows them. */
+const MOVE_TAB = /\b(gyms|raids|trainer battles)\b/;
+const BELOW_MOVES = /\b(new attack|caught|hatched|traded|swap buddies|transfer|appraise)\b/;
+
+/** Three rows of moves and a little slack; and how much of the width a name can occupy, short of its power. */
+const MOVE_ROWS = 6;
+const MOVE_WIDTH = 0.62;
+
+/** Move names are words, with a hyphen in a few — `Lock-On`, `Power-Up Punch` — and nothing else. */
+const MOVE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-' ";
 
 /** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
 const MAX_LEVEL = 51;

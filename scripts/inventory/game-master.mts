@@ -36,6 +36,12 @@ export interface Form {
   attack: number;
   defense: number;
   stamina: number;
+  /**
+   * Every move this form can hold: the ordinary pools, the elite ones a legacy Pokémon may still carry, Rayquaza's
+   * untradeable Dragon Ascent, and the Frustration and Return a shadow or purified one has. Reading a move against
+   * this rather than against all 328 is the difference between choosing among three and choosing among hundreds.
+   */
+  moves: readonly Move[];
 }
 
 export interface Move {
@@ -67,6 +73,12 @@ interface Template {
       type: string;
       type2?: string;
       stats: { baseAttack?: number; baseDefense?: number; baseStamina?: number };
+      quickMoves?: string[];
+      cinematicMoves?: string[];
+      eliteQuickMove?: string[];
+      eliteCinematicMove?: string[];
+      nonTmCinematicMoves?: string[];
+      shadow?: { shadowChargeMove?: string; purifiedChargeMove?: string };
     };
     formSettings?: { pokemon: string; forms?: { form: string; isCostume?: boolean }[] };
     moveSettings?: object;
@@ -98,6 +110,24 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     }
   }
 
+  const moves: Move[] = [];
+  const byId = new Map<string, Move>();
+
+  for (const { templateId, data } of templates) {
+    // `movementId` is a name for most moves and a bare number for a few, so the template's own id is the one to read.
+    const match = /^V(\d{4})_MOVE_(\w+)$/.exec(templateId);
+    const id = match?.[2];
+
+    if (!data.moveSettings || !match || id === undefined) {
+      continue;
+    }
+
+    const fast = id.endsWith('_FAST');
+    const move = { name: strings.get(`move_name_${match[1]}`) ?? titleise(id.replace(/_FAST$/, '')), fast };
+    moves.push(move);
+    byId.set(id, move);
+  }
+
   const forms: Form[] = [];
   const bare = new Map<number, Form>();
 
@@ -123,6 +153,19 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
       attack: baseAttack,
       defense: baseDefense,
       stamina: baseStamina,
+      // A handful of pool entries are bare numbers where every move template is named, so some do not resolve; the
+      // reader falls back on the whole list when nothing in the pool fits, which is also what covers a move the game
+      // has since dropped from the pool of a Pokémon still holding it.
+      moves: [
+        ...(settings.quickMoves ?? []),
+        ...(settings.eliteQuickMove ?? []),
+        ...(settings.cinematicMoves ?? []),
+        ...(settings.eliteCinematicMove ?? []),
+        ...(settings.nonTmCinematicMoves ?? []),
+        ...[settings.shadow?.shadowChargeMove, settings.shadow?.purifiedChargeMove].filter((m) => m !== undefined),
+      ]
+        .map((id) => byId.get(id))
+        .filter((m) => m !== undefined),
     };
 
     // A species with forms is listed once bare and once per form, the bare entry repeating the `_NORMAL` one. Keep it
@@ -138,21 +181,6 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     if (!forms.some((f) => f.dex === dex)) {
       forms.push(form);
     }
-  }
-
-  const moves: Move[] = [];
-
-  for (const { templateId, data } of templates) {
-    // `movementId` is a name for most moves and a bare number for a few, so the template's own id is the one to read.
-    const match = /^V(\d{4})_MOVE_(\w+)$/.exec(templateId);
-    const id = match?.[2];
-
-    if (!data.moveSettings || !match || id === undefined) {
-      continue;
-    }
-
-    const fast = id.endsWith('_FAST');
-    moves.push({ name: strings.get(`move_name_${match[1]}`) ?? titleise(id.replace(/_FAST$/, '')), fast });
   }
 
   const table = templates.find((t) => t.data.playerLevel)?.data.playerLevel?.cpMultiplier ?? [];

@@ -776,6 +776,43 @@ rank them, and the ranking was not what watching the scan suggested.
   digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
   flip between the two Pokémon that disagree.
 
+### Reading a move against what the Pokémon can learn
+
+The game master carries `quickMoves` and `cinematicMoves` per form, and `eliteQuickMove`, `eliteCinematicMove`,
+`nonTmCinematicMoves` and the shadow pair beside them. Together that is a median of **seven** moves against the 328 a
+row was being matched against, and matching against the seven is the single largest thing that can be done for the moves
+— 45 of 50 fast moves and 45 charged before, 50 and 50 after.
+
+- **A small candidate set affords slack a large one cannot.** `oO Tackle`, where the type icon has come through as two
+  letters, is two edits from `Tackle` and was rejected outright at the slack the full list needs. Against a pool of two
+  it is not close to anything else. Keep the full list as a fallback, since a Pokémon can still hold a move the game has
+  since dropped from its pool, and `Smeargle` has no pool at all.
+- **Bound the region below as well as above.** `GYMS & RAIDS` sits immediately above the moves and nothing else does,
+  which makes it the anchor — found on all fifty screens — where the weight and height are most of a screen away. Below
+  them, `CAUGHT IN THE WILD` and `São Paulo, Brazil` are ordinary prose, and reading down into them produced a `Rest`
+  and a `Fly` that neither Pokémon could learn. A row that is all digits is the power, not a move.
+- **A rescue read answers only to the pool.** Cropping a row and reading it again on its own recovers the ones the
+  whole-screen pass half caught — `t Breath` for `Frost Breath`, icon and first letters gone — but it is the least
+  trustworthy text on the screen, so offering it the whole list is how `Rest` and `Fly` got in. Restricting the rescue
+  to the pool and the region to the tabs took the band reads from 20 per screen to 0.5 and the false matches to none.
+- **`NEW ATTACK` cannot be used to tell whether a second charged move exists.** It is white on a green gradient and
+  never reads: 0 of 75 screens, on screens where a crop shows it plainly. Count the move rows instead — 60 of 75 have
+  exactly two, which is what one fast and one charged looks like.
+
+### Two ways a reader fails without reporting anything
+
+- **A crop that clips one end keeps what is at the other, and that reads as a success.** The overlay box is sized from
+  the width of one character, estimated from whatever line was recognised — often the three IVs alone, which
+  under-estimates it. A box tightened on one Pokémon then clipped the `L31` off the next while keeping its IVs, so the
+  read succeeded, nothing widened the box, and only the level was gone. Widening on a failed read does not cover this;
+  the answer is to reach further than the text can need — 19 characters reads 49 of 50 levels and 30 reads all of them.
+- **The unit is the part of a measurement that goes.** A Cyndaquil's `5.42kg` came back `5.42k` and was thrown away for
+  want of a `g`. Match the number: every weight and height the game shows carries a decimal point, and the stray digits
+  a crop picks out of the artwork do not.
+- **Measure each phone on its own.** Running both corpora through one harness shares a box that widens as it goes, so a
+  box grown on one phone's screens rescues the other's and a real regression reads as a pass. Two phones measured
+  together said 24 characters was worse than 19; measured apart, it was neither.
+
 ### Waiting for a screen rather than guessing at it
 
 - **Watch the panel for movement, never the frame.** A fixed sleep after a swipe can only guess, and comparing whole
