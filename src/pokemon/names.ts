@@ -60,7 +60,8 @@ const titleise = (constant: string): string =>
 
 /**
  * The form names the constant-to-words rule gets wrong: the two Unown that are punctuation, a percentage the constant
- * had to spell out, and two whose hyphen or accent was dropped. Every other form reads the way `titleise` writes it.
+ * had to spell out, three whose hyphen, accent or apostrophe was dropped, and three the games write with a lower-case
+ * `of` where `titleise` capitalises every segment alike. Every other form reads the way `titleise` writes it.
  */
 const FORM_SPELLINGS: Record<string, string> = {
   EXCLAMATION_MARK: '!',
@@ -68,7 +69,11 @@ const FORM_SPELLINGS: Record<string, string> = {
   TEN_PERCENT_FORME: '10% Forme',
   FIFTY_PERCENT_FORME: '50% Forme',
   POM_POM_STYLE: 'Pom-Pom Style',
+  PAU_STYLE: "Pa'u Style",
   POKE_BALL: 'Poké Ball',
+  HERO_OF_MANY_BATTLES: 'Hero of Many Battles',
+  FAMILY_OF_THREE: 'Family of Three',
+  FAMILY_OF_FOUR: 'Family of Four',
 };
 
 /**
