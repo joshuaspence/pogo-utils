@@ -160,21 +160,35 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /**
+ * The restore a button is already waiting on: the timer to cancel and the label it was flashed over. Keyed weakly
+ * because a popup's button dies with its popup. `toastTimer` is the same guard for the one toast there is.
+ */
+const flashes = new WeakMap<HTMLButtonElement, { timer: number; label: string | null }>();
+
+/**
  * Flash a copy button through its outcome — "Copied" or "Failed" — then restore its label a moment later. The
  * button is optional, so a caller with none to flash still shares this path.
+ *
+ * A second click inside the 1400ms must not read the flashed label as the original, or the restore puts "Copied" back
+ * and the button carries it for the rest of the page's life. So the pending flash surrenders both its timer and the
+ * label it captured, which every copy button — sidebar row and popup alike — outlives many clicks of.
  */
 function flashButton(btn: HTMLButtonElement | null, ok: boolean) {
   if (!btn) {
     return;
   }
 
-  const original = btn.textContent;
+  const pending = flashes.get(btn);
+  clearTimeout(pending?.timer);
+  const label = pending ? pending.label : btn.textContent;
   btn.textContent = ok ? 'Copied' : 'Failed';
   btn.classList.add('done');
-  setTimeout(() => {
-    btn.textContent = original;
+  const timer = setTimeout(() => {
+    btn.textContent = label;
     btn.classList.remove('done');
+    flashes.delete(btn);
   }, 1400);
+  flashes.set(btn, { timer, label });
 }
 
 async function copyRoute(entry: RouteEntry, btn: HTMLButtonElement) {
