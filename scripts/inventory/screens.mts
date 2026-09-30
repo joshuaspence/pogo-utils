@@ -112,8 +112,13 @@ export interface OverlayBox {
 }
 
 export interface Overlay {
-  /** Null where the box was read but the level was not; the arithmetic in `identify` is what settles it either way. */
-  level: number | null;
+  /**
+   * Every level the overlay's digits could be saying, rather than one. The small-caps `L` reads as an `L` on one
+   * phone and a `1` on another, and the `IV` label after the level reads as another `1`, so `151` is `L15` followed
+   * by that stray or a stray followed by `51` and nothing in the string says which. Offering both and letting the HP
+   * choose settles it, and settles the HP's own ambiguity in the same step — `identify` does the intersecting.
+   */
+  levels: number[];
   iv: IVs;
 }
 
@@ -129,6 +134,9 @@ const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
 /** `L25 IV86 14/13/12` and a character's slack, which is what the box is measured in. */
 const OVERLAY_CHARACTERS = 19;
 
+/** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
+const MAX_LEVEL = 51;
+
 /**
  * Where the overlay sits, found by the one thing nothing else on the screen carries: three small numbers separated by
  * slashes. This is the expensive half and it only has to work once — a caller finds the box on whichever Pokemon it
@@ -136,22 +144,48 @@ const OVERLAY_CHARACTERS = 19;
  * PGSharp draws the overlay itself rather than leaving it to Unity, so the box does not move between species; what it
  * does do is move between devices, which is why this is found rather than configured.
  */
-export function findOverlay(lines: readonly Line[], image: Image): OverlayBox | null {
-  const line = lines.find((l) => l.top < image.height / 2 && TRIPLE.test(l.text));
+/** How far down the screen the overlay can sit, and how tall a band to sweep, as fractions of the screen's height. */
+const OVERLAY_FROM = 0.08;
+const OVERLAY_TO = 0.45;
+const OVERLAY_BAND = 0.03;
 
-  if (!line) {
-    return null;
+/**
+ * Where the overlay sits, found by sweeping narrow bands down the upper screen, isolating each and reading it. The
+ * obvious cheaper thing — looking for the triple among the lines a whole-screen read already produced — was tried and
+ * dropped: it found the box on nine of twelve captures from one phone and on none at all from another, where the
+ * text sat across the boundary of the inverted crop `readLines` makes and was too low in contrast against the artwork
+ * for the sparse pass either side of it. Isolating first is what makes the line legible, and a band is small enough
+ * that the rest of the screen cannot drown it. Ten of those same twelve and the second phone's first capture, in
+ * about one to four seconds — which is a price worth paying once, and it is only ever paid once.
+ */
+export async function findOverlay(image: Image): Promise<OverlayBox | null> {
+  const height = Math.round(image.height * OVERLAY_BAND);
+  const step = Math.max(1, Math.round(height / 3));
+
+  for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
+    const band = isolate(crop(image, 0, top, image.width, height), OVERLAY_LUMINANCE, OVERLAY_CHROMA);
+    const line = (await ocr(scale(band, 2))).find((l) => TRIPLE.test(l.text));
+
+    if (line) {
+      // Back out of the doubling the band was read at, and back into the screenshot's own coordinates.
+      return boxAround({ ...line, left: line.left / 2, top: top + line.top / 2, width: line.width / 2 }, image);
+    }
   }
 
-  // The box is sized from the width of one character rather than from the height Tesseract reports, because that
-  // height is not trustworthy: measured over twelve captures the same overlay came back 25, 28, 49 and 54 pixels tall
-  // as the row was merged with whatever fragment of the artwork sat beside it, and padding a 54 by half of itself
-  // reaches far enough into the picture to undo the whole point of cropping. Character width does not wander — 270/17,
-  // 264/17 and 130/8 across those same captures are all within a pixel of each other.
-  const em = line.width / Math.max(1, line.text.length);
+  return null;
+}
 
-  // Anchored on the right edge and extended left, since the part that goes missing is always the left: where only the
-  // three IVs are legible the level and the percentage before them are still there to be read, just not by this pass.
+/**
+ * The box around a line the overlay was recognised in. It is sized from the width of one character rather than from
+ * the height Tesseract reports, because that height is not trustworthy: measured over twelve captures the same
+ * overlay came back 25, 28, 49 and 54 pixels tall as the row was merged with whatever fragment of the artwork sat
+ * beside it, and padding a 54 by half of itself reaches far enough into the picture to undo the whole point of
+ * cropping. Character width does not wander — 270/17, 264/17 and 130/8 across those captures are within a pixel of
+ * each other. It is anchored on the right edge and extended left, since the part that goes missing is always the
+ * left: where only the three IVs are legible the level and the percentage ahead of them are still there to be read.
+ */
+function boxAround(line: { left: number; top: number; width: number; text: string }, image: Image): OverlayBox {
+  const em = line.width / Math.max(1, line.text.length);
   const right = line.left + line.width + em;
   const left = right - OVERLAY_CHARACTERS * em;
 
@@ -190,9 +224,35 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     return null;
   }
 
-  const level = /L\s*(\d{1,2})/.exec(text.slice(0, triple.index));
+  return { levels: levelsIn(text.slice(0, triple.index)), iv: { attack, defense, stamina } };
+}
 
-  return { level: level ? Number(level[1]) : null, iv: { attack, defense, stamina } };
+/**
+ * Every level the digits ahead of the IVs could be. Only the first run of them is considered, since that is where the
+ * level is and the percentage behind it would only add noise; within that run every one and two digit piece counts,
+ * because which end carries the stray `1` is exactly what cannot be told from the text. Being generous is safe here:
+ * this is a shortlist for the HP to choose from, not an answer.
+ */
+function levelsIn(text: string): number[] {
+  const digits = /\d+/.exec(text)?.[0];
+
+  if (digits === undefined) {
+    return [];
+  }
+
+  const levels = new Set<number>();
+
+  for (let at = 0; at < digits.length; at++) {
+    for (const length of [1, 2]) {
+      const level = Number(digits.slice(at, at + length));
+
+      if (digits.slice(at, at + length).length === length && level >= 1 && level <= MAX_LEVEL) {
+        levels.add(level);
+      }
+    }
+  }
+
+  return [...levels];
 }
 
 export interface Identity {
@@ -246,8 +306,9 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
 
   const [form = null, ...alternatives] = distinct;
   const consistent = form && iv && detail.hp !== null ? levelsOf(data, form, iv, detail.hp) : [];
-  const stated = overlay?.level ?? null;
-  const levels = stated !== null && consistent.includes(stated) ? [stated] : consistent;
+  const stated = overlay?.levels ?? [];
+  const agreed = consistent.filter((l) => stated.includes(l));
+  const levels = agreed.length > 0 ? agreed : consistent;
 
   if (nickname && iv === null) {
     notes.push('a nickname hides the species, and only the IVs can say what it is');
@@ -257,8 +318,8 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
     notes.push(`could also be ${alternatives.map(label).join(', ')}`);
   }
 
-  if (stated !== null && consistent.length > 0 && !consistent.includes(stated)) {
-    notes.push(`the overlay read level ${stated}, which this HP cannot be`);
+  if (stated.length > 0 && consistent.length > 0 && agreed.length === 0) {
+    notes.push(`the overlay reads as level ${stated.join(' or ')}, none of which this HP can be`);
   }
 
   if (levels.length > 1) {

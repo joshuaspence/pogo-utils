@@ -709,13 +709,18 @@ appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
   treatment tried; at 3x and 4x it began reading the level's `L` as a `1`. Nearest-neighbour is enough.
 - **The IV percentage is colour-coded by quality and cannot be thresholded alongside the white text** — magenta at 93,
   cyan at 86, green at 75, so magenta's luminance of about 78 falls below any floor that keeps the dark box out.
-  Isolating near-white (luminance >= 150, chroma <= 55) therefore deletes it, which is the point rather than the cost:
-  it is `floor((a + d + s) / 45 * 100)` and derivable from the three IVs beside it. Measured, that isolation reads **12
-  of 12** IV triples where the same screens read whole give 3.
-- **The level is the one field of the three to distrust.** It reads 11 of 12, because the `IV` label beside it OCRs as a
-  `1` and runs into the digits — `L120 1` for `L20`. So offer it rather than assert it: `levelsOf` narrows the level to
-  the few that reproduce the HP, and the overlay's reading is kept only where the HP agrees. Where it does not read at
-  all, the HP alone still settled it in every capture tried.
+  Isolating near-white (luminance >= 150, chroma <= 55) therefore deletes it — along with the `✨` PGSharp appends for a
+  shiny, which is worth knowing is there, since it is a signal the flag passes currently buy with a whole search each.
+  That deletion is the point rather than the cost: it is `floor((a + d + s) / 45 * 100)` and derivable from the three
+  IVs beside it. Measured, that isolation reads **12 of 12** IV triples where the same screens read whole give 3.
+- **The level is the one field of the three to distrust, and the way out is to read it as a shortlist.** The small-caps
+  `L` comes back as `L` on one phone and `1` on another, and the `IV` label behind it as another `1`, so `151` is `L15`
+  and a stray or a stray and `51` and the string cannot say which — `131` for `L31` is the same question on the other
+  phone. Do not pick. Offer every one and two digit piece of that first run of digits and let `levelsOf` intersect it
+  with the levels that reproduce the HP: generous where it is cheap to be and exact where it matters. It resolves the
+  HP's own ambiguity in the same step, which is the part worth remembering — HP alone answered `30.5 or 31` for the
+  Shroomish and the digits alone `1, 13, 3 or 31`, and together they answer 31. Measured, 12 of 12 levels across the
+  older phone's captures and the newer phone's.
 - **A key that needs the CP is a key that does not exist.** `keyOf` required CP and HP, so with CP unreadable every
   screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
   walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
