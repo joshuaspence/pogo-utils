@@ -123,9 +123,10 @@ property.
   nothing about a project it thinks is up to date, and the colour codes sit between the two words, so
   `grep -c 'error TS'` answered `0` against a run printing `Found 330 errors`.
 - **Three `tsconfig.json` files, on purpose.** The libs are disjoint — DOM for `src/`, Node for `scripts/`, neither for
-  the files both read — so the checker can still say a browser module reached for something a browser lacks.
-  `"types": ["leaflet"]` is the other half: an empty list leaves `L` undeclared, an unrestricted one lets any installed
-  `@types` package hand Node's globals to a browser module.
+  the files both read — so the checker can still say a browser module reached for something a browser lacks. `types` is
+  `[]` in the browser project and the shared one and `["node"]` only in `scripts/`: nothing is ambient in a browser
+  module now that both libraries are imported by name, and an unset `types` would pull in every installed `@types`
+  package instead, which is how Node's globals would reach a browser module.
 - **`src/recurring-types.ts` is in neither half, and `tsconfig.shared.json` is what holds that.** `src/events.ts`
   imports it and so does `scripts/build-ics`, so a third project with no `DOM` in its `lib` and an empty `types` is what
   makes a stray `Document` or `process` an error there rather than something one consumer happens to notice.
@@ -142,11 +143,25 @@ property.
   with `outdir: 'dist/src'` reproduces the source tree's shape, so no `<script src>` moved. `scripts/bundle.mts` reads
   its entry points **out of those tags** rather than listing them, and throws on an empty list, since a regex matching
   none would bundle nothing and exit 0.
-- **`charset: 'utf8'`, or every non-ASCII character in a string literal is written as a `\u` escape** — 184 of them
-  across the five bundles. The two that remain are the ones `pgsharp/backup.ts` wrote itself for the MUTF-8 bounds.
+- **A package's `main` is not the file the CDN `<script>` named.** `leaflet` resolves to the _unminified_
+  `dist/leaflet-src.js`, 450,229 bytes where the tag it replaced fetched `dist/leaflet.js` at 147,552 — which is why
+  `minify: true` is what keeps importing the two libraries by name from costing `map.html` bytes for the requests it
+  saves. Measure the package rather than assuming it and the CDN are the same library — and gzip both sides locally
+  rather than comparing two servers' negotiated encodings: the artifact is 471,248 bytes over 6 requests against the
+  677,786 over 8 the live site serves for the same five pages, and 152,199 gzipped against 181,033.
+- **`charset: 'utf8'`, or every non-ASCII character in a string literal is written as a `\u` escape** — 112 of them
+  across the five bundles, worth 315 bytes. Minification is what leaves only string literals to escape, the unminified
+  output carrying 192; the two that remain are the ones `pgsharp/backup.ts` wrote itself for the MUTF-8 bounds. Count
+  them with a per-character histogram, since the `//` in a string literal defeats a comment-matching regex.
+- **Two producers in one output directory want a guard, not a convention.** `scripts/bundle.mts` writes
+  `dist/src/app.css` from the stylesheet `src/app.ts` imports and `assemble.mts` then copies `src/*.css` over it, so a
+  repository file of that name would take Leaflet's rules off the map page and report a build that succeeded.
+  `publish()` throws on an `existsSync`, proved firing by planting the file.
 - **No cycles in the graph is what makes bundling semantically inert here, and it is one query.** Concatenating modules
   in topological order evaluates them in the order the loader would, but only because there is nothing to order
-  ambiguously: 50 value edges over `src/`'s 27 modules and not one cycle.
+  ambiguously: 53 `import-statement` edges over 33 modules and not one cycle, the six `node_modules` inputs included.
+  The only edges that are not imports are four `url-token`s out of `leaflet.css`, one of them `url(#default#VML)` — a
+  fragment esbuild passes through rather than failing to resolve.
 - **Run a script through pnpm, never as a bare `node`.** `devEngines.runtime` pins the Node floor that guarantees type
   stripping and governs only what pnpm invokes, so `pnpm build:ics` is safe where `node scripts/build-ics.mts` fails
   below Node 22.18. Every entry point has a `package.json` script, and `calendar.yml` calls that.
@@ -163,11 +178,17 @@ property.
 
 ### The DOM
 
-- **Do not hand-declare `L`.** It arrives from a CDN `<script>` and `@types/leaflet` declares it with
-  `export as namespace L`, which is what `allowUmdGlobalAccess` is for; a `declare global` shadows that namespace and
-  answers `TS2451: Cannot redeclare block-scoped variable 'L'` plus four errors from inside `@types/leaflet` itself.
-  `src/globals.d.ts` is where a CDN global _does_ get declared — `tzlookup`, which no package ships a type for. What
-  `allowUmdGlobalAccess` will not do is guess a tuple, so a coordinate pair is declared `[number, number]` at every hop.
+- **Prefer a published `@types` package to a hand-written `declare`.** `import * as L from 'leaflet'` leaves all
+  thirteen `L.` references and the four `L.Polyline`-style annotations spelled as the UMD global left them, and takes
+  `allowUmdGlobalAccess` and `src/globals.d.ts` with it. A `declare global` is the wrong way round the moment a package
+  ships types: it shadows `@types/leaflet`'s own `export as namespace L` and answers
+  `TS2451: Cannot redeclare block-scoped variable 'L'` plus four errors from inside a file you did not write. Note that
+  `window.L` still exists either way, Leaflet's own build assigning it. What no declaration will guess is a tuple, so a
+  coordinate pair is declared `[number, number]` at every hop.
+- **A stylesheet import needs `declare module '*.css'`, and it belongs in the browser half.**
+  `import 'leaflet/dist/leaflet.css'` is a `TS2307` without one, a `.css` file being nothing TypeScript can resolve as a
+  module. `src/assets.d.ts` holds it and carries no top-level import or export, which is what keeps its declarations
+  ambient; shared would reach `scripts/`, which has no business importing a stylesheet.
 - **Every page reaches the DOM through `src/dom.ts`.** `byId` throws where the markup and the script disagree, so a
   stale id is a broken page at load rather than a `null` travelling. Name a class only where the code depends on one,
   since the argument states a dependency rather than describing the markup. This is the half `tsc` cannot check.
@@ -225,8 +246,12 @@ edit-not-served trap one level above the browser cache.
   `p`–`z`. Derive that condition and state it rather than adding data to reach it — but never let the 0 stand
   unexplained, since a mutation nothing catches and one nothing _can_ catch read identically in the log.
 - **An exemption that covers the field under test is worse than no check.** The `typeof tzlookup === 'function'`
-  assertion was exempted by name in the one scenario that takes the script away, so a patch that did not work reported a
-  clean pass. Pair every such exemption with a positive assertion that the thing really did happen.
+  assertion was exempted by name in the one scenario that took the script away, so a patch that did not work reported a
+  clean pass. Pair every such exemption with a positive assertion that the thing really did happen — here the status
+  line naming the waypoints that got no zone, since `undefined` is also what a page whose module never ran reports.
+- **A module running is not its stylesheet arriving.** An SVG `<path>` is appended whether or not `leaflet.css` loaded,
+  so 74 of them says Leaflet ran and nothing more. `.leaflet-pane`'s computed `position` discriminates: `absolute`,
+  `hidden` and 124 rules with the import, `static`, `visible` and 0 with the `<link>` disabled.
 - **A harness that turns its own failure into a figure reports its strongest result for its worst run.** The mutation
   pass counted a corpus that threw as having moved every snapshot, which banked `80 of 80` for a browser hiccup at the
   eighteenth scenario. Print a failure as a failure, retry once, and count load failures apart from movements.
@@ -260,10 +285,13 @@ edit-not-served trap one level above the browser cache.
 
 ### Differentials
 
-- **Most of `src/` needs no browser: every module but the five entry points imports under `node` outright.** That is the
-  strongest check for anything whose output is a value rather than a rendering. The entry points fail at module scope
-  rather than in their logic — `app.ts` on Leaflet's `L`, the other four on an `HTMLElement` — so settle which is which
-  by importing rather than by grepping for `document`.
+- **Most of `src/` needs no browser: every module but the five entry points imports under `node`, given a resolve
+  hook.** The browser half's specifiers name `.js` and Node resolves them literally, so a ten-line `module.register`
+  hook retrying `./x.js` as `./x.ts` is what restores the strongest check available for anything whose output is a value
+  rather than a rendering. `register` takes a URL and a relative specifier resolves against the importing file, so reach
+  for `pathToFileURL` on both. The entry points fail at module scope rather than in their logic — `app.ts` on
+  `ERR_UNKNOWN_FILE_EXTENSION` for its stylesheet, the other four on an `HTMLElement` — so settle which is which by
+  importing rather than by grepping for `document`.
 - **An entry point cannot be differentialled under Node, so serve both trees and drive one corpus over each.**
   `git archive <base>` the old tree beside the worktree and `diff -rq` them, so the file under test is the only
   difference; serve each on its own port, so neither can serve the other's cache; snapshot after every step, naming
@@ -331,7 +359,8 @@ edit-not-served trap one level above the browser cache.
   CreateGlobalFunctionBinding _redefines_ a `configurable` property, so a pre-script accessor is exactly what it
   replaces and the page still answered `typeof tzlookup === 'function'`. What it leaves is non-configurable and
   **writable**, so assign over it as a step after load — `undefined` for the `typeof` guard and a throwing stub for the
-  `catch`, both ending at the same counter, so the two backups must hash alike. Probe the descriptor first.
+  `catch`, both ending at the same counter, so the two backups must hash alike. Probe the descriptor first. Bundling
+  tz-lookup took that lever away, so read this as the shape of the argument rather than as a step to repeat here.
 
 ### Driving Chrome
 

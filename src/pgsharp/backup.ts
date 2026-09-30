@@ -6,6 +6,8 @@
  * java-serialization.js — nothing is read from an existing backup, so importing it leaves the rest of the profile be.
  */
 
+import tzlookup from 'tz-lookup';
+
 import COUNTRIES from '../countries.js';
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
@@ -233,26 +235,31 @@ async function buildRepoFavourites() {
 }
 
 /**
+ * A coordinate's IANA zone, or `null` where tz-lookup will not name one. It throws a `RangeError` outside ±90/±180 and
+ * answers a zone for every coordinate inside them, so the `catch` is the whole of the failure case — nothing guards the
+ * call itself, the library being in this module's own bundle rather than a `<script>` that may not have run yet.
+ */
+function zoneOf(lat: number, lng: number) {
+  try {
+    return tzlookup(lat, lng);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fill in each Point's IANA timezone from its coordinates, mirroring pgsedit's apply_timezones. The name is a property
  * of a boundary polygon rather than anything a formula can derive from a coordinate — Melbourne and Sydney share a UTC
  * offset but not a zone name, and Missouri is America/Chicago, not America/New_York — so it comes from the boundary
  * data tz-lookup carries. Routes have no tz field, so nothing is looked up for them. A point whose zone cannot be found
- * is left without one, which is how a missing script or an unlocatable coordinate looks; the count is returned so the
- * caller can say so once rather than per point. PGSharp accepts entries with no tz.
+ * is left without one; the count is returned so the caller can say so once rather than per point. PGSharp accepts
+ * entries with no tz.
  */
 function applyTimezones(points: Point[]) {
   let unknown = 0;
 
   for (const p of points) {
-    let tz = null;
-
-    if (typeof tzlookup === 'function') {
-      try {
-        tz = tzlookup(p.lat, p.lng);
-      } catch {
-        tz = null;
-      }
-    }
+    const tz = zoneOf(p.lat, p.lng);
 
     if (tz) {
       p.tz = tz;

@@ -53,9 +53,31 @@ const result = await build({
   target: 'es2023',
   platform: 'browser',
 
-  // Otherwise every non-ASCII character in a string literal is written as a `\u` escape. The pages are UTF-8 and say
-  // so, and `✓`, `✨` and the type glyphs are more readable in the output as themselves.
+  /*
+   * Leaflet's `main` is its *unminified* build, `dist/leaflet-src.js`, where the CDN tag this replaces named the
+   * minified `dist/leaflet.js` — 450,229 bytes for a script that was 147,552 — so minifying is what keeps importing
+   * the package by name from costing `map.html` more bytes than the two requests it saves. It earns its place on the
+   * other four pages as well, none of which imports anything: the artifact holds 471,248 bytes against the 677,786
+   * the live site serves for the same five pages, and 152,199 against 181,033 gzipped.
+   */
+  minify: true,
+
+  // Otherwise every non-ASCII character in a string literal is written as a six-character `\u` escape — identical
+  // JavaScript for 315 measured bytes more, since `✓` is three of them in UTF-8. String literals are all that is left
+  // to escape once minification has taken the prose out: 112 such characters, where the unminified output carries 192.
+  // The pages are UTF-8 and say so.
   charset: 'utf8',
+
+  /*
+   * An imported stylesheet's own `url()`s have to go somewhere, and copying the file is the only one of esbuild's
+   * answers that keeps a PNG a PNG — `dataurl` would inline 3KB of base64 into the CSS for images this page never
+   * requests. The hash is what makes them safe to serve from `dist/src/` beside the modules: `leaflet.css` names
+   * `images/layers.png` relative to itself, and flattening two directories into one is how two files called
+   * `layers.png` would collide silently. Its fourth `url()` needs no loader at all, `url(#default#VML)` being a
+   * fragment rather than a file, which esbuild passes through instead of failing to resolve.
+   */
+  loader: { '.png': 'file' },
+  assetNames: '[name]-[hash]',
 
   metafile: true,
 });

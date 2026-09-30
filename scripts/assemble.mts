@@ -36,9 +36,22 @@ const PUBLISHED = [
   'src/*.css',
 ];
 
-/** Copies one path into the artifact, at the same position it occupies in the repository. */
+/**
+ * Copies one path into the artifact, at the same position it occupies in the repository.
+ *
+ * Refusing to land on something already there is what keeps two producers out of one directory. `scripts/bundle.mts`
+ * writes `dist/src/app.css` from the stylesheet `src/app.ts` imports, and this runs afterwards over `src/*.css` — so a
+ * repository file of that name would overwrite the bundler's output, take Leaflet's rules off the map page and report a
+ * build that succeeded. The clash is not specific to that pair: anything the compiler or the bundler emits is fair game
+ * for a name in `PUBLISHED`, and the copy is the half that happens second and says nothing.
+ */
 function publish(path: string): void {
   const to = join(DIST, path);
+
+  if (existsSync(to)) {
+    throw new Error(`${path} would overwrite ${to}, which the build already wrote`);
+  }
+
   mkdirSync(dirname(to), { recursive: true });
   cpSync(path, to, { recursive: true });
 }
