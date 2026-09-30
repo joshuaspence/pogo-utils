@@ -82,11 +82,19 @@ export const nameOf = (constant: string): string => SPELLINGS[constant] ?? title
 export const formNameOf = (form: string): string => FORM_SPELLINGS[form] ?? titleise(form);
 
 /**
- * A name folded to what a reader will actually type: lower case, and with the accents taken off, so `flabebe` finds
- * Flabébé from a keyboard that cannot easily write it.
+ * A name folded to what a reader will actually type: lower case, with the accents taken off, and with everything that
+ * is not a letter or a digit dropped. `flabebe` finds Flabébé from a keyboard that cannot easily write it, and
+ * `farfetchd`, `mrmime`, `typenull` and `hooh` find the species whose names `SPELLINGS` spells with punctuation no
+ * reader types.
+ *
+ * Separators go the same way as the punctuation rather than becoming spaces, because a hyphen is read both ways and one
+ * fold has to answer both: `Porygon-Z` is typed `porygon z` as readily as `porygonz`, and `Ho-Oh` as `ho oh` or `hooh`.
+ * Both consumers only ask whether the folded name contains the folded query — `indexOf` for whether it is a prefix in
+ * `search/species.ts`, `includes` in `pokedex/page.ts` — so nothing reads an offset back into the unfolded name and
+ * dropping a character cannot misplace anything.
  */
 export const fold = (name: string): string =>
   name
     .toLowerCase()
     .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '');
+    .replace(/[^\p{Letter}\p{Number}]/gu, '');
