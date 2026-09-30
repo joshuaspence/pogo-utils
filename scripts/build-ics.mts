@@ -77,8 +77,10 @@ function icsDate(raw: string | null): string | null {
 // taken as they stand — the value only has to be stable, and this one is.
 const utcStamp = (value: string) => (value.endsWith('Z') ? value : `${value}Z`);
 
-// The characters a TEXT value cannot carry as themselves. URI values (`URL:`) are not escaped this way.
-const escape = (text: string) => text.replace(/([\\;,])/g, '\\$1').replace(/\r?\n/g, '\\n');
+// The characters a TEXT value cannot carry as themselves. A line break is any of the three spellings, since a lone CR
+// would otherwise reach `fold()` below and be dropped rather than kept as the break it is. URI values (`URL:`) have no
+// escaping of this kind at all, which is why the strip that backs this up lives on the line rather than on the value.
+const escape = (text: string) => text.replace(/([\\;,])/g, '\\$1').replace(/\r\n|[\r\n]/g, '\\n');
 
 /**
  * A UTF-8 continuation byte, the second and later octet of a multi-byte character. Reading past the end of the buffer
@@ -88,11 +90,24 @@ const escape = (text: string) => text.replace(/([\\;,])/g, '\\$1').replace(/\r?\
 const isContinuation = (byte: number | undefined) => byte !== undefined && (byte & 0xc0) === 0x80;
 
 /**
+ * Every control character RFC 5545 forbids a content line to carry. A CR or an LF *ends* the line, so text after one in
+ * a value the feed supplied is read as a property of its own — a `SUMMARY:`, an `ATTENDEE:`, a whole `BEGIN:VALARM` —
+ * and the rest are illegal outright. `\p{Cc}` is that set exactly: C0, DEL and C1.
+ */
+const CONTROL = /\p{Cc}/gu;
+
+/**
  * RFC 5545 caps a content line at 75 *octets*, continuing it with CRLF and a leading space. Octets, and these names
  * carry é and · — so the length is measured over the UTF-8 encoding, and a split is walked back off any continuation
  * byte rather than cutting a character in half.
+ *
+ * The strip is here rather than beside each property because this is the last function every line passes through, and
+ * `escape()` only covers the TEXT ones: `UID:` and `URL:` interpolate the feed's `eventID` and `link` as they stand,
+ * neither has any escaping to reach for, and the feed is somebody else's file that `calendar.yml` publishes unread.
+ * Split on an octet count, this function would otherwise carry a line break straight through.
  */
-function fold(line: string): string {
+function fold(raw: string): string {
+  const line = raw.replace(CONTROL, '');
   const bytes = Buffer.from(line, 'utf8');
 
   if (bytes.length <= 75) {
