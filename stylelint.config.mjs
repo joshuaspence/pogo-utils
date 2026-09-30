@@ -15,7 +15,7 @@ export default {
      */
     'comment-pattern': [
       '^(?:[^\\n]*|\\*\\n[\\s\\S]*)$',
-      { message: 'A multi-line comment is a starred block: /** on its own line, then " * " on each line after it' },
+      { message: 'A multi-line comment is a starred block: "/**" on its own line, then " * " on each line after it' },
     ],
   },
 };
