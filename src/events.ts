@@ -1552,8 +1552,10 @@ els.reset.addEventListener('click', () => {
   render();
 });
 
-// Re-render every minute so relative labels stay honest, and re-fetch every tenth minute to catch new events. Also
-// re-fetch when the tab regains focus after being hidden a while, which is the common "come back to it" case.
+// Re-render every minute so relative labels stay honest, and re-fetch every tenth minute to catch new events. A tab
+// coming back into view re-renders straight away rather than waiting out the rest of its minute, since a background tab
+// has its timers throttled and its labels are the part a returning reader looks at first. The feed waits for the next
+// re-fetch tick either way.
 setInterval(() => {
   tick += 1;
 
