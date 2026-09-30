@@ -491,13 +491,16 @@ function open(dex: number) {
   }
 
   state.open = dex;
+
+  // The filters are applied before the dialog is rendered, since `renderDetail` disables the arrows from `visible`. A
+  // link that changes the query and the open species together — `#n=1` to `#q=pikachu&n=25` — would otherwise place the
+  // entry in the list it is replacing and leave an arrow enabled over a neighbour that no longer exists.
+  update();
   renderDetail(entry);
 
   if (!$.detail.open) {
     $.detail.showModal();
   }
-
-  update();
 }
 
 /**
