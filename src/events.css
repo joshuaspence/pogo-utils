@@ -3,18 +3,6 @@
  * scrolling column of grouped cards rather than the map's fixed sidebar-and-canvas grid.
  */
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.4;
-}
-
 /**
  * The header, controls, filters, cards and footer all share one content column, so the page reads with a single left
  * edge rather than a title hanging further out than the cards it heads. `--content-w` holds that width in one place

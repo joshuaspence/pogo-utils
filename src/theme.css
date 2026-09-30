@@ -1,6 +1,6 @@
 /**
- * Shared colour tokens for both pages: the map viewer (styles.css) and the events calendar (events.css). Kept in one
- * place so the light and dark palettes cannot drift between them.
+ * The colour tokens and the base reset every page shares, each of the five loading this before its own stylesheet. Kept
+ * in one place so the palettes and the body defaults cannot drift between them.
  */
 
 :root {
@@ -60,4 +60,21 @@
     --shadow: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-lift: 0 8px 20px rgb(0 0 0 / 55%);
   }
+}
+
+/**
+ * The reset every page starts from, stated here rather than in each page's own stylesheet so that a font stack or a
+ * `line-height` cannot read one way on one page and another way on the next. A page overrides what its layout needs —
+ * the map's `body` is a full-height flex column — and inherits the rest.
+ */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.4;
 }

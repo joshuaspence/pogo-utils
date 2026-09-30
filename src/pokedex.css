@@ -3,18 +3,6 @@
  * is this page's own.
  */
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.4;
-}
-
 /**
  * Wider than the search page, since the cards are the page and more of them to a row is less scrolling through 1025.
  */

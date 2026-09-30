@@ -4,18 +4,6 @@
  * out of styles.css when the panel left the map's sidebar for its own tab.
  */
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.4;
-}
-
 /**
  * The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
  * at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need.

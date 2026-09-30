@@ -6,18 +6,6 @@
  * while the controls that change it scroll past underneath.
  */
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  color: var(--text);
-  background: var(--bg);
-  line-height: 1.4;
-}
-
 /**
  * Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
  * four, which reads as a list rather than as a palette.
