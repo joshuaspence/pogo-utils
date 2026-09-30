@@ -10,17 +10,21 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
 
-    // The pages load `src/…` and resolve it against their own URL, so the output has to keep the tree shape the markup
-    // already names. `scripts/assemble.mts` copies the stylesheets in beside it.
-    "outDir": "dist/src",
+    // `scripts/bundle.mts` writes the JavaScript, one file per page rather than one per module, so there is nothing for
+    // the compiler to emit into `dist/` and no `outDir` here at all. Checking is still this project's job; the bundler
+    // does no type analysis whatever.
+    "emitDeclarationOnly": true,
+
+    // `composite` forces declarations, which nothing serves — out of the published tree rather than into it. `rootDir`
+    // is what `.types/` mirrors now that nothing else is emitted, named rather than inferred so that a file added
+    // outside `src/` cannot quietly move every declaration a level down.
+    "declarationDir": ".types",
     "rootDir": "src",
 
-    // `composite` forces declarations, which nothing serves — out of the published tree rather than into it.
-    "declarationDir": ".types",
-
-    // Named rather than left to default, because the default is derived from `outDir` and lands the cache *inside*
-    // `dist/` — `dist/tsconfig.tsbuildinfo`, deployed to the live site. The allowlist cannot catch that, since it
-    // governs what is copied in and this is written before it runs.
+    // Beside the declarations, so that one `rm -rf .types` clears everything this project writes. The default is
+    // derived from `outDir` when there is one, which put the cache at `dist/tsconfig.tsbuildinfo` and deployed it to
+    // the live site — the allowlist in `scripts/assemble.mts` cannot catch that, since it governs what is copied in and
+    // this is written before it runs.
     "tsBuildInfoFile": ".types/tsconfig.tsbuildinfo",
 
     // `tsc -b` in `lint:types` builds both projects from one command, and build mode requires this of each of them.

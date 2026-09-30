@@ -3,7 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "rm -rf dist .types && tsc -b --force tsconfig.json scripts/tsconfig.json && node scripts/assemble.mts",
+    "build": "rm -rf dist .types && tsc -b --force tsconfig.json scripts/tsconfig.json && node scripts/bundle.mts && node scripts/assemble.mts",
     "build:ics": "node scripts/build-ics.mts",
     "lint": "npm-run-all --continue-on-error --parallel --print-label lint:css lint:html lint:js lint:prettier lint:types lint:xml",
     "lint:css": "stylelint '**/*.css'",
@@ -23,6 +23,7 @@
     "@types/leaflet": "^1.9.22",
     "@types/node": "^24.19.0",
     "@xmldom/xmldom": "^0.9.11",
+    "esbuild": "^0.28.2",
     "eslint": "10.8.1",
     "eslint-config-prettier": "10.1.8",
     "globals": "^17.11.0",
