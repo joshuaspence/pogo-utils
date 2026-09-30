@@ -12,15 +12,18 @@
  *   walking the appraisal dialogue for every Pokémon.
  * - **Form** is worked out rather than read: HP is fixed by base stamina, the stamina IV and the level, so given the
  *   overlay's numbers only some forms make it come out. See `inventory/game-master.mts`.
- * - **Shiny, lucky, costume, XXL and XXS** have no reliable text on the detail screen, so each one is a search instead.
- *   A pass with the game's own `shiny` search reads just the matching Pokémon, and the full pass marks the ones it
- *   recognises from that list. Searches keep the sort order, and a Pokémon is recognised by its name, CP, HP, weight
- *   and height together, which in practice nothing else in storage shares.
+ * - **Gender, whether it is a favourite and whether it is XXL or XXS** are read off the detail screen: the symbol
+ *   beside the HP, the star at the top right, and the gold badge above the height.
+ * - **Shiny, lucky, costume and any tag** say nothing on the detail screen at all, so each one is a search instead. A
+ *   pass with the game's own `shiny` search reads just the matching Pokémon, and the full pass marks the ones it
+ *   recognises from that list. Searches keep the sort order, and a Pokémon is recognised by its name, HP, weight,
+ *   height and IVs together, which in practice nothing else in storage shares.
  *
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--no-launch] [--flags shiny,lucky,…]
- *                       [--no-moves] [--keep-screens DIR] [--config FILE] [--serial SERIAL]
+ *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--keep-screens DIR] [--config FILE]
+ *                       [--serial SERIAL]
  *   pnpm inventory snap [NAME]      save a screenshot of whatever is showing and print what each reader makes of it
  *   pnpm inventory parse FILE.png…  the same for screenshots already saved, with no phone needed
  *
@@ -128,15 +131,18 @@ const FLAGS = {
   shiny: 'shiny',
   lucky: 'lucky',
   costume: 'costume',
-  xxl: 'xxl',
-  xxs: 'xxs',
   shadow: 'shadow',
   purified: 'purified',
 } as const;
 
 type Flag = keyof typeof FLAGS;
 
-const DEFAULT_FLAGS: Flag[] = ['shiny', 'lucky', 'costume', 'xxl', 'xxs'];
+/**
+ * `xxl` and `xxs` are not among these any more: the detail screen wears a gold badge saying which, so the size is read
+ * from the screen the scan is already looking at rather than bought with a search of its own. Checked against the
+ * game's own `xxl` search, which marked the same Applin — 5/2/15 at 0.33m — that the badge does.
+ */
+const DEFAULT_FLAGS: Flag[] = ['shiny', 'lucky', 'costume'];
 
 const COLUMNS = [
   'index',
@@ -146,6 +152,7 @@ const COLUMNS = [
   'form',
   'gender',
   'favourite',
+  'tags',
   'costume',
   'shiny',
   'lucky',
@@ -189,6 +196,7 @@ const { values: options, positionals } = parseArgs({
     'limit': { type: 'string' },
     'skip': { type: 'string' },
     'flags': { type: 'string' },
+    'tags': { type: 'string' },
     'no-launch': { type: 'boolean', default: false },
     'no-moves': { type: 'boolean', default: false },
     'keep-screens': { type: 'string' },
@@ -230,6 +238,13 @@ async function scan() {
   await device.check();
   const data = await loadGameData(CACHE, options.refresh);
   const flags = options.flags === undefined ? DEFAULT_FLAGS : parseFlags(options.flags);
+  // A tag is a search like any other, and the only reason it cannot be a flag is that the names are the user's own.
+  // Nothing on a Pokémon's own screen says which tags it carries — checked on one that had one — so a pass is the only
+  // way to know, and the game's own tag list under storage's TAGS tab is where the names come from.
+  const tags = (options.tags ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
   const limit = options.limit === undefined ? Infinity : Number(options.limit);
   const skip = options.skip === undefined ? 0 : Number(options.skip);
   const screens = options['keep-screens'];
@@ -478,19 +493,19 @@ async function scan() {
     await sleep(config.waits.launch);
   }
 
-  // The flag passes come first, so that the full pass can write each row complete as it goes.
-  const marked = new Map<Flag, Marks>();
+  // The flag and tag passes come first, so that the full pass can write each row complete as it goes.
+  const marked = new Map<string, Marks>();
 
-  for (const flag of flags) {
+  for (const [name, term] of [...flags.map((f) => [f, FLAGS[f]] as const), ...tags.map((t) => [t, t] as const)]) {
     const marks = new Marks();
-    const grid = await search(FLAGS[flag]);
+    const grid = await search(term);
 
     if (await openFirst(grid)) {
       await walk(async ({ detail, overlay }) => marks.add(detail, overlay), Infinity);
     }
 
-    console.error(`${flag}: ${marks.size}`);
-    marked.set(flag, marks);
+    console.error(`${name}: ${marks.size}`);
+    marked.set(name, marks);
   }
 
   const out = options.out;
@@ -544,7 +559,8 @@ async function scan() {
       }
 
       const flag = (f: Flag) => (flags.includes(f) ? (marked.get(f)?.take(detail, overlay) ? 'yes' : 'no') : '');
-      const size = flag('xxl') === 'yes' ? 'XXL' : flag('xxs') === 'yes' ? 'XXS' : '';
+      // A tag has to be taken from every pass rather than stopping at the first, since a Pokémon can carry several.
+      const carried = tags.filter((t) => marked.get(t)?.take(detail, overlay));
       const total = iv ? iv.attack + iv.defense + iv.stamina : null;
 
       const row: Record<(typeof COLUMNS)[number], string | number | null> = {
@@ -555,10 +571,11 @@ async function scan() {
         form: id.form?.form ?? null,
         gender: detail.gender,
         favourite: detail.favourite ? 'yes' : 'no',
+        tags: carried.join('; '),
         costume: flag('costume'),
         shiny: flag('shiny'),
         lucky: flag('lucky'),
-        size,
+        size: detail.size,
         shadow: flag('shadow'),
         purified: flag('purified'),
         cp: id.cp ?? detail.cp,
