@@ -734,6 +734,29 @@ appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
   screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
   walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
 
+### Reading the moves, and opening the right Pokémon
+
+- **Anchor the move floor on a line that names HP, not on a pair of numbers around a slash.** `parseMoves` drops
+  everything level with or above the weight and height, and used any `d/d` to find that row. Two other things on the
+  scrolled screen match it: PGSharp's overlay, which separates three IVs the same way, and `30/09/2026` in the catch
+  details — and that date sits _below_ the moves, so the floor landed past them and every Pokémon of a live scan came
+  back `moves not fully read` against a screenshot with `Astonish 7` and `Struggle 35` plainly on it.
+- **A charged move's energy bar OCRs as a couple of short nonsense tokens beside the name.** `© Energy Ball ay Ay` is
+  four characters past `closest`'s slack and matched nothing, which is why the only charged moves read at first were
+  `Struggle`, the one move with no bar. Try the whole row first and drop short trailing tokens one at a time only while
+  nothing has matched — longest-first is what stops `Aqua Jet` being shortened to `Aqua`, which matches nothing and
+  would trade one silent loss for another.
+- **Take the first tile's column from the configuration and only its row from the grid.** How far down the first row
+  sits depends on whether a search is showing, so it has to be read; which column is first does not, since the grid is
+  three even columns and 0.18 of the width lands in the leftmost on both phones. Taking the column from the label too
+  means opening the _second_ Pokémon whenever the first one's CP fails to OCR — in an `xxl` grid of five the top row's
+  only legible label was the middle tile's, so every walk began one along. It cost a member of every flag pass and the
+  first Pokémon of storage in the full one, and it showed up only as a count one short of what the search reported.
+  Check a flag pass against the number the game puts beside the search box, since nothing else notices.
+- **Read a detail screen more than twice before believing it.** A screen still settling has no HP on it and no overlay
+  yet, and one bad read costs a whole member of a flag pass — which is a Pokémon the full pass then never learns was in
+  the search, rather than a row with a gap in it.
+
 ### What the detail screen tells you without OCR
 
 Three of the CSV's columns are pixels rather than text, and one that looks as though it should be is not.

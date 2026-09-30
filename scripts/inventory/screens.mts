@@ -8,7 +8,16 @@
  * - **PGSharp's overlay** on the detail screen, which states the level and the three IVs outright.
  */
 
-import { closest, cpOf, levelsOf, multiplierOf, type Form, type GameData, type IVs } from './game-master.mts';
+import {
+  closest,
+  cpOf,
+  levelsOf,
+  multiplierOf,
+  type Form,
+  type GameData,
+  type IVs,
+  type Move,
+} from './game-master.mts';
 import { fold, ocr, ocrLine, type Line } from './ocr.mts';
 import { crop, isolate, scale, type Image } from './png.mts';
 
@@ -167,13 +176,21 @@ function genderOf(image: Image, hp: Line): Gender | null {
  * the charged moves beneath it. Anything level with or above the weight and height is left out, since that row holds
  * the types and a type can also be a move — Psychic is both — and above it is the name, which a nickname can make look
  * like one. How far the scroll went varies, so when neither row is still on screen every line is a candidate.
+ *
+ * The HP anchor has to name HP rather than match a pair of numbers around a slash, because two other things on that
+ * screen are also a pair of numbers around a slash and both of them ruin it. `30/09/2026` in the catch details sits
+ * *below* the moves, so it pushed the floor past them and left nothing at all to read — every Pokémon of a live scan
+ * came back `moves not fully read` against a screenshot with `Astonish 7` and `Struggle 35` plainly on it. PGSharp's
+ * own overlay is the other, since three IVs are separated the same way.
  */
 export function parseMoves(lines: readonly Line[], data: GameData): Moves {
-  const anchors = lines.filter((l) => /\d\s*(kg|m)\b/i.test(l.text) || /\d\s*\/\s*\d/.test(l.text));
+  const anchors = lines.filter(
+    (l) => /\d\s*(kg|m)\b/i.test(l.text) || (/\d\s*\/\s*\d/.test(l.text) && /hp/i.test(l.text)),
+  );
   const floor = Math.max(-Infinity, ...anchors.map((l) => l.top + l.height));
   const found = lines
     .filter((l) => l.top > floor)
-    .map((l) => closest(l.text.replace(/[\d]+/g, ''), data.moves, (m) => m.name, 0.2))
+    .map((l) => moveOn(l.text, data))
     .filter((m) => m !== null);
 
   return {
@@ -186,6 +203,28 @@ export function parseMoves(lines: readonly Line[], data: GameData): Moves {
 }
 
 /** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
+/**
+ * The move a row names, if any. A charged move is followed by its energy bar, which OCRs as a couple of short nonsense
+ * tokens — `© Energy Ball ay Ay` — and four characters of them is enough to put the row past `closest`'s slack and
+ * lose the move altogether. So the whole row is tried first and short trailing tokens are dropped one at a time only
+ * while nothing has matched: trying the longest form first is what keeps `Aqua Jet` from being shortened to `Aqua`,
+ * which matches nothing and would trade one silent loss for another.
+ */
+function moveOn(text: string, data: GameData): Move | null {
+  let words = text.replace(/\d+/g, '').split(/\s+/).filter(Boolean);
+
+  for (;;) {
+    const move = closest(words.join(' '), data.moves, (m) => m.name, MOVE_SLACK);
+    const last = words.at(-1);
+
+    if (move !== null || last === undefined || last.length > MOVE_NOISE) {
+      return move;
+    }
+
+    words = words.slice(0, -1);
+  }
+}
+
 export interface OverlayBox {
   x: number;
   y: number;
@@ -215,6 +254,10 @@ const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
 
 /** `L25 IV86 14/13/12` and a character's slack, which is what the box is measured in. */
 const OVERLAY_CHARACTERS = 19;
+
+/** How far a row may be from a move's name, and how short a trailing token has to be to be an energy bar. */
+const MOVE_SLACK = 0.2;
+const MOVE_NOISE = 3;
 
 /** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
 const MAX_LEVEL = 51;
