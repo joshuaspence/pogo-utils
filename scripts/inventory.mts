@@ -212,11 +212,12 @@ async function report(image: Image, data: GameData) {
   const detail = await parseDetail(lines, data, image);
   const box = config.overlay ?? (await findOverlay(image));
   const overlay = box ? await readOverlay(image, box) : null;
+  const id = identify(data, detail, overlay);
   console.log('detail:', detail);
-  console.log('moves:', parseMoves(lines, data));
+  console.log('moves:', await parseMoves(lines, data, id.form, image));
   console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
   console.log('overlay:', overlay ?? 'nothing read');
-  console.log('identity:', identify(data, detail, overlay));
+  console.log('identity:', id);
 }
 
 async function scan() {
@@ -525,7 +526,7 @@ async function scan() {
         const scrolled = await device.screenshot();
         keep(`${name}-moves`, scrolled);
         // Read while the phone scrolls back, since nothing that follows depends on the moves.
-        reading = ocr(scrolled).then((lines) => parseMoves(lines, data));
+        reading = ocr(scrolled).then((lines) => parseMoves(lines, data, id.form, scrolled));
         await swipe(config.swipes.scrollUp, config.waits.scroll);
       }
 
