@@ -750,6 +750,32 @@ appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
   screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
   walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
 
+### Making a reader more reliable
+
+`--keep-screens` saves every screenshot a scan takes, which turns "the OCR is flaky" into something with numbers on it:
+run the readers over a corpus of real screens, count each field, and fix the worst. Twenty-five Pokémon was enough to
+rank them, and the ranking was not what watching the scan suggested.
+
+- **Measure per field before changing anything.** The first count put types at **6 of 25** and everything else between
+  22 and 25, which is not what the log looked like — the log was full of `moves not fully read`, because that is what a
+  note is written for. Read the corpus, not the complaints.
+- **The whole-screen sparse pass is the weak link, every time.** Each field that read badly read well once it was found
+  by something else and then cropped, doubled and read as a single line with an alphabet: the types 6 to **25 of 25**,
+  the overlay 3 to 25. It is the same fix each time, and the reason is the same each time — sparse mode is being asked
+  to find small text among artwork, where a line read knows what it is looking at.
+- **Fixing an input fixes its consumers.** Types are not just a column: `identify` narrows candidates by them, so
+  missing types were also three species read as something the numbers then contradicted, and alternative lists running
+  to thirty forms. Reading them properly took the corpus to **25 of 25 forms identified, every one unambiguous, and none
+  disagreeing with its name** without touching `identify` at all.
+- **Size a band from something that does not vary with the reading.** The type band is measured in the anchor line's own
+  height, and the two candidate anchors do not report the same one — `0.44m` came back 45 pixels tall where the `5.42kg`
+  beside it came back 58, and a band sized off the shorter ended six pixels into the labels. Anchor on either of a pair,
+  and leave room for the smaller.
+- **A box tightened on one screen will clip another, so widen it rather than trusting it.** Two of twenty-five overlays
+  missed against a box cached from the first Pokémon, and both read perfectly against one swept for themselves — a three
+  digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
+  flip between the two Pokémon that disagree.
+
 ### Reading the moves, and opening the right Pokémon
 
 - **Anchor the move floor on a line that names HP, not on a pair of numbers around a slash.** `parseMoves` drops
