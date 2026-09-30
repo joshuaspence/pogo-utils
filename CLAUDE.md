@@ -792,13 +792,23 @@ each and reading the whole screen down to `SWAP BUDDIES`.
   one capture's artwork passed it and only the text ruled it out.
 - **A costume says nothing at all.** A costumed Pikachu is named `Pikachu` like any other and differs only in the
   artwork, so costume can only come from the game's `costume` search, as a flag pass.
-- **Nor do tags.** A Pokémon carrying `Trade to 0xNULL` shows no chip anywhere on its screen. A tag is a search like any
-  other, which is why `--tags` is a list of names and each one becomes a pass — the names being the user's own is the
-  only reason they cannot be flags. Storage's TAGS tab is where they and their counts can be read.
-- **A pass reads most of its set, not all of it.** `Trade to 0xNULL` marked 73 where the game says 76 have the tag,
-  without the walk ever reporting that it gave up. Read a pass's count against the number beside the game's own search
-  and treat a few per cent short as ordinary; on a large set — `shiny` is 733 here — that is tens of Pokémon whose flag
-  will be blank rather than wrong.
+- **Tags are on the screen, as chips under the HP** — and finding that out took being told, because the check that said
+  otherwise could not have found them. Eighty-seven captures showed nothing between the HP and the weight, and not one
+  of those Pokémon was tagged: a band that is empty on every screen you own reads exactly like a band that is always
+  empty. The one tagged Pokémon that had been opened was only ever captured _scrolled_, with its chip above the fold. So
+  `--tags` names the tags to expect and nothing is searched for, which is a walk of 76 Pokémon saved.
+- **A chip is white on a coloured pill, so the colour finds it and the columns separate them.** One pill per tag, side
+  by side, so reading the row whole would run the names together; a run of coloured columns is one chip. Match what is
+  read against the names rather than trusting it, since `Trade to 0xNULL` comes back as `Trade to OxNULL` and only
+  agrees once folded.
+- **Look in the top of that gap, not all of it.** The type icons sit at the foot of it and are coloured too, and a
+  Pokémon whose types are colourful — a Woobat against a Normal-type Glameow — has them in the same columns as its chip.
+  That makes one run of the two and drops its fill from 86% to 34%, which reads as no chip at all: three of six
+  known-tagged Pokémon were lost that way, and all six read once the band stopped short of the icons.
+- **A pass reads most of its set, not all of it.** Before the tags were read off the screen, a pass over
+  `Trade to 0xNULL` marked 73 where the game says 76 have it, without the walk ever reporting that it gave up. Read a
+  pass's count against the number beside the game's own search and treat a few per cent short as ordinary; on a large
+  set — `shiny` is 733 here — that is tens of Pokémon whose flag will be blank rather than wrong.
 
 ### Reading a move against what the Pokémon can learn
 
