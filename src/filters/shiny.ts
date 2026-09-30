@@ -12,13 +12,11 @@
  * hand-set shape rather than letting one entry per line stretch it out.
  */
 
-/** @import Pokemon from '../pokemon/pokemon.js' */
-
+import type Pokemon from '../pokemon/pokemon.js';
 import POKEMON, { GALAR, HISUI, PALDEA } from '../pokemon/pokedex.js';
 
-/** @type {ReadonlySet<Pokemon>} */
 // prettier-ignore
-export default new Set([
+const SHINY_POKEMON: ReadonlySet<Pokemon> = new Set([
   // Generation 1
   POKEMON.PONYTA.region(GALAR), POKEMON.RAPIDASH.region(GALAR),
   POKEMON.SLOWPOKE.region(GALAR), POKEMON.SLOWBRO.region(GALAR),
@@ -313,3 +311,5 @@ export default new Set([
   ...POKEMON.TERAPAGOS.forms('NORMAL_FORM', 'TERASTAL_FORM', 'STELLAR_FORM'),
   POKEMON.PECHARUNT,
 ]);
+
+export default SHINY_POKEMON;

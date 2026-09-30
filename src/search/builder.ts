@@ -8,42 +8,38 @@
  * state is read first, and the chips are drawn already wearing it.
  */
 
-/** @import { Range } from './terms.js' */
-/** @import { Offer } from './species.js' */
-
-import { GROUPS, PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
+import { GROUPS, PRESETS, RANGES, TERMS_BY_ID, type Range } from './terms.js';
 import { compose, emptyState, fromFragment, names, toFragment } from './query.js';
 import { optimise } from './optimise.js';
-import { suggestions, written } from './species.js';
+import { suggestions, written, type Offer } from './species.js';
 import { byId, el } from '../dom.js';
 
 /**
  * Where a chip is. The three are a closed set rather than strings, so a `NEXT` that named a fourth or a `setChipState`
  * handed one would be caught here rather than painting a chip nothing styles.
- *
- * @typedef {'off' | 'in' | 'out'} ChipState
  */
+type ChipState = 'off' | 'in' | 'out';
 
 /**
  * One chip: the button, the span wearing its glyph, and the words the label is built from. The glyph span is held
  * rather than found again, because `node.querySelector('.state')` asks the document about a child this file appended
  * itself and gets `Element | null` back for the trouble.
- *
- * @typedef {object} Chip
- * @property {HTMLButtonElement} node
- * @property {HTMLSpanElement} glyph
- * @property {string} label
  */
+interface Chip {
+  node: HTMLButtonElement;
+  glyph: HTMLSpanElement;
+  label: string;
+}
 
 /**
  * One numeric range: its two boxes and the row they sit in, held for the same reason — `from.closest('.range')` is the
  * row this file just built, asked for the long way round.
- *
- * @typedef {object} RangeRow
- * @property {HTMLDivElement} row
- * @property {HTMLInputElement} from
- * @property {HTMLInputElement} to
  */
+interface RangeRow {
+  row: HTMLDivElement;
+  from: HTMLInputElement;
+  to: HTMLInputElement;
+}
 
 const els = {
   query: byId('query'),
@@ -65,35 +61,27 @@ let state = fromFragment(location.hash);
 
 // Every chip and range input by the id it answers to, so re-rendering after a preset or a link is a walk over the
 // state rather than a rebuild of the DOM — the focus ring stays where the reader left it.
-/** @type {Map<string, Chip>} */
-const chips = new Map();
+const chips = new Map<string, Chip>();
 
-/** @type {Map<string, RangeRow>} */
-const rangeInputs = new Map();
+const rangeInputs = new Map<string, RangeRow>();
 
-/** @type {number | undefined} */
-let copied;
+let copied: number | undefined;
 
 /**
  * Where a chip goes when it is clicked: unused, required, ruled out, and round again.
- *
- * @type {Record<ChipState, ChipState>}
  */
-const NEXT = { off: 'in', in: 'out', out: 'off' };
+const NEXT: Record<ChipState, ChipState> = { off: 'in', in: 'out', out: 'off' };
 
 /**
  * What a chip wears in each state — the glyph, and the words a screen reader is given instead of the colour.
- *
- * @type {Record<ChipState, { glyph: string, said: string }>}
  */
-const STATE = {
+const STATE: Record<ChipState, { glyph: string; said: string }> = {
   off: { glyph: '+', said: 'not used' },
   in: { glyph: '✓', said: 'required' },
   out: { glyph: '!', said: 'ruled out' },
 };
 
-/** @param {string} id */
-const stateOf = (id) => (state.include.has(id) ? 'in' : state.exclude.has(id) ? 'out' : 'off');
+const stateOf = (id: string) => (state.include.has(id) ? 'in' : state.exclude.has(id) ? 'out' : 'off');
 
 /**
  * Nothing chosen, still written the way the reader asked for it. Clearing and loading a preset both start from empty,
@@ -101,11 +89,7 @@ const stateOf = (id) => (state.include.has(id) ? 'in' : state.exclude.has(id) ? 
  */
 const cleared = () => ({ ...emptyState(), optimise: state.optimise });
 
-/**
- * @param {string} id
- * @param {ChipState} next
- */
-function setChipState(id, next) {
+function setChipState(id: string, next: ChipState) {
   state.include.delete(id);
   state.exclude.delete(id);
 
@@ -116,11 +100,7 @@ function setChipState(id, next) {
   }
 }
 
-/**
- * @param {string} id
- * @param {Chip} chip
- */
-function paintChip(id, { node, glyph, label }) {
+function paintChip(id: string, { node, glyph, label }: Chip) {
   const current = stateOf(id);
 
   node.dataset.state = current;
@@ -154,17 +134,13 @@ function current() {
 }
 
 /** The length of the string, said in words. A one-character query is what the shortening makes reachable. */
-/** @param {number} length */
-const characters = (length) => `${length} character${length === 1 ? '' : 's'}`;
+const characters = (length: number) => `${length} character${length === 1 ? '' : 's'}`;
 
 /**
  * The substitutions behind the string on screen, and nothing when it is the plain one. A reader handed `4` where they
  * typed `charmander` cannot otherwise check what they are about to paste over a storage box full of Pokémon.
- *
- * @param {readonly [string, string][]} rewrites
- * @param {boolean} lossy
  */
-function paintRewrites(rewrites, lossy) {
+function paintRewrites(rewrites: readonly [string, string][], lossy: boolean) {
   els.rewritten.textContent = '';
   els.rewritten.hidden = rewrites.length === 0;
 
@@ -293,11 +269,8 @@ function buildGroups() {
 
 /**
  * A bound as the state should hold it: a number inside the range's limits, or nothing where the box is empty.
- *
- * @param {HTMLInputElement} input
- * @param {Range} range
  */
-function readBound(input, range) {
+function readBound(input: HTMLInputElement, range: Range) {
   if (input.value.trim() === '') {
     return null;
   }
@@ -354,11 +327,9 @@ function buildRanges() {
  * `offered` is what the list is showing and `active` which row the keyboard has reached, -1 for none. The three
  * together are the state of the control, and every path out of here leaves them agreeing with what is on screen.
  */
-/** @type {string[]} */
-let taken = [];
+let taken: string[] = [];
 
-/** @type {Offer[]} */
-let offered = [];
+let offered: Offer[] = [];
 
 let active = -1;
 
@@ -414,13 +385,9 @@ function paintNames() {
  * game reads as one and a reader reads as a mistake. `charmander` and `+charmander` are two different searches and both
  * can be here. The spaces around a name are dropped here rather than by each caller, so a pasted `pikachu, eevee` and a
  * row taken from the list arrive the same shape and can be compared with one another.
- *
- * @param {readonly string[]} chosen
- * @param {string} typing
  */
-function setNames(chosen, typing) {
-  /** @param {readonly string[]} all */
-  const unique = (all) => all.filter((name, index) => name && all.indexOf(name) === index);
+function setNames(chosen: readonly string[], typing: string) {
+  const unique = (all: readonly string[]) => all.filter((name, index) => name && all.indexOf(name) === index);
 
   taken = unique(chosen.map((name) => name.trim()));
   state.text = unique([...taken, typing.trim()]).join(', ');
@@ -513,10 +480,8 @@ function openSuggestions() {
  *
  * The list is closed rather than reopened, because the empty input the reader is left in names every species and so has
  * nothing to offer until two letters of the next one are typed.
- *
- * @param {string} name
  */
-function take(name) {
+function take(name: string) {
   setNames([...taken, name], '');
   closeSuggestions();
 }
@@ -524,10 +489,8 @@ function take(name) {
 /**
  * The arrow keys, as the step each one takes through the list. Indexed by whatever key was pressed, so a miss is the
  * ordinary case rather than a mistake — which is what the index signature says and a union of the two keys could not.
- *
- * @type {Record<string, number>}
  */
-const STEPS = { ArrowDown: 1, ArrowUp: -1 };
+const STEPS: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
 
 // A comma is what separates names in the string, so typing or pasting one commits the name in front of it — which is
 // also how a pasted `pikachu, eevee, snorlax` arrives as three chips rather than as one name with commas in it.

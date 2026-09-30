@@ -10,9 +10,6 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
 
-    "allowJs": true,
-    "checkJs": true,
-
     // The pages load `src/…` and resolve it against their own URL, so the output has to keep the tree shape the markup
     // already names. `scripts/assemble.mts` copies the stylesheets in beside it.
     "outDir": "dist/src",
@@ -39,7 +36,19 @@
     // `L` arrives from a CDN <script> in map.html, and @types/leaflet declares it with `export as namespace L` — a UMD
     // global, which a module cannot otherwise see. Declaring it by hand instead does not work: a `declare global` for
     // `L` shadows that namespace, which breaks the package's own internal references to it.
-    "allowUmdGlobalAccess": true
+    "allowUmdGlobalAccess": true,
+
+    // Pages serves what this emits, and a browser has no loader to erase anything for it, so a construct needing one is
+    // not available here at all — the same rejection `scripts/` takes for Node's type stripping, for a different
+    // reason.
+    "erasableSyntaxOnly": true
   },
-  "include": ["src/**/*.js", "src/types.d.ts"]
+
+  // Everything in `src/` except what the shared project owns, reached through its declarations instead. Excluding those
+  // by name rather than by directory because they sit among the files that import them: they are shared by what reads
+  // them, not by where they live.
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/countries.ts", "src/generated.ts", "src/recurring-types.ts", "src/types.d.ts"],
+
+  "references": [{ "path": "tsconfig.shared.json" }]
 }

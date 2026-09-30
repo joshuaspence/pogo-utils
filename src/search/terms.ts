@@ -30,50 +30,44 @@
  * group wants a second cue rather than another hue.
  */
 
-/**
- * @typedef {object} Term
- * @property {string} id
- * @property {string} term
- * @property {string} label
- */
+export interface Term {
+  id: string;
+  term: string;
+  label: string;
+}
 
-/**
- * @typedef {object} Group
- * @property {string} id
- * @property {string} label
- * @property {number} hue
- * @property {string} help
- * @property {readonly Term[]} terms
- * @property {string} [join]
- */
+export interface Group {
+  id: string;
+  label: string;
+  hue: number;
+  help: string;
+  terms: readonly Term[];
+  join?: string;
+}
 
-/**
- * @typedef {object} Range
- * @property {string} id
- * @property {string} prefix
- * @property {string} label
- * @property {number} max
- * @property {number} [min]
- */
+export interface Range {
+  id: string;
+  prefix: string;
+  label: string;
+  max: number;
+  min?: number;
+}
 
-/**
- * @typedef {object} Preset
- * @property {string} id
- * @property {string} label
- * @property {string} note
- * @property {string} [text]
- * @property {readonly string[]} [include]
- * @property {readonly string[]} [exclude]
- */
+export interface Preset {
+  id: string;
+  label: string;
+  note: string;
+  text?: string;
+  include?: readonly string[];
+  exclude?: readonly string[];
+}
 
 /**
  * The generations, as the dex-number ranges the game actually searches. A generation is not a search term — there is no
  * `gen1` — so each is the range it spans, which is why they sit here as terms rather than in the numeric ranges below.
  * The upper bound of the last one moves when a generation is added to the game.
- *
- * @type {readonly [string, string][]}
  */
-export const GENERATIONS = [
+export const GENERATIONS: readonly [string, string][] = [
   ['1', '1-151'],
   ['2', '152-251'],
   ['3', '252-386'],
@@ -111,11 +105,9 @@ const TYPES = [
   'fairy',
 ];
 
-/** @param {string} word */
-const capitalise = (word) => word.charAt(0).toUpperCase() + word.slice(1);
+const capitalise = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
-/** @type {readonly Group[]} */
-export const GROUPS = [
+export const GROUPS: readonly Group[] = [
   {
     id: 'status',
     label: 'Status',
@@ -315,10 +307,8 @@ export const GROUPS = [
  * Buddy and Mega level belong here rather than among the terms above, even though the game documents them as the eleven
  * separate words `buddy0` to `buddy5` and `mega0` to `mega3`: they are levels, so a reader wants a span of them — `Good
  * Buddy or better` is `buddy2-5` — and eleven chips could not write that.
- *
- * @type {readonly Range[]}
  */
-export const RANGES = [
+export const RANGES: readonly Range[] = [
   { id: 'cp', prefix: 'cp', label: 'CP', max: 5000 },
   { id: 'hp', prefix: 'hp', label: 'HP', max: 500 },
   { id: 'dex', prefix: '', label: 'Dex number', min: 1, max: 1025 },
@@ -336,10 +326,8 @@ export const RANGES = [
  * Only one of these earns its place. Safe to transfer is a long list of exclusions, every one of which matters, and
  * forgetting any single one of them is how a shiny ends up as candy. A start a reader could have clicked together out
  * of two chips saves them nothing and costs every reader a button to read past, so the chips carry those.
- *
- * @type {readonly Preset[]}
  */
-export const PRESETS = [
+export const PRESETS: readonly Preset[] = [
   {
     id: 'transfer',
     label: 'Safe to transfer',
@@ -367,7 +355,7 @@ export const PRESETS = [
 
 /**
  * Every term by id, for the link reader and the query writer — both are handed ids and need the term behind one.
- *
- * @type {ReadonlyMap<string, Term>}
  */
-export const TERMS_BY_ID = new Map(GROUPS.flatMap((group) => group.terms).map((term) => [term.id, term]));
+export const TERMS_BY_ID: ReadonlyMap<string, Term> = new Map(
+  GROUPS.flatMap((group) => group.terms).map((term) => [term.id, term]),
+);

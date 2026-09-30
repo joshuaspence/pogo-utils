@@ -1,0 +1,33 @@
+// The part in neither half. These files are imported by a browser module and by a `scripts/` file, so they must assume
+// neither DOM nor Node — which is what `lib` without `DOM` and an empty `types` say here. Both of the other projects
+// reference this one, so each reads these declarations rather than re-checking the sources, and a `Document` or a
+// `process` creeping in is an error in this project rather than something only one consumer notices.
+{
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "target": "ES2023",
+
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // The browser fetches these too, so they emit alongside the rest of `src/` and keep the same tree shape.
+    "outDir": "dist/src",
+    "rootDir": "src",
+    "declarationDir": ".types",
+
+    "composite": true,
+    "tsBuildInfoFile": ".types/tsconfig.shared.tsbuildinfo",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+
+    // Nothing ambient at all. An empty list is the point rather than an omission: it is what stops an installed
+    // `@types` package from handing Node's globals to a file a browser module imports.
+    "types": [],
+
+    // Node runs `scripts/` by stripping types in place, and these files are read from there, so anything it cannot
+    // erase — an `enum`, a `namespace`, a parameter property — has to be rejected here as well as next door.
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src/countries.ts", "src/generated.ts", "src/recurring-types.ts", "src/types.d.ts"]
+}

@@ -8,9 +8,12 @@
  * disagreeing about which types those are.
  *
  * `readonly` because the one list is the whole point. Both consumers copy it rather than hold it — a spread and a `Set`
- * in `events.js`, a `Set` in `build-ics` — so a `push` into the export would be an extra type for whichever of them had
+ * in `events.ts`, a `Set` in `build-ics` — so a `push` into the export would be an extra type for whichever of them had
  * not read it yet, which is the drift stated above arriving by the back door.
  *
- * @type {readonly string[]}
+ * Bound to a name rather than exported as a literal because there is nowhere to write the annotation otherwise: an
+ * `export default` takes an expression, so `readonly` would have to be asserted with an `as` rather than checked.
  */
-export default ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays', 'Season'];
+const RECURRING_TYPES: readonly string[] = ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays', 'Season'];
+
+export default RECURRING_TYPES;

@@ -28,7 +28,7 @@ export default [
   },
 
   {
-    files: ['**/*.js'],
+    files: ['src/**/*.ts'],
     languageOptions: {
       sourceType: 'module',
       globals: {

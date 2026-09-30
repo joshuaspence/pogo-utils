@@ -39,11 +39,10 @@ const newRouteState = () => ({
  * `parseGpxFavourites` built without one, and `mode` and `state` are what `encodeRoutes` falls back for. A route point
  * is a fixed triple rather than a list of numbers — latitude, longitude and `ROUTE_POINT_FLAG` — which is what
  * `encodeRoutes` re-emits positionally, and `state` is read off `newRouteState` rather than transcribed beside it.
- *
- * @typedef {[number, number, number]} RoutePoint
- * @typedef {{name: string, lat: number, lng: number, tz?: string}} Point
- * @typedef {{name: string, points: RoutePoint[], mode?: number, state?: ReturnType<typeof newRouteState>}} Route
  */
+type RoutePoint = [number, number, number];
+type Point = { name: string; lat: number; lng: number; tz?: string };
+type Route = { name: string; points: RoutePoint[]; mode?: number; state?: ReturnType<typeof newRouteState> };
 
 /**
  * Gson's JSON spelling: no spaces, forward slashes escaped. Points escape non-ASCII as \uXXXX (what "hlfavor"
@@ -52,17 +51,14 @@ const newRouteState = () => ({
  * surrogates as Java's modified UTF-8 does.
  */
 
-/** @type {(s: string) => string} */
-const escSlashes = (s) => s.replace(/\//g, '\\/');
+const escSlashes = (s: string) => s.replace(/\//g, '\\/');
 
-/** @type {(s: string) => string} */
-const asciiEscape = (s) => s.replace(/[\u0080-\uFFFF]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+const asciiEscape = (s: string) =>
+  s.replace(/[\u0080-\uFFFF]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
 
-/** @param {readonly Point[]} entries */
-function encodePoints(entries) {
+function encodePoints(entries: readonly Point[]) {
   const arr = entries.map((e) => {
-    /** @type {Point} */
-    const o = { name: e.name, lat: e.lat, lng: e.lng };
+    const o: Point = { name: e.name, lat: e.lat, lng: e.lng };
 
     if (e.tz) {
       o.tz = e.tz;
@@ -73,8 +69,7 @@ function encodePoints(entries) {
   return escSlashes(asciiEscape(JSON.stringify(arr)));
 }
 
-/** @param {readonly Route[]} entries */
-function encodeRoutes(entries) {
+function encodeRoutes(entries: readonly Route[]) {
   const arr = entries.map((e) => ({
     points: e.points,
     mode: e.mode ?? ROUTE_MODE,
@@ -89,10 +84,8 @@ function encodeRoutes(entries) {
  * variant: "Kings Park, Perth, Western Australia, Australia (long)". PGSharp lists and deletes favourites by name, so
  * this is the only identity a favourite has, which is why every part of it comes from the file rather than the path —
  * this mirrors pgsedit's entry_name.
- *
- * @param {Element} el
  */
-function entryName(el) {
+function entryName(el: Element) {
   const label = `${placeName(el)}, ${entryCountry(el)}`;
   const variant = extText(el, 'variant');
   return variant ? `${label} (${variant})` : label;
@@ -116,10 +109,8 @@ const BLACK_FLAG = '\u{1F3F4}';
  *
  * The country comes from a <pgr:country>, so it must have an entry in COUNTRIES; one that does not errors rather than
  * importing without a flag.
- *
- * @param {string} country
  */
-function countryFlag(country) {
+function countryFlag(country: string) {
   const code = COUNTRIES[country]?.code;
 
   if (!code) {
@@ -136,21 +127,16 @@ function countryFlag(country) {
 
 /**
  * A favourite's name with its country's flag in front.
- *
- * @param {Element} el
  */
-function flaggedName(el) {
+function flaggedName(el: Element) {
   return `${countryFlag(entryCountry(el))} ${entryName(el)}`;
 }
 
 /**
  * The pair a `<wpt>` or `<trkpt>` carries, as a tuple rather than a list, so that destructuring it gives two numbers
  * rather than two `number | undefined` — the same reason `coordsOf` in `src/app.js` hands back a tuple.
- *
- * @param {Element} el
- * @returns {[number, number]}
  */
-function coord(el) {
+function coord(el: Element): [number, number] {
   const lat = parseFloat(el.getAttribute('lat') ?? '');
   const lng = parseFloat(el.getAttribute('lon') ?? '');
 
@@ -166,17 +152,13 @@ function coord(el) {
  * is a path (a Route keeping all of its <trkpt>). A file may hold either or both. Mirrors pgsedit's parse_gpx — an
  * empty <trk> is skipped (gpx.studio writes one for a cleared track) rather than treated as a route. Both kinds are
  * flagged, so the two lists read alike in the app even though PGSharp shows them on separate tabs.
- *
- * @param {string} text
  */
-function parseGpxFavourites(text) {
+function parseGpxFavourites(text: string) {
   const doc = parseGpxDocument(text);
 
-  /** @type {Point[]} */
-  const points = [];
+  const points: Point[] = [];
 
-  /** @type {Route[]} */
-  const routes = [];
+  const routes: Route[] = [];
 
   for (const wpt of doc.getElementsByTagName('wpt')) {
     const [lat, lng] = coord(wpt);
@@ -184,8 +166,7 @@ function parseGpxFavourites(text) {
   }
 
   for (const { trk, trkpts } of eachTrack(doc)) {
-    /** @type {RoutePoint[]} */
-    const pts = [];
+    const pts: RoutePoint[] = [];
 
     for (const p of trkpts) {
       const [lat, lng] = coord(p);
@@ -204,10 +185,8 @@ function parseGpxFavourites(text) {
  * `undefined`. It is a copy of the one-liner in `src/app.js` rather than a shared import: the two are different pages
  * with no bundler between them, so an `errors.js` would cost `map.html` and `pgsharp.html` a real request each to save
  * one line.
- *
- * @param {unknown} e
  */
-const said = (e) => (e instanceof Error ? e.message : String(e));
+const said = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -230,25 +209,20 @@ async function buildRepoFavourites() {
   }
 
   const texts = await Promise.all(
-    files.map(
-      /** @returns {Promise<[string, string]>} */
-      async (file) => {
-        const res = await fetch(encodeURI(file));
+    files.map(async (file): Promise<[string, string]> => {
+      const res = await fetch(encodeURI(file));
 
-        if (!res.ok) {
-          throw new Error(`${file}: ${res.status} ${res.statusText}`);
-        }
+      if (!res.ok) {
+        throw new Error(`${file}: ${res.status} ${res.statusText}`);
+      }
 
-        return [file, await res.text()];
-      },
-    ),
+      return [file, await res.text()];
+    }),
   );
 
-  /** @type {Point[]} */
-  const points = [];
+  const points: Point[] = [];
 
-  /** @type {Route[]} */
-  const routes = [];
+  const routes: Route[] = [];
 
   for (const [file, text] of texts) {
     let parsed;
@@ -273,10 +247,8 @@ async function buildRepoFavourites() {
  * data tz-lookup carries. Routes have no tz field, so nothing is looked up for them. A point whose zone cannot be found
  * is left without one, which is how a missing script or an unlocatable coordinate looks; the count is returned so the
  * caller can say so once rather than per point. PGSharp accepts entries with no tz.
- *
- * @param {Point[]} points
  */
-function applyTimezones(points) {
+function applyTimezones(points: Point[]) {
   let unknown = 0;
 
   for (const p of points) {
@@ -304,15 +276,11 @@ function applyTimezones(points) {
  * Names must be unique within a kind (PGSharp lists and deletes by name), so drop any repeated name, keeping the first.
  * It is generic over the two kinds rather than taking a `{name: string}`, because the caller sorts and timezones what
  * it hands back: a parameter naming only the field this reads would answer with only that field.
- *
- * @template {{name: string}} T
- * @param {readonly T[]} entries
  */
-function dedupeByName(entries) {
+function dedupeByName<T extends { name: string }>(entries: readonly T[]) {
   const seen = new Set();
 
-  /** @type {T[]} */
-  const out = [];
+  const out: T[] = [];
   let dropped = 0;
 
   for (const e of entries) {
@@ -334,21 +302,15 @@ function dedupeByName(entries) {
  * exact spelling, so names differing only by accent still order deterministically. Each kind is sorted within itself,
  * as PGSharp lists them separately. A favourite's leading flag is decoration rather than part of how the list reads, so
  * it is folded out too — otherwise every place would sort by its country's regional-indicator code instead of by name.
- *
- * @param {string} name
  */
-const sortKey = (name) =>
+const sortKey = (name: string) =>
   (name || '')
     .replace(/^[^\p{L}\p{N}]+/u, '')
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
     .toLowerCase();
 
-/**
- * @param {{name: string}} a
- * @param {{name: string}} b
- */
-function byName(a, b) {
+function byName(a: { name: string }, b: { name: string }) {
   const ka = sortKey(a.name),
     kb = sortKey(b.name);
 
@@ -366,11 +328,7 @@ function byName(a, b) {
 const backupRunEl = byId('backupRun', HTMLButtonElement);
 const backupStatusEl = byId('backupStatus');
 
-/**
- * @param {string} msg
- * @param {string} [kind]
- */
-function backupStatus(msg, kind) {
+function backupStatus(msg: string, kind?: string) {
   backupStatusEl.textContent = msg;
   backupStatusEl.className = 'status' + (kind ? ' ' + kind : '');
 }
@@ -413,11 +371,8 @@ byId('feedNote').textContent =
  * the buffer is what lets the view be a `BlobPart` — a `SharedArrayBuffer` cannot be one. `dumps` builds its answer
  * with `Uint8Array.from`, which is an `ArrayBuffer` already, so the bare annotation is weaker than inference rather
  * than stronger.
- *
- * @param {Uint8Array<ArrayBuffer>} bytes
- * @param {string} name
  */
-function downloadBytes(bytes, name) {
+function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
   const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

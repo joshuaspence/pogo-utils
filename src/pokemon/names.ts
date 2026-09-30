@@ -21,10 +21,8 @@
  * Keyed by `string` rather than by the constants it holds, so that `nameOf` takes any constant and answers from the
  * table or from `titleise`. Naming them would make the fallback unreachable to the checker and every correction here a
  * type edit, where the point of the `??` is that a constant absent from this table is the ordinary case.
- *
- * @type {Record<string, string>}
  */
-const SPELLINGS = {
+const SPELLINGS: Record<string, string> = {
   NIDORAN_F: 'Nidoran♀',
   NIDORAN_M: 'Nidoran♂',
   FARFETCHD: "Farfetch'd",
@@ -52,11 +50,8 @@ const SPELLINGS = {
  * one would be given a constant spelled `A__B`. None is, checked over every constant `pokedex.js` binds and every form
  * name hung off one. Worth saying rather than assuming, because where the two do differ `charAt` writes a name with a
  * stray space where the index read threw, and quietly is the worse of the two ways to be wrong.
- *
- * @param {string} constant
- * @returns {string}
  */
-const titleise = (constant) =>
+const titleise = (constant: string): string =>
   constant
     .toLowerCase()
     .split('_')
@@ -66,10 +61,8 @@ const titleise = (constant) =>
 /**
  * The form names the constant-to-words rule gets wrong: the two Unown that are punctuation, a percentage the constant
  * had to spell out, and two whose hyphen or accent was dropped. Every other form reads the way `titleise` writes it.
- *
- * @type {Record<string, string>}
  */
-const FORM_SPELLINGS = {
+const FORM_SPELLINGS: Record<string, string> = {
   EXCLAMATION_MARK: '!',
   QUESTION_MARK: '?',
   TEN_PERCENT_FORME: '10% Forme',
@@ -80,28 +73,19 @@ const FORM_SPELLINGS = {
 
 /**
  * A species' name, from the constant it is bound to: `IRON_HANDS` is `Iron Hands`, `HO_OH` is `Ho-Oh`.
- *
- * @param {string} constant
- * @returns {string}
  */
-export const nameOf = (constant) => SPELLINGS[constant] ?? titleise(constant);
+export const nameOf = (constant: string): string => SPELLINGS[constant] ?? titleise(constant);
 
 /**
- * A form's name, from the name `pokedex.js` files it under: `COMBAT_BREED` is `Combat Breed`.
- *
- * @param {string} form
- * @returns {string}
+ * A form's name, from the name `pokedex.ts` files it under: `COMBAT_BREED` is `Combat Breed`.
  */
-export const formNameOf = (form) => FORM_SPELLINGS[form] ?? titleise(form);
+export const formNameOf = (form: string): string => FORM_SPELLINGS[form] ?? titleise(form);
 
 /**
  * A name folded to what a reader will actually type: lower case, and with the accents taken off, so `flabebe` finds
  * Flabébé from a keyboard that cannot easily write it.
- *
- * @param {string} name
- * @returns {string}
  */
-export const fold = (name) =>
+export const fold = (name: string): string =>
   name
     .toLowerCase()
     .normalize('NFD')

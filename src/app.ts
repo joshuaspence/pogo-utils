@@ -3,17 +3,14 @@ import { GPX_PATHS } from './generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
 import { byId } from './dom.js';
 
-/** @param {string} name */
-const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /**
  * What a caught value has to say. `catch` binds `unknown`, and a `throw` is not obliged to have thrown an `Error` — so
  * the three places here that report a failure ask rather than assume, and a thrown string reads as itself instead of
  * `undefined`.
- *
- * @param {unknown} e
  */
-const said = (e) => (e instanceof Error ? e.message : String(e));
+const said = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * zoomSnap: 0 lets fitBounds land on a fractional zoom. Snapping to whole levels rounds down, which can leave the
@@ -35,26 +32,26 @@ const toastEl = byId('toast');
  * A drawable track as the file gives it. `latlngs` is a list of *pairs* rather than a list of lists, because that is
  * what Leaflet means by a `LatLngExpression`: an unannotated `[lat, lon]` literal infers `number[]`, which `L.polyline`
  * rejects, where a `[number, number]` tuple is accepted.
- *
- * @typedef {object} Route
- * @property {[number, number][]} latlngs
- * @property {string} name
- * @property {string} country
- * @property {string} variant
- * @property {string} event
  */
+interface Route {
+  latlngs: [number, number][];
+  name: string;
+  country: string;
+  variant: string;
+  event: string;
+}
 
 /**
  * One place to stand. `coordStr` is the file's own lat/lon text rather than the parsed pair restringified, so what the
  * copy button hands over is exactly what the file said.
- *
- * @typedef {object} Waypoint
- * @property {string} name
- * @property {string} country
- * @property {string} event
- * @property {[number, number]} coords
- * @property {string} coordStr
  */
+interface Waypoint {
+  name: string;
+  country: string;
+  event: string;
+  coords: [number, number];
+  coordStr: string;
+}
 
 /**
  * A route once the page has it: the file it came from, the layer drawn for it, the row built for it and the distance
@@ -62,40 +59,33 @@ const toastEl = byId('toast');
  *
  * `el` is optional because it is not there when the entry is made — `buildSidebar` runs after every file has been read,
  * and `buildRouteRow` is what assigns it. Read it through `rowOf`, which says so.
- *
- * @typedef {Route & {
- *   file: string,
- *   gpx: string,
- *   line: L.Polyline,
- *   markers: L.CircleMarker[] | null,
- *   distance: number,
- *   el?: HTMLElement,
- * }} RouteEntry
  */
+type RouteEntry = Route & {
+  file: string;
+  gpx: string;
+  line: L.Polyline;
+  markers: L.CircleMarker[] | null;
+  distance: number;
+  el?: HTMLElement;
+};
 
 /**
  * A waypoint once the page has it. No distance and no `markers`: the dot is the entry, so selecting it restyles the one
  * layer rather than adding any.
- *
- * @typedef {Waypoint & {marker: L.CircleMarker, el?: HTMLElement}} CityEntry
  */
+type CityEntry = Waypoint & { marker: L.CircleMarker; el?: HTMLElement };
 
-/** @type {RouteEntry[]} */
-const store = [];
+const store: RouteEntry[] = [];
 
-/** @type {CityEntry[]} */
-const cityStore = [];
+const cityStore: CityEntry[] = [];
 
 /**
  * What is selected, as lists rather than one of each: a link from the Events page names an event, not an entry, and an
  * event can have been given several routes and waypoints — all of which are selected together (see focusHashEvent).
- *
- * @type {RouteEntry[]}
  */
-const activeRoutes = [];
+const activeRoutes: RouteEntry[] = [];
 
-/** @type {CityEntry[]} */
-const activeCities = [];
+const activeCities: CityEntry[] = [];
 
 /**
  * Every collapsible group in the sidebar, each with the badge in its own header. Recorded as the groups are built
@@ -104,29 +94,22 @@ const activeCities = [];
  *
  * Countries and continents share the list because they behave alike — both count the rows still showing anywhere
  * beneath them — which is what the two calls to a parameterised `settle` used to say.
- *
- * @type {{group: HTMLElement, count: HTMLElement}[]}
  */
-const groups = [];
+const groups: { group: HTMLElement; count: HTMLElement }[] = [];
 
 /**
  * Left `undefined` rather than `null`, because that is what `clearTimeout` already accepts for "no timer". Annotated
  * because nothing else can say so: the only assignment is inside `toast`, and a module-scope `let` takes its type from
  * what is written to it *here* — so inference had it as `any` and neither call was checked.
- *
- * @type {number | undefined}
  */
-let toastTimer;
+let toastTimer: number | undefined;
 
 /**
  * The sidebar row an entry was given. Assigned while the sidebar is built, which is after every file has been read and
  * before anything can be selected, so a missing row is a page assembled in the wrong order rather than a case to
  * handle — the reading `byId` takes of a stale id.
- *
- * @param {RouteEntry | CityEntry} entry
- * @returns {HTMLElement}
  */
-function rowOf(entry) {
+function rowOf(entry: RouteEntry | CityEntry): HTMLElement {
   if (!entry.el) {
     throw new Error(`“${entry.name}” has no sidebar row`);
   }
@@ -134,8 +117,7 @@ function rowOf(entry) {
   return entry.el;
 }
 
-/** @param {string} msg */
-function toast(msg) {
+function toast(msg: string) {
   toastEl.textContent = msg;
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
@@ -145,11 +127,8 @@ function toast(msg) {
 /**
  * Copy text to the clipboard, falling back to `execCommand` for insecure contexts (e.g. served over plain HTTP, where
  * the async Clipboard API is unavailable). Returns a promise that resolves to true on success.
- *
- * @param {string} text
- * @returns {Promise<boolean>}
  */
-async function copyText(text) {
+async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text);
@@ -178,11 +157,8 @@ async function copyText(text) {
 /**
  * Flash a copy button through its outcome — "Copied" or "Failed" — then restore its label a moment later. The
  * button is optional, so a caller with none to flash still shares this path.
- *
- * @param {HTMLButtonElement | null} btn
- * @param {boolean} ok
  */
-function flashButton(btn, ok) {
+function flashButton(btn: HTMLButtonElement | null, ok: boolean) {
   if (!btn) {
     return;
   }
@@ -196,24 +172,15 @@ function flashButton(btn, ok) {
   }, 1400);
 }
 
-/**
- * @param {RouteEntry} entry
- * @param {HTMLButtonElement} btn
- */
-async function copyRoute(entry, btn) {
+async function copyRoute(entry: RouteEntry, btn: HTMLButtonElement) {
   const ok = await copyText(entry.gpx);
   flashButton(btn, ok);
   toast(ok ? `Copied “${entry.name}” GPX to clipboard` : 'Copy failed');
 }
 
-/**
- * @param {readonly [number, number]} a
- * @param {readonly [number, number]} b
- * @returns {number}
- */
-function haversine(a, b) {
+function haversine(a: readonly [number, number], b: readonly [number, number]): number {
   const R = 6371000,
-    toRad = (/** @type {number} */ d) => (d * Math.PI) / 180;
+    toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(b[0] - a[0]),
     dLon = toRad(b[1] - a[1]);
   const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLon / 2) ** 2;
@@ -224,11 +191,8 @@ function haversine(a, b) {
  * The walked length of a track, summed over consecutive pairs. The previous point is carried rather than read back out
  * of the list by `i - 1`: an index and the length test above it are two questions nothing joins, where holding the
  * point the loop has just had is one.
- *
- * @param {readonly [number, number][]} latlngs
- * @returns {number}
  */
-function routeDistance(latlngs) {
+function routeDistance(latlngs: readonly [number, number][]): number {
   let d = 0;
   let previous;
 
@@ -243,11 +207,7 @@ function routeDistance(latlngs) {
   return d;
 }
 
-/**
- * @param {number} m
- * @returns {string}
- */
-function fmtDist(m) {
+function fmtDist(m: number): string {
   return m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m';
 }
 
@@ -265,11 +225,8 @@ class FetchError extends Error {}
  * One reader for both tags, because they are one format: `getAttribute` answers `string | null`, which is what made the
  * `<trkpt>` pair an error as soon as `eachTrack` started yielding an `Element` — twenty lines above a `<wpt>` pair that
  * was already erroring for the same reason. The element names itself in the message, so each keeps the wording it had.
- *
- * @param {Element} el
- * @returns {{coords: [number, number], coordStr: string}}
  */
-function coordsOf(el) {
+function coordsOf(el: Element): { coords: [number, number]; coordStr: string } {
   const latStr = el.getAttribute('lat'),
     lonStr = el.getAttribute('lon');
   const lat = parseFloat(latStr ?? ''),
@@ -292,11 +249,8 @@ function coordsOf(el) {
  * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant
  * and event stay optional — empty for a route with no short/long counterpart and for a place that stands on its own. The
  * whole file text is returned once, for the copy button to hand over.
- *
- * @param {string} file
- * @returns {Promise<{text: string, routes: Route[], waypoints: Waypoint[]}>}
  */
-async function loadGpxFile(file) {
+async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[]; waypoints: Waypoint[] }> {
   let res;
 
   try {
@@ -314,8 +268,7 @@ async function loadGpxFile(file) {
   const text = await res.text();
   const doc = parseGpxDocument(text);
 
-  /** @type {Route[]} */
-  const routes = [];
+  const routes: Route[] = [];
 
   for (const { trk, trkpts } of eachTrack(doc)) {
     const latlngs = [...trkpts].map((p) => coordsOf(p).coords);
@@ -333,8 +286,7 @@ async function loadGpxFile(file) {
     });
   }
 
-  /** @type {Waypoint[]} */
-  const waypoints = [];
+  const waypoints: Waypoint[] = [];
 
   for (const w of doc.getElementsByTagName('wpt')) {
     waypoints.push({
@@ -353,8 +305,7 @@ async function loadGpxFile(file) {
   return { text, routes, waypoints };
 }
 
-/** @param {RouteEntry} entry */
-function clearMarkers(entry) {
+function clearMarkers(entry: RouteEntry) {
   if (entry.markers) {
     entry.markers.forEach((m) => map.removeLayer(m));
     entry.markers = null;
@@ -364,14 +315,13 @@ function clearMarkers(entry) {
 /**
  * Build a map popup: a bold title, a detail line, and a copy button. The copy handler is handed the button so it can
  * flash it (see flashButton). Returns the element to bind to a layer.
- *
- * @param {string} name
- * @param {string} detail
- * @param {string} copyLabel
- * @param {(btn: HTMLButtonElement) => void} onCopy
- * @returns {HTMLElement}
  */
-function buildPopup(name, detail, copyLabel, onCopy) {
+function buildPopup(
+  name: string,
+  detail: string,
+  copyLabel: string,
+  onCopy: (btn: HTMLButtonElement) => void,
+): HTMLElement {
   const popup = document.createElement('div');
   const title = document.createElement('b');
   title.textContent = name;
@@ -391,19 +341,12 @@ function buildPopup(name, detail, copyLabel, onCopy) {
  * so the two cannot come to disagree about what "not selected" looks like — which matters now that the colour is a
  * decision rather than a constant: an entry added for an event is drawn in --event, and the sidebar row mirrors it (see
  * `.route::before` in styles.css).
- *
- * @param {Route} route
- * @returns {L.PolylineOptions}
  */
-function routeStyle(route) {
+function routeStyle(route: Route): L.PolylineOptions {
   return { color: cssVar(route.event ? '--event' : '--track'), weight: 2, opacity: 0.55 };
 }
 
-/**
- * @param {Waypoint} place
- * @returns {L.CircleMarkerOptions}
- */
-function cityStyle(place) {
+function cityStyle(place: Waypoint): L.CircleMarkerOptions {
   return {
     radius: 5,
     color: '#fff',
@@ -435,10 +378,8 @@ function clearSelection() {
  * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever else
  * is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
  * focusHashEvent calls it once per entry instead, so an event's whole set is selected at once.
- *
- * @param {RouteEntry} entry
  */
-function highlightRoute(entry) {
+function highlightRoute(entry: RouteEntry) {
   activeRoutes.push(entry);
   rowOf(entry).classList.add('active');
   entry.line.setStyle({ color: cssVar('--accent'), weight: 4, opacity: 1 });
@@ -458,12 +399,7 @@ function highlightRoute(entry) {
     throw new Error(`“${entry.name}” has no points to mark`);
   }
 
-  /**
-   * @param {[number, number]} at
-   * @param {string} color
-   * @param {string} label
-   */
-  const dot = (at, color, label) =>
+  const dot = (at: [number, number], color: string, label: string) =>
     L.circleMarker(at, {
       radius: 6,
       color: '#fff',
@@ -479,10 +415,8 @@ function highlightRoute(entry) {
 
 /**
  * Mirrors highlightRoute for a waypoint.
- *
- * @param {CityEntry} c
  */
-function highlightCity(c) {
+function highlightCity(c: CityEntry) {
   activeCities.push(c);
   rowOf(c).classList.add('active');
   c.marker.setStyle({ radius: 8, fillColor: cssVar('--accent') });
@@ -497,10 +431,8 @@ function highlightCity(c) {
  * Open the groups above every row given, then scroll the first of them into view. Several rows can be selected at once
  * and only one place can be scrolled to, so the first stands for the rest — which the groups now being open is what
  * makes reachable, rather than leaving the reader to guess which countries to expand.
- *
- * @param {readonly HTMLElement[]} els
  */
-function revealRows(els) {
+function revealRows(els: readonly HTMLElement[]) {
   for (const el of els) {
     el.closest('.country-group')?.classList.remove('collapsed');
     el.closest('.continent-group')?.classList.remove('collapsed');
@@ -509,11 +441,7 @@ function revealRows(els) {
   els[0]?.scrollIntoView({ block: 'nearest' });
 }
 
-/**
- * @param {RouteEntry} entry
- * @param {{pan?: boolean}} [options]
- */
-function selectRoute(entry, { pan = true } = {}) {
+function selectRoute(entry: RouteEntry, { pan = true }: { pan?: boolean } = {}) {
   clearSelection();
   highlightRoute(entry);
 
@@ -525,11 +453,7 @@ function selectRoute(entry, { pan = true } = {}) {
   revealRows([rowOf(entry)]);
 }
 
-/**
- * @param {CityEntry} c
- * @param {{pan?: boolean}} [options]
- */
-function selectCity(c, { pan = true } = {}) {
+function selectCity(c: CityEntry, { pan = true }: { pan?: boolean } = {}) {
   clearSelection();
   highlightCity(c);
 
@@ -541,11 +465,7 @@ function selectCity(c, { pan = true } = {}) {
   revealRows([rowOf(c)]);
 }
 
-/**
- * @param {CityEntry} c
- * @param {HTMLButtonElement} btn
- */
-async function copyCoords(c, btn) {
+async function copyCoords(c: CityEntry, btn: HTMLButtonElement) {
   const ok = await copyText(c.coordStr);
   flashButton(btn, ok);
   toast(ok ? `Copied ${c.name} coordinates to clipboard` : 'Copy failed');
@@ -554,10 +474,8 @@ async function copyCoords(c, btn) {
 /**
  * The name to show for a `<pgr:event>`, which the files record only by `eventID`. data/events.json is where that name
  * lives — the same file validate-gpx.mts checks those IDs against — and it is read once into here.
- *
- * @type {Map<string, string>}
  */
-const eventNames = new Map();
+const eventNames = new Map<string, string>();
 
 /**
  * A fetch that fails leaves the map empty and every entry naming its event by ID. That reads well enough
@@ -585,11 +503,8 @@ async function loadEventNames() {
  * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for a
  * name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
  * its text; the click is stopped short of the row, which would otherwise select the entry as the page unloads.
- *
- * @param {string} event
- * @returns {HTMLElement}
  */
-function buildEventLine(event) {
+function buildEventLine(event: string): HTMLElement {
   const line = document.createElement('span');
   line.className = 'eventline';
   const link = document.createElement('a');
@@ -602,11 +517,7 @@ function buildEventLine(event) {
   return line;
 }
 
-/**
- * @param {RouteEntry} entry
- * @returns {HTMLElement}
- */
-function buildRouteRow(entry) {
+function buildRouteRow(entry: RouteEntry): HTMLElement {
   const el = document.createElement('div');
   el.className = 'route';
   const label = document.createElement('span');
@@ -641,20 +552,14 @@ function buildRouteRow(entry) {
 /**
  * An empty count badge for a group header. `applyFilter` puts the number in and keeps it current, through the span the
  * caller keeps rather than by asking the header for it again.
- *
- * @returns {HTMLElement}
  */
-function groupCount() {
+function groupCount(): HTMLElement {
   const el = document.createElement('span');
   el.className = 'gcount';
   return el;
 }
 
-/**
- * @param {CityEntry} c
- * @returns {HTMLElement}
- */
-function buildCityRow(c) {
+function buildCityRow(c: CityEntry): HTMLElement {
   const el = document.createElement('div');
   el.className = 'route city';
   const label = document.createElement('span');
@@ -687,20 +592,15 @@ function buildCityRow(c) {
  * A row the sidebar is about to build, before the group that will hold it exists. `build` is a thunk rather than the
  * row itself, and that is load-bearing: `buildEventLine` reads `eventNames`, which `init` only awaits *after* every
  * entry has been made, so building a row eagerly would label its event by the raw ID the file carries.
- *
- * @typedef {{name: string, dist: number, build: () => HTMLElement}} Row
  */
+type Row = { name: string; dist: number; build: () => HTMLElement };
 
 /**
  * Two keyed pairs in the order `Array#sort` with no comparator would have put their keys in. Both levels of the sidebar
  * were sorted that way before each key started travelling beside its value, and this is that comparison written out
  * rather than a different one — `<` over two distinct strings is exactly what the default does.
- *
- * @param {readonly [string, unknown]} a
- * @param {readonly [string, unknown]} b
- * @returns {number}
  */
-function byKey(a, b) {
+function byKey(a: readonly [string, unknown], b: readonly [string, unknown]): number {
   return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
 }
 
@@ -713,8 +613,7 @@ function buildSidebar() {
     ? `${store.length} tracks \u00b7 ${cityStore.length} waypoints`
     : `${store.length} tracks across ${new Set(store.map((s) => s.country)).size} countries`;
 
-  /** @type {Record<string, Row[]>} */
-  const byCountry = {};
+  const byCountry: Record<string, Row[]> = {};
 
   for (const s of store) {
     (byCountry[s.country] ||= []).push({
@@ -736,10 +635,8 @@ function buildSidebar() {
    * Each continent's countries with their rows already attached, rather than a list of country names to look up in
    * `byCountry` again further down. A key and then an index are two questions nothing joins, so the second answers
    * `Row[] | undefined` however the first went — where the pair `Object.entries` hands over needs no second lookup.
-   *
-   * @type {Record<string, [string, Row[]][]>}
    */
-  const byContinent = {};
+  const byContinent: Record<string, [string, Row[]][]> = {};
 
   for (const entry of Object.entries(byCountry)) {
     (byContinent[COUNTRIES[entry[0]]?.continent || 'Other'] ||= []).push(entry);
@@ -829,8 +726,7 @@ function applyFilter() {
   }
 }
 
-/** @param {string} html */
-function showBanner(html) {
+function showBanner(html: string) {
   bannerEl.innerHTML = html;
   bannerEl.style.display = 'block';
 }
@@ -840,11 +736,8 @@ function showBanner(html) {
  * kinds want opposite things from the reader, so a server that is down must not read as metadata to go and correct.
  * The banner stays up for both: a defect is there to fix, and a file that never arrived is not something the map can
  * show a placeholder for either.
- *
- * @param {string} heading
- * @param {readonly {file: string, reason: string}[]} failures
  */
-function appendFailures(heading, failures) {
+function appendFailures(heading: string, failures: readonly { file: string; reason: string }[]) {
   const head = document.createElement('b');
   head.textContent = heading;
   const list = document.createElement('ul');
@@ -931,17 +824,12 @@ function focusHashEvent() {
 window.addEventListener('hashchange', focusHashEvent);
 
 async function init() {
-  /** @type {{file: string, reason: string}[]} */
-  const unreachable = [];
+  const unreachable: { file: string; reason: string }[] = [];
 
-  /** @type {{file: string, reason: string}[]} */
-  const rejected = [];
+  const rejected: { file: string; reason: string }[] = [];
 
-  /**
-   * @param {string} file
-   * @param {unknown} e
-   */
-  const note = (file, e) => (e instanceof FetchError ? unreachable : rejected).push({ file, reason: said(e) });
+  const note = (file: string, e: unknown) =>
+    (e instanceof FetchError ? unreachable : rejected).push({ file, reason: said(e) });
 
   /**
    * Nothing can be drawn without the list, and reading it is the page's first fetch — so this is also where opening

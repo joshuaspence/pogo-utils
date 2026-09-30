@@ -17,28 +17,30 @@ import { ENTRIES_BY_EVENT } from './generated.js';
 import RECURRING_TYPES from './recurring-types.js';
 import { byId, el } from './dom.js';
 
-/** @import { FeedEvent, RouteCounts, RouteIndex } from './types.js' */
+import type { FeedEvent, RouteCounts, RouteIndex } from './types.js';
 
 /**
  * A feed entry with its dates parsed — what every function below takes, and the only shape the page itself works in.
  * Named for what normalise() does to a `FeedEvent` rather than for the dates it carries, since a `tbd` event has none.
  *
- * `Event` would have been the obvious name and is the one to avoid: a typedef of that name shadows the DOM's own
+ * `Event` would have been the obvious name and is the one to avoid: a type of that name shadows the DOM's own
  * `Event` for the whole module, and the card's acknowledge handler takes a real `MouseEvent`.
- *
- * @typedef {object} ParsedEvent
- * @property {string} eventID
- * @property {string} name
- * @property {string} heading
- * @property {string} eventType
- * @property {string} link
- * @property {string} image
- * @property {Date | null} start
- * @property {Date | null} end
- * @property {boolean} startHasZone Whether the feed gave `start` a zone, so the label can say "your local time".
  */
+interface ParsedEvent {
+  eventID: string;
+  name: string;
+  heading: string;
+  eventType: string;
+  link: string;
+  image: string;
+  start: Date | null;
+  end: Date | null;
 
-/** @typedef {'active' | 'upcoming' | 'tbd' | 'ended'} StatusKind */
+  /** Whether the feed gave `start` a zone, so the label can say "your local time". */
+  startHasZone: boolean;
+}
+
+type StatusKind = 'active' | 'upcoming' | 'tbd' | 'ended';
 
 /**
  * Where an event sits relative to now — see statusOf(). A discriminated union rather than one shape with an optional
@@ -48,11 +50,9 @@ import { byId, el } from './dom.js';
  * `tbd` still carries the field, as an explicit null. Omitting it makes `status.at` unreadable without first ruling
  * that kind out, which is a test the card does not otherwise need — where a null says the same thing to the reader and
  * leaves the two pending kinds guaranteeing a `Date` all the same, which is the whole of what the union is for.
- *
- * @typedef {{kind: 'tbd', at: null}
- *   | {kind: 'upcoming' | 'ended', at: Date}
- *   | {kind: 'active', at: Date | null}} Status
  */
+type Status =
+  { kind: 'tbd'; at: null } | { kind: 'upcoming' | 'ended'; at: Date } | { kind: 'active'; at: Date | null };
 
 /**
  * The half-open instant interval an event occupies, `[startMs, endMs]` — see windowOf(). A tuple rather than a
@@ -61,9 +61,8 @@ import { byId, el } from './dom.js';
  * to an array's element but not to a tuple index the type already knows is there.
  *
  * Not `Window`, which is the DOM's own and would be shadowed for the whole module — the same trap `ParsedEvent` avoids.
- *
- * @typedef {readonly [number, number]} Span
  */
+type Span = readonly [number, number];
 
 /**
  * One event placed on a Tracks row: the span it occupies, and the sub-row packLanes() has put it in.
@@ -71,29 +70,32 @@ import { byId, el } from './dom.js';
  * `lane` starts at 0 and is written afterwards rather than being part of the value, because which lane an event belongs
  * in is not a fact about the event — it depends on every other event on the same track, so nothing can know it until
  * the row is complete and sorted.
- *
- * @typedef {object} TrackItem
- * @property {ParsedEvent} ev
- * @property {number} startMs
- * @property {number} endMs
- * @property {number} lane
  */
+interface TrackItem {
+  ev: ParsedEvent;
+  startMs: number;
+  endMs: number;
+  lane: number;
+}
 
-/** @typedef {'cards' | 'calendar' | 'tracks'} View */
+type View = 'cards' | 'calendar' | 'tracks';
 
 /**
  * The reader's saved choices, keyed the way KEYS is so persist() can take a name alone.
  *
  * `seen` is nullable and the nullability is load-bearing: null is a first visit, where an empty set is a reader who has
  * acknowledged everything — see settleSeen().
- *
- * @typedef {object} Prefs
- * @property {Set<string>} hiddenTypes
- * @property {Record<string, Set<string>>} hiddenByView
- * @property {'global' | 'view'} filterScope Which set the chips edit: the global one, or the current view's own.
- * @property {Set<string>} dismissed
- * @property {Set<string> | null} seen
  */
+interface Prefs {
+  hiddenTypes: Set<string>;
+  hiddenByView: Record<string, Set<string>>;
+
+  /** Which set the chips edit: the global one, or the current view's own. */
+  filterScope: 'global' | 'view';
+
+  dismissed: Set<string>;
+  seen: Set<string> | null;
+}
 
 const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 const LOCAL_URL = 'data/events.json';
@@ -101,10 +103,8 @@ const LOCAL_URL = 'data/events.json';
 /**
  * How many routes and waypoints each event has here, by `eventID`, once the index has loaded. Empty until then, and it
  * stays empty if that fetch fails — see load(), which tolerates any one of the three sources going missing.
- *
- * @type {RouteIndex}
  */
-let routeIndex = {};
+let routeIndex: RouteIndex = {};
 
 /**
  * How often to recompute the "starts in…/ends in…" labels against the wall clock, and — every REFETCH_EVERY ticks —
@@ -175,10 +175,8 @@ const LEGACY_KEY = 'pgo-events:prefs';
  * The sets that object carried, and so all migrateLegacy() can bring across. `seen` is deliberately not among them: it
  * has no legacy value, and writing it empty would say a reader who has been here for months has seen nothing, marking
  * every event on the page new. Left absent instead, it seeds from the feed like a first visit — see settleSeen().
- *
- * @type {readonly (keyof typeof KEYS)[]}
  */
-const LEGACY_SETS = ['hiddenTypes', 'dismissed'];
+const LEGACY_SETS: readonly (keyof typeof KEYS)[] = ['hiddenTypes', 'dismissed'];
 
 /**
  * The types hidden on a first visit, so the default view leads with the events a reader is more likely to plan around:
@@ -202,11 +200,8 @@ const RECURRING = new Set(RECURRING_TYPES);
  *
  * `unknown` rather than what `JSON.parse` answers, so that each reader has to say what it expects before it can use it
  * — which is what those readers were already doing at run time.
- *
- * @param {string} key
- * @returns {unknown}
  */
-function readJSON(key) {
+function readJSON(key: string): unknown {
   try {
     const stored = localStorage.getItem(key);
     return stored === null ? null : JSON.parse(stored);
@@ -223,22 +218,16 @@ function readJSON(key) {
  *
  * A stray non-string could only come from a store someone else has written, and dropping it costs nothing: these are
  * compared against `eventID`s and `heading`s, so a number among them is a member nothing can ever equal.
- *
- * @param {unknown} value
- * @returns {string[] | null}
  */
-function stringsOf(value) {
-  return Array.isArray(value) ? /** @type {readonly unknown[]} */ (value).filter((m) => typeof m === 'string') : null;
+function stringsOf(value: unknown): string[] | null {
+  return Array.isArray(value) ? (value as readonly unknown[]).filter((m) => typeof m === 'string') : null;
 }
 
 /**
  * One stored set, or null where its key has never been written. Null rather than an empty set because the two mean
  * different things to `hiddenTypes`, and unreadable storage (private mode, disabled) is the same as never written.
- *
- * @param {string} key
- * @returns {Set<string> | null}
  */
-function readSet(key) {
+function readSet(key: string): Set<string> | null {
   const members = stringsOf(readJSON(key));
   return members === null ? null : new Set(members);
 }
@@ -247,13 +236,9 @@ function readSet(key) {
  * The per-view hidden sets, as far as storage carries them, which may be none of them. Left sparse rather than filled
  * out with an empty set per view, because absent is what tells hiddenNow() to seed a view from the global set — filling
  * them would say instead that every view has had its chips cleared.
- *
- * @param {string} key
- * @returns {Record<string, Set<string>>}
  */
-function readSetsByView(key) {
-  /** @type {Record<string, Set<string>>} */
-  const sets = {};
+function readSetsByView(key: string): Record<string, Set<string>> {
+  const sets: Record<string, Set<string>> = {};
   const stored = readJSON(key);
 
   for (const [name, members] of Object.entries(stored === null || typeof stored !== 'object' ? {} : stored)) {
@@ -283,8 +268,7 @@ function migrateLegacy() {
       return;
     }
 
-    /** @type {Record<string, unknown>} */
-    const parsed = JSON.parse(stored);
+    const parsed: Record<string, unknown> = JSON.parse(stored);
 
     for (const name of LEGACY_SETS) {
       localStorage.setItem(KEYS[name], JSON.stringify(stringsOf(parsed?.[name]) ?? []));
@@ -296,8 +280,7 @@ function migrateLegacy() {
   }
 }
 
-/** @returns {Prefs} */
-function loadPrefs() {
+function loadPrefs(): Prefs {
   migrateLegacy();
 
   return {
@@ -319,11 +302,8 @@ const prefs = loadPrefs();
 
 /**
  * JSON has no Set, so one replacer serialises a bare set and the object of per-view sets alike, as their members.
- *
- * @param {string} _key
- * @param {unknown} value
  */
-const asArrays = (_key, value) => (value instanceof Set ? [...value] : value);
+const asArrays = (_key: string, value: unknown) => (value instanceof Set ? [...value] : value);
 
 /**
  * Write one preference back, named rather than keyed so a call site cannot pair a key with the wrong value, and one at
@@ -331,10 +311,8 @@ const asArrays = (_key, value) => (value instanceof Set ? [...value] : value);
  *
  * `KEYS` and `Prefs` carry the same five names, which is what makes one argument enough — and what makes a name neither
  * of them knows a `TS2345` here rather than an `undefined` key written to storage.
- *
- * @param {keyof typeof KEYS} name
  */
-function persist(name) {
+function persist(name: keyof typeof KEYS) {
   try {
     localStorage.setItem(KEYS[name], JSON.stringify(prefs[name], asArrays));
   } catch {
@@ -366,25 +344,20 @@ const els = {
 
 /**
  * The feed entries the page is drawing, sorted by start.
- *
- * @type {ParsedEvent[]}
  */
-let events = [];
+let events: ParsedEvent[] = [];
 let tick = 0;
 
 // Whether the next render is the one that follows a fetch, which is the only one that plays the cards' entry animation.
 // render() also runs every minute to keep the relative labels honest, and animating those would be a twitch.
 let entering = false;
 
-/** @type {View} */
-let view = 'cards';
+let view: View = 'cards';
 
 /**
  * The first-of-month Date the calendar view is showing, set lazily to the current month.
- *
- * @type {Date | null}
  */
-let calMonth = null;
+let calMonth: Date | null = null;
 
 let filtersOpen = false; // whether the filter panel is disclosed; a session's choice, not a saved preference
 
@@ -413,10 +386,8 @@ const reveals = {
  * Held rather than walked back off `els.typeFilters.children`, which answers an `Element` and so carries no `dataset`
  * at all, and whose `dataset.heading` was in any case a copy of a string fillTypes() had in hand. Two lookups in the
  * document for something this module made, where holding it removes the question instead of answering it.
- *
- * @type {{heading: string, chip: HTMLButtonElement}[]}
  */
-const typeChips = [];
+const typeChips: { heading: string; chip: HTMLButtonElement }[] = [];
 
 /**
  * The hidden-type set in force: the global one, or the current view's own where the reader has scoped the chips to a
@@ -451,11 +422,7 @@ const dayFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeri
 const weekdayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) => weekdayFmt.format(new Date(2023, 0, 1 + i)));
 
-/**
- * @param {string | null} s
- * @returns {Date | null}
- */
-function parseDate(s) {
+function parseDate(s: string | null): Date | null {
   if (!s) {
     return null;
   }
@@ -464,27 +431,19 @@ function parseDate(s) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** @param {Date} d */
-function startOfDay(d) {
+function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-/**
- * @param {Date} d
- * @param {number} n
- */
-function addDays(d, n) {
+function addDays(d: Date, n: number) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 }
 
 /**
  * A coarse "in 3 days"/"5 hours ago", picking the largest unit that keeps the number readable. Intl handles the
  * wording and pluralisation for the user's locale.
- *
- * @param {Date} target
- * @param {Date} now
  */
-function relative(target, now) {
+function relative(target: Date, now: Date) {
   const mins = Math.round((target.getTime() - now.getTime()) / 60_000);
   const abs = Math.abs(mins);
 
@@ -510,12 +469,8 @@ function relative(target, now) {
  * `gbl-twilight-trails_great-league_ultra-league-mega-edition_willpower-cup-great-league-edition`, which Leek Duck's own
  * page dates 15 to 22 September. So `tbd` mostly means an event already over whose dates went missing on the way here —
  * which is why renderCards() keeps the bucket behind a toggle rather than showing it by default.
- *
- * @param {ParsedEvent} ev
- * @param {Date} now
- * @returns {Status}
  */
-function statusOf(ev, now) {
+function statusOf(ev: ParsedEvent, now: Date): Status {
   if (!ev.start && !ev.end) {
     return { kind: 'tbd', at: null };
   }
@@ -540,11 +495,8 @@ function statusOf(ev, now) {
  * when both are and one test therefore does the work of two. Guarding first left `start ?? end` as `Date | null` all
  * the same — nothing ties the earlier test to this expression — so the shorter form is also the one that needs no
  * assertion.
- *
- * @param {ParsedEvent} ev
- * @returns {Span | null}
  */
-function windowOf(ev) {
+function windowOf(ev: ParsedEvent): Span | null {
   if (ev.start && ev.end) {
     return [ev.start.getTime(), ev.end.getTime()];
   }
@@ -559,12 +511,7 @@ function windowOf(ev) {
   return [dayStart, dayStart + DAY_MS];
 }
 
-/**
- * @param {Span | null} win
- * @param {number} from
- * @param {number} to
- */
-function overlaps(win, from, to) {
+function overlaps(win: Span | null, from: number, to: number) {
   return win !== null && win[0] < to && win[1] > from;
 }
 
@@ -572,12 +519,8 @@ function overlaps(win, from, to) {
  * The columns of one week row an event's window touches, as `[first, last]` inclusive, or null for a week it misses
  * entirely. A window is one contiguous interval, so the columns it covers are contiguous too and the pair describes them
  * completely. A single-day event yields a one-column span and needs no special case.
- *
- * @param {Span | null} win
- * @param {Date} weekStart
- * @returns {readonly [number, number] | null}
  */
-function weekColumns(win, weekStart) {
+function weekColumns(win: Span | null, weekStart: Date): readonly [number, number] | null {
   let first = -1;
   let last = -1;
 
@@ -599,10 +542,8 @@ function weekColumns(win, weekStart) {
  * Rows in an array rather than an object keyed by kind, because the order is the point and an object says it only by
  * insertion. `Object.entries` was also the wrong reader for it: that answers a `string` key whatever the object's own
  * keys are, so `buckets[kind]` could not be one of the four, and the row carrying its own kind is what makes it one.
- *
- * @type {readonly {kind: StatusKind, label: string}[]}
  */
-const GROUPS = [
+const GROUPS: readonly { kind: StatusKind; label: string }[] = [
   { kind: 'active', label: 'Happening now' },
   { kind: 'upcoming', label: 'Upcoming' },
   { kind: 'tbd', label: 'Date unknown' },
@@ -636,10 +577,8 @@ const TRACKS = [
  * Takes the stable `eventType` slug like the Tracks rows, not the human `heading`. Empty for a feed entry missing the
  * field, in which case the colour consumers fall back to their default. Worn by the card, the calendar bar, the
  * timeline bar and the filter chip alike, which is what keeps one type reading the same colour in all four.
- *
- * @param {string} eventType
  */
-function typeClass(eventType) {
+function typeClass(eventType: string) {
   return eventType ? ` type-${eventType}` : '';
 }
 
@@ -649,10 +588,8 @@ function typeClass(eventType) {
  * Four branches for four cases rather than three and a fallthrough. The dateless case read first and the end-only one
  * arrived as the default, which is a claim the reader has to reconstruct from the two guards above it; written out, the
  * checker confirms each `format` call has a date rather than taking it on trust.
- *
- * @param {ParsedEvent} ev
  */
-function timeRange(ev) {
+function timeRange(ev: ParsedEvent) {
   const local = ev.start && !ev.startHasZone ? ' (your local time)' : '';
 
   if (ev.start && ev.end) {
@@ -675,10 +612,8 @@ function timeRange(ev) {
  * see this", so every view honours them. The status reveals are isRevealed()'s, layered on top of this. A dismissed
  * event stays hidden unless "Show hidden" is on, which mirrors how "Show ended" reveals past events — the choice is
  * a temporary reveal, not a change to the saved dismissal.
- *
- * @param {ParsedEvent} ev
  */
-function isVisible(ev) {
+function isVisible(ev: ParsedEvent) {
   if (hiddenNow().has(ev.heading)) {
     return false;
   }
@@ -699,11 +634,8 @@ function isVisible(ev) {
  * Shared with newlyVisible() so the new count can only ever be a subset of the total the cards view writes beside it. A
  * header reporting more new events than events contradicts itself, and so does any count at all above "No events to
  * show" — which a search term matching only undated events is enough to produce.
- *
- * @param {ParsedEvent} ev
- * @param {Date} now
  */
-function isRevealed(ev, now) {
+function isRevealed(ev: ParsedEvent, now: Date) {
   const kind = statusOf(ev, now).kind;
   return (kind !== 'ended' || reveals.showPast.on) && (kind !== 'tbd' || reveals.showUndated.on);
 }
@@ -719,10 +651,8 @@ function isRevealed(ev, now) {
  * reports nothing. That is why settleSeen() stores none of them either: no question is left for the set to answer.
  *
  * Nothing is new before the first feed has settled the seen set, so a slow fetch cannot flash badges over every card.
- *
- * @param {ParsedEvent} ev
  */
-function isNew(ev) {
+function isNew(ev: ParsedEvent) {
   return prefs.seen !== null && !RECURRING.has(ev.heading) && !prefs.seen.has(ev.eventID);
 }
 
@@ -734,10 +664,8 @@ function isNew(ev) {
  * nothing can be new when there is nothing yet to be new against, so the set this would have created has no members to
  * carry. Named here rather than written out at the three callers because the argument for the `?.` is the same one each
  * time, and a reader meeting it at a click handler cannot see isNew() standing behind it.
- *
- * @param {ParsedEvent} ev
  */
-function recordSeen(ev) {
+function recordSeen(ev: ParsedEvent) {
   prefs.seen?.add(ev.eventID);
 }
 
@@ -749,10 +677,8 @@ function recordSeen(ev) {
  *
  * Which is exactly the population the cards view draws, and neither narrower nor wider than what the other two draw:
  * see the Mark all as seen handler.
- *
- * @param {Date} now
  */
-function newlyVisible(now) {
+function newlyVisible(now: Date) {
   return events.filter((ev) => isNew(ev) && isVisible(ev) && isRevealed(ev, now));
 }
 
@@ -784,10 +710,8 @@ function settleSeen() {
 /**
  * "2 routes · 1 waypoint" — each kind the event has, pluralised. A kind it has none of is left out rather than written
  * as a zero, so an event with only a waypoint does not advertise the routes it lacks.
- *
- * @param {RouteCounts} counts
  */
-function routeSummary({ routes, waypoints }) {
+function routeSummary({ routes, waypoints }: RouteCounts) {
   const parts = [];
 
   if (routes) {
@@ -801,11 +725,7 @@ function routeSummary({ routes, waypoints }) {
   return parts.join(' · ');
 }
 
-/**
- * @param {ParsedEvent} ev
- * @param {Date} now
- */
-function card(ev, now) {
+function card(ev: ParsedEvent, now: Date) {
   const status = statusOf(ev, now);
   const dismissed = prefs.dismissed.has(ev.eventID);
   const cardEl = el('article', `card ${status.kind}${dismissed ? ' dismissed' : ''}${typeClass(ev.eventType)}`);
@@ -825,10 +745,8 @@ function card(ev, now) {
    *
    * `auxclick` as well as `click` because a middle click, which over a list like this is how a reader opens something
    * in a background tab without losing their place, fires only the second of the two.
-   *
-   * @param {MouseEvent} e
    */
-  const acknowledge = (e) => {
+  const acknowledge = (e: MouseEvent) => {
     // The left and middle buttons are the two that open the link. Chrome reports a right click as an `auxclick` too,
     // and that opens a menu rather than the event.
     if (e.button > 1 || !isNew(ev)) {
@@ -929,10 +847,8 @@ function card(ev, now) {
   return cardEl;
 }
 
-/** @param {Date} now */
-function renderCards(now) {
-  /** @type {Record<StatusKind, ParsedEvent[]>} */
-  const buckets = { active: [], upcoming: [], tbd: [], ended: [] };
+function renderCards(now: Date) {
+  const buckets: Record<StatusKind, ParsedEvent[]> = { active: [], upcoming: [], tbd: [], ended: [] };
   let shown = 0;
 
   for (const ev of events) {
@@ -996,12 +912,15 @@ function renderCards(now) {
  * A segment the week's edge cut off is squared off there and marked with an arrow, so a bar reads as running on into the
  * next row rather than as ending on the Saturday.
  *
- * @param {ParsedEvent} ev
- * @param {Date} now
- * @param {readonly [number, number]} columns The inclusive `[first, last]` weekColumns() answered for this week.
- * @param {{contLeft: boolean, contRight: boolean}} cut Which ends the week's own edge cut off rather than the event.
+ * @param columns The inclusive `[first, last]` weekColumns() answered for this week.
+ * @param cut Which ends the week's own edge cut off rather than the event.
  */
-function calBar(ev, now, [first, last], { contLeft, contRight }) {
+function calBar(
+  ev: ParsedEvent,
+  now: Date,
+  [first, last]: readonly [number, number],
+  { contLeft, contRight }: { contLeft: boolean; contRight: boolean },
+) {
   const node = el('a', `cal-bar ${statusOf(ev, now).kind}${typeClass(ev.eventType)}`);
   node.style.gridColumn = `${first + 1} / span ${last - first + 1}`;
   node.classList.toggle('cont-left', contLeft);
@@ -1018,8 +937,7 @@ function calBar(ev, now, [first, last], { contLeft, contRight }) {
   return node;
 }
 
-/** @param {Date} now */
-function renderCalendar(now) {
+function renderCalendar(now: Date) {
   if (!calMonth) {
     calMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   }
@@ -1158,12 +1076,9 @@ const TRACK_MAX_DAYS = 120;
  * Assign each item a `lane` — a sub-row within its track — by greedy interval partitioning: reuse the first lane whose
  * previous bar has already ended, otherwise open a new one. Items must arrive sorted by start. Returns the lane count,
  * which sets the track row's height so overlapping events stack instead of drawing over each other.
- *
- * @param {readonly TrackItem[]} items
  */
-function packLanes(items) {
-  /** @type {number[]} */
-  const laneEnds = [];
+function packLanes(items: readonly TrackItem[]) {
+  const laneEnds: number[] = [];
 
   for (const it of items) {
     const free = laneEnds.findIndex((end) => end <= it.startMs);
@@ -1176,8 +1091,7 @@ function packLanes(items) {
   return laneEnds.length;
 }
 
-/** @param {Date} now */
-function renderTracks(now) {
+function renderTracks(now: Date) {
   const rangeStart = addDays(startOfDay(now), -TRACK_LEAD_DAYS);
   const rangeStartMs = rangeStart.getTime();
 
@@ -1189,16 +1103,15 @@ function renderTracks(now) {
    * Each row holds its own items rather than a second Map holding them beside TRACKS, so the drawing pass below reads
    * `track.items` instead of looking the row up again — a lookup by a key TRACKS was the source of, which has no answer
    * for a miss and so is a `Map#get` that cannot fail being made to look like one that can.
-   *
-   * @type {Map<string, {type: string, label: string, items: TrackItem[]}>}
    */
-  const byType = new Map(TRACKS.map((t) => [t.type, { ...t, items: [] }]));
+  const byType = new Map<string, { type: string; label: string; items: TrackItem[] }>(
+    TRACKS.map((t) => [t.type, { ...t, items: [] }]),
+  );
   let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
   // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed by
   // the chip's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
-  /** @type {Set<string>} */
-  const filteredTypes = new Set();
+  const filteredTypes = new Set<string>();
 
   for (const ev of events) {
     const row = byType.get(ev.eventType);
@@ -1369,8 +1282,7 @@ function render() {
   entering = false;
 }
 
-/** @param {View} next */
-function setView(next) {
+function setView(next: View) {
   view = next;
 
   for (const { name, btn } of [
@@ -1397,20 +1309,14 @@ function setView(next) {
  * it chooses between are: a scope that fell back to global on reload would leave a reader's per-view filtering saved
  * and silently out of force, which is worse than not having offered it. render() does the rest — it repaints the
  * segments, and the chip row along with them.
- *
- * @param {Prefs['filterScope']} next
  */
-function setScope(next) {
+function setScope(next: Prefs['filterScope']) {
   prefs.filterScope = next;
   persist('filterScope');
   render();
 }
 
-/**
- * @param {readonly FeedEvent[]} raw
- * @returns {ParsedEvent[]}
- */
-function normalise(raw) {
+function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
   return raw.map((e) => ({
     eventID: e.eventID,
     name: e.name,
@@ -1434,8 +1340,7 @@ function normalise(raw) {
  * with the feed.
  */
 function fillTypes() {
-  /** @type {Map<string, string>} */
-  const slugs = new Map();
+  const slugs = new Map<string, string>();
 
   for (const e of events) {
     if (e.heading && !slugs.has(e.heading)) {
@@ -1479,19 +1384,15 @@ function fillTypes() {
  * is a claim rather than something the throw enforces. What makes it a safe one is what normalise() then does with an
  * entry: every field is either handed to parseDate(), which answers null for anything that is not a date, or set as
  * text on a node. So a feed that changed shape draws `undefined` rather than doing something with it.
- *
- * @param {string} url
- * @returns {Promise<readonly FeedEvent[]>}
  */
-async function fetchEvents(url) {
+async function fetchEvents(url: string): Promise<readonly FeedEvent[]> {
   const res = await fetch(url, { cache: 'default' });
 
   if (!res.ok) {
     throw new Error(`${res.status} ${res.statusText}`);
   }
 
-  /** @type {unknown} */
-  const raw = await res.json();
+  const raw: unknown = await res.json();
 
   if (!Array.isArray(raw)) {
     throw new Error('not a list of events');
@@ -1504,10 +1405,8 @@ async function fetchEvents(url) {
  * The route and waypoint counts per event. Unchecked, and the return type therefore a claim about a file this
  * repository generates rather than one this function verified — `validate-gpx.mts` is what holds the file and the GPX
  * tree in step. A card tolerates a miss either way: an event the index does not name simply gets no map link.
- *
- * @returns {Promise<RouteIndex>}
  */
-async function fetchRouteIndex() {
+async function fetchRouteIndex(): Promise<RouteIndex> {
   const res = await fetch(ENTRIES_BY_EVENT);
 
   if (!res.ok) {
@@ -1517,8 +1416,7 @@ async function fetchRouteIndex() {
   return res.json();
 }
 
-/** @param {unknown} e */
-const said = (e) => (e instanceof Error ? e.message : String(e));
+const said = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 async function load() {
   els.count.textContent = 'Loading events…';
@@ -1546,12 +1444,10 @@ async function load() {
    * duplicating it. Named for the field rather than as `byId`, which is dom.js's own and imported above.
    *
    * Annotated because a bare `new Map()` is a `Map<any, any>` that a `set` does not refine, so `[...values()]` was an
-   * `any[]` and normalise() checked nothing at all about what it was handed — the claim its `@returns` makes rests on
-   * this line.
-   *
-   * @type {Map<string, FeedEvent>}
+   * `any[]` and normalise() checked nothing at all about what it was handed — the claim its return type makes rests
+   * on this line.
    */
-  const byEventId = new Map();
+  const byEventId = new Map<string, FeedEvent>();
 
   for (const e of feed.status === 'fulfilled' ? feed.value : []) {
     byEventId.set(e.eventID, e);
