@@ -275,10 +275,13 @@ async function scan() {
     await sleep(config.waits.search);
     lines = await readLines(await device.screenshot());
 
-    // An empty box shows the Recent and Recommended suggestions over the grid, and Enter only takes the keyboard away;
-    // Back closes them and leaves the unfiltered grid behind. Tapping a suggestion by accident searches for it, so the
-    // panel has to go before anything else is tapped.
-    if (findLine(lines, /^recommended$/)) {
+    // Clearing the box uncovers the Recent and Recommended suggestions, and Enter only takes the keyboard away; Back
+    // closes them and leaves the unfiltered grid behind. An empty search matches everything, so a grid with nothing in
+    // it is that panel and can be nothing else — which is a surer test than the panel's own headings, since PGSharp's
+    // toolbar sits down the left edge over their first letters and `Recent` reads as `serccemt` behind it. Getting
+    // this wrong is expensive rather than merely unhelpful: `openFirst` then falls back to its blind tap, which lands
+    // on the first Recent chip and quietly scans whatever was searched for last.
+    if (term === '' && !tileLabel(lines)) {
       await device.key(KEY.BACK);
       await sleep(config.waits.search);
       lines = await readLines(await device.screenshot());
@@ -337,10 +340,16 @@ async function scan() {
     }
   };
 
-  /** Opens the first Pokémon the grid shows, answering false when there is none — an empty search. */
+  /**
+   * The first Pokémon's CP label in a grid, which doubles as how a grid is told from the suggestions panel drawn over
+   * it: the panel carries no CP anywhere.
+   */
+  const tileLabel = (lines: readonly Line[]) =>
+    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && /^cp\s?\d/.test(fold(l.text)));
+
+  /** Opens the first Pokémon the grid shows, answering false when there is none — a search that matched nothing. */
   const openFirst = async (grid: readonly Line[]) => {
-    const below = searchBox?.[1] ?? 0;
-    const label = grid.find((l) => l.top > below && /^cp\s?\d/.test(fold(l.text)));
+    const label = tileLabel(grid);
     await tap(
       label ? [centre(label)[0], label.top + label.height * 2.5] : at(config.taps.firstTile),
       config.waits.swipe,
