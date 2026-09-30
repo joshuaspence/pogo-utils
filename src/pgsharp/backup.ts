@@ -7,6 +7,7 @@
  */
 
 import COUNTRIES from '../countries.js';
+import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from '../gpx.js';
 import { JavaSer } from '../java-serialization.js';
@@ -178,15 +179,6 @@ function parseGpxFavourites(text: string) {
 
   return { points, routes };
 }
-
-/**
- * What a caught value has to say. `catch` binds `unknown`, and a `throw` is not obliged to have thrown an `Error` — so
- * the three places here that report a failure ask rather than assume, and a thrown string reads as itself instead of
- * `undefined`. It is a copy of the one-liner in `src/app.js` rather than a shared import: the two are different pages
- * with no bundler between them, so an `errors.js` would cost `map.html` and `pgsharp.html` a real request each to save
- * one line.
- */
-const said = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and

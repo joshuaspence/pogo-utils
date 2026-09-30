@@ -1,16 +1,10 @@
 import COUNTRIES from './countries.js';
+import { said } from './errors.js';
 import { GPX_PATHS } from './generated.js';
 import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
 import { byId } from './dom.js';
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-
-/**
- * What a caught value has to say. `catch` binds `unknown`, and a `throw` is not obliged to have thrown an `Error` — so
- * the three places here that report a failure ask rather than assume, and a thrown string reads as itself instead of
- * `undefined`.
- */
-const said = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
  * zoomSnap: 0 lets fitBounds land on a fractional zoom. Snapping to whole levels rounds down, which can leave the
