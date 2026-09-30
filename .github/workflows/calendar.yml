@@ -8,15 +8,18 @@ on:
     - cron: '20 */6 * * *'
   push:
     branches: ['master']
-    # Every input the generator reads, so a push that changes one rebuilds the feed rather than waiting up to six hours
-    # for the next cron. A shared event rule counts: `src/event-feed.ts` decides whether a DATE-TIME is floating or UTC
-    # and writes the route summary into every VEVENT, so it reaches the artifact as directly as `build-ics.mts` does.
+    # Everything `pnpm build:ics` reads, the script and the modules it imports included — `package.json` because it is
+    # where that script is spelled, `src/generated.ts` because it names the index the script opens, and
+    # `src/event-feed.ts` because it decides whether a DATE-TIME is floating or UTC and writes the route summary into
+    # every VEVENT. Nothing checks this list, so a missed input is a rebuild that waits for the next cron tick.
     paths:
       - '.github/workflows/calendar.yml'
       - 'data/events.json'
       - 'entries-by-event.json'
+      - 'package.json'
       - 'scripts/build-ics.mts'
       - 'src/event-feed.ts'
+      - 'src/generated.ts'
       - 'src/recurring-types.ts'
   workflow_dispatch: {}
 
