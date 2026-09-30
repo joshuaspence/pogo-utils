@@ -10,10 +10,12 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
 
-    // The browser fetches these too, so they emit alongside the rest of `src/` and keep the same tree shape.
-    "outDir": "dist/src",
-    "rootDir": "src",
+    // No JavaScript out of here either: a browser reads these only as part of whichever bundle imported them, and
+    // `scripts/bundle.mts` inlines them from the sources rather than from an emitted copy.
+    "emitDeclarationOnly": true,
+
     "declarationDir": ".types",
+    "rootDir": "src",
 
     "composite": true,
     "tsBuildInfoFile": ".types/tsconfig.shared.tsbuildinfo",

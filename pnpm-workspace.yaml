@@ -1,0 +1,4 @@
+# esbuild's postinstall only verifies a binary that arrives from the `@esbuild/linux-x64` optional dependency anyway, so
+# the script is not needed here — `esbuild --version` answers with it ignored.
+allowBuilds:
+  esbuild: false
