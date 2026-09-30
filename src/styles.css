@@ -282,8 +282,8 @@ header .sub {
 /**
  * Takes a line of its own — `flex-basis` on the span is what wraps it there — and indents by the marker plus its gap so
  * it starts under the name rather than under the marker. The span carries the width so the link inside stays as wide as
- * its text: were the link itself the full-width item, clicking the empty space beside it would leave the page instead of
- * selecting the entry, which is what clicking anywhere else on the row does.
+ * its text: were the link itself the full-width item, clicking the empty space beside it would leave the page
+ * instead of selecting the entry, which is what clicking anywhere else on the row does.
  */
 .route .eventline {
   flex-basis: 100%;
