@@ -34,6 +34,8 @@ export interface Detail {
   favourite: boolean;
   /** Null for the ordinary sizes, which wear no badge at all. */
   size: Size | null;
+  /** The text of each tag chip under the HP, as read; matching them to the tags that exist is the caller's job. */
+  tags: string[];
 }
 
 export type Gender = 'male' | 'female';
@@ -97,6 +99,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
     size: row ? await sizeOf(image, row) : null,
+    tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
   };
 }
 
@@ -213,6 +216,127 @@ function genderOf(image: Image, hp: Line): Gender | null {
   }
 
   return (bottom - top + 1) / Math.max(1, right - left + 1) >= GENDER_TALL ? 'female' : 'male';
+}
+
+/** A tag chip is the only coloured thing on the panel, and it is drawn between the HP and the weight. */
+const TAG_CHROMA = 45;
+const TAG_PANEL = { from: 0.12, width: 0.76 };
+
+/**
+ * A chip is a solid pill, so most of its own box is coloured, and it stands about a thirtieth of the screen tall.
+ * Measured against a real one at 97 pixels on a 3040 screen, and against the strays that are not chips at 26 to 28.
+ */
+const TAG_FILL = 0.5;
+const TAG_HEIGHT = 0.025;
+
+/**
+ * How much of the gap between the HP and the weight to look in. Not all of it: the type icons sit at the top of the
+ * weight row and are coloured too, and a Pokémon whose types are colourful — a Woobat against a Normal-type Glameow —
+ * has them in the same columns as its chip, which makes one run of the two and drops its fill from 86% to 34%.
+ */
+const TAG_BAND = 0.45;
+
+/**
+ * The tags a Pokémon carries, read off the chips the game draws under its HP. They are white on a coloured pill, so
+ * the colour is what finds them — the panel around is white and so is the text — and each chip is cropped on its own
+ * by the columns it occupies, since a Pokémon can carry several and reading the row whole would run their names
+ * together.
+ *
+ * It answers what it read rather than what the tag is called: a caller that knows the names can match against them,
+ * which is worth doing, since `Trade to 0xNULL` comes back as `Trade toOxNULL` and only agrees once folded.
+ */
+async function tagsOn(image: Image, hp: Line, row: Line): Promise<string[]> {
+  const top = hp.top + hp.height;
+
+  if (row.top <= top) {
+    return [];
+  }
+
+  const band = crop(
+    image,
+    image.width * TAG_PANEL.from,
+    top,
+    image.width * TAG_PANEL.width,
+    (row.top - top) * TAG_BAND,
+  );
+  const found: string[] = [];
+
+  for (const chip of chipsIn(band, image.height * TAG_HEIGHT)) {
+    const text = (await ocrLine(scale(isolate(crop(band, chip.left, chip.top, chip.width, chip.height), 200, 70), 2)))
+      ?.text;
+
+    if (text) {
+      found.push(
+        text
+          .replace(/[^\p{L}\p{N} .'-]/gu, ' ')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      );
+    }
+  }
+
+  return found.filter(Boolean);
+}
+
+/** The coloured runs of columns in a band, one per chip, with the rows each of them actually occupies. */
+function chipsIn(band: Image, tallest: number): { left: number; top: number; width: number; height: number }[] {
+  const coloured = (x: number, y: number) => {
+    const i = (y * band.width + x) * 4;
+    const r = band.data[i] ?? 0;
+    const g = band.data[i + 1] ?? 0;
+    const b = band.data[i + 2] ?? 0;
+
+    return Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA;
+  };
+
+  const filled: boolean[] = [];
+
+  for (let x = 0; x < band.width; x++) {
+    filled[x] = false;
+
+    for (let y = 0; y < band.height && !filled[x]; y++) {
+      filled[x] = coloured(x, y);
+    }
+  }
+
+  const chips: { left: number; top: number; width: number; height: number }[] = [];
+  let start = -1;
+
+  for (let x = 0; x <= band.width; x++) {
+    if (filled[x]) {
+      start = start < 0 ? x : start;
+      continue;
+    }
+
+    if (start < 0) {
+      continue;
+    }
+
+    let top = band.height;
+    let bottom = -1;
+    let n = 0;
+
+    for (let y = 0; y < band.height; y++) {
+      for (let cx = start; cx < x; cx++) {
+        if (coloured(cx, y)) {
+          n++;
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+    }
+
+    const height = bottom - top + 1;
+    const width = x - start;
+
+    if (height >= tallest && n >= width * height * TAG_FILL) {
+      chips.push({ left: start, top, width, height });
+    }
+
+    start = -1;
+  }
+
+  return chips;
 }
 
 /** Only what a weight or a height is written with; the `g` of `kg` is dropped often enough not to be relied on. */
