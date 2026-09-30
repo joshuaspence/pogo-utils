@@ -12,12 +12,15 @@ from a shared top tab bar:
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored as `*.gpx` files under [`data/`](data), grouped by country — the
-files themselves are the source of truth. The map viewer ([`map.html`](map.html), whose CSS and JavaScript live under
-[`src/`](src)) reads them directly, so to run it locally serve the repository over HTTP (the files are loaded via
-`fetch`):
+files themselves are the source of truth. The map viewer ([`map.html`](map.html), whose CSS and TypeScript live under
+[`src/`](src)) reads them directly, so to run it locally build the site and serve `dist/` over HTTP (the files are
+loaded via `fetch`). The checkout is not servable: `map.html` names `src/app.css` and `src/app.js`, and both are written
+by the build rather than kept here, so serving the repository root gets a page with no stylesheet and no module.
 
 ```sh
-python3 -m http.server
+pnpm install
+pnpm build
+python3 -m http.server --directory dist
 # then open http://localhost:8000/map.html
 ```
 
