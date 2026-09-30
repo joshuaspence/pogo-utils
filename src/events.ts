@@ -1137,7 +1137,14 @@ function renderTracks(now: Date) {
   let shown = 0;
 
   for (const track of byType.values()) {
-    const items = track.items.sort((a, b) => a.startMs - b.startMs);
+    /**
+     * The right edge needs a guard of its own, mirroring the `win[1] <= rangeStartMs` one above: `span` is clamped to
+     * TRACK_MAX_DAYS where `latestEnd` is not, so an event starting past `rangeEndMs` clips to a negative width, draws
+     * at the 20px minimum somewhere past the lane's own right edge — `.track-lane` sets no `overflow` and
+     * `.tracks-scroll` scrolls — and is counted in the tally. Dropped before `packLanes` so it cannot claim a lane and
+     * raise the row's height for a bar nobody can see.
+     */
+    const items = track.items.filter((it) => it.startMs < rangeEndMs).sort((a, b) => a.startMs - b.startMs);
 
     // A track the filter has switched off drops out entirely. Only when it is also empty, so a type sharing its row
     // with a still-visible heading keeps the row and its visible events.
