@@ -130,7 +130,9 @@ property.
 - **`src/recurring-types.ts` is in neither half, and `tsconfig.shared.json` is what holds that.** `src/events.ts`
   imports it and so does `scripts/build-ics`, so a third project with no `DOM` in its `lib` and an empty `types` is what
   makes a stray `Document` or `process` an error there rather than something one consumer happens to notice.
-  `src/countries.ts`, `src/generated.ts` and `src/types.d.ts` are in it for the same reason.
+  `src/countries.ts`, `src/event-feed.ts`, `src/generated.ts` and `src/types.d.ts` are in it for the same reason. A rule
+  the page and the feed both apply belongs there rather than in the entry point: the feed URL, `data/events.json`,
+  `HAS_ZONE` and `routeSummary` were each spelled twice because the only thing importable from `events.ts` is the DOM.
 - **Build mode wants every file a project reads listed by the project that reads it.** `scripts/tsconfig.json`
   references `tsconfig.shared.json` and reads its declarations rather than checking those files a second time under the
   Node lib set.
@@ -167,7 +169,10 @@ property.
   below Node 22.18. Every entry point has a `package.json` script, and `calendar.yml` calls that.
 - **A `files` glob matching nothing is silent.** `eslint.config.mjs`'s browser-globals block named `src/**/*.js` and
   matched not one file, which reads exactly like a clean lint, so move such a glob in the same commit as the rename.
-  `.github/workflows/calendar.yml`'s `paths` filter is the same hazard with no linter over it at all.
+  `.github/workflows/calendar.yml`'s `paths` filter is the same hazard with no linter over it at all — and it fails the
+  other way round too: moving a rule `scripts/build-ics.mts` reads into a new module takes that input out from under its
+  own trigger, and a push editing it then waits up to six hours for the cron instead of rebuilding `events.ics`. Name
+  every file the generator reads there in the same commit that creates it.
 - **pnpm 11 gates install scripts in `pnpm-workspace.yaml`, and `pnpm.ignoredBuiltDependencies` in `package.json` is
   silently ineffective.** Adding esbuild left `ERR_PNPM_IGNORED_BUILDS` and pnpm then refused every command.
   `allowBuilds: {esbuild: false}` is right because the binary arrives from an optional dependency and the postinstall

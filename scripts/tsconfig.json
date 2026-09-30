@@ -31,9 +31,10 @@
   },
   "include": ["*.mts"],
 
-  // These scripts import `src/countries.ts`, `src/generated.ts`, `src/recurring-types.ts` and `src/types.d.ts`. Build
-  // mode wants every file a project reads listed by the project that reads it, and this used to mean naming those four
-  // in the `include` above and checking them a second time under this lib set. A reference is what it wanted all along:
+  // These scripts import the files `tsconfig.shared.json` lists — `src/countries.ts`, `src/event-feed.ts`,
+  // `src/generated.ts`, `src/recurring-types.ts` and `src/types.d.ts`. Build mode wants every file a project reads
+  // listed by the project that reads it, and this used to mean naming each of them in the `include` above and checking
+  // them a second time under this lib set. A reference is what it wanted all along:
   // the shared project emits declarations now, so this one reads those rather than the sources — and the files stay
   // environment-agnostic because that project says so, rather than because two lib sets happen to agree about them.
   "references": [{ "path": "../tsconfig.shared.json" }]

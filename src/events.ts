@@ -13,11 +13,12 @@
  * Gantt chart). The view toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
+import { FEED_URL, HAS_ZONE, LOCAL_EVENTS, routeSummary } from './event-feed.js';
 import { ENTRIES_BY_EVENT } from './generated.js';
 import RECURRING_TYPES from './recurring-types.js';
 import { byId, el } from './dom.js';
 
-import type { FeedEvent, RouteCounts, RouteIndex } from './types.js';
+import type { FeedEvent, RouteIndex } from './types.js';
 
 /**
  * A feed entry with its dates parsed — what every function below takes, and the only shape the page itself works in.
@@ -97,9 +98,6 @@ interface Prefs {
   seen: Set<string> | null;
 }
 
-const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
-const LOCAL_URL = 'data/events.json';
-
 /**
  * How many routes and waypoints each event has here, by `eventID`, once the index has loaded. Empty until then, and it
  * stays empty if that fetch fails — see load(), which tolerates any one of the three sources going missing.
@@ -129,14 +127,6 @@ const SOON_MS = DAY_MS;
  * half late.
  */
 const STAGGER_MAX = 14;
-
-/**
- * Leek Duck gives times two ways. A naive datetime ("2026-09-21T06:00:00.000", no zone) is a *local* event — 6am
- * wherever you are, the same wall-clock in every timezone — which the browser's Date parses in local time. A datetime
- * with a trailing Z ("…T20:00:00.000Z") is one absolute instant worldwide (e.g. GO Battle League rotations), which Date
- * parses as UTC. Both therefore render correctly through toLocaleString; the distinction only changes the label.
- */
-const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 
 /**
  * The type filters and per-event dismissals persist in localStorage so a reader's choices survive a reload. Types are
@@ -705,24 +695,6 @@ function settleSeen() {
   const ids = new Set(events.filter((ev) => !RECURRING.has(ev.heading)).map((ev) => ev.eventID));
   prefs.seen = prefs.seen === null ? ids : new Set([...prefs.seen].filter((id) => ids.has(id)));
   persist('seen');
-}
-
-/**
- * "2 routes · 1 waypoint" — each kind the event has, pluralised. A kind it has none of is left out rather than written
- * as a zero, so an event with only a waypoint does not advertise the routes it lacks.
- */
-function routeSummary({ routes, waypoints }: RouteCounts) {
-  const parts = [];
-
-  if (routes) {
-    parts.push(`${routes} route${routes === 1 ? '' : 's'}`);
-  }
-
-  if (waypoints) {
-    parts.push(`${waypoints} waypoint${waypoints === 1 ? '' : 's'}`);
-  }
-
-  return parts.join(' · ');
 }
 
 function card(ev: ParsedEvent, now: Date) {
@@ -1427,7 +1399,7 @@ async function load() {
    */
   const [feed, local, index] = await Promise.allSettled([
     fetchEvents(FEED_URL),
-    fetchEvents(LOCAL_URL),
+    fetchEvents(LOCAL_EVENTS),
     fetchRouteIndex(),
   ]);
   routeIndex = index.status === 'fulfilled' ? index.value : {};

@@ -16,13 +16,11 @@
  * files are committed, and a run that cannot see the feed has nothing better to say than what is already there.
  */
 
+import { FEED_URL, HAS_ZONE, LOCAL_EVENTS, routeSummary } from '../src/event-feed.ts';
 import { ENTRIES_BY_EVENT } from '../src/generated.ts';
 import RECURRING_TYPES from '../src/recurring-types.ts';
-import type { FeedEvent, RouteCounts, RouteIndex } from '../src/types.js';
+import type { FeedEvent, RouteIndex } from '../src/types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-
-const FEED_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
-const LOCAL_PATH = 'data/events.json';
 
 /**
  * Where the pages are served from. A calendar app shows an event's description far away from this site, so the links
@@ -49,16 +47,10 @@ const FEED = {
 };
 
 /**
- * Leek Duck gives times two ways, and the distinction is the one thing a static file must not lose. A naive datetime
- * ("2026-09-21T06:00:00.000") is a *local* event — 6am wherever you are — which is exactly iCalendar's floating time,
- * a DATE-TIME with neither a `TZID` nor a trailing `Z`. A datetime that carries a zone ("…T20:00:00.000Z") is one
- * instant worldwide, written as UTC.
- *
- * Both are read out of the feed's own string rather than through a `Date`, because a `Date` built from a naive
- * datetime is anchored to whichever timezone the machine running this happens to be in — so a feed built on a CI
- * runner would move every local event by the offset between there and here.
+ * A feed datetime's calendar fields, read off the string so that a zoneless one can be written out as iCalendar's
+ * floating time — a DATE-TIME with neither a `TZID` nor a trailing `Z` — without a `Date` anchoring it to whichever
+ * timezone this happens to run in. `HAS_ZONE` in `src/event-feed.ts` is what says which of the two a value is.
  */
-const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 const PARTS = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/;
 
 function icsDate(raw: string | null): string | null {
@@ -123,24 +115,6 @@ function fold(line: string): string {
   }
 
   return pieces.join('\r\n ');
-}
-
-/**
- * "2 routes · 1 waypoint" — the same summary the card carries, each kind the event has and none it does not. Kept in
- * step with routeSummary() in src/events.ts by hand; it is three lines and the two outputs are read side by side.
- */
-function routeSummary({ routes, waypoints }: RouteCounts): string {
-  const parts = [];
-
-  if (routes) {
-    parts.push(`${routes} route${routes === 1 ? '' : 's'}`);
-  }
-
-  if (waypoints) {
-    parts.push(`${waypoints} waypoint${waypoints === 1 ? '' : 's'}`);
-  }
-
-  return parts.join(' · ');
 }
 
 function vevent(ev: FeedEvent, index: RouteIndex): string[] {
@@ -227,7 +201,7 @@ async function fetchFeed(url: string): Promise<FeedEvent[]> {
 }
 
 const feed = await fetchFeed(FEED_URL);
-const local: FeedEvent[] = JSON.parse(readFileSync(LOCAL_PATH, 'utf8'));
+const local: FeedEvent[] = JSON.parse(readFileSync(LOCAL_EVENTS, 'utf8'));
 const index: RouteIndex = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
 
 // Keyed by eventID with the local pass last, so a repo entry overrides a feed event of the same ID rather than
