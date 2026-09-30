@@ -194,7 +194,7 @@ async function report(image: Image, data: GameData) {
   }
 
   const detail = parseDetail(lines, data, image);
-  const box = config.overlay ?? findOverlay(lines, image);
+  const box = config.overlay ?? (await findOverlay(image));
   const overlay = box ? await readOverlay(image, box) : null;
   console.log('detail:', detail);
   console.log('moves:', parseMoves(lines, data));
@@ -215,6 +215,8 @@ async function scan() {
   const at = (p: Point): Point => [p[0] * shot.width, p[1] * shot.height];
   let searchBox: Point | null = null;
   let overlayBox: OverlayBox | null = config.overlay ?? null;
+  // A phone with PGSharp's overlay switched off would otherwise sweep for it on every Pokémon, for ever.
+  let searchesLeft = 5;
 
   if (screens) {
     mkdirSync(screens, { recursive: true });
@@ -293,17 +295,38 @@ async function scan() {
   }
 
   /**
-   * One detail screen: the game's own text, and PGSharp's overlay over it. The box the overlay sits in is found once
-   * and kept, since it does not move between Pokémon — only between phones — and finding it costs a whole-screen read
-   * where using it costs a crop.
+   * PGSharp's overlay, with the box it sits in found on the way if it is not known yet. The box does not move between
+   * Pokémon — only between phones — so it is worth finding once and keeping, which is the difference between a sweep
+   * of the upper screen and one crop. Only a box that actually yielded a reading is kept: one that merely looked
+   * right would go on being wrong for every Pokémon after it, where not keeping it costs another sweep.
    */
+  const overlayOf = async (image: Image): Promise<Overlay | null> => {
+    if (overlayBox) {
+      return readOverlay(image, overlayBox);
+    }
+
+    if (searchesLeft <= 0) {
+      return null;
+    }
+
+    searchesLeft--;
+    const box = await findOverlay(image);
+    const overlay = box ? await readOverlay(image, box) : null;
+
+    if (overlay) {
+      overlayBox = box;
+      console.error(`  found PGSharp's overlay at ${JSON.stringify(box)}`);
+    }
+
+    return overlay;
+  };
+
+  /** One detail screen: the game's own text, and PGSharp's overlay over it. */
   const readDetail = async (): Promise<Reading> => {
     for (let attempt = 0; ; attempt++) {
       const image = await device.screenshot();
-      const lines = await readLines(image);
-      const detail = parseDetail(lines, data, image);
-      overlayBox ??= findOverlay(lines, image);
-      const overlay = overlayBox ? await readOverlay(image, overlayBox) : null;
+      const detail = parseDetail(await readLines(image), data, image);
+      const overlay = await overlayOf(image);
       const key = keyOf(detail, overlay);
 
       if (key || attempt === 1) {
@@ -407,7 +430,7 @@ async function scan() {
       }
 
       if (overlay === null) {
-        notes.push(overlayBox ? 'overlay not read' : 'no PGSharp overlay found on screen');
+        notes.push(overlayBox ? 'overlay not read' : 'no PGSharp overlay found; is its IV display switched on?');
       }
 
       let reading: Promise<Moves> | null = null;
