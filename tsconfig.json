@@ -1,14 +1,30 @@
-// The browser half. Pages serves these files verbatim, so nothing here emits: tsc is a checker, not a build step.
+// The browser half. Pages serves the compiler's output rather than these files, so this is where the build lives.
 {
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
     "target": "ES2023",
+
+    // `nodenext` rather than `bundler` because it is the only setting that makes a missing extension an *error*. A
+    // browser resolves `./dom.js` and nothing else, where `bundler` accepts `./dom` and emits it verbatim — a module
+    // that type-checks and 404s. Node's algorithm is the one the browser is actually implementing here.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
 
     "allowJs": true,
     "checkJs": true,
-    "noEmit": true,
+
+    // The pages load `src/…` and resolve it against their own URL, so the output has to keep the tree shape the markup
+    // already names. `scripts/assemble.mts` copies the stylesheets in beside it.
+    "outDir": "dist/src",
+    "rootDir": "src",
+
+    // `composite` forces declarations, which nothing serves — out of the published tree rather than into it.
+    "declarationDir": ".types",
+
+    // Named rather than left to default, because the default is derived from `outDir` and lands the cache *inside*
+    // `dist/` — `dist/tsconfig.tsbuildinfo`, deployed to the live site. The allowlist cannot catch that, since it
+    // governs what is copied in and this is written before it runs.
+    "tsBuildInfoFile": ".types/tsconfig.tsbuildinfo",
 
     // `tsc -b` in `lint:types` builds both projects from one command, and build mode requires this of each of them.
     "composite": true,

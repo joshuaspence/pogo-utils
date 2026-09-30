@@ -19,9 +19,13 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
       - uses: 'actions/checkout@v7'
+      - uses: 'pnpm/setup@v2'
+        with:
+          cache: true
+      - run: 'pnpm build'
       - uses: 'actions/upload-pages-artifact@v5'
         with:
-          path: '.'
+          path: 'dist'
 
   deploy:
     name: 'Deploy'
@@ -37,4 +41,5 @@ jobs:
       url: '${{ steps.deploy.outputs.page_url }}'
 
     steps:
-      - uses: 'actions/deploy-pages@v5'
+      - id: 'deploy'
+        uses: 'actions/deploy-pages@v5'

@@ -1,3 +1,5 @@
 /.claude/worktrees/
+/.types/
+/dist/
 /pnpm-lock.yaml
 /resources/gpx.xsd
