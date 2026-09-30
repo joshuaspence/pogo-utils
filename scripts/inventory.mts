@@ -35,7 +35,7 @@
 import { Device, KEY, sleep } from './inventory/adb.mts';
 import { loadGameData, type GameData } from './inventory/game-master.mts';
 import { centre, findLine, fold, ocr, type Line } from './inventory/ocr.mts';
-import { decodePng, encodePng, type Image } from './inventory/png.mts';
+import { decodePng, difference, encodePng, type Image } from './inventory/png.mts';
 import {
   findOverlay,
   identify,
@@ -45,6 +45,7 @@ import {
   readOverlay,
   widen,
   type Detail,
+  type Identity,
   type Moves,
   type Overlay,
   type OverlayBox,
@@ -171,6 +172,15 @@ const CACHE = '.cache/inventory';
 
 /** How many times one detail screen is read before its reading is taken as final. */
 const READ_ATTEMPTS = 3;
+
+/**
+ * The band a screen is watched for movement in, and how much of it may still differ for it to count as still. The
+ * game's own panel, since the artwork above it holds an animated Pokémon that never stops and the status bar ticks
+ * with the clock. Measured through one swipe: 31%, then 6.2%, then 0.54% and steady, so anything between settles it.
+ */
+const SETTLE_BAND = { from: 0.34, to: 0.95 };
+const SETTLE_CHANGE = 0.02;
+const SETTLE_ATTEMPTS = 4;
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
@@ -299,9 +309,32 @@ async function scan() {
   interface Reading {
     detail: Detail;
     overlay: Overlay | null;
+    /** Worked out while reading, since a reading is only accepted once something fits it; the row writer reuses it. */
+    id: Identity;
     key: string | null;
     image: Image;
   }
+
+  /**
+   * A screenshot of a screen that has stopped moving, which is what a fixed wait after a swipe can only guess at. The
+   * cost is one extra screenshot where the screen was already still, and the gain is that a scan slowed down by
+   * anything — a phone thinking, an animation that ran long — waits for it rather than reading through it.
+   */
+  const settled = async (): Promise<Image> => {
+    let previous = await device.screenshot();
+
+    for (let attempt = 1; attempt < SETTLE_ATTEMPTS; attempt++) {
+      const image = await device.screenshot();
+
+      if (difference(previous, image, SETTLE_BAND.from, SETTLE_BAND.to) < SETTLE_CHANGE) {
+        return image;
+      }
+
+      previous = image;
+    }
+
+    return previous;
+  };
 
   /**
    * PGSharp's overlay, with the box it sits in found on the way if it is not known yet. The box does not move between
@@ -356,16 +389,18 @@ async function scan() {
    */
   const readDetail = async (): Promise<Reading> => {
     for (let attempt = 0; ; attempt++) {
-      const image = await device.screenshot();
+      const image = await settled();
       const detail = await parseDetail(await readLines(image), data, image);
       const overlay = await overlayOf(image);
       const key = keyOf(detail, overlay);
+      const id = identify(data, detail, overlay);
       // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
-      // every Pokémon on a phone that is not running PGSharp.
-      const settled = key !== null && (overlay !== null || overlayBox === null);
+      // every Pokémon on a phone that is not running PGSharp. A form that fits is the other half: the name, the types,
+      // the HP and the IVs agreeing is what a half-read screen cannot fake, and is a surer test than any one of them.
+      const whole = key !== null && (overlay !== null || overlayBox === null) && id.form !== null;
 
-      if (settled || attempt === READ_ATTEMPTS - 1) {
-        return { detail, overlay, key, image };
+      if (whole || attempt === READ_ATTEMPTS - 1) {
+        return { detail, overlay, id, key, image };
       }
 
       await sleep(config.waits.swipe);
@@ -468,7 +503,7 @@ async function scan() {
   const started = Date.now();
 
   await walk(
-    async ({ detail, overlay, image }, index) => {
+    async ({ detail, overlay, id, image }, index) => {
       const name = String(index + 1).padStart(5, '0');
       const notes: string[] = [];
       let moves: Moves = { fast: null, charged: [] };
@@ -502,7 +537,6 @@ async function scan() {
         }
       }
 
-      const id = identify(data, detail, overlay);
       const flag = (f: Flag) => (flags.includes(f) ? (marked.get(f)?.take(detail, overlay) ? 'yes' : 'no') : '');
       const size = flag('xxl') === 'yes' ? 'XXL' : flag('xxs') === 'yes' ? 'XXS' : '';
       const total = iv ? iv.attack + iv.defense + iv.stamina : null;
