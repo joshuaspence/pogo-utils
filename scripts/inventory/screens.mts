@@ -466,12 +466,12 @@ export async function findOverlay(image: Image): Promise<OverlayBox | null> {
       // is exactly what makes its width meaningless — everything in the band comes back as one box, which on one
       // capture spanned 626 pixels against a true 329 and on another sat 250 to the right of the text. So the band is
       // the floor, and `tighten` improves on it where it can.
-      const band = {
+      const band = within({
         x: left / image.width,
         y: top / image.height,
         width: width / image.width,
         height: height / image.height,
-      };
+      });
 
       return (await tighten(image, band)) ?? band;
     }
@@ -516,12 +516,25 @@ function boxAround(line: { left: number; top: number; width: number; text: strin
   const right = line.left + line.width + em;
   const left = right - OVERLAY_CHARACTERS * em;
 
-  return {
+  return within({
     x: left / image.width,
     y: (line.top - em * 0.7) / image.height,
     width: (right - left) / image.width,
     height: (em * 3) / image.height,
-  };
+  });
+}
+
+/**
+ * A box kept inside the screen. `crop` clamps anyway, so this changes no reading — but a box is also what `--config`
+ * takes and what `snap` prints for someone to copy, and a reach of thirty characters off an em measured on the three
+ * IVs alone, which are all wide digits and slashes, comes out past the left edge often enough to be worth not
+ * reporting as `x: -0.17`.
+ */
+function within(box: OverlayBox): OverlayBox {
+  const x = Math.max(0, Math.min(1, box.x));
+  const y = Math.max(0, Math.min(1, box.y));
+
+  return { x, y, width: Math.min(1 - x, box.width + box.x - x), height: Math.min(1 - y, box.height + box.y - y) };
 }
 
 /** The smallest box covering both, so a box that clipped one Pokémon's line grows rather than flips between them. */
@@ -529,12 +542,12 @@ export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
   const x = Math.min(a.x, b.x);
   const y = Math.min(a.y, b.y);
 
-  return {
+  return within({
     x,
     y,
     width: Math.max(a.x + a.width, b.x + b.width) - x,
     height: Math.max(a.y + a.height, b.y + b.height) - y,
-  };
+  });
 }
 
 /**
