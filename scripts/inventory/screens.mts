@@ -8,18 +8,24 @@
  * - **PGSharp's overlay** on the detail screen, which states the level and the three IVs outright.
  */
 
-import { closest, levelsOf, type Form, type GameData, type IVs } from './game-master.mts';
+import { closest, cpOf, levelsOf, multiplierOf, type Form, type GameData, type IVs } from './game-master.mts';
 import { fold, ocr, ocrLine, type Line } from './ocr.mts';
 import { crop, isolate, scale, type Image } from './png.mts';
 
 export interface Detail {
+  /** What OCR made of the CP, which is usually nothing; `Identity.cp` is the one to believe. */
   cp: number | null;
   name: string | null;
   hp: number | null;
   weightKg: number | null;
   heightM: number | null;
   types: string[];
+  /** Null where the species has no gender rather than where the symbol was not read; see `genderOf`. */
+  gender: Gender | null;
+  favourite: boolean;
 }
+
+export type Gender = 'male' | 'female';
 
 export interface Moves {
   fast: string | null;
@@ -77,7 +83,83 @@ export function parseDetail(lines: readonly Line[], data: GameData, image: Image
           .split(' ')
           .map((w) => typeNames.get(w) ?? w)
       : [],
+    gender: hpLine ? genderOf(image, hpLine) : null,
+    favourite: isFavourite(image),
   };
+}
+
+/** How much of a region is the warm gold the game fills a favourite's star and PGSharp's shiny mark with. */
+function goldness(image: Image): number {
+  let gold = 0;
+
+  for (let i = 0; i < image.data.length; i += 4) {
+    const r = image.data[i] ?? 0;
+    const g = image.data[i + 1] ?? 0;
+    const b = image.data[i + 2] ?? 0;
+
+    if (r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90) {
+      gold++;
+    }
+  }
+
+  return gold / (image.width * image.height);
+}
+
+/**
+ * Whether the star at the top right is filled. A favourite's star is solid gold and an ordinary one is a white outline
+ * with the artwork showing through it, so this is the one flag on the screen that colour alone settles: measured over
+ * eighteen captures from two phones, 19.4% of that corner was gold on the one favourite and 0.00% on every other.
+ *
+ * The star is the game's own furniture rather than PGSharp's, so it scales with the screen and a fraction holds where
+ * one for the overlay did not — 0.900, 0.074 of one phone against 0.903, 0.080 of the other.
+ */
+function isFavourite(image: Image): boolean {
+  const star = crop(image, image.width * 0.86, image.height * 0.05, image.width * 0.1, image.height * 0.06);
+
+  return goldness(star) >= FAVOURITE_GOLD;
+}
+
+/**
+ * Male, female, or null for a species that has no gender. The symbol sits to the right of the HP bar and is the only
+ * ink in that corner of the panel, so it is found by where the HP is rather than by a fraction of the screen.
+ *
+ * Colour cannot tell the two apart — both are drawn in the same pale blue-grey — so the shape does it. A male's arrow
+ * leaves the circle up and to the right and a female's stem hangs below it, which makes the female's ink taller than
+ * it is wide and the male's square. Measured on two phones at different resolutions, the ratio is 1.51 against 0.99
+ * and 1.51 against 1.00, so the same threshold serves both; every one of the seven Xerneas captures reports no symbol
+ * at all, which is right, since Xerneas has no gender.
+ */
+function genderOf(image: Image, hp: Line): Gender | null {
+  const region = crop(image, image.width * 0.78, hp.top - hp.height * 4, image.width * 0.15, hp.height * 6);
+  let left = region.width;
+  let right = -1;
+  let top = region.height;
+  let bottom = -1;
+  let ink = 0;
+
+  for (let y = 0; y < region.height; y++) {
+    for (let x = 0; x < region.width; x++) {
+      const i = (y * region.width + x) * 4;
+      const r = region.data[i] ?? 0;
+      const g = region.data[i + 1] ?? 0;
+      const b = region.data[i + 2] ?? 0;
+      const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+      if (luminance < GENDER_INK_MAX && Math.max(r, g, b) - Math.min(r, g, b) < GENDER_INK_CHROMA) {
+        ink++;
+        left = Math.min(left, x);
+        right = Math.max(right, x);
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+
+  if (ink < region.width * region.height * GENDER_INK_MIN) {
+    return null;
+  }
+
+  return (bottom - top + 1) / Math.max(1, right - left + 1) >= GENDER_TALL ? 'female' : 'male';
 }
 
 /**
@@ -136,6 +218,15 @@ const OVERLAY_CHARACTERS = 19;
 
 /** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
 const MAX_LEVEL = 51;
+
+/** A filled star measured 19.4% gold and an outline 0.00%, so anywhere between them will do. */
+const FAVOURITE_GOLD = 0.02;
+
+/** The gender symbol against the white panel behind it, and how tall its ink has to be to be a female's. */
+const GENDER_INK_MAX = 235;
+const GENDER_INK_CHROMA = 45;
+const GENDER_INK_MIN = 0.01;
+const GENDER_TALL = 1.25;
 
 /**
  * Where the overlay sits, found by the one thing nothing else on the screen carries: three small numbers separated by
@@ -301,6 +392,11 @@ function levelsIn(text: string): number[] {
 
 export interface Identity {
   form: Form | null;
+  /**
+   * The CP this form at these IVs shows at this level, worked out rather than read. Null where the level is still
+   * ambiguous, since two levels are two CPs and guessing between them would be worse than saying nothing.
+   */
+  cp: number | null;
   /** Other forms the numbers fit equally well, when they cannot be told apart. */
   alternatives: Form[];
   levels: number[];
@@ -370,7 +466,17 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
     notes.push(`level ambiguous: ${levels.join(' or ')}`);
   }
 
-  return { form, alternatives, levels, nickname, notes };
+  const settled = levels.length === 1 ? (levels[0] ?? null) : null;
+  const multiplier = settled === null ? null : multiplierOf(data, settled);
+  const cp = form && iv && multiplier !== null ? cpOf(form, iv, multiplier) : null;
+
+  // Where OCR did read the CP it is worth saying so, since the two disagreeing means the level or the form is wrong
+  // rather than that the arithmetic is: CP is a pure function of the three things above it.
+  if (cp !== null && detail.cp !== null && cp !== detail.cp) {
+    notes.push(`the screen reads CP ${detail.cp}, where this form at this level is ${cp}`);
+  }
+
+  return { form, cp, alternatives, levels, nickname, notes };
 }
 
 export function label(f: Form): string {

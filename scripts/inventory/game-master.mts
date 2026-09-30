@@ -183,6 +183,25 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
   };
 }
 
+/**
+ * The CP the game shows, which the scanner works out rather than reads: CP is white over the artwork and the one number
+ * on the detail screen that does not survive OCR, coming back as `ce1385` on one species and as nothing at all on
+ * another, where the overlay hands over the level and the IVs that determine it exactly. Derived it also agrees with
+ * the screen where reading it did not — 635 for a level 31 Shroomish at 10/7/10, against a `CP 635` that read as null.
+ */
+export function cpOf(form: Form, iv: IVs, multiplier: number): number {
+  const a = form.attack + iv.attack;
+  const d = form.defense + iv.defense;
+  const s = form.stamina + iv.stamina;
+
+  return Math.max(10, Math.floor((a * Math.sqrt(d) * Math.sqrt(s) * multiplier * multiplier) / 10));
+}
+
+/** The CP multiplier for a level, or null where nothing is at that level — the half steps stop at 51. */
+export function multiplierOf(data: GameData, level: number): number | null {
+  return data.cpm.find(([l]) => l === level)?.[1] ?? null;
+}
+
 export function hpOf(form: Form, iv: IVs, multiplier: number): number {
   return Math.max(10, Math.floor((form.stamina + iv.stamina) * multiplier));
 }
