@@ -686,3 +686,37 @@ accessibility tree to ask. Three traps, each of which read as a different bug th
   later. `readDetail` already retries once for exactly this, so `openFirst` goes through it rather than judging a single
   screenshot.
 
+### Reading PGSharp's overlay
+
+The detail screen's CP does not survive OCR and the scanner no longer tries: white text over the artwork, it came back
+`ce1385` on one species and was not detected as a line at all on another. PGSharp draws `L25 IV86 14/13/12` over the
+same screen, which is the level and the three IVs stated outright, so that is where they are read from — and the
+appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
+
+- **The overlay is drawn over Unity rather than by it, so it does not move between species — and does move between
+  devices.** `ocr.mts` is right that the game's own layout must be found by its text rather than by coordinates, and
+  this is the exception: measured at x 337-666, y 438-494 on two unrelated species, identical. So find the box once, on
+  whichever Pokémon first yields one, and crop every later screen out of it. Do not write the fractions down as a
+  default, because they are fractions of one phone's screen; finding it per run is what makes a new phone need no
+  configuration at all.
+- **Size that crop from character width, never from the height Tesseract reports.** The same overlay row came back 25,
+  28, 49 and 54 pixels tall across twelve captures, as Tesseract merged it with whatever fragment of artwork sat beside
+  it — and padding a 54 by half of itself reaches far enough into the picture to undo the crop. Character width does not
+  wander: 270/17, 264/17 and 130/8 on those same captures are all within a pixel. Anchor on the right edge and extend
+  left, too, since the half that goes missing is always the left one — twice, only `10/11/14` was located, with the
+  level and percentage still on screen ahead of it.
+- **Upscale 2x and no further.** At 1x Tesseract read `14/18/12` for `14/13/12`; at 2x it read it correctly in every
+  treatment tried; at 3x and 4x it began reading the level's `L` as a `1`. Nearest-neighbour is enough.
+- **The IV percentage is colour-coded by quality and cannot be thresholded alongside the white text** — magenta at 93,
+  cyan at 86, green at 75, so magenta's luminance of about 78 falls below any floor that keeps the dark box out.
+  Isolating near-white (luminance >= 150, chroma <= 55) therefore deletes it, which is the point rather than the cost:
+  it is `floor((a + d + s) / 45 * 100)` and derivable from the three IVs beside it. Measured, that isolation reads **12
+  of 12** IV triples where the same screens read whole give 3.
+- **The level is the one field of the three to distrust.** It reads 11 of 12, because the `IV` label beside it OCRs as a
+  `1` and runs into the digits — `L120 1` for `L20`. So offer it rather than assert it: `levelsOf` narrows the level to
+  the few that reproduce the HP, and the overlay's reading is kept only where the HP agrees. Where it does not read at
+  all, the HP alone still settled it in every capture tried.
+- **A key that needs the CP is a key that does not exist.** `keyOf` required CP and HP, so with CP unreadable every
+  screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
+  walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
+

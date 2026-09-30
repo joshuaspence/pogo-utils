@@ -2,10 +2,13 @@
  * What the game itself knows about every species, form and move, from PokeMiners' decoded game master and the English
  * string table beside it — the same two files `CLAUDE.md` cross-checks the search terms against.
  *
- * The screen never says a Pokémon's level, and says its form only by implication, but both follow from numbers it does
- * show. CP and HP are pure functions of the base stats, the three IVs and the level's CP multiplier, so once appraisal
- * has given the IVs the level is whichever multiplier reproduces both, and a form is whichever base stats can. Raichu
- * and Alolan Raichu share a name and differ by eight Attack; only one of them makes the arithmetic come out.
+ * The screen says a Pokémon's form only by implication, but it follows from numbers that are shown. HP is a pure
+ * function of the base stamina, the stamina IV and the level's CP multiplier, so once PGSharp's overlay has given the
+ * IVs and the level, a form is whichever base stats reproduce the HP. That is a weaker test than the CP this once used
+ * — it separates only forms that differ in stamina, where CP also caught a difference in Attack or Defense — but CP is
+ * the one number on the detail screen that does not survive OCR, and a CP read wrongly rules out the form that is
+ * right rather than merely failing to choose. Types carry most of the rest, and `identify` reports whatever is left
+ * over as alternatives rather than picking between them.
  *
  * Both files are cached for a week under `.cache/inventory/`, since the game master is 20 MB and a scan of a few
  * thousand Pokémon is not the moment to discover the network is down.
@@ -180,23 +183,17 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
   };
 }
 
-export function cpOf(form: Form, iv: IVs, multiplier: number): number {
-  const a = form.attack + iv.attack;
-  const d = form.defense + iv.defense;
-  const s = form.stamina + iv.stamina;
-
-  return Math.max(10, Math.floor((a * Math.sqrt(d) * Math.sqrt(s) * multiplier * multiplier) / 10));
-}
-
 export function hpOf(form: Form, iv: IVs, multiplier: number): number {
   return Math.max(10, Math.floor((form.stamina + iv.stamina) * multiplier));
 }
 
-/** Every level at which this form with these IVs shows exactly this CP and this maximum HP. */
-export function levelsOf(data: GameData, form: Form, iv: IVs, cp: number, hp: number | null): number[] {
-  return data.cpm
-    .filter(([, m]) => cpOf(form, iv, m) === cp && (hp === null || hpOf(form, iv, m) === hp))
-    .map(([level]) => level);
+/**
+ * Every level at which this form with these IVs shows exactly this maximum HP. Usually a handful of adjacent half
+ * levels rather than one, since `hpOf` floors and neighbouring multipliers are close enough to land on the same
+ * integer; the level the overlay states is what picks among them.
+ */
+export function levelsOf(data: GameData, form: Form, iv: IVs, hp: number): number[] {
+  return data.cpm.filter(([, m]) => hpOf(form, iv, m) === hp).map(([level]) => level);
 }
 
 /** Levenshtein distance over folded text, so case, accents and OCR's stray punctuation cost nothing. */

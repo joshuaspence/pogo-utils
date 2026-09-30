@@ -7,9 +7,11 @@
  *
  * - **CP, HP, name, weight, height and types** are read off the detail screen, and **moves** off the same screen
  *   scrolled down.
- * - **IVs** are read off the appraisal bars, pixel by pixel.
- * - **Level and form** are worked out rather than read: CP and HP are fixed by base stats, IVs and level, so given the
- *   IVs exactly one level and one form (usually) make the numbers come out. See `inventory/game-master.mts`.
+ * - **Level and the three IVs** are read off PGSharp's own overlay, which states them outright over the artwork. The
+ *   scanner therefore needs PGSharp rather than the stock client; nothing else on the screen gives the IVs without
+ *   walking the appraisal dialogue for every Pokémon.
+ * - **Form** is worked out rather than read: HP is fixed by base stamina, the stamina IV and the level, so given the
+ *   overlay's numbers only some forms make it come out. See `inventory/game-master.mts`.
  * - **Shiny, lucky, costume, XXL and XXS** have no reliable text on the detail screen, so each one is a search instead.
  *   A pass with the game's own `shiny` search reads just the matching Pokémon, and the full pass marks the ones it
  *   recognises from that list. Searches keep the sort order, and a Pokémon is recognised by its name, CP, HP, weight
@@ -18,7 +20,7 @@
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--no-launch] [--flags shiny,lucky,…]
- *                       [--no-moves] [--no-appraise] [--keep-screens DIR] [--config FILE] [--serial SERIAL]
+ *                       [--no-moves] [--keep-screens DIR] [--config FILE] [--serial SERIAL]
  *   pnpm inventory snap [NAME]      save a screenshot of whatever is showing and print what each reader makes of it
  *   pnpm inventory parse FILE.png…  the same for screenshots already saved, with no phone needed
  *
@@ -31,20 +33,20 @@
  */
 
 import { Device, KEY, sleep } from './inventory/adb.mts';
-import { loadGameData, type GameData, type IVs } from './inventory/game-master.mts';
+import { loadGameData, type GameData } from './inventory/game-master.mts';
 import { centre, findLine, fold, ocr, type Line } from './inventory/ocr.mts';
 import { decodePng, encodePng, type Image } from './inventory/png.mts';
 import {
-  DEFAULT_BAR_COLOURS,
+  findOverlay,
   identify,
-  isAppraisal,
-  parseAppraisal,
   parseDetail,
   parseMoves,
   readLines,
-  type BarColours,
+  readOverlay,
   type Detail,
   type Moves,
+  type Overlay,
+  type OverlayBox,
 } from './inventory/screens.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -67,10 +69,6 @@ interface Config {
     search: Point;
     /** The first Pokémon in the storage grid. */
     firstTile: Point;
-    /** The menu button, bottom right of the detail screen, which holds Appraise. */
-    detailMenu: Point;
-    /** Somewhere harmless to tap to move the appraisal dialogue along and then close it. */
-    advance: Point;
     /** The close button at the foot of the detail screen. */
     closeDetail: Point;
   };
@@ -88,10 +86,13 @@ interface Config {
     swipe: number;
     scroll: number;
     menu: number;
-    appraisal: number;
     search: number;
   };
-  bars: BarColours;
+  /**
+   * Where PGSharp's overlay sits, if it is known. Left out, the scanner finds it on the first Pokémon whose box it can
+   * make out and uses that for the rest of the run, which is what lets one configuration suit any phone.
+   */
+  overlay?: OverlayBox;
 }
 
 const DEFAULTS: Config = {
@@ -101,8 +102,6 @@ const DEFAULTS: Config = {
     pokemonButton: [0.25, 0.82],
     search: [0.5, 0.155],
     firstTile: [0.18, 0.27],
-    detailMenu: [0.88, 0.92],
-    advance: [0.5, 0.45],
     closeDetail: [0.5, 0.93],
   },
   swipes: {
@@ -119,8 +118,7 @@ const DEFAULTS: Config = {
       [0.5, 0.9],
     ],
   },
-  waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, appraisal: 1500, search: 1500 },
-  bars: DEFAULT_BAR_COLOURS,
+  waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, search: 1500 },
 };
 
 /** The searches that answer the yes-or-no columns, by column. `size` is filled from the two size searches. */
@@ -177,7 +175,6 @@ const { values: options, positionals } = parseArgs({
     'flags': { type: 'string' },
     'no-launch': { type: 'boolean', default: false },
     'no-moves': { type: 'boolean', default: false },
-    'no-appraise': { type: 'boolean', default: false },
     'keep-screens': { type: 'string' },
     'config': { type: 'string' },
     'serial': { type: 'string' },
@@ -197,11 +194,13 @@ async function report(image: Image, data: GameData) {
   }
 
   const detail = parseDetail(lines, data, image);
-  const iv = isAppraisal(lines) ? parseAppraisal(lines, image, config.bars) : null;
+  const box = config.overlay ?? findOverlay(lines, image);
+  const overlay = box ? await readOverlay(image, box) : null;
   console.log('detail:', detail);
   console.log('moves:', parseMoves(lines, data));
-  console.log('appraisal:', isAppraisal(lines) ? (iv ?? 'bars not found') : 'not an appraisal screen');
-  console.log('identity:', identify(data, detail, iv));
+  console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
+  console.log('overlay:', overlay ?? 'nothing read');
+  console.log('identity:', identify(data, detail, overlay));
 }
 
 async function scan() {
@@ -215,7 +214,7 @@ async function scan() {
   const shot = await device.screenshot();
   const at = (p: Point): Point => [p[0] * shot.width, p[1] * shot.height];
   let searchBox: Point | null = null;
-  let appraiseButton: Point | null = null;
+  let overlayBox: OverlayBox | null = config.overlay ?? null;
 
   if (screens) {
     mkdirSync(screens, { recursive: true });
@@ -288,18 +287,27 @@ async function scan() {
 
   interface Reading {
     detail: Detail;
+    overlay: Overlay | null;
     key: string | null;
     image: Image;
   }
 
+  /**
+   * One detail screen: the game's own text, and PGSharp's overlay over it. The box the overlay sits in is found once
+   * and kept, since it does not move between Pokémon — only between phones — and finding it costs a whole-screen read
+   * where using it costs a crop.
+   */
   const readDetail = async (): Promise<Reading> => {
     for (let attempt = 0; ; attempt++) {
       const image = await device.screenshot();
-      const detail = parseDetail(await readLines(image), data, image);
-      const key = keyOf(detail);
+      const lines = await readLines(image);
+      const detail = parseDetail(lines, data, image);
+      overlayBox ??= findOverlay(lines, image);
+      const overlay = overlayBox ? await readOverlay(image, overlayBox) : null;
+      const key = keyOf(detail, overlay);
 
       if (key || attempt === 1) {
-        return { detail, key, image };
+        return { detail, overlay, key, image };
       }
 
       await sleep(config.waits.swipe);
@@ -320,59 +328,6 @@ async function scan() {
     return (await readDetail()).key !== null;
   };
 
-  const appraise = async (name: string): Promise<{ iv: IVs | null; note?: string }> => {
-    await tap(at(config.taps.detailMenu), config.waits.menu);
-
-    if (!appraiseButton) {
-      const line = findLine(await ocr(await device.screenshot()), /apprais/);
-
-      if (!line) {
-        await device.key(KEY.BACK);
-        await sleep(config.waits.menu);
-        return { iv: null, note: 'no Appraise in the menu' };
-      }
-
-      appraiseButton = centre(line);
-    }
-
-    await tap(appraiseButton, config.waits.appraisal);
-    let iv: IVs | null = null;
-    let seen = false;
-
-    // The team leader talks before the bars appear; each tap moves the dialogue along.
-    for (let step = 0; step < 5 && !seen; step++) {
-      const image = await device.screenshot();
-      const lines = await ocr(image);
-
-      if (isAppraisal(lines)) {
-        seen = true;
-        iv = parseAppraisal(lines, image, config.bars);
-        keep(`${name}-appraisal`, image);
-      } else {
-        await tap(at(config.taps.advance), config.waits.appraisal);
-      }
-    }
-
-    await tap(at(config.taps.advance), config.waits.appraisal);
-
-    if (isAppraisal(await ocr(await device.screenshot()))) {
-      await device.key(KEY.BACK);
-      await sleep(config.waits.appraisal);
-    }
-
-    if (!seen) {
-      // The button may have moved — a buddy's menu is longer than anyone else's — so find it again next time.
-      appraiseButton = null;
-      return { iv: null, note: 'appraisal did not open' };
-    }
-
-    return iv ? { iv } : { iv: null, note: 'appraisal bars not read' };
-  };
-
-  /**
-   * Swipes through whatever the grid shows, from the first, calling `visit` for each until the swipe stops changing
-   * anything. The last Pokémon is found by the swipe failing to move: the same one reads twice.
-   */
   const walk = async (visit: (reading: Reading, index: number) => Promise<void>, max: number, from = 0) => {
     for (let i = 0; i < from; i++) {
       await swipe(config.swipes.next, config.waits.swipe / 2);
@@ -417,7 +372,7 @@ async function scan() {
     const grid = await search(FLAGS[flag]);
 
     if (await openFirst(grid)) {
-      await walk(async ({ detail }) => marks.add(detail), Infinity);
+      await walk(async ({ detail, overlay }) => marks.add(detail, overlay), Infinity);
     }
 
     console.error(`${flag}: ${marks.size}`);
@@ -440,15 +395,19 @@ async function scan() {
   const started = Date.now();
 
   await walk(
-    async ({ detail, image }, index) => {
+    async ({ detail, overlay, image }, index) => {
       const name = String(index + 1).padStart(5, '0');
       const notes: string[] = [];
       let moves: Moves = { fast: null, charged: [] };
-      let iv: IVs | null = null;
+      const iv = overlay?.iv ?? null;
       keep(`${name}-detail`, image);
 
-      if (detail.cp === null || detail.hp === null) {
+      if (detail.hp === null) {
         notes.push('detail screen not read');
+      }
+
+      if (overlay === null) {
+        notes.push(overlayBox ? 'overlay not read' : 'no PGSharp overlay found on screen');
       }
 
       let reading: Promise<Moves> | null = null;
@@ -457,18 +416,9 @@ async function scan() {
         await swipe(config.swipes.scrollDown, config.waits.scroll);
         const scrolled = await device.screenshot();
         keep(`${name}-moves`, scrolled);
-        // Read while the phone scrolls back and appraises, since nothing that follows depends on the moves.
+        // Read while the phone scrolls back, since nothing that follows depends on the moves.
         reading = ocr(scrolled).then((lines) => parseMoves(lines, data));
         await swipe(config.swipes.scrollUp, config.waits.scroll);
-      }
-
-      if (!options['no-appraise']) {
-        const result = await appraise(name);
-        iv = result.iv;
-
-        if (result.note) {
-          notes.push(result.note);
-        }
       }
 
       if (reading) {
@@ -479,8 +429,8 @@ async function scan() {
         }
       }
 
-      const id = identify(data, detail, iv);
-      const flag = (f: Flag) => (flags.includes(f) ? (marked.get(f)?.take(detail) ? 'yes' : 'no') : '');
+      const id = identify(data, detail, overlay);
+      const flag = (f: Flag) => (flags.includes(f) ? (marked.get(f)?.take(detail, overlay) ? 'yes' : 'no') : '');
       const size = flag('xxl') === 'yes' ? 'XXL' : flag('xxs') === 'yes' ? 'XXS' : '';
       const total = iv ? iv.attack + iv.defense + iv.stamina : null;
 
@@ -538,20 +488,20 @@ class Marks {
   readonly #loose = new Map<string, number>();
   size = 0;
 
-  add(detail: Detail) {
-    const key = keyOf(detail);
+  add(detail: Detail, overlay: Overlay | null) {
+    const key = keyOf(detail, overlay);
 
     if (key) {
       bump(this.#exact, key, 1);
-      bump(this.#loose, looseKeyOf(detail), 1);
+      bump(this.#loose, looseKeyOf(detail, overlay), 1);
       this.size++;
     }
   }
 
   /** Whether this Pokémon was in the search, using up the match so a twin is not marked by the same entry. */
-  take(detail: Detail): boolean {
-    const key = keyOf(detail);
-    const loose = looseKeyOf(detail);
+  take(detail: Detail, overlay: Overlay | null): boolean {
+    const key = keyOf(detail, overlay);
+    const loose = looseKeyOf(detail, overlay);
 
     if (key && (this.#exact.get(key) ?? 0) > 0) {
       bump(this.#exact, key, -1);
@@ -572,24 +522,34 @@ function bump(map: Map<string, number>, key: string, by: number) {
   map.set(key, (map.get(key) ?? 0) + by);
 }
 
-function keyOf(detail: Detail): string | null {
-  if (detail.cp === null || detail.hp === null) {
+/**
+ * What identifies one Pokémon across two passes. CP used to be half of this and is not any more: it is white over the
+ * artwork and reads perhaps a quarter of the time, so requiring it made every screen unreadable and stopped a walk
+ * after three. The overlay's IVs take its place and discriminate better — HP, weight, height and 15/15/15 together are
+ * shared by almost nothing — and HP alone is what a key now needs to exist at all.
+ */
+function keyOf(detail: Detail, overlay: Overlay | null): string | null {
+  if (detail.hp === null) {
     return null;
   }
 
-  return `${fold(detail.name ?? '')}|${looseKeyOf(detail)}`;
+  return `${fold(detail.name ?? '')}|${looseKeyOf(detail, overlay)}`;
 }
 
-function looseKeyOf(detail: Detail): string {
-  return [detail.cp, detail.hp, detail.weightKg, detail.heightM].join('|');
+/** The same without the name, so a nickname read differently in two passes still matches. */
+function looseKeyOf(detail: Detail, overlay: Overlay | null): string {
+  const iv = overlay ? `${overlay.iv.attack}/${overlay.iv.defense}/${overlay.iv.stamina}` : '';
+
+  return [detail.hp, detail.weightKg, detail.heightM, iv].join('|');
 }
 
 function isStorage(lines: readonly Line[]): boolean {
   return findLine(lines, /\beggs?\b/) !== undefined || findLine(lines, /^search\b/) !== undefined;
 }
 
+/** Whether a screen is a detail screen, asked without reading the overlay, which costs a crop and a Tesseract run. */
 function isDetail(lines: readonly Line[], data: GameData, image: Image): boolean {
-  return keyOf(parseDetail(lines, data, image)) !== null;
+  return parseDetail(lines, data, image).hp !== null;
 }
 
 function csv(value: string | number | null): string {
@@ -622,7 +582,7 @@ function loadConfig(path: string | undefined): Config {
     taps: { ...DEFAULTS.taps, ...(overrides.taps as Partial<Config['taps']>) },
     swipes: { ...DEFAULTS.swipes, ...(overrides.swipes as Partial<Config['swipes']>) },
     waits: { ...DEFAULTS.waits, ...(overrides.waits as Partial<Config['waits']>) },
-    bars: { ...DEFAULTS.bars, ...(overrides.bars as Partial<BarColours>) },
+    overlay: (overrides.overlay as OverlayBox | undefined) ?? DEFAULTS.overlay,
   };
 }
 
