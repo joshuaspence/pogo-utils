@@ -1,8 +1,8 @@
 /**
  * Reading the GPX files the viewer and the backup builder both consume. `loadManifest` fetches the file list;
- * `parseGpxDocument` and `eachTrack` turn a file into elements to walk; the rest pull an entry's name, locality and
- * country out of a parsed <trk> or <wpt>. Kept in one place so the map and the PGSharp backup agree on what a file says
- * rather than each parsing it their own way.
+ * `parseGpxDocument` and `eachTrack` turn a file into elements to walk; the rest pull an entry's name, locality,
+ * country and coordinates out of a parsed <trk> or <wpt>. Kept in one place so the map and the PGSharp backup agree on
+ * what a file says rather than each parsing it their own way.
  */
 
 import { GPX_PATHS } from './generated.js';
@@ -118,4 +118,23 @@ export function entryCountry(el: Element): string {
   }
 
   return country;
+}
+
+/**
+ * Where a <trkpt> or a <wpt> says it is. One reader for both tags, because they are one format, and the element names
+ * itself in the message so the caller only has to add the file. `coords` is a tuple rather than a list, so
+ * destructuring it gives two numbers rather than two `number | undefined`; `coordStr` is the file's own text for the
+ * pair, kept so a consumer can hand over exactly what the file said rather than the parsed numbers printed back.
+ */
+export function entryCoords(el: Element): { coords: [number, number]; coordStr: string } {
+  const latStr = el.getAttribute('lat'),
+    lonStr = el.getAttribute('lon');
+  const lat = parseFloat(latStr ?? ''),
+    lon = parseFloat(lonStr ?? '');
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    throw new Error(`<${el.localName}> at ${latStr},${lonStr} has an unparseable coordinate`);
+  }
+
+  return { coords: [lat, lon], coordStr: `${latStr},${lonStr}` };
 }

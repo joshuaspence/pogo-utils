@@ -11,7 +11,7 @@ import tzlookup from 'tz-lookup';
 import COUNTRIES from '../countries.js';
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
-import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from '../gpx.js';
+import { eachTrack, entryCoords, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from '../gpx.js';
 import { JavaSer } from '../java-serialization.js';
 import { CONTROL_RESETS } from './controls.js';
 import { byId } from '../dom.js';
@@ -136,21 +136,6 @@ function flaggedName(el: Element) {
 }
 
 /**
- * The pair a `<wpt>` or `<trkpt>` carries, as a tuple rather than a list, so that destructuring it gives two numbers
- * rather than two `number | undefined` — the same reason `coordsOf` in `src/app.js` hands back a tuple.
- */
-function coord(el: Element): [number, number] {
-  const lat = parseFloat(el.getAttribute('lat') ?? '');
-  const lng = parseFloat(el.getAttribute('lon') ?? '');
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new Error(`<${el.localName}> has an unparseable coordinate`);
-  }
-
-  return [lat, lng];
-}
-
-/**
  * Split one GPX file into Points and Routes by element, not by filename: a <wpt> is one coordinate (a Point), a <trk>
  * is a path (a Route keeping all of its <trkpt>). A file may hold either or both. Mirrors pgsedit's parse_gpx — an
  * empty <trk> is skipped (gpx.studio writes one for a cleared track) rather than treated as a route. Both kinds are
@@ -164,7 +149,7 @@ function parseGpxFavourites(text: string) {
   const routes: Route[] = [];
 
   for (const wpt of doc.getElementsByTagName('wpt')) {
-    const [lat, lng] = coord(wpt);
+    const [lat, lng] = entryCoords(wpt).coords;
     points.push({ name: flaggedName(wpt), lat, lng });
   }
 
@@ -172,7 +157,7 @@ function parseGpxFavourites(text: string) {
     const pts: RoutePoint[] = [];
 
     for (const p of trkpts) {
-      const [lat, lng] = coord(p);
+      const [lat, lng] = entryCoords(p).coords;
       pts.push([lat, lng, ROUTE_POINT_FLAG]);
     }
 

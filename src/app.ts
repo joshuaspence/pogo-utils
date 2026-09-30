@@ -12,7 +12,7 @@ import 'leaflet/dist/leaflet.css';
 import COUNTRIES from './countries.js';
 import { said } from './errors.js';
 import { GPX_PATHS } from './generated.js';
-import { eachTrack, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
+import { eachTrack, entryCoords, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
 import { byId } from './dom.js';
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -224,27 +224,6 @@ function fmtDist(m: number): string {
 class FetchError extends Error {}
 
 /**
- * Where a `<trkpt>` or a `<wpt>` says it is. `coordStr` is the file's own text for the pair, kept so the copy button
- * hands over exactly what the file said rather than the parsed numbers printed back.
- *
- * One reader for both tags, because they are one format: `getAttribute` answers `string | null`, which is what made the
- * `<trkpt>` pair an error as soon as `eachTrack` started yielding an `Element` — twenty lines above a `<wpt>` pair that
- * was already erroring for the same reason. The element names itself in the message, so each keeps the wording it had.
- */
-function coordsOf(el: Element): { coords: [number, number]; coordStr: string } {
-  const latStr = el.getAttribute('lat'),
-    lonStr = el.getAttribute('lon');
-  const lat = parseFloat(latStr ?? ''),
-    lon = parseFloat(lonStr ?? '');
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    throw new Error(`<${el.localName}> at ${latStr},${lonStr} has an unparseable coordinate`);
-  }
-
-  return { coords: [lat, lon], coordStr: `${latStr},${lonStr}` };
-}
-
-/**
  * Read one file, splitting it into routes and waypoints by element rather than by where it sits: a <trk> is a path to
  * walk, a <wpt> is one place to stand, and a file may hold either or both. This is how the backup writer has always
  * read these files (see parseGpxFavourites), so the two now agree about what a file contains instead of the viewer
@@ -276,7 +255,7 @@ async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[
   const routes: Route[] = [];
 
   for (const { trk, trkpts } of eachTrack(doc)) {
-    const latlngs = [...trkpts].map((p) => coordsOf(p).coords);
+    const latlngs = [...trkpts].map((p) => entryCoords(p).coords);
 
     if (latlngs.length < 2) {
       throw new Error('<trk> has fewer than two usable <trkpt>');
@@ -297,7 +276,7 @@ async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[
     waypoints.push({
       country: entryCountry(w),
       name: placeName(w),
-      ...coordsOf(w),
+      ...entryCoords(w),
       event: extText(w, 'event') || '',
     });
   }
