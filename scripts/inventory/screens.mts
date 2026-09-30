@@ -49,7 +49,7 @@ export async function readLines(image: Image): Promise<Line[]> {
   return [...all, ...sky].sort((a, b) => a.top - b.top || a.left - b.left);
 }
 
-export function parseDetail(lines: readonly Line[], data: GameData, image: Image): Detail {
+export async function parseDetail(lines: readonly Line[], data: GameData, image: Image): Promise<Detail> {
   // The small `CP` beside the number is often read with a stray letter after it (`cPe518`) or as `GP`.
   const cpPattern = /\b[cg]p\s?[a-z]?\s?(\d{2,5})\b/;
   const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
@@ -75,23 +75,13 @@ export function parseDetail(lines: readonly Line[], data: GameData, image: Image
     return value === undefined ? null : Number(value.replace(',', '.'));
   };
 
-  const typeNames = new Map(data.types.map((t) => [fold(t), t]));
-  const typeLine = lines.find((l) => {
-    const words = fold(l.text).split(' ').filter(Boolean);
-    return words.length > 0 && words.length <= 2 && words.every((w) => typeNames.has(w));
-  });
-
   return {
     cp,
     name,
     hp,
     weightKg: number(/(\d+(?:[.,]\d+)?)\s*kg\b/i),
     heightM: number(/(\d+(?:[.,]\d+)?)\s*m\b/i),
-    types: typeLine
-      ? fold(typeLine.text)
-          .split(' ')
-          .map((w) => typeNames.get(w) ?? w)
-      : [],
+    types: await typesOf(lines, data, image),
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
   };
@@ -169,6 +159,58 @@ function genderOf(image: Image, hp: Line): Gender | null {
   }
 
   return (bottom - top + 1) / Math.max(1, right - left + 1) >= GENDER_TALL ? 'female' : 'male';
+}
+
+/** Only letters and the slash between two types; the row also holds `WEIGHT` and `HEIGHT`, which are letters too. */
+const TYPE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ/ ';
+
+/**
+ * The types, read off the row of labels under the weight rather than out of the whole-screen pass. That row is small
+ * grey capitals and the sparse pass mangles it — `WEIGHT` comes back as `EI` and a `T`, and the type between them
+ * usually not at all, which measured **6 of 25** on a corpus of real screens. Found by the weight and read on its own
+ * at double size it measured **24 of 25**, and it recovers the second type as well, where the whole-screen pass had
+ * been reporting `ice` for a Pokémon that is `Ice / Flying`.
+ *
+ * This is worth more than one column: `identify` narrows its candidates by type, so a missing pair is the difference
+ * between naming a form and answering `could also be Meganium, Sunkern, Treecko, …`.
+ */
+async function typesOf(lines: readonly Line[], data: GameData, image: Image): Promise<string[]> {
+  const names = new Map(data.types.map((t) => [fold(t), t]));
+  const found = (text: string) =>
+    fold(text)
+      .split(' ')
+      .filter((w) => names.has(w))
+      .map((w) => names.get(w) ?? w);
+  // Either of the pair will do, since the weight and the height sit on one row and the labels on the row beneath it —
+  // and taking only the weight lost a Cyndaquil whose `0.44m` read perfectly and whose `kg` did not.
+  const beside = lines.find((l) => /\d\s*(kg|m)\b/i.test(l.text));
+
+  if (beside) {
+    // Generous, because the band is measured in the anchor's own height and the two anchors do not report the same
+    // one: `0.44m` came back 45 tall where `5.42kg` beside it came back 58, and a band sized off the shorter of them
+    // ended six pixels into the labels and lost a Cyndaquil's `FIRE`. The alphabet keeps the digits above out of it.
+    const band = crop(
+      image,
+      image.width * 0.25,
+      beside.top + beside.height * 0.8,
+      image.width * 0.5,
+      beside.height * 2,
+    );
+    const read = found((await ocrLine(scale(band, 2), TYPE_ALPHABET))?.text ?? '');
+
+    if (read.length > 0) {
+      return read;
+    }
+  }
+
+  // Where neither was read there is nothing to find the row by, so fall back on the whole-screen pass.
+  const line = lines.find((l) => {
+    const words = fold(l.text).split(' ').filter(Boolean);
+
+    return words.length > 0 && words.length <= 2 && words.every((w) => names.has(w));
+  });
+
+  return line ? found(line.text) : [];
 }
 
 /**
@@ -372,6 +414,19 @@ function boxAround(line: { left: number; top: number; width: number; text: strin
     y: (line.top - em * 0.7) / image.height,
     width: (right - left) / image.width,
     height: (em * 3) / image.height,
+  };
+}
+
+/** The smallest box covering both, so a box that clipped one Pokémon's line grows rather than flips between them. */
+export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
   };
 }
 

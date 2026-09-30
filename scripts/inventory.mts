@@ -43,6 +43,7 @@ import {
   parseMoves,
   readLines,
   readOverlay,
+  widen,
   type Detail,
   type Moves,
   type Overlay,
@@ -198,7 +199,7 @@ async function report(image: Image, data: GameData) {
     console.log(`  ${`${l.left},${l.top} ${l.width}×${l.height}`.padEnd(22)} ${l.text}`);
   }
 
-  const detail = parseDetail(lines, data, image);
+  const detail = await parseDetail(lines, data, image);
   const box = config.overlay ?? (await findOverlay(image));
   const overlay = box ? await readOverlay(image, box) : null;
   console.log('detail:', detail);
@@ -253,7 +254,7 @@ async function scan() {
         return lines;
       }
 
-      if (isDetail(lines, data, image)) {
+      if (await isDetail(lines, data, image)) {
         await tap(at(config.taps.closeDetail));
         continue;
       }
@@ -310,7 +311,24 @@ async function scan() {
    */
   const overlayOf = async (image: Image): Promise<Overlay | null> => {
     if (overlayBox) {
-      return readOverlay(image, overlayBox);
+      const overlay = await readOverlay(image, overlayBox);
+
+      if (overlay || searchesLeft <= 0) {
+        return overlay;
+      }
+
+      // A box tightened on one Pokémon clips a longer line on another — a three digit percentage is a character wider,
+      // and two of twenty-five captures missed for exactly that. So a miss earns one sweep, and the box is widened to
+      // cover both rather than swapped, which converges instead of flipping between the two Pokémon that disagree.
+      searchesLeft--;
+      const wider = await findOverlay(image);
+      const read = wider ? await readOverlay(image, wider) : null;
+
+      if (read && wider) {
+        overlayBox = widen(overlayBox, wider);
+      }
+
+      return read;
     }
 
     if (searchesLeft <= 0) {
@@ -339,7 +357,7 @@ async function scan() {
   const readDetail = async (): Promise<Reading> => {
     for (let attempt = 0; ; attempt++) {
       const image = await device.screenshot();
-      const detail = parseDetail(await readLines(image), data, image);
+      const detail = await parseDetail(await readLines(image), data, image);
       const overlay = await overlayOf(image);
       const key = keyOf(detail, overlay);
       // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
@@ -605,8 +623,8 @@ function isStorage(lines: readonly Line[]): boolean {
 }
 
 /** Whether a screen is a detail screen, asked without reading the overlay, which costs a crop and a Tesseract run. */
-function isDetail(lines: readonly Line[], data: GameData, image: Image): boolean {
-  return parseDetail(lines, data, image).hp !== null;
+async function isDetail(lines: readonly Line[], data: GameData, image: Image): Promise<boolean> {
+  return (await parseDetail(lines, data, image)).hp !== null;
 }
 
 function csv(value: string | number | null): string {
