@@ -6,8 +6,9 @@ import tseslint from 'typescript-eslint';
 export default [
   {
     // The build, which is the compiler's output rather than anything anyone wrote: `dist/` would be linted as a second
-    // copy of every module, and `.types/` is generated declarations.
-    ignores: ['dist/**', '.types/**'],
+    // copy of every module, and `.types/` is generated declarations. `.claude/worktrees/` is another branch's checkout,
+    // which flat config lints too, a leading dot no longer being ignored.
+    ignores: ['dist/**', '.types/**', '.claude/worktrees/**'],
   },
 
   js.configs.recommended,

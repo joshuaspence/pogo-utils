@@ -9,3 +9,7 @@
 # named into `.types/` above, since its default position is derived from `outDir` and so falls inside the artifact;
 # `scripts/` emits nothing, so its own stays beside its config.
 /scripts/tsconfig.tsbuildinfo
+
+# Every subtask gets its own worktree and the harness puts them here, so this holds another branch's checkout rather
+# than anything of this one's. `.prettierignore` and `eslint.config.mjs` exclude it for the same reason.
+/.claude/worktrees/
