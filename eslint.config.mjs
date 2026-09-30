@@ -34,11 +34,7 @@ export default [
     files: ['src/**/*.ts'],
     languageOptions: {
       sourceType: 'module',
-      globals: {
-        ...globals.browser,
-        L: 'readonly',
-        tzlookup: 'readonly',
-      },
+      globals: globals.browser,
     },
   },
 
