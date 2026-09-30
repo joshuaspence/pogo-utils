@@ -660,3 +660,29 @@ meant to remove noise.
   spans together unions the generations first and intersects that union with the other sources. Merging them can take
   the ambiguity warning with it as well as the characters: `shiny&1-151,152-251` mixes `,` with `&` and earns the
   caveat, where `shiny&1-251` does not.
+## Driving Pokémon GO over `adb`
+
+`scripts/inventory.mts` steers the game by screenshot and tap, so every step is a guess about a screen that has no
+accessibility tree to ask. Three traps, each of which read as a different bug than it was.
+
+- **Find a control by its text only where the text sits inside it.** Storage's search box and the Appraise row qualify;
+  the main menu's Pokémon button does not. Its label OCRs as `131,1735 186×32` and the icon's centre is `224,1874`, a
+  little over four label-heights below — so tapping `centre(line)` lands on the backdrop, which dismisses the menu and
+  drops back to the map. Three rounds of that is
+  `could not find Pokémon storage; open it by hand and run again with --no-launch`, which reads as the game being
+  somewhere unexpected rather than as the tap being wrong. The configured `taps.pokemonButton` at `[0.25, 0.82]` is
+  inside the icon and works, so that button is tapped blind.
+- **Clearing the search box uncovers the Recent and Recommended suggestions, and Enter does not dismiss them.** With
+  text in the box the filtered grid shows behind and Enter only takes the keyboard away; with the box empty the panel
+  covers the grid outright, so `openFirst` finds no `CP` label and falls back to `taps.firstTile` — which lands on the
+  first Recent chip and searches for whatever was there last. That is worse than failing: the corpus silently became one
+  account's saved `0*,1*,2*&!costume&…` at 1,645 of 12,766, and the only sign was a query in a box nobody reads. One
+  Back closes the panel and leaves the unfiltered grid. Detect the panel by its own `Recommended` heading rather than by
+  the grid looking empty, since a search that genuinely matches nothing looks exactly the same and a Back there would
+  walk all of storage under that flag.
+- **A tile opens with an animation that outlasts one wait.** Read 1.1s after the tap, the detail screen has no CP or HP
+  on it yet, and `keyOf` cannot tell that from a grid with nothing in it — so the tap is reported as
+  `storage looks empty, or the first Pokémon did not open` on a screen that opened perfectly and finished a second
+  later. `readDetail` already retries once for exactly this, so `openFirst` goes through it rather than judging a single
+  screenshot.
+

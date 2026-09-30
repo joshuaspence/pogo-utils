@@ -58,7 +58,10 @@ interface Config {
   taps: {
     /** The Poké Ball on the map that opens the main menu. */
     mainMenu: Point;
-    /** The Pokémon button in that menu. */
+    /**
+     * The Pokémon button in that menu. Tapped blind rather than found by its label, because that label sits above the
+     * icon rather than inside it and tapping it dismisses the menu.
+     */
     pokemonButton: Point;
     /** The search box at the top of storage. */
     search: Point;
@@ -250,9 +253,7 @@ async function scan() {
       }
 
       await tap(at(config.taps.mainMenu), config.waits.menu);
-      const menu = await readLines(await device.screenshot());
-      const button = findLine(menu, /^pokemon$/);
-      await tap(button ? centre(button) : at(config.taps.pokemonButton), config.waits.search);
+      await tap(at(config.taps.pokemonButton), config.waits.search);
     }
 
     throw new Error('could not find Pokémon storage; open it by hand and run again with --no-launch');
@@ -273,7 +274,36 @@ async function scan() {
     await sleep(config.waits.search);
     lines = await readLines(await device.screenshot());
 
+    // An empty box shows the Recent and Recommended suggestions over the grid, and Enter only takes the keyboard away;
+    // Back closes them and leaves the unfiltered grid behind. Tapping a suggestion by accident searches for it, so the
+    // panel has to go before anything else is tapped.
+    if (findLine(lines, /^recommended$/)) {
+      await device.key(KEY.BACK);
+      await sleep(config.waits.search);
+      lines = await readLines(await device.screenshot());
+    }
+
     return lines;
+  };
+
+  interface Reading {
+    detail: Detail;
+    key: string | null;
+    image: Image;
+  }
+
+  const readDetail = async (): Promise<Reading> => {
+    for (let attempt = 0; ; attempt++) {
+      const image = await device.screenshot();
+      const detail = parseDetail(await readLines(image), data, image);
+      const key = keyOf(detail);
+
+      if (key || attempt === 1) {
+        return { detail, key, image };
+      }
+
+      await sleep(config.waits.swipe);
+    }
   };
 
   /** Opens the first Pokémon the grid shows, answering false when there is none — an empty search. */
@@ -284,9 +314,10 @@ async function scan() {
       label ? [centre(label)[0], label.top + label.height * 2.5] : at(config.taps.firstTile),
       config.waits.swipe,
     );
-    const image = await device.screenshot();
 
-    return isDetail(await readLines(image), data, image);
+    // Through `readDetail` for its retry: the tile opens with an animation that outlasts one wait, and a screen read
+    // while it is still running is indistinguishable from a grid with nothing in it.
+    return (await readDetail()).key !== null;
   };
 
   const appraise = async (name: string): Promise<{ iv: IVs | null; note?: string }> => {
@@ -336,26 +367,6 @@ async function scan() {
     }
 
     return iv ? { iv } : { iv: null, note: 'appraisal bars not read' };
-  };
-
-  interface Reading {
-    detail: Detail;
-    key: string | null;
-    image: Image;
-  }
-
-  const readDetail = async (): Promise<Reading> => {
-    for (let attempt = 0; ; attempt++) {
-      const image = await device.screenshot();
-      const detail = parseDetail(await readLines(image), data, image);
-      const key = keyOf(detail);
-
-      if (key || attempt === 1) {
-        return { detail, key, image };
-      }
-
-      await sleep(config.waits.swipe);
-    }
   };
 
   /**
