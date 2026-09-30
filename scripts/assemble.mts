@@ -177,6 +177,18 @@ for (const page of pages) {
 }
 
 /*
+ * Either regex above matching nothing — an attribute reordered, the quoting changed — leaves `missing` empty and passes
+ * a build having verified no reference at all, the only trace being a `0` in the summary line that reads as plausible
+ * beside a page count that is not zero. So assert each scan found something, as `bundle.mts` does for its own.
+ */
+if (checked === 0 || manifests.size === 0) {
+  throw new Error(
+    `${checked} reference(s) and ${manifests.size} manifest link(s) across ${pages.length} page(s): ` +
+      'the markup is not the shape the scans expect.',
+  );
+}
+
+/*
  * The icons and the shortcut targets, which no page names and the scan above therefore cannot see. Left unchecked these
  * fail where nothing is watching: a launcher that cannot fetch an icon draws a letter tile, and a shortcut to a page
  * that moved opens a 404 from someone's home screen rather than from the site.
