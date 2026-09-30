@@ -22,7 +22,7 @@
 
 import POKEMON from '../pokemon/pokedex.js';
 import { GROUPS, RANGES } from './terms.js';
-import { rangeClause, type State } from './query.js';
+import { names, rangeClause, type State } from './query.js';
 
 /**
  * A run of dex numbers, inclusive at both ends, which is every shape of number the game reads: `4` is `[4, 4]`.
@@ -219,14 +219,7 @@ export function optimise(state: State) {
     ranges: new Map([...state.ranges].map(([id, bounds]) => [id, { ...bounds }])),
   };
 
-  const typed = [
-    ...new Set(
-      state.text
-        .split(',')
-        .map((name) => name.trim())
-        .filter(Boolean),
-    ),
-  ];
+  const typed = [...new Set(names(state.text))];
 
   // A name that another name begins says nothing the shorter one has not: whatever `charmander` reaches, `char` reaches
   // too, under either reading of a partial name, and the two are OR'd. A `+` travels with the name it is on, so a
