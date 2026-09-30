@@ -217,7 +217,12 @@ async function report(image: Image, data: GameData) {
   console.log('moves:', await parseMoves(lines, data, id.form, image));
   console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
   console.log('overlay:', overlay ?? 'nothing read');
-  console.log('identity:', id);
+  // The form carries its whole move pool now, which prints as a column of `[Object]` and buries everything worth
+  // reading; the names are what a person tuning this wants to see anyway.
+  console.log('identity:', {
+    ...id,
+    form: id.form && { ...id.form, moves: id.form.moves.map((m) => m.name).join(', ') },
+  });
 }
 
 async function scan() {
