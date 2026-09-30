@@ -14,10 +14,12 @@
  *   overlay's numbers only some forms make it come out. See `inventory/game-master.mts`.
  * - **Gender, whether it is a favourite and whether it is XXL or XXS** are read off the detail screen: the symbol
  *   beside the HP, the star at the top right, and the gold badge above the height.
- * - **Shiny, lucky, costume and any tag** say nothing on the detail screen at all, so each one is a search instead. A
- *   pass with the game's own `shiny` search reads just the matching Pokémon, and the full pass marks the ones it
- *   recognises from that list. Searches keep the sort order, and a Pokémon is recognised by its name, HP, weight,
- *   height and IVs together, which in practice nothing else in storage shares.
+ * - **Tags** are chips under the HP, read off the same screen; `--tags` names the ones to expect so that what is read
+ *   can be matched to them.
+ * - **Shiny, lucky and costume** say nothing on the detail screen at all, so each one is a search instead. A pass with
+ *   the game's own `shiny` search reads just the matching Pokémon, and the full pass marks the ones it recognises from
+ *   that list. Searches keep the sort order, and a Pokémon is recognised by its name, HP, weight, height and IVs
+ *   together, which in practice nothing else in storage shares.
  *
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
@@ -36,7 +38,7 @@
  */
 
 import { Device, KEY, sleep } from './inventory/adb.mts';
-import { loadGameData, type GameData } from './inventory/game-master.mts';
+import { closest, loadGameData, type GameData } from './inventory/game-master.mts';
 import { centre, findLine, fold, ocr, type Line } from './inventory/ocr.mts';
 import { decodePng, difference, encodePng, type Image } from './inventory/png.mts';
 import {
@@ -493,19 +495,19 @@ async function scan() {
     await sleep(config.waits.launch);
   }
 
-  // The flag and tag passes come first, so that the full pass can write each row complete as it goes.
-  const marked = new Map<string, Marks>();
+  // The flag passes come first, so that the full pass can write each row complete as it goes.
+  const marked = new Map<Flag, Marks>();
 
-  for (const [name, term] of [...flags.map((f) => [f, FLAGS[f]] as const), ...tags.map((t) => [t, t] as const)]) {
+  for (const flag of flags) {
     const marks = new Marks();
-    const grid = await search(term);
+    const grid = await search(FLAGS[flag]);
 
     if (await openFirst(grid)) {
       await walk(async ({ detail, overlay }) => marks.add(detail, overlay), Infinity);
     }
 
-    console.error(`${name}: ${marks.size}`);
-    marked.set(name, marks);
+    console.error(`${flag}: ${marks.size}`);
+    marked.set(flag, marks);
   }
 
   const out = options.out;
@@ -559,8 +561,8 @@ async function scan() {
       }
 
       const flag = (f: Flag) => (flags.includes(f) ? (marked.get(f)?.take(detail, overlay) ? 'yes' : 'no') : '');
-      // A tag has to be taken from every pass rather than stopping at the first, since a Pokémon can carry several.
-      const carried = tags.filter((t) => marked.get(t)?.take(detail, overlay));
+      // A chip that matches nothing named is kept as it read rather than dropped, since a misread is worth seeing.
+      const carried = detail.tags.map((t) => (tags.length > 0 ? (closest(t, tags, (n) => n, 0.3) ?? t) : t));
       const total = iv ? iv.attack + iv.defense + iv.stamina : null;
 
       const row: Record<(typeof COLUMNS)[number], string | number | null> = {
