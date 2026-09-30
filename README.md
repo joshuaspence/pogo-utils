@@ -233,6 +233,34 @@ icon to its own shape. That SVG is the one file in the directory the site does n
 `icons/*.png` rather than `icons/`. Nothing regenerates the PNGs, so after editing either SVG render it again at the
 listed size — any browser will do, with `prefers-color-scheme` set to light for `favicon.svg`.
 
+## Pokémon inventory
+
+`pnpm inventory scan` lists every Pokémon in storage in a CSV (species, nickname, form, costume, shiny, lucky, XXL/XXS,
+CP, HP, level, IVs and moves) by driving an Android phone over `adb`. Pokémon GO is drawn by Unity, so Android can't
+read its text; instead the script takes a screenshot at each step and reads it with Tesseract. Both tools have to be on
+`PATH`:
+
+```sh
+brew install android-platform-tools tesseract   # or: apt install adb tesseract-ocr
+pnpm inventory scan --out inventory.csv
+```
+
+Plug the phone in with USB debugging on, set Pokémon GO to English and choose a storage sort order first; the scan keeps
+whatever order is set. It opens the first Pokémon and swipes through the rest. For each one it reads the detail screen,
+scrolls down to the moves and opens the appraisal. Level and form are never shown on screen. The script works them out
+from the CP, HP and IVs against the base stats in [PokeMiners' game master](https://github.com/PokeMiners), which is
+also how a nicknamed Pokémon gets its species back. Shiny, lucky, costume and size come from the game's own searches
+(`shiny`, `lucky`, `costume`, `xxl`, `xxs`), one quick pass each before the full pass. Expect several seconds per
+Pokémon. `--limit`, `--skip` and `--no-launch` break a long run into pieces.
+
+Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
+`pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
+`pnpm inventory parse FILE.png` does the same for a saved one. The cache, the snaps and `inventory*.csv` are
+git-ignored, since they describe a player's own account.
+
+Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
+risk to the account is yours to weigh.
+
 ## Prior art
 
 The Events page began as a look at three sites covering the same ground, each worth visiting in its own right:

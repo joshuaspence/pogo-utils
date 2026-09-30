@@ -29,7 +29,7 @@
     // since it is erased before Node sees it — and `src/types.d.ts` could not be named any other way.
     "allowImportingTsExtensions": true
   },
-  "include": ["*.mts"],
+  "include": ["*.mts", "inventory/*.mts"],
 
   // These scripts import the files `tsconfig.shared.json` lists — `src/countries.ts`, `src/event-feed.ts`,
   // `src/generated.ts`, `src/recurring-types.ts` and `src/types.d.ts`. Build mode wants every file a project reads
