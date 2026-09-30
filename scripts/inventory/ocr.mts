@@ -64,6 +64,19 @@ export async function ocr(image: Image, offset = { x: 0, y: 0 }): Promise<Line[]
     .sort((a, b) => a.top - b.top || a.left - b.left);
 }
 
+/**
+ * One line of text from an image cropped down to hold nothing else, as a string rather than as boxes. Page
+ * segmentation mode 7 tells Tesseract the whole image is that one line, which is the opposite of the sparse mode
+ * above and the right answer once a caller has already found what it wants to read. `whitelist` narrows the alphabet
+ * to the characters the line can contain, which is what stops a stray glyph splitting a number in two.
+ */
+export async function ocrLine(image: Image, whitelist?: string): Promise<string> {
+  const options = whitelist === undefined ? [] : ['-c', `tessedit_char_whitelist=${whitelist}`];
+  const text = await run('tesseract', ['stdin', 'stdout', '--psm', '7', ...options], encodePng(image));
+
+  return text.trim().replace(/\s+/g, ' ');
+}
+
 /** Lowercase with accents and punctuation gone, so `POKéMON`, `Pokémon` and `pokemon` compare equal. */
 export function fold(text: string): string {
   return text

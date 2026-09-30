@@ -162,3 +162,50 @@ export function crop(image: Image, left: number, top: number, width: number, hei
 
   return { width: w, height: h, data };
 }
+
+/**
+ * A nearest-neighbour enlargement. Tesseract reads small text better with more pixels under it, but only up to a
+ * point: measured over twelve overlay captures, 2x turned `14/18/12` into the `14/13/12` it really was, where 3x and
+ * 4x started reading the `L` of the level as a `1`.
+ */
+export function scale(image: Image, factor: number): Image {
+  const w = image.width * factor;
+  const h = image.height * factor;
+  const data = new Uint8Array(w * h * 4);
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const src = (Math.floor(y / factor) * image.width + Math.floor(x / factor)) * 4;
+      data.set(image.data.subarray(src, src + 4), (y * w + x) * 4);
+    }
+  }
+
+  return { width: w, height: h, data };
+}
+
+/**
+ * Bright, unsaturated pixels as black on white, which is the pairing Tesseract reads best. Both bounds earn their
+ * place on PGSharp's overlay: the luminance floor drops the dark box the text sits on, and the chroma ceiling drops
+ * the IV percentage, which shares the line and is coloured by how good the Pokemon is — magenta at 93, cyan at 86,
+ * green at 75. Dropping it is the point rather than a cost, since it is derivable from the three IVs beside it and
+ * its colour is what made it the one field that would not threshold.
+ */
+export function isolate(image: Image, minLuminance: number, maxChroma: number): Image {
+  const data = new Uint8Array(image.data.length);
+
+  for (let i = 0; i < image.data.length; i += 4) {
+    const r = image.data[i] ?? 0;
+    const g = image.data[i + 1] ?? 0;
+    const b = image.data[i + 2] ?? 0;
+    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    const value = luminance >= minLuminance && chroma <= maxChroma ? 0 : 255;
+
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+    data[i + 3] = 255;
+  }
+
+  return { width: image.width, height: image.height, data };
+}

@@ -5,12 +5,12 @@
  *
  * - The **detail** screen, scrolled to the top: CP, name or nickname, HP, weight, types and height.
  * - The same screen **scrolled down**: the fast move and one or two charged moves.
- * - **Appraisal**: three bars, Attack, Defense and HP, each out of 15.
+ * - **PGSharp's overlay** on the detail screen, which states the level and the three IVs outright.
  */
 
 import { closest, levelsOf, type Form, type GameData, type IVs } from './game-master.mts';
-import { findLine, fold, ocr, type Line } from './ocr.mts';
-import { crop, rgb, type Image } from './png.mts';
+import { fold, ocr, ocrLine, type Line } from './ocr.mts';
+import { crop, isolate, scale, type Image } from './png.mts';
 
 export interface Detail {
   cp: number | null;
@@ -25,24 +25,6 @@ export interface Moves {
   fast: string | null;
   charged: string[];
 }
-
-/**
- * How an appraisal bar's pixels are told apart. `fill` is the orange (red at 15) of the part that is earned, which is
- * the only saturated colour on the panel; `track` is the grey of the part that is not.
- */
-export interface BarColours {
-  fillSaturation: number;
-  trackSaturation: number;
-  trackMin: number;
-  trackMax: number;
-}
-
-export const DEFAULT_BAR_COLOURS: BarColours = {
-  fillSaturation: 60,
-  trackSaturation: 25,
-  trackMin: 170,
-  trackMax: 240,
-};
 
 /** Everything OCR read off an image: the whole of it, then the top fifth again inverted, where the CP is white. */
 export async function readLines(image: Image): Promise<Line[]> {
@@ -121,93 +103,96 @@ export function parseMoves(lines: readonly Line[], data: GameData): Moves {
   };
 }
 
-export function isAppraisal(lines: readonly Line[]): boolean {
-  return findLine(lines, /^attack$/) !== undefined && findLine(lines, /^defen[cs]e$/) !== undefined;
+/** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
+export interface OverlayBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Overlay {
+  /** Null where the box was read but the level was not; the arithmetic in `identify` is what settles it either way. */
+  level: number | null;
+  iv: IVs;
+}
+
+/** Only these survive the whitelist: the level's `L`, the digits and the slashes between the three IVs. */
+const OVERLAY_ALPHABET = 'L0123456789/ ';
+
+/** Bright enough to be the overlay's white text, and flat enough in colour not to be its IV percentage. */
+const OVERLAY_LUMINANCE = 150;
+const OVERLAY_CHROMA = 55;
+
+const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
+
+/** `L25 IV86 14/13/12` and a character's slack, which is what the box is measured in. */
+const OVERLAY_CHARACTERS = 19;
+
+/**
+ * Where the overlay sits, found by the one thing nothing else on the screen carries: three small numbers separated by
+ * slashes. This is the expensive half and it only has to work once — a caller finds the box on whichever Pokemon it
+ * first succeeds on and reads every later one straight out of it, which is what keeps this independent of the phone.
+ * PGSharp draws the overlay itself rather than leaving it to Unity, so the box does not move between species; what it
+ * does do is move between devices, which is why this is found rather than configured.
+ */
+export function findOverlay(lines: readonly Line[], image: Image): OverlayBox | null {
+  const line = lines.find((l) => l.top < image.height / 2 && TRIPLE.test(l.text));
+
+  if (!line) {
+    return null;
+  }
+
+  // The box is sized from the width of one character rather than from the height Tesseract reports, because that
+  // height is not trustworthy: measured over twelve captures the same overlay came back 25, 28, 49 and 54 pixels tall
+  // as the row was merged with whatever fragment of the artwork sat beside it, and padding a 54 by half of itself
+  // reaches far enough into the picture to undo the whole point of cropping. Character width does not wander — 270/17,
+  // 264/17 and 130/8 across those same captures are all within a pixel of each other.
+  const em = line.width / Math.max(1, line.text.length);
+
+  // Anchored on the right edge and extended left, since the part that goes missing is always the left: where only the
+  // three IVs are legible the level and the percentage before them are still there to be read, just not by this pass.
+  const right = line.left + line.width + em;
+  const left = right - OVERLAY_CHARACTERS * em;
+
+  return {
+    x: left / image.width,
+    y: (line.top - em * 0.7) / image.height,
+    width: (right - left) / image.width,
+    height: (em * 3) / image.height,
+  };
 }
 
 /**
- * The three IVs, read off the length of each bar's fill against the length of the bar. The labels find the bars —
- * each bar sits directly under its word — and the pixels do the rest, so a screen of any size reads the same way.
+ * The level and the three IVs, read out of a box already found. Isolating the white text and doubling it is what makes
+ * this reliable: measured over twelve captures the three IVs came out right in all twelve, where the same screens read
+ * whole gave three. The level is a guess by comparison, at ten of twelve — the `IV` label beside it OCRs as a `1` and
+ * runs into the digits — so it is offered rather than asserted, and `identify` keeps it only if the HP agrees.
  */
-export function parseAppraisal(lines: readonly Line[], image: Image, colours = DEFAULT_BAR_COLOURS): IVs | null {
-  const attack = findLine(lines, /^attack$/);
-  const defense = findLine(lines, /^defen[cs]e$/);
-  const stamina = defense ? lines.find((l) => fold(l.text) === 'hp' && l.top > defense.top) : undefined;
+export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
+  const region = crop(
+    image,
+    box.x * image.width,
+    box.y * image.height,
+    box.width * image.width,
+    box.height * image.height,
+  );
+  const text = await ocrLine(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2), OVERLAY_ALPHABET);
+  const triple = TRIPLE.exec(text);
 
-  if (!attack || !defense || !stamina) {
+  if (!triple) {
     return null;
   }
 
-  const [a = null, d = null, s = null] = [attack, defense, stamina].map((label) => bar(image, label, colours));
+  const [attack, defense, stamina] = triple.slice(1).map(Number) as [number, number, number];
 
-  return a === null || d === null || s === null ? null : { attack: a, defense: d, stamina: s };
-}
-
-function bar(image: Image, label: Line, colours: BarColours): number | null {
-  const kind = (x: number, y: number): 'fill' | 'track' | null => {
-    const [r, g, b] = rgb(image, x, y);
-    const max = Math.max(r, g, b);
-    const saturation = max - Math.min(r, g, b);
-
-    if (saturation >= colours.fillSaturation) {
-      return 'fill';
-    }
-
-    return saturation <= colours.trackSaturation && max >= colours.trackMin && max <= colours.trackMax ? 'track' : null;
-  };
-
-  // The bar is split into segments by gaps a few pixels wide, so a run tolerates a short break without ending.
-  const gap = Math.max(3, Math.round(image.width * 0.012));
-  const from = Math.max(0, label.left - label.height);
-  let best: { start: number; end: number; lastFill: number } | null = null;
-
-  for (let y = label.top + label.height; y < label.top + label.height * 4 && y < image.height; y++) {
-    let start = -1;
-    let end = -1;
-    let lastFill = -1;
-    let misses = 0;
-
-    for (let x = from; x < image.width; x++) {
-      const k = kind(x, y);
-
-      if (k === null) {
-        if (start >= 0 && ++misses > gap) {
-          break;
-        }
-
-        continue;
-      }
-
-      if (start < 0) {
-        // A bar starts at or near its label's left edge; something further right is a different thing.
-        if (x > label.left + label.height * 2) {
-          break;
-        }
-
-        start = x;
-      }
-
-      misses = 0;
-      end = x;
-
-      if (k === 'fill') {
-        lastFill = x;
-      }
-    }
-
-    if (start >= 0 && (!best || end - start > best.end - best.start)) {
-      best = { start, end, lastFill };
-    }
-  }
-
-  // A bar is most of the panel's width; anything much shorter is a stray row of text, not a bar.
-  if (!best || best.end - best.start < image.width * 0.25) {
+  if ([attack, defense, stamina].some((v) => v > 15)) {
     return null;
   }
 
-  return best.lastFill < best.start
-    ? 0
-    : Math.round((15 * (best.lastFill - best.start + 1)) / (best.end - best.start + 1));
+  const level = /L\s*(\d{1,2})/.exec(text.slice(0, triple.index));
+
+  return { level: level ? Number(level[1]) : null, iv: { attack, defense, stamina } };
 }
 
 export interface Identity {
@@ -221,21 +206,26 @@ export interface Identity {
 
 /**
  * Which species and form this is, and at what level. The name narrows the candidates when it is a species' name, the
- * types narrow them further, and the IVs, CP and HP settle the rest — which is also what identifies a Pokémon whose
- * nickname has hidden its species. Costumes share their base form's stats, so they are folded into it here and left to
- * the `costume` search to report.
+ * types narrow them further, and the overlay's IVs against the HP settle the rest — which is also what identifies a
+ * Pokémon whose nickname has hidden its species. Costumes share their base form's stats, so they are folded into it
+ * here and left to the `costume` search to report.
+ *
+ * The overlay's level is taken as a proposal rather than as a fact. It is the one field of the three that OCR gets
+ * wrong with any regularity, because the `IV` label beside it reads as a `1` and runs into the digits, so it is kept
+ * only where the HP agrees that the Pokémon can be that level and reported as a disagreement where it does not.
  */
-export function identify(data: GameData, detail: Detail, iv: IVs | null): Identity {
+export function identify(data: GameData, detail: Detail, overlay: Overlay | null): Identity {
   const notes: string[] = [];
+  const iv = overlay?.iv ?? null;
   const species = detail.name ? closest(detail.name, data.species, (s) => s) : null;
   const nickname = detail.name && !species ? detail.name : null;
   const fits = (f: Form) =>
     (detail.types.length === 0 || sameTypes(f.types, detail.types)) &&
-    (iv === null || detail.cp === null || levelsOf(data, f, iv, detail.cp, detail.hp).length > 0);
+    (iv === null || detail.hp === null || levelsOf(data, f, iv, detail.hp).length > 0);
 
   let candidates = data.forms.filter((f) => f.species === species && fits(f));
 
-  if (candidates.length === 0 && iv !== null && detail.cp !== null && detail.types.length > 0) {
+  if (candidates.length === 0 && iv !== null && detail.hp !== null && detail.types.length > 0) {
     if (species) {
       notes.push(`the numbers do not fit any form of ${species}; searched every species`);
     }
@@ -255,14 +245,20 @@ export function identify(data: GameData, detail: Detail, iv: IVs | null): Identi
   }
 
   const [form = null, ...alternatives] = distinct;
-  const levels = form && iv && detail.cp !== null ? levelsOf(data, form, iv, detail.cp, detail.hp) : [];
+  const consistent = form && iv && detail.hp !== null ? levelsOf(data, form, iv, detail.hp) : [];
+  const stated = overlay?.level ?? null;
+  const levels = stated !== null && consistent.includes(stated) ? [stated] : consistent;
 
   if (nickname && iv === null) {
     notes.push('a nickname hides the species, and only the IVs can say what it is');
   } else if (distinct.length === 0 && (species || nickname)) {
-    notes.push('no form fits the CP, HP, IVs and types read');
+    notes.push('no form fits the HP, IVs and types read');
   } else if (alternatives.length > 0) {
     notes.push(`could also be ${alternatives.map(label).join(', ')}`);
+  }
+
+  if (stated !== null && consistent.length > 0 && !consistent.includes(stated)) {
+    notes.push(`the overlay read level ${stated}, which this HP cannot be`);
   }
 
   if (levels.length > 1) {
