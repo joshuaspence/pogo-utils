@@ -5,6 +5,7 @@
   "scripts": {
     "build": "rm -rf dist .types && tsc -b --force tsconfig.json scripts/tsconfig.json && node scripts/validate-gpx.mts --write && node scripts/bundle.mts && node scripts/assemble.mts",
     "build:ics": "node scripts/build-ics.mts",
+    "inventory": "node scripts/inventory.mts",
     "lint": "npm-run-all --continue-on-error --parallel --print-label lint:css lint:html lint:js lint:prettier lint:types lint:xml",
     "lint:css": "stylelint '**/*.css'",
     "lint:css:fix": "stylelint --fix '**/*.css'",

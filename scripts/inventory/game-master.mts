@@ -1,0 +1,281 @@
+/**
+ * What the game itself knows about every species, form and move, from PokeMiners' decoded game master and the English
+ * string table beside it — the same two files `CLAUDE.md` cross-checks the search terms against.
+ *
+ * The screen never says a Pokémon's level, and says its form only by implication, but both follow from numbers it does
+ * show. CP and HP are pure functions of the base stats, the three IVs and the level's CP multiplier, so once appraisal
+ * has given the IVs the level is whichever multiplier reproduces both, and a form is whichever base stats can. Raichu
+ * and Alolan Raichu share a name and differ by eight Attack; only one of them makes the arithmetic come out.
+ *
+ * Both files are cached for a week under `.cache/inventory/`, since the game master is 20 MB and a scan of a few
+ * thousand Pokémon is not the moment to discover the network is down.
+ */
+
+import { fold } from './ocr.mts';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
+const STRINGS =
+  'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Texts/Latest%20APK/JSON/i18n_english.json';
+const WEEK = 7 * 24 * 60 * 60 * 1000;
+
+/** Level 51 is a best buddy's; nothing is ever higher. */
+const MAX_LEVEL = 51;
+
+export interface Form {
+  dex: number;
+  species: string;
+  /** `Alola`, `Paldea Aqua`, or empty for the ordinary form. */
+  form: string;
+  costume: boolean;
+  types: string[];
+  attack: number;
+  defense: number;
+  stamina: number;
+}
+
+export interface Move {
+  name: string;
+  fast: boolean;
+}
+
+export interface GameData {
+  forms: Form[];
+  moves: Move[];
+  species: string[];
+  types: string[];
+  /** Every level from 1 to 51 in half steps, against its CP multiplier. */
+  cpm: [number, number][];
+}
+
+export interface IVs {
+  attack: number;
+  defense: number;
+  stamina: number;
+}
+
+interface Template {
+  templateId: string;
+  data: {
+    pokemonSettings?: {
+      pokemonId: string;
+      form?: string;
+      type: string;
+      type2?: string;
+      stats: { baseAttack?: number; baseDefense?: number; baseStamina?: number };
+    };
+    formSettings?: { pokemon: string; forms?: { form: string; isCostume?: boolean }[] };
+    moveSettings?: object;
+    playerLevel?: { cpMultiplier: number[] };
+  };
+}
+
+export async function loadGameData(cacheDir: string, refresh = false): Promise<GameData> {
+  const templates = JSON.parse(await cached(cacheDir, 'game-master.json', GAME_MASTER, refresh)) as Template[];
+  const flat = (JSON.parse(await cached(cacheDir, 'english.json', STRINGS, refresh)) as { data: string[] }).data;
+  const strings = new Map<string, string>();
+
+  for (let i = 0; i + 1 < flat.length; i += 2) {
+    strings.set(flat[i] ?? '', flat[i + 1] ?? '');
+  }
+
+  const typeName = (t: string) => {
+    const key = t.replace(/^POKEMON_TYPE_/, '').toLowerCase();
+    return strings.get(`pokemon_type_${key}`) ?? titleise(key);
+  };
+
+  const costumes = new Set<string>();
+
+  for (const { data } of templates) {
+    for (const f of data.formSettings?.forms ?? []) {
+      if (f.isCostume) {
+        costumes.add(f.form);
+      }
+    }
+  }
+
+  const forms: Form[] = [];
+  const bare = new Map<number, Form>();
+
+  for (const { templateId, data } of templates) {
+    const settings = data.pokemonSettings;
+    const match = /^V(\d{4})_POKEMON_/.exec(templateId);
+
+    if (!settings || !match) {
+      continue;
+    }
+
+    const dex = Number(match[1]);
+    const { baseAttack = 0, baseDefense = 0, baseStamina = 0 } = settings.stats;
+    const prefix = `${settings.pokemonId}_`;
+    const suffix = settings.form?.startsWith(prefix) ? settings.form.slice(prefix.length) : (settings.form ?? '');
+    const form: Form = {
+      dex,
+      species: strings.get(`pokemon_name_${match[1]}`) ?? titleise(settings.pokemonId),
+      // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it.
+      form: /(^|_)NORMAL$/.test(suffix) ? '' : titleise(suffix),
+      costume: settings.form !== undefined && costumes.has(settings.form),
+      types: [settings.type, settings.type2].filter((t) => t !== undefined).map(typeName),
+      attack: baseAttack,
+      defense: baseDefense,
+      stamina: baseStamina,
+    };
+
+    // A species with forms is listed once bare and once per form, the bare entry repeating the `_NORMAL` one. Keep it
+    // only for species that have nothing else.
+    if (settings.form === undefined) {
+      bare.set(dex, form);
+    } else {
+      forms.push(form);
+    }
+  }
+
+  for (const [dex, form] of bare) {
+    if (!forms.some((f) => f.dex === dex)) {
+      forms.push(form);
+    }
+  }
+
+  const moves: Move[] = [];
+
+  for (const { templateId, data } of templates) {
+    // `movementId` is a name for most moves and a bare number for a few, so the template's own id is the one to read.
+    const match = /^V(\d{4})_MOVE_(\w+)$/.exec(templateId);
+    const id = match?.[2];
+
+    if (!data.moveSettings || !match || id === undefined) {
+      continue;
+    }
+
+    const fast = id.endsWith('_FAST');
+    moves.push({ name: strings.get(`move_name_${match[1]}`) ?? titleise(id.replace(/_FAST$/, '')), fast });
+  }
+
+  const table = templates.find((t) => t.data.playerLevel)?.data.playerLevel?.cpMultiplier ?? [];
+  const cpm: [number, number][] = [];
+
+  for (let level = 1; level <= MAX_LEVEL; level++) {
+    const here = table[level - 1];
+    const next = table[level];
+
+    if (here === undefined) {
+      throw new Error(`the game master has no CP multiplier for level ${level}`);
+    }
+
+    cpm.push([level, here]);
+
+    // A half level's multiplier is the root mean square of the two either side of it; the table only holds whole ones.
+    if (level < MAX_LEVEL && next !== undefined) {
+      cpm.push([level + 0.5, Math.sqrt((here * here + next * next) / 2)]);
+    }
+  }
+
+  return {
+    forms: forms.sort((a, b) => a.dex - b.dex),
+    moves,
+    species: [...new Set(forms.map((f) => f.species))],
+    types: [...new Set(forms.flatMap((f) => f.types))],
+    cpm,
+  };
+}
+
+export function cpOf(form: Form, iv: IVs, multiplier: number): number {
+  const a = form.attack + iv.attack;
+  const d = form.defense + iv.defense;
+  const s = form.stamina + iv.stamina;
+
+  return Math.max(10, Math.floor((a * Math.sqrt(d) * Math.sqrt(s) * multiplier * multiplier) / 10));
+}
+
+export function hpOf(form: Form, iv: IVs, multiplier: number): number {
+  return Math.max(10, Math.floor((form.stamina + iv.stamina) * multiplier));
+}
+
+/** Every level at which this form with these IVs shows exactly this CP and this maximum HP. */
+export function levelsOf(data: GameData, form: Form, iv: IVs, cp: number, hp: number | null): number[] {
+  return data.cpm
+    .filter(([, m]) => cpOf(form, iv, m) === cp && (hp === null || hpOf(form, iv, m) === hp))
+    .map(([level]) => level);
+}
+
+/** Levenshtein distance over folded text, so case, accents and OCR's stray punctuation cost nothing. */
+export function distance(a: string, b: string): number {
+  const s = fold(a).replaceAll(' ', '');
+  const t = fold(b).replaceAll(' ', '');
+  let previous = Array.from({ length: t.length + 1 }, (_, i) => i);
+
+  for (let i = 1; i <= s.length; i++) {
+    const current = [i];
+
+    for (let j = 1; j <= t.length; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      current.push(Math.min((previous[j] ?? 0) + 1, (current[j - 1] ?? 0) + 1, (previous[j - 1] ?? 0) + cost));
+    }
+
+    previous = current;
+  }
+
+  return previous[t.length] ?? 0;
+}
+
+/**
+ * The candidate nearest to what OCR read, if it is near enough to be a misreading rather than a different word: a
+ * quarter of the length, so `Pikachv` is Pikachu and `Sparky` is not Sparkling anything.
+ */
+export function closest<T>(text: string, candidates: readonly T[], name: (c: T) => string, slack = 0.25): T | null {
+  const length = fold(text).replaceAll(' ', '').length;
+
+  if (length < 3) {
+    return null;
+  }
+
+  let best: T | null = null;
+  let bestDistance = Infinity;
+
+  for (const candidate of candidates) {
+    const d = distance(text, name(candidate));
+
+    if (d < bestDistance) {
+      best = candidate;
+      bestDistance = d;
+    }
+  }
+
+  return bestDistance <= Math.max(1, Math.floor(length * slack)) ? best : null;
+}
+
+function titleise(constant: string): string {
+  return constant
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((w) => (w[0] ?? '').toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+async function cached(dir: string, file: string, url: string, refresh: boolean): Promise<string> {
+  const path = join(dir, file);
+
+  if (!refresh && existsSync(path) && Date.now() - statSync(path).mtimeMs < WEEK) {
+    return readFileSync(path, 'utf8');
+  }
+
+  console.error(`Downloading ${url}`);
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    if (existsSync(path)) {
+      console.error(`  ${response.status} ${response.statusText}; using the copy from before`);
+      return readFileSync(path, 'utf8');
+    }
+
+    throw new Error(`${url}: ${response.status} ${response.statusText}`);
+  }
+
+  const text = await response.text();
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path, text);
+
+  return text;
+}
