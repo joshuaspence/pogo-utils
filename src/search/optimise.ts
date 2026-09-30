@@ -309,11 +309,20 @@ export function optimise(state: State) {
     short.include.delete(term.id);
   }
 
-  if (numbers !== null || dex.length > 1 || everything(dex, whole)) {
+  // A name still spelled as a name is a clause of its own, AND'd with whatever the spans compose to, so the text is
+  // theirs to overwrite only where every name became a number: `numbers` being null is the text holding something this
+  // arithmetic never saw, and `+charmander&1-151` written as `1-151` is a far broader search than was built.
+  if (numbers !== null) {
     short.text = everything(dex, whole) ? '' : written(dex);
+  } else if (dex.length > 1) {
+    short.text = written(dex);
+  }
+
+  // Spans covering the whole dex say nothing and earn no clause either way. Anything narrower the text did not take
+  // goes to the dex boxes, which hold the one span that is left.
+  if (numbers !== null || dex.length > 1 || everything(dex, whole)) {
     short.ranges.delete('dex');
   } else {
-    short.text = '';
     short.ranges.set('dex', { from: only[0], to: only[1] });
   }
 
