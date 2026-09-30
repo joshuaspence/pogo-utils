@@ -209,3 +209,34 @@ export function isolate(image: Image, minLuminance: number, maxChroma: number): 
 
   return { width: image.width, height: image.height, data };
 }
+
+/**
+ * How much of a horizontal band differs between two screenshots, as a fraction of the pixels in it. Only the red
+ * channel is compared, which is four times less work and answers the same question.
+ *
+ * The band matters more than the threshold. Through one swipe the game's panel measured 31%, then 6.2%, then 0.54%
+ * and stayed near it, where the artwork above never fell below 4% at all because the Pokémon is animated, and the
+ * status bar ticks with the clock. So a caller watching for a screen to stop moving watches the panel and nothing
+ * else, and compares against a figure between those two — not against zero, which never arrives.
+ */
+export function difference(a: Image, b: Image, from: number, to: number): number {
+  if (a.width !== b.width || a.height !== b.height) {
+    return 1;
+  }
+
+  const first = Math.max(0, Math.round(a.height * from));
+  const last = Math.min(a.height, Math.round(a.height * to));
+  let differing = 0;
+
+  for (let y = first; y < last; y++) {
+    for (let x = 0; x < a.width; x++) {
+      const i = (y * a.width + x) * 4;
+
+      if (Math.abs((a.data[i] ?? 0) - (b.data[i] ?? 0)) > 8) {
+        differing++;
+      }
+    }
+  }
+
+  return differing / Math.max(1, (last - first) * a.width);
+}

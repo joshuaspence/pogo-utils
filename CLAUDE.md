@@ -760,6 +760,21 @@ rank them, and the ranking was not what watching the scan suggested.
   digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
   flip between the two Pokémon that disagree.
 
+### Waiting for a screen rather than guessing at it
+
+- **Watch the panel for movement, never the frame.** A fixed sleep after a swipe can only guess, and comparing whole
+  screenshots never settles: the artwork holds an animated Pokémon that never stops and the status bar ticks with the
+  clock. The game's own panel does settle, and quickly — measured through one swipe at 31%, then 6.2%, then 0.54% and
+  steady — so watch `0.34` to `0.95` of the height and call anything under 2% still. Do not wait for zero; it does not
+  come, and 0.5% is what a settled screen looks like.
+- **Accept a reading only once something fits it.** A key that exists says the HP was read, not that the screen was
+  finished. The name, the types, the HP and the IVs all agreeing on one form is what a half-drawn screen cannot fake, so
+  `readDetail` asks `identify` and reads again if nothing fits. Over twenty-five Pokémon that took the IVs and the level
+  from 23 to 25 of 25 and cleared every `searched every species`, for about 10% more time per Pokémon.
+- **Count what is right, not what is filled in.** Gender came back 23 of 25 and looked like the next thing to fix; the
+  two blanks were Xerneas and Articuno, which have no gender. A blank is only a miss where the screen had something to
+  read, so check what the empties are before believing a ratio — and before spending a morning on one.
+
 ### Reading the moves, and opening the right Pokémon
 
 - **Anchor the move floor on a line that names HP, not on a pair of numbers around a slash.** `parseMoves` drops
