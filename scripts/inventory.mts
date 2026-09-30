@@ -168,6 +168,9 @@ const COLUMNS = [
 
 const CACHE = '.cache/inventory';
 
+/** How many times one detail screen is read before its reading is taken as final. */
+const READ_ATTEMPTS = 3;
+
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
   options: {
@@ -326,15 +329,24 @@ async function scan() {
     return overlay;
   };
 
-  /** One detail screen: the game's own text, and PGSharp's overlay over it. */
+  /**
+   * One detail screen: the game's own text, and PGSharp's overlay over it. A screen still settling reads as a Pokémon
+   * with no HP at all, or as one whose overlay has not been drawn yet, so both are worth another look rather than one
+   * — a single bad read costs a whole member of a flag pass, and a member missed there is a Pokémon the full pass will
+   * never learn was in the search. An `xxl` pass over a search the game said held five marked four, and the one it
+   * dropped was the only one of them the full pass went on to read.
+   */
   const readDetail = async (): Promise<Reading> => {
     for (let attempt = 0; ; attempt++) {
       const image = await device.screenshot();
       const detail = parseDetail(await readLines(image), data, image);
       const overlay = await overlayOf(image);
       const key = keyOf(detail, overlay);
+      // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
+      // every Pokémon on a phone that is not running PGSharp.
+      const settled = key !== null && (overlay !== null || overlayBox === null);
 
-      if (key || attempt === 1) {
+      if (settled || attempt === READ_ATTEMPTS - 1) {
         return { detail, overlay, key, image };
       }
 
@@ -349,11 +361,20 @@ async function scan() {
   const tileLabel = (lines: readonly Line[]) =>
     lines.find((l) => l.top > (searchBox?.[1] ?? 0) && /^cp\s?\d/.test(fold(l.text)));
 
-  /** Opens the first Pokémon the grid shows, answering false when there is none — a search that matched nothing. */
+  /**
+   * Opens the first Pokémon the grid shows, answering false when there is none — a search that matched nothing.
+   *
+   * The row comes from the grid and the column from the configuration, which is not a compromise but the right split.
+   * How far down the first row sits depends on whether a search is showing, so it has to be read; which column is
+   * first does not, since the grid is three even columns and 0.18 of the width lands in the leftmost of them on both
+   * phones tried. Taking the column from the label as well is what the code did, and it opened the *second* Pokémon
+   * whenever the first one's CP failed to OCR — in an `xxl` grid of five, the top row's only legible label was the
+   * middle tile's, so the walk began one along and marked four. One short is the hardest kind of wrong to notice.
+   */
   const openFirst = async (grid: readonly Line[]) => {
     const label = tileLabel(grid);
     await tap(
-      label ? [centre(label)[0], label.top + label.height * 2.5] : at(config.taps.firstTile),
+      label ? [at(config.taps.firstTile)[0], label.top + label.height * 2.5] : at(config.taps.firstTile),
       config.waits.swipe,
     );
 
