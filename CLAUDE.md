@@ -776,6 +776,30 @@ rank them, and the ranking was not what watching the scan suggested.
   digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
   flip between the two Pokémon that disagree.
 
+### What the detail screen will and will not tell you
+
+Worth settling once, since two of these look as though they ought to be readable and are not. Checked by opening one of
+each and reading the whole screen down to `SWAP BUDDIES`.
+
+- **The size is on the screen**: a gold pill saying `XXL` or `XXS`, above the height. So it is read rather than searched
+  for, and `xxl` and `xxs` are no longer flags. Checked against the game's own `xxl` search, which marked the same
+  Applin — 5/2/15 at 0.33m — that the badge does.
+- **Crop to the gold before reading that badge.** The text is white and so is the panel around it, so isolating the
+  white over a band containing both turns the panel black as well and hands Tesseract a black page with one white island
+  in it — legible to a person, unreadable to anything else. The gold pill is the only thing that separates them: find it
+  by colour, crop to it, and the badge becomes the whole page, where the text really is dark on light. The gold is a
+  cheap pre-filter too, since most Pokémon have no badge — but not a sufficient one, as a tall narrow patch of gold in
+  one capture's artwork passed it and only the text ruled it out.
+- **A costume says nothing at all.** A costumed Pikachu is named `Pikachu` like any other and differs only in the
+  artwork, so costume can only come from the game's `costume` search, as a flag pass.
+- **Nor do tags.** A Pokémon carrying `Trade to 0xNULL` shows no chip anywhere on its screen. A tag is a search like any
+  other, which is why `--tags` is a list of names and each one becomes a pass — the names being the user's own is the
+  only reason they cannot be flags. Storage's TAGS tab is where they and their counts can be read.
+- **A pass reads most of its set, not all of it.** `Trade to 0xNULL` marked 73 where the game says 76 have the tag,
+  without the walk ever reporting that it gave up. Read a pass's count against the number beside the game's own search
+  and treat a few per cent short as ordinary; on a large set — `shiny` is 733 here — that is tens of Pokémon whose flag
+  will be blank rather than wrong.
+
 ### Reading a move against what the Pokémon can learn
 
 The game master carries `quickMoves` and `cinematicMoves` per form, and `eliteQuickMove`, `eliteCinematicMove`,

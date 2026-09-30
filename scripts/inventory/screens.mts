@@ -32,9 +32,12 @@ export interface Detail {
   /** Null where the species has no gender rather than where the symbol was not read; see `genderOf`. */
   gender: Gender | null;
   favourite: boolean;
+  /** Null for the ordinary sizes, which wear no badge at all. */
+  size: Size | null;
 }
 
 export type Gender = 'male' | 'female';
+export type Size = 'XXL' | 'XXS';
 
 export interface Moves {
   fast: string | null;
@@ -93,24 +96,66 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     types: await typesOf(lines, data, image),
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
+    size: row ? await sizeOf(image, row) : null,
   };
 }
 
-/** How much of a region is the warm gold the game fills a favourite's star and PGSharp's shiny mark with. */
-function goldness(image: Image): number {
+/** Where the warm gold is in a region, and how much of it there is; the game fills a star and a size badge with it. */
+function goldIn(image: Image): { left: number; top: number; width: number; height: number; fraction: number } {
+  let left = image.width;
+  let top = image.height;
+  let right = -1;
+  let bottom = -1;
   let gold = 0;
 
-  for (let i = 0; i < image.data.length; i += 4) {
-    const r = image.data[i] ?? 0;
-    const g = image.data[i + 1] ?? 0;
-    const b = image.data[i + 2] ?? 0;
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const i = (y * image.width + x) * 4;
+      const r = image.data[i] ?? 0;
+      const g = image.data[i + 1] ?? 0;
+      const b = image.data[i + 2] ?? 0;
 
-    if (r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90) {
-      gold++;
+      if (r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90) {
+        gold++;
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
     }
   }
 
-  return gold / (image.width * image.height);
+  return {
+    left,
+    top,
+    width: right - left + 1,
+    height: bottom - top + 1,
+    fraction: gold / (image.width * image.height),
+  };
+}
+
+/**
+ * `XXL`, `XXS`, or null for the ordinary sizes, which wear no badge. The badge is white on a gold pill above the
+ * height, and the gold is what finds it: isolating the white text over the band it sits in turns the panel around it
+ * black as well, since the panel is white too, and hands Tesseract a black page with one white island in it. Cropping
+ * to the gold first makes the pill the whole page, where the text really is dark on light and reads at once.
+ *
+ * The gold also serves as the cheap test, since most Pokémon have no badge and can be answered without an OCR at all.
+ * It is not sufficient on its own — a tall narrow patch of gold in one capture's artwork passed it — so the text still
+ * has to say `XXL` or `XXS`, which that patch did not.
+ */
+async function sizeOf(image: Image, row: Line): Promise<Size | null> {
+  const band = crop(image, image.width * 0.55, row.top - image.height * 0.04, image.width * 0.45, image.height * 0.04);
+  const pill = goldIn(band);
+
+  if (pill.fraction < SIZE_GOLD) {
+    return null;
+  }
+
+  const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
+  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3), SIZE_ALPHABET))?.text ?? '');
+
+  return text.includes('xxl') ? 'XXL' : text.includes('xxs') ? 'XXS' : null;
 }
 
 /**
@@ -124,7 +169,7 @@ function goldness(image: Image): number {
 function isFavourite(image: Image): boolean {
   const star = crop(image, image.width * 0.86, image.height * 0.05, image.width * 0.1, image.height * 0.06);
 
-  return goldness(star) >= FAVOURITE_GOLD;
+  return goldIn(star).fraction >= FAVOURITE_GOLD;
 }
 
 /**
@@ -413,6 +458,10 @@ const MAX_LEVEL = 51;
 
 /** A filled star measured 19.4% gold and an outline 0.00%, so anywhere between them will do. */
 const FAVOURITE_GOLD = 0.02;
+
+/** The size badge's pill, and the only three letters it can spell. */
+const SIZE_GOLD = 0.01;
+const SIZE_ALPHABET = 'XSL';
 
 /** The gender symbol against the white panel behind it, and how tall its ink has to be to be a female's. */
 const GENDER_INK_MAX = 235;
