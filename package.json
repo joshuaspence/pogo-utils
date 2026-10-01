@@ -22,7 +22,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/leaflet": "^1.9.22",
-    "@types/node": "^24.19.0",
+    "@types/node": "^26.6.3",
     "@types/tz-lookup": "^6.1.2",
     "@vitest/coverage-v8": "5.0.2",
     "@xmldom/xmldom": "^0.9.12",
