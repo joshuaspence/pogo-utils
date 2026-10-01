@@ -92,21 +92,23 @@ not appear there as promptly as it does on the page.
 
 A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does live has to happen
 ahead of time. [`scripts/build-ics.mts`](scripts/build-ics.mts) does it, and the
-[Calendar workflow](.github/workflows/calendar.yml) runs it every six hours and commits the result:
+[Pages workflow](.github/workflows/pages.yml) runs it on a six-hourly schedule as well as on every push:
 
 ```sh
-pnpm build:ics
+pnpm build && pnpm build:ics
 ```
 
-Through pnpm rather than `node` directly: the generator is TypeScript, and `devEngines` is what holds the run to a Node
-new enough to strip it.
+The feed is not in version control and is not produced by `pnpm build` either — the generator writes it straight into
+the `dist/` that build has just assembled, which is why the two run in that order. It fetches the upstream feed, and
+`pnpm lint:types` _is_ `pnpm build`, so folding it in would put somebody else's server in front of every lint. Through
+pnpm rather than `node` directly: the generator is TypeScript, and `devEngines` is what holds the run to a Node new
+enough to strip it.
 
 The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
-[`data/entries-by-event.json`](data/entries-by-event.json) — so an unchanged file after a run means the event data has
-not moved. That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
-[`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the feed only
-when it differs, and passes without a commit when it does not. Note that GitHub disables a scheduled workflow after 60
-days without a commit to the repository; re-enable it from the Actions tab if the feed ever goes stale.
+[`data/entries-by-event.json`](data/entries-by-event.json) — so a scheduled run that finds the event data unmoved
+publishes the bytes a subscriber already holds, rather than a fresh set of timestamps four times a day. Note that GitHub
+disables a scheduled workflow after 60 days without a commit to the repository, and nothing here commits: if the feed
+goes stale during a quiet stretch, re-enable the workflow from the Actions tab.
 
 An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
 exactly an iCalendar floating time: a `DTSTART` carrying neither a `TZID` nor a trailing `Z`. The ones that are a single

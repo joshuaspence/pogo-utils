@@ -166,13 +166,9 @@ property.
   fragment esbuild passes through rather than failing to resolve.
 - **Run a script through pnpm, never as a bare `node`.** `devEngines.runtime` pins the Node floor that guarantees type
   stripping and governs only what pnpm invokes, so `pnpm build:ics` is safe where `node scripts/build-ics.mts` fails
-  below Node 22.18. Every entry point has a `package.json` script, and `calendar.yml` calls that.
+  below Node 22.18. Every entry point has a `package.json` script, and `pages.yml` calls that.
 - **A `files` glob matching nothing is silent.** `eslint.config.mjs`'s browser-globals block named `src/**/*.js` and
   matched not one file, which reads exactly like a clean lint, so move such a glob in the same commit as the rename.
-  `.github/workflows/calendar.yml`'s `paths` filter is the same hazard with no linter over it at all — and it fails the
-  other way round too: moving a rule `scripts/build-ics.mts` reads into a new module takes that input out from under its
-  own trigger, and a push editing it then waits up to six hours for the cron instead of rebuilding `events.ics`. Name
-  every file the generator reads there in the same commit that creates it.
 - **pnpm 11 gates install scripts in `pnpm-workspace.yaml`, and `pnpm.ignoredBuiltDependencies` in `package.json` is
   silently ineffective.** Adding esbuild left `ERR_PNPM_IGNORED_BUILDS` and pnpm then refused every command.
   `allowBuilds: {esbuild: false}` is right because the binary arrives from an optional dependency and the postinstall

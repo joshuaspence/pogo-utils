@@ -1,5 +1,6 @@
 /**
- * Builds `events.ics`, the iCalendar feed the Events page links to, holding what that page shows by default.
+ * Builds the iCalendar feed the Events page links to, holding what that page shows by default, writing it into the
+ * artifact `pnpm build` has already assembled rather than into the checkout.
  *
  * It exists because a calendar subscription is a URL a calendar app fetches by itself. Google Calendar cannot run
  * events.html's JavaScript, so the merge the browser does live — ScrapedDuck's mirror of Leek Duck, overridden by
@@ -7,26 +8,35 @@
  * file. data/entries-by-event.json puts the same "2 routes · 1 waypoint" line into an event's description as it puts on
  * its card.
  *
- * Nothing here reads the clock. The output is a pure function of those three inputs, so after a run `git diff --quiet`
- * answers exactly "has the event data moved?" — which is how the workflow decides whether there is anything to commit,
- * rather than pushing a fresh set of timestamps every six hours. A `DTSTAMP` is required all the same, so each event's
- * is derived from its own start.
+ * Nothing here reads the clock. The output is a pure function of those three inputs, so a rebuild that finds the event
+ * data unmoved publishes the bytes a subscriber already holds, where a fresh set of timestamps every six hours would be
+ * a changed feed four times a day saying nothing. A `DTSTAMP` is required all the same, so each event's is derived from
+ * its own start.
  *
- * A failed fetch of the feed aborts rather than writing the handful of events data/events.json holds on its own: these
- * files are committed, and a run that cannot see the feed has nothing better to say than what is already there.
+ * A failed fetch of the feed aborts rather than writing the handful of events data/events.json holds on its own. The
+ * deploy publishes whatever this writes, so a feed of five events would replace one of forty; aborting leaves the
+ * previous deploy serving subscribers untouched.
  */
 
 import { FEED_URL, HAS_ZONE, LOCAL_EVENTS, routeSummary } from '../src/event-feed.ts';
-import { ENTRIES_BY_EVENT } from '../src/generated.ts';
+import { ENTRIES_BY_EVENT, EVENTS_FEED } from '../src/generated.ts';
 import RECURRING_TYPES from '../src/recurring-types.ts';
 import type { FeedEvent, RouteIndex } from '../src/types.js';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Where the pages are served from. A calendar app shows an event's description far away from this site, so the links
  * inside one have to be absolute — this is the only place that spelling is kept.
  */
 const SITE = 'https://joshuaspence.github.io/pogo-utils';
+
+/**
+ * The artifact this writes into, which `scripts/assemble.mts` spells for itself: the feed is the one thing `dist/`
+ * carries that `pnpm build` does not produce, so there is nothing to copy it in afterwards and nothing left in the
+ * checkout to copy.
+ */
+const DIST = 'dist';
 
 // A UID has to be unique across every calendar its reader subscribes to, so the stable `eventID` is qualified by us.
 const UID_DOMAIN = 'pogo-utils.joshuaspence.github.io';
@@ -41,7 +51,7 @@ const REFRESH = 'PT6H';
 const RECURRING = new Set(RECURRING_TYPES);
 
 const FEED = {
-  file: 'events.ics',
+  file: join(DIST, EVENTS_FEED),
   name: 'Pokémon GO Events',
   description: 'Current and upcoming Pokémon GO events, without the weekly hourly-cadence ones.',
 };
@@ -103,7 +113,7 @@ const CONTROL = /\p{Cc}/gu;
  *
  * The strip is here rather than beside each property because this is the last function every line passes through, and
  * `escape()` only covers the TEXT ones: `UID:` and `URL:` interpolate the feed's `eventID` and `link` as they stand,
- * neither has any escaping to reach for, and the feed is somebody else's file that `calendar.yml` publishes unread.
+ * neither has any escaping to reach for, and the feed is somebody else's file that the deploy publishes unread.
  * Split on an octet count, this function would otherwise carry a line break straight through.
  */
 function fold(raw: string): string {
@@ -195,7 +205,8 @@ function calendar({ name, description }: typeof FEED, events: FeedEvent[], index
     'END:VCALENDAR',
   ];
 
-  // iCalendar lines end CRLF, including the last one. .gitattributes keeps git from normalising them away.
+  // iCalendar lines end CRLF, including the last one, and nothing between here and a subscriber rewrites them: the
+  // feed goes straight into the artifact rather than through a checkout where git could normalise it.
   return lines.map(fold).join('\r\n') + '\r\n';
 }
 
@@ -213,6 +224,15 @@ async function fetchFeed(url: string): Promise<FeedEvent[]> {
   }
 
   return raw;
+}
+
+/*
+ * Before the fetch, because the ordering is the one mistake this script can make and the network has nothing to do with
+ * it. Run ahead of `pnpm build` instead of after it, the feed lands in a directory that build's own `rm -rf dist` then
+ * deletes — a run that passes, prints the event count and publishes no feed at all.
+ */
+if (!existsSync(DIST)) {
+  throw new Error(`${DIST}/ is not there: this adds the feed to a built artifact, so run \`pnpm build\` first.`);
 }
 
 const feed = await fetchFeed(FEED_URL);
