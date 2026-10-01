@@ -640,8 +640,8 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1173,
-    favourite: true,
     defects: { label: 'Basculin (Red Striped)' },
+    favourite: true,
     file: 'basculin-white.png',
     form: 'White Striped',
     gender: 'female',
@@ -937,8 +937,8 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1891,
-    favourite: true,
     defects: { label: 'Genesect' },
+    favourite: true,
     file: 'genesect-burn.png',
     form: 'Burn',
     gender: null,
@@ -1020,11 +1020,11 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1540,
-    favourite: true,
     defects: {
       label: 'Keldeo (Ordinary)',
       notes: ['the overlay reads as level 4 or 45 or 5, none of which this HP can be'],
     },
+    favourite: true,
     file: 'keldeo-resolute.png',
     form: 'Resolute',
     gender: null,
@@ -1241,8 +1241,8 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2304,
-    favourite: true,
     defects: { tags: [] },
+    favourite: true,
     file: 'snorlax-purified.png',
     form: null,
     gender: 'female',
