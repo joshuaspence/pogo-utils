@@ -638,13 +638,45 @@ const OVERLAY_ALPHABET = 'L0123456789/ ';
  * confused with — `O` for `0`, `S` for `5`, `B` for `8`. Two reads of the same crop therefore cost one more Tesseract
  * call and leave the level and the IVs coming out of exactly the alphabet they were measured against.
  *
- * Digits are left out of it, which is measured rather than assumed. Over 24 Unown the letters come back identical with
- * them and without, and over 18 Pokémon that carry no suffix at all the pass with digits invents one — `(251)` out of
- * the artwork on a Decidueye — where the pass without them reads nothing on all 18. Spinda's forms are `00` to `19`, so
- * a species labelled numerically would need them back; nothing here says PGSharp labels one, and the note `identify`
- * writes for a suffix it cannot place is what would say so.
+ * `[` and `\\` are in it because PGSharp draws them: it indexes the species' forms from `A`, so the game's 27th and
+ * 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[` and `\\`. Without them
+ * `unown-question.png`'s `(\\)` reads as `(X)` — a **real** Unown form, so the answer came back confidently wrong
+ * rather than merely absent.
+ *
+ * Digits are read on a second pass rather than added here, which is measured rather than assumed. Over 24 Unown the
+ * letters come back identical with them and without, and over 18 Pokémon that carry no suffix at all a single pass with
+ * digits invents one — `(251)` out of the artwork on a Decidueye — where the pass without them reads nothing on all 18.
+ * Spinda is the species that needs them, its forms being `00` to `19`, and what separates it from that false positive
+ * is the length: exactly two digits where the artwork gave three. So `SUFFIX_SHAPE` is the narrow claim, not the
+ * alphabet.
  */
-const OVERLAY_FORM_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ()!? ';
+const OVERLAY_FORM_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ()!?[\\ ';
+
+/** The same widened to digits, for the one species the game labels numerically. */
+const OVERLAY_NUMERIC_ALPHABET = OVERLAY_FORM_ALPHABET + '0123456789';
+
+/**
+ * What a suffix PGSharp drew can look like, which is the guard the two passes below need rather than an alphabet. Every
+ * form it labels is either one character — Unown's 26 letters, or the `[` and `\\` below for the other two — or
+ * Spinda's two digits. Nothing it draws is two letters, so `basculin-blue.png`'s `(SV)` and `spinda-04.png`'s `(OA)`
+ * are both
+ * noise out of the artwork, and rejecting them is what lets the numeric pass run at all: `O` for `0` and `A` for `4` is
+ * exactly the confusion a letters-only alphabet invites, and it answered a plausible-looking suffix for a Spinda whose
+ * real label is `04`.
+ */
+const SUFFIX_SHAPE = /^(?:[A-Z[\\]|\d{2})$/;
+
+/**
+ * The two suffixes PGSharp draws that are not the form's name. It labels a form by its index from `A`, which works for
+ * Unown's 26 letters and runs off the end of the alphabet for the other two: `'A'.charCodeAt(0) + 26` is `[` and `+ 27`
+ * is `\\`, where the game master spells them out. Nothing else in the game is labelled this way, so this is a table of
+ * two rather than arithmetic — and it has to be applied before the form is matched, since `identify` compares a suffix
+ * against a form name exactly and `[` is no form of anything.
+ */
+const PGSHARP_FORMS = new Map([
+  ['[', 'Exclamation Point'],
+  ['\\', 'Question Mark'],
+]);
 
 /**
  * The last bracketed run on the line, since the suffix is appended and a stray bracket lands among the digits ahead of
@@ -705,7 +737,14 @@ const MOVE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-' ";
 const MAX_LEVEL = 51;
 
 /** A filled star measured 19.4% gold and an outline 0.00%, so anywhere between them will do. */
-const FAVOURITE_GOLD = 0.02;
+/**
+ * Measured over the 62 committed captures: 51 are exactly 0, the nine real favourites run 18.18% to 26.49%, and three
+ * land between 0.36% and 1.34% with no filled star. `spinda-04.png` is why this is not 0.02 — a warm bokeh background
+ * puts **15.34%** in that corner behind a white-outline star, which is a false positive at any threshold below it. So
+ * this is a discriminator rather than headroom, and the margin is thin on both sides: 1.2 points under the lowest real
+ * favourite and 1.7 over the worst non-favourite.
+ */
+const FAVOURITE_GOLD = 0.17;
 
 /**
  * The size badge's pill, as a band over the height: how far above the height's own top to reach and how far past its
@@ -791,7 +830,15 @@ export async function findOverlay(image: Image): Promise<OverlayBox | null> {
         height: height / image.height,
       });
 
-      return (await tighten(image, band)) ?? band;
+      // `tighten` improves on the band where it can, and has to be checked rather than trusted: it derives the box from
+      // the `top` Tesseract reports for a sparse line, which can sit a character-width above the glyphs — 434 against a
+      // true 460 on `eevee-background.png` — so the box comes out straddling the text instead of covering it, and the
+      // read that follows gets the bottom half of a row of digits. Keeping only a box that still yields a reading is
+      // the same rule the sweep above applies to the band, one step further in: measured over the corpus, 14 of the 15
+      // captures this used to answer nothing for read on the band.
+      const tightened = await tighten(image, band);
+
+      return tightened && (await readOverlay(image, tightened)) ? tightened : band;
     }
   }
 
@@ -903,12 +950,19 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     return null;
   }
 
-  const bracketed = [...((await ocrLine(region, OVERLAY_FORM_ALPHABET))?.text.matchAll(FORM_SUFFIX) ?? [])];
+  const suffixIn = async (alphabet: string) =>
+    [...((await ocrLine(region, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
+
+  // Both passes always run and the shape decides, rather than the letters pass winning by going first: it reads a real
+  // Spinda label as letters, so taking its answer whenever it has one is what hid `04` behind `OA`.
+  const shaped = (suffix: string | null) => (suffix !== null && SUFFIX_SHAPE.test(suffix) ? suffix : null);
+  const lettered = shaped(await suffixIn(OVERLAY_FORM_ALPHABET));
+  const numeric = shaped(await suffixIn(OVERLAY_NUMERIC_ALPHABET));
 
   return {
     levels: levelsIn(text.slice(0, triple.index)),
     iv: { attack, defense, stamina },
-    form: bracketed.at(-1)?.[1]?.trim() ?? null,
+    form: lettered ?? numeric,
   };
 }
 
@@ -991,7 +1045,8 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
   // stats, one type and one move pool, so nothing the game's own screen shows tells them apart. Applied ahead of the
   // fold below, which is otherwise what collapses them to one — and only where it matches something, since a suffix
   // read off the artwork must not empty a candidate list the numbers had narrowed correctly.
-  const labelled = overlay?.form ?? null;
+  const drawn = overlay?.form ?? null;
+  const labelled = drawn === null ? null : (PGSHARP_FORMS.get(drawn) ?? drawn);
   const named = labelled === null ? [] : candidates.filter((f) => fold(f.form) === fold(labelled));
 
   if (named.length > 0) {
