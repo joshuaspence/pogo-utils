@@ -1,0 +1,1359 @@
+/**
+ * The three screens a scan reads, and what each one says. Everything here is a pure function of a screenshot, so a
+ * screenshot saved by `pnpm inventory snap` can be read again with `pnpm inventory parse` after a change, with no phone
+ * attached — which is how these are meant to be tuned when a game update moves something.
+ *
+ * - The **detail** screen, scrolled to the top: CP, name or nickname, HP, weight, types and height.
+ * - The same screen **scrolled down**: the fast move and one or two charged moves.
+ * - **PGSharp's overlay** on the detail screen, which states the level and the three IVs outright.
+ */
+
+import {
+  closest,
+  cpOf,
+  levelsOf,
+  multiplierOf,
+  type Form,
+  type GameData,
+  type IVs,
+  type Move,
+} from './game-master.mts';
+import { fold, ocr, ocrLine, type Line } from './ocr.mts';
+import { nearest, type Signature } from './artwork.mts';
+import { brighten, crop, isolate, scale, type Image } from './png.mts';
+
+export interface Detail {
+  /** What OCR made of the CP, which is usually nothing; `Identity.cp` is the one to believe. */
+  cp: number | null;
+  name: string | null;
+  hp: number | null;
+  weight: number | null;
+  height: number | null;
+  types: string[];
+  /** Null where the species has no gender rather than where the symbol was not read; see `genderOf`. */
+  gender: Gender | null;
+  favourite: boolean;
+  /** Null for the two ordinary bands in the middle, which wear no badge at all. */
+  size: Size | null;
+  /** The text of each tag chip under the HP, as read; matching them to the tags that exist is the caller's job. */
+  tags: string[];
+}
+
+export type Gender = 'male' | 'female';
+
+/** The four bands the game records, which `src/search/terms.js` has had a search for each of since it was written. */
+export type Size = 'XXL' | 'XL' | 'XS' | 'XXS';
+
+export interface Moves {
+  fast: string | null;
+  charged: string[];
+}
+
+/** Everything OCR read off an image: the whole of it, then the top fifth again inverted, where the CP is white. */
+export async function readLines(image: Image): Promise<Line[]> {
+  const top = Math.round(image.height / 5);
+  const [all, sky] = await Promise.all([ocr(image), ocr(crop(image, 0, 0, image.width, top, true))]);
+
+  return [...all, ...sky].sort((a, b) => a.top - b.top || a.left - b.left);
+}
+
+export async function parseDetail(lines: readonly Line[], data: GameData, image: Image): Promise<Detail> {
+  // The small `CP` beside the number is often read with a stray letter after it (`cPe518`) or as `GP`.
+  const cpPattern = /\b[cg]p\s?[a-z]?\s?(\d{2,5})\b/;
+  const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
+  const read = cpLine ? (cpPattern.exec(fold(cpLine.text))?.[1] ?? null) : null;
+  const cp = cpLine && read !== null ? Number((await wholeCp(image, cpLine, read)) ?? read) : null;
+
+  // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.
+  const hpPattern = /(?:hp\s*)?(\d{1,4})\s*\/\s*(\d{1,4})(?:\s*hp)?/i;
+  const hpLine = lines.find((l) => /hp/i.test(l.text) && hpPattern.test(l.text));
+  const hp = hpLine ? Number(hpPattern.exec(hpLine.text)?.[2]) : null;
+
+  // The name is the nearest line above the HP bar; a nickname reads here as readily as a species does, and a player can
+  // set one that is no words at all. Three letters alone was the test, which is what a species has and `96%` has not,
+  // so on the two captures nicknamed that the search walked hundreds of pixels back up the screen to the nearest line
+  // that did — PGSharp's own overlay, giving `aals15` and `ee JEN`. Two digits is the other way to be readable.
+  //
+  // Two characters of *anything* is too loose, and the measurement says why rather than the guess: the name sits 117 to
+  // 173 pixels above the HP across the corpus, and what sits nearer than that is the bar's own furniture, read as `os`
+  // or `oy` on five captures at a gap of 57 to 62. Two letters admits those and they win for being nearest. Neither
+  // three letters nor two digits does, and the far wrong answers stay beaten by distance — `96%` at a gap of 173
+  // against `aals/15 +` at 618.
+  const nameLine = hpLine
+    ? lines
+        .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}|\p{N}{2}/u.test(l.text))
+        .filter((l) => !/\bcp\s?\d/.test(fold(l.text)))
+        .at(-1)
+    : undefined;
+  // `%` is here for the same reason: it is a character a nickname can be made of, and stripping it left `96` for `96%`.
+  const name = nameLine ? nameLine.text.replace(/[^\p{L}\p{N} .'%♀♂:-]/gu, '').trim() || null : null;
+
+  const number = (pattern: RegExp) => {
+    const line = lines.find((l) => pattern.test(l.text));
+    const value = line ? pattern.exec(line.text)?.[1] : undefined;
+    return value === undefined ? null : Number(value.replace(',', '.'));
+  };
+
+  const row = lines.find((l) => measurement(l.text));
+  // The size badge sits over the height in particular, so that line is found on its own rather than taken from the row
+  // the two share — which is the weight as often as not, since they are read as separate lines at the same height.
+  const heightLine = lines.find((l) => HEIGHT.test(l.text));
+  let weight = number(WEIGHT);
+  let height = number(HEIGHT);
+
+  if (row) {
+    weight ??= await measured(image, row, 0);
+    height ??= await measured(image, row, 1 - MEASURE_WIDTH);
+  }
+
+  return {
+    cp,
+    name,
+    hp,
+    weight,
+    height,
+    types: await typesOf(lines, data, image),
+    gender: hpLine ? genderOf(image, hpLine) : null,
+    favourite: isFavourite(image),
+    size: heightLine ? await sizeOf(image, heightLine) : null,
+    tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
+  };
+}
+
+/**
+ * The CP again, out of a band round the line the whole-screen pass found, where that pass lost a digit off the front of
+ * it. White over the artwork is the hardest text on the screen, and the loss is one-sided: `castform-snowy.png` reads
+ * `46` for 746, `shellos-east.png` `84` for 784, `unown-b.png` `48` for 487 and `deoxys-defense.png` `15` for 1569.
+ *
+ * Accepted only where the band's number **contains** the line's and is longer, which is what makes this a rescue rather
+ * than a second opinion: it says the band found more of the same number, not a different one, so a band that misreads
+ * outright is rejected for disagreeing. The line's own answer has to stand otherwise — `castform-sunny.png` reads `979`
+ * on the line and nothing at all out of any treatment of its band.
+ */
+async function wholeCp(image: Image, line: Line, read: string): Promise<string | null> {
+  const pad = Math.round(line.height * CP_PAD);
+  const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
+
+  for (const treat of [(b: Image) => b, (b: Image) => isolate(b, OVERLAY_LUMINANCE, OVERLAY_CHROMA)]) {
+    const text = (await ocrLine(scale(treat(band), 2), CP_ALPHABET))?.text ?? '';
+
+    for (const digits of text.match(/\d+/g) ?? []) {
+      if (digits.length > read.length && digits.includes(read)) {
+        return digits;
+      }
+    }
+  }
+
+  return null;
+}
+
+interface Patch {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  fraction: number;
+}
+
+/** Where the pixels a predicate accepts are in a region, and how much of it they cover. */
+function patchIn(image: Image, matches: (r: number, g: number, b: number) => boolean): Patch {
+  let left = image.width;
+  let top = image.height;
+  let right = -1;
+  let bottom = -1;
+  let found = 0;
+
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const i = (y * image.width + x) * 4;
+
+      if (matches(image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0)) {
+        found++;
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+
+  return {
+    left,
+    top,
+    width: right - left + 1,
+    height: bottom - top + 1,
+    fraction: found / (image.width * image.height),
+  };
+}
+
+/** The warm gold the game fills a favourite's star with. */
+const gold = (r: number, g: number, b: number) => r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90;
+
+/** Any hue at all, against a panel that is neutral grey. What the size badge's pill needs, since its hue varies. */
+const coloured = (r: number, g: number, b: number) => Math.max(r, g, b) - Math.min(r, g, b) >= SIZE_CHROMA;
+
+/**
+ * One of the four size badges, or null for the two ordinary bands in the middle, which wear none. It is white on a
+ * coloured pill drawn directly over the height, and two things about finding it are worth stating, because the obvious
+ * answer to each is what was there and does not work.
+ *
+ * **Anchor it on the height, not on the row the height shares with the weight.** The pill sits above the height alone,
+ * and a band taken from a fraction of the screen's width instead reaches past the right edge of the panel into the page
+ * behind it, which is saturated navy and swamps anything the pill contributes. The height's own line bounds it.
+ *
+ * **Find it by saturation, not by hue.** The pill is gold where the measurement beside it is also a personal record and
+ * teal where it is not: `fixtures/xs-unown.png` has rgb(192,160,64) under a `SHORTEST`, and `fixtures/xxs-female.png`
+ * rgb(96,192,192) under a plain `HEIGHT`, with its gold `LIGHTEST` over on the weight. So a gold test answers only for
+ * a Pokémon that happens to be the tallest or shortest of its species, which is why this read 0 of 78 real captures.
+ *
+ * Cropping to the pill is what makes the text legible at all: isolating the white text over the whole band turns the
+ * panel around it black too, since the panel is white as well, and hands Tesseract a black page with one white island
+ * in it. Cropping first makes the pill the whole page, where the text really is dark on light.
+ *
+ * The saturation is the cheap test as well, since most Pokémon wear no badge and can be answered with no OCR at all. It
+ * is not sufficient alone — a tall narrow patch of gold in one capture's artwork passed the older gold test — so the
+ * text still has to spell one of the four.
+ */
+async function sizeOf(image: Image, height: Line): Promise<Size | null> {
+  const band = crop(
+    image,
+    height.left - height.height,
+    height.top - height.height * SIZE_RISE,
+    height.width * SIZE_SPAN + height.height,
+    height.height * SIZE_RISE,
+  );
+  const pill = patchIn(band, coloured);
+
+  if (pill.fraction < SIZE_FILL) {
+    return null;
+  }
+
+  const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
+  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3), SIZE_ALPHABET))?.text ?? '');
+
+  return SIZES.find((size) => text.includes(size.toLowerCase())) ?? null;
+}
+
+/**
+ * Whether the star at the top right is filled. A favourite's star is solid gold and an ordinary one is a white outline
+ * with the artwork showing through it, so this is the one flag on the screen that colour alone settles: measured over
+ * eighteen captures from two phones, 19.4% of that corner was gold on the one favourite and 0.00% on every other.
+ *
+ * The star is the game's own furniture rather than PGSharp's, so it scales with the screen and a fraction holds where
+ * one for the overlay did not — 0.900, 0.074 of one phone against 0.903, 0.080 of the other.
+ */
+function isFavourite(image: Image): boolean {
+  const star = crop(image, image.width * 0.86, image.height * 0.05, image.width * 0.1, image.height * 0.06);
+
+  return patchIn(star, gold).fraction >= FAVOURITE_GOLD;
+}
+
+/**
+ * Male, female, or null for a species that has no gender. The symbol sits to the right of the HP bar and is the only
+ * ink in that corner of the panel, so it is found by where the HP is rather than by a fraction of the screen.
+ *
+ * Colour cannot tell the two apart — both are drawn in the same pale blue-grey — so the shape does it. A male's arrow
+ * leaves the circle up and to the right and a female's stem hangs below it, which makes the female's ink taller than
+ * it is wide and the male's square. Measured on two phones at different resolutions, the ratio is 1.51 against 0.99
+ * and 1.51 against 1.00, so the same threshold serves both; every one of the seven Xerneas captures reports no symbol
+ * at all, which is right, since Xerneas has no gender.
+ *
+ * What the ink is darker *than* is the panel itself, read off the region rather than written down here. Nine tenths of
+ * the region is panel by construction, so its commonest luminance is the panel's, and the symbol is a clear 49 below it
+ * — 175 against 224 on every capture that has one. A level named outright is how this stopped working: at 235 the panel
+ * was itself ink, which made the region its own silhouette and the answer the shape of the crop. Since the crop is
+ * sized from `hp.height`, and Tesseract reports that as anything from 20 to 37 for the same text, the gender was being
+ * decided by how tall OCR thought the HP was — 32 of 78 real captures named a gender for a Pokémon that has none.
+ */
+function genderOf(image: Image, hp: Line): Gender | null {
+  const region = crop(image, image.width * 0.78, hp.top - hp.height * 4, image.width * 0.15, hp.height * 6);
+  const histogram = new Map<number, number>();
+
+  for (let i = 0; i < region.data.length; i += 4) {
+    const level = Math.round(
+      0.2126 * (region.data[i] ?? 0) + 0.7152 * (region.data[i + 1] ?? 0) + 0.0722 * (region.data[i + 2] ?? 0),
+    );
+    histogram.set(level, (histogram.get(level) ?? 0) + 1);
+  }
+
+  const panel = [...histogram].reduce((most, level) => (level[1] > most[1] ? level : most), [0, 0])[0];
+  const symbol = patchIn(
+    region,
+    (r, g, b) =>
+      0.2126 * r + 0.7152 * g + 0.0722 * b < panel - GENDER_INK_BELOW &&
+      Math.max(r, g, b) - Math.min(r, g, b) < GENDER_INK_CHROMA,
+  );
+
+  if (symbol.fraction < GENDER_INK_MIN) {
+    return null;
+  }
+
+  return symbol.height / Math.max(1, symbol.width) >= GENDER_TALL ? 'female' : 'male';
+}
+
+/** A tag chip is the only coloured thing on the panel, and it is drawn between the HP and the weight. */
+const TAG_CHROMA = 45;
+const TAG_PANEL = { from: 0.12, width: 0.76 };
+
+/**
+ * A chip is a solid pill, so most of its own box is coloured, and it stands about a thirtieth of the screen tall.
+ * Measured against a real one at 97 pixels on a 3040 screen, and against the strays that are not chips at 26 to 28.
+ */
+const TAG_FILL = 0.5;
+const TAG_HEIGHT = 0.025;
+
+/**
+ * The tags a Pokémon carries, read off the chips the game draws under its HP. They are white on a coloured pill, so
+ * the colour is what finds them — the panel around is white and so is the text — and each chip is cropped on its own
+ * by the columns it occupies, since a Pokémon can carry several and reading the row whole would run their names
+ * together.
+ *
+ * It answers what it read rather than what the tag is called: a caller that knows the names can match against them,
+ * which is worth doing, since `Trade to 0xNULL` comes back as `Trade toOxNULL` and only agrees once folded.
+ */
+async function tagsOn(image: Image, hp: Line, row: Line): Promise<string[]> {
+  const top = hp.top + hp.height;
+
+  if (row.top <= top) {
+    return [];
+  }
+
+  const gap = crop(image, image.width * TAG_PANEL.from, top, image.width * TAG_PANEL.width, row.top - top);
+  const floor = aboveTypes(gap);
+
+  if (floor < 1) {
+    return [];
+  }
+
+  const band = crop(gap, 0, 0, gap.width, floor);
+  const found: string[] = [];
+
+  for (const chip of chipsIn(band, image.height * TAG_HEIGHT)) {
+    const text = (await ocrLine(scale(isolate(crop(band, chip.left, chip.top, chip.width, chip.height), 200, 70), 2)))
+      ?.text;
+
+    if (text) {
+      found.push(
+        text
+          .replace(/[^\p{L}\p{N} .'-]/gu, ' ')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      );
+    }
+  }
+
+  return found.filter(Boolean);
+}
+
+/** Whether any pixel of a row carries a hue, against a panel that is neutral grey. */
+function rowColoured(band: Image, y: number): boolean {
+  for (let x = 0; x < band.width; x++) {
+    const i = (y * band.width + x) * 4;
+    const r = band.data[i] ?? 0;
+    const g = band.data[i + 1] ?? 0;
+    const b = band.data[i + 2] ?? 0;
+
+    if (Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * How much of the gap between the HP and the weight the chips can be in, which the gap itself says. The type icons sit
+ * level with the weight row, so they always reach the bottom of the gap where a chip row never does: on
+ * `fixtures/lucky-shiny.png` the two chips occupy rows 44-110 of 220 and the icons rows 188-219, with 77 blank rows
+ * between, and on the six fixtures carrying no chip at all the one coloured run is the icons alone. So the bottom-most
+ * run of coloured rows is the icons, and everything above where it starts is the chips' own band — where that run
+ * reaches the bottom row, since a grey icon contributes no run at all.
+ *
+ * Deriving it is what makes it right rather than nearly right, because the two obvious fractions are both wrong and
+ * neither says so. 0.45 of the gap clipped the chips to 55 rows against a true 67 — below the 56.1 a chip has to stand
+ * to be counted one — so both chips of the only tagged capture in the corpus were discarded by 1.1 pixels, and the
+ * screen reported no tags with two plainly on it. The whole gap is no answer either: it merges each chip with the icons
+ * beneath it into a single run of columns and drops its fill from 0.86 to 0.31, which reads as no chip just the same.
+ */
+function aboveTypes(gap: Image): number {
+  let floor = gap.height;
+
+  // Only a run that reaches the bottom row is the icons. A Normal type's icon is grey and colours nothing, so on
+  // `fixtures/snorlax-purified.png` the lowest coloured run is its `Perfect` chip at rows 33-99 of 208, and taking
+  // whatever run is lowest cut the chip away as though it were the icons. Over the 62 committed captures every icon run
+  // ends on the gap's last row exactly, and that chip is the only run anywhere that does not.
+  while (floor > 0 && rowColoured(gap, floor - 1)) {
+    floor--;
+  }
+
+  return floor;
+}
+
+/** The coloured runs of columns in a band, one per chip, with the rows each of them actually occupies. */
+function chipsIn(band: Image, tallest: number): { left: number; top: number; width: number; height: number }[] {
+  const coloured = (x: number, y: number) => {
+    const i = (y * band.width + x) * 4;
+    const r = band.data[i] ?? 0;
+    const g = band.data[i + 1] ?? 0;
+    const b = band.data[i + 2] ?? 0;
+
+    return Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA;
+  };
+
+  const filled: boolean[] = [];
+
+  for (let x = 0; x < band.width; x++) {
+    filled[x] = false;
+
+    for (let y = 0; y < band.height && !filled[x]; y++) {
+      filled[x] = coloured(x, y);
+    }
+  }
+
+  const chips: { left: number; top: number; width: number; height: number }[] = [];
+  let start = -1;
+
+  for (let x = 0; x <= band.width; x++) {
+    if (filled[x]) {
+      start = start < 0 ? x : start;
+      continue;
+    }
+
+    if (start < 0) {
+      continue;
+    }
+
+    let top = band.height;
+    let bottom = -1;
+    let n = 0;
+
+    for (let y = 0; y < band.height; y++) {
+      for (let cx = start; cx < x; cx++) {
+        if (coloured(cx, y)) {
+          n++;
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+    }
+
+    const height = bottom - top + 1;
+    const width = x - start;
+
+    if (height >= tallest && n >= width * height * TAG_FILL) {
+      chips.push({ left: start, top, width, height });
+    }
+
+    start = -1;
+  }
+
+  return chips;
+}
+
+/** Only what a weight or a height is written with; the `g` of `kg` is dropped often enough not to be relied on. */
+const MEASURE_ALPHABET = '0123456789.,kgm ';
+const MEASURE_WIDTH = 0.38;
+
+/**
+ * A weight and a height, which the game always writes with a decimal point. Requiring one is what makes these safe to
+ * search the whole screen for, and a bare `\d\s*(kg|m)` is not: `09:00` in the status bar reads as `0900 M © Os` and
+ * PGSharp's overlay separates three IVs the same way a measurement separates its decimals, so `L16 ɪᴠ53 m 0/7 (B`
+ * offers a `53 m`. Both sit above the panel and both matched, which put the size band 52 pixels off the top of the
+ * screen on `fixtures/xxl-male.png`'s sibling capture and reported no badge over a gold `XXL`.
+ *
+ * They are separate because the two are read as separate lines at the same height — `0.97kg` at x 131 and `0.15m` at
+ * x 759 — so a caller wanting one of them in particular cannot take it from whichever the row happened to be.
+ */
+const WEIGHT = /(\d+[.,]\d+)\s*kg\b/i;
+const HEIGHT = /(\d+[.,]\d+)\s*m\b/i;
+
+const measurement = (text: string) => WEIGHT.test(text) || HEIGHT.test(text);
+
+/**
+ * The weight or the height read off its own end of the row they share, for when the whole-screen pass missed it. The
+ * number rather than the unit is what is matched, because the unit is the part that goes: a Cyndaquil's `5.42kg` came
+ * back as `5.42k` and was rejected for want of a `g`. A decimal point is what makes a bare number safe to take — every
+ * weight and height the game shows carries one, and the stray digits this crop picks up out of the artwork do not.
+ */
+async function measured(image: Image, row: Line, from: number): Promise<number | null> {
+  const band = crop(
+    image,
+    image.width * from,
+    row.top - row.height * 0.25,
+    image.width * MEASURE_WIDTH,
+    row.height * 1.5,
+  );
+  const text = (await ocrLine(scale(band, 2), MEASURE_ALPHABET))?.text ?? '';
+  const value = /(\d+[.,]\d+)/.exec(text)?.[1];
+
+  return value === undefined ? null : Number(value.replace(',', '.'));
+}
+
+/** Only letters and the slash between two types; the row also holds `WEIGHT` and `HEIGHT`, which are letters too. */
+const TYPE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ/ ';
+
+/**
+ * The types, read off the row of labels under the weight rather than out of the whole-screen pass. That row is small
+ * grey capitals and the sparse pass mangles it — `WEIGHT` comes back as `EI` and a `T`, and the type between them
+ * usually not at all, which measured **6 of 25** on a corpus of real screens. Found by the weight and read on its own
+ * at double size it measured **24 of 25**, and it recovers the second type as well, where the whole-screen pass had
+ * been reporting `ice` for a Pokémon that is `Ice / Flying`.
+ *
+ * This is worth more than one column: `identify` narrows its candidates by type, so a missing pair is the difference
+ * between naming a form and answering `could also be Meganium, Sunkern, Treecko, …`.
+ */
+async function typesOf(lines: readonly Line[], data: GameData, image: Image): Promise<string[]> {
+  const names = new Map(data.types.map((t) => [fold(t), t]));
+  const found = (text: string) =>
+    fold(text)
+      .split(' ')
+      .filter((w) => names.has(w))
+      .map((w) => names.get(w) ?? w);
+  // Either of the pair will do, since the weight and the height sit on one row and the labels on the row beneath it —
+  // and taking only the weight lost a Cyndaquil whose `0.44m` read perfectly and whose `kg` did not.
+  const beside = lines.find((l) => measurement(l.text));
+
+  if (beside) {
+    // Generous, because the band is measured in the anchor's own height and the two anchors do not report the same
+    // one: `0.44m` came back 45 tall where `5.42kg` beside it came back 58, and a band sized off the shorter of them
+    // ended six pixels into the labels and lost a Cyndaquil's `FIRE`. The alphabet keeps the digits above out of it.
+    const band = crop(
+      image,
+      image.width * 0.25,
+      beside.top + beside.height * 0.8,
+      image.width * 0.5,
+      beside.height * 2,
+    );
+    const read = found((await ocrLine(scale(band, 2), TYPE_ALPHABET))?.text ?? '');
+
+    if (read.length > 0) {
+      return read;
+    }
+  }
+
+  // Where neither was read there is nothing to find the row by, so fall back on the whole-screen pass.
+  const line = lines.find((l) => {
+    const words = fold(l.text).split(' ').filter(Boolean);
+
+    return words.length > 0 && words.length <= 2 && words.every((w) => names.has(w));
+  });
+
+  return line ? found(line.text) : [];
+}
+
+/**
+ * The moves, read out of the rows beneath the `GYMS & RAIDS` tabs. That tab row is the anchor because it is the one
+ * thing that sits immediately above the moves and nothing else does — found on all fifty screens of a corpus — where
+ * the weight and height it used to be measured from are most of a screen away and leave everything between them in
+ * play. Bounding the region below matters as much: `CAUGHT IN THE WILD` and the rest are ordinary prose that a fuzzy
+ * match will happily take for a short move, and reading down into them produced a `Rest` and a `Fly` that neither
+ * Pokémon could learn.
+ *
+ * Each row is matched against the moves that form can actually hold before the whole list is considered, which is a
+ * choice among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type
+ * icon has come through as two letters, is two edits from `Tackle` and was rejected outright against the full list.
+ * A row that still does not match is cropped and read again on its own, and that rescue answers only to the pool,
+ * since it is the reading least worth trusting against everything.
+ *
+ * Measured over fifty screens from two phones: 45 of 50 fast moves and 45 charged before, 50 and 50 after, with
+ * nothing read that its Pokémon could not learn, for half a rescue read per screen.
+ */
+export async function parseMoves(
+  lines: readonly Line[],
+  data: GameData,
+  form: Form | null,
+  image: Image,
+): Promise<Moves> {
+  const pool = form?.moves ?? [];
+  const found: Move[] = [];
+
+  for (const row of moveRows(lines)) {
+    const move = moveIn(row.text, pool, data.moves) ?? (await moveUnder(image, row, pool));
+
+    if (move) {
+      found.push(move);
+    }
+  }
+
+  return {
+    fast: found.find((m) => m.fast)?.name ?? null,
+    charged: found
+      .filter((m) => !m.fast)
+      .slice(0, 2)
+      .map((m) => m.name),
+  };
+}
+
+/** The lines that can be a move: under the tabs, above the catch details, and carrying letters rather than a power. */
+function moveRows(lines: readonly Line[]): Line[] {
+  const tab = lines.find((l) => MOVE_TAB.test(fold(l.text)));
+  // Without the tabs, fall back on the weight and height, which are at least above the moves. The HP has to be named
+  // rather than matched as a pair of numbers around a slash, since `30/09/2026` in the catch details is one too, and
+  // sits *below* the moves — measured, that alone lost every move of a live scan.
+  const above = lines.filter((l) => measurement(l.text) || (/\d\s*\/\s*\d/.test(l.text) && /hp/i.test(l.text)));
+  const floor = tab ? tab.top + tab.height : Math.max(-Infinity, ...above.map((l) => l.top + l.height));
+  const rows: Line[] = [];
+
+  for (const line of [...lines].filter((l) => l.top > floor).sort((a, b) => a.top - b.top)) {
+    if (BELOW_MOVES.test(fold(line.text))) {
+      break;
+    }
+
+    if (line.text.replace(/[^A-Za-z]/g, '').length >= 3) {
+      rows.push(line);
+    }
+  }
+
+  return rows.slice(0, MOVE_ROWS);
+}
+
+/**
+ * The move a row names. A charged move is followed by its energy bar, which comes through as a couple of short
+ * nonsense tokens — `© Energy Ball ay Ay` — and four characters of them is enough to put the row past the slack. So
+ * the whole row is tried first and short trailing tokens dropped one at a time only while nothing has matched:
+ * longest-first is what stops `Aqua Jet` being shortened to `Aqua`, which matches nothing at all.
+ */
+function moveIn(text: string, pool: readonly Move[], all: readonly Move[]): Move | null {
+  let words = text.replace(/\d+/g, '').split(/\s+/).filter(Boolean);
+
+  for (;;) {
+    const joined = words.join(' ');
+    const move =
+      (pool.length > 0 ? closest(joined, pool, (m) => m.name, POOL_SLACK) : null) ??
+      (all.length > 0 ? closest(joined, all, (m) => m.name, MOVE_SLACK) : null);
+    const last = words.at(-1);
+
+    if (move !== null || last === undefined || last.length > MOVE_NOISE) {
+      return move;
+    }
+
+    words = words.slice(0, -1);
+  }
+}
+
+/** A row read again on its own, doubled, for the rows the whole-screen pass only half caught — `t Breath` for `Frost
+ * Breath`, where the icon and the first letters were lost. Only the pool is offered, since a rescue read is the least
+ * trustworthy text on the screen and the whole list would take almost anything. */
+async function moveUnder(image: Image, row: Line, pool: readonly Move[]): Promise<Move | null> {
+  if (pool.length === 0) {
+    return null;
+  }
+
+  const band = crop(image, 0, row.top - row.height * 0.3, image.width * MOVE_WIDTH, row.height * 1.6);
+
+  return moveIn((await ocrLine(scale(band, 2), MOVE_ALPHABET))?.text ?? '', pool, []);
+}
+
+/** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
+
+export interface OverlayBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Overlay {
+  /**
+   * Every level the overlay's digits could be saying, rather than one. The small-caps `L` reads as an `L` on one
+   * phone and a `1` on another, and the `IV` label after the level reads as another `1`, so `151` is `L15` followed
+   * by that stray or a stray followed by `51` and nothing in the string says which. Offering both and letting the HP
+   * choose settles it, and settles the HP's own ambiguity in the same step — `identify` does the intersecting.
+   */
+  levels: number[];
+  iv: IVs;
+  /**
+   * What PGSharp appends in brackets after the IVs, as read — `L` for an Unown, and nothing at all for most Pokémon.
+   * Matching it to a form of the species is `identify`'s job, since only it knows which species this is.
+   */
+  form: string | null;
+}
+
+/** Only these survive the whitelist: the level's `L`, the digits and the slashes between the three IVs. */
+/** What the CP band is read with, and how far round the line to reach, in that line's own heights. */
+const CP_ALPHABET = 'CP0123456789 ';
+const CP_PAD = 0.4;
+
+const OVERLAY_ALPHABET = 'L0123456789/ ';
+
+/**
+ * How much to upscale the isolated overlay before reading it, in the order to try. 2 first because that is what the IVs
+ * were measured against — at 1× Tesseract read `14/18/12` for `14/13/12`, and at 3× and 4× it starts taking the level's
+ * small-caps `L` for a `1`.
+ *
+ * 3 is a fallback and not a replacement, for the one thing 2× loses: the slashes. `deerling-autumn.png` reads
+ * `15 141512` at 2× for a perfectly legible `L15 ɪᴠ 14/15/12`, and `meloetta-aria.png` reads `13/1512` — one separator
+ * gone and one surviving. No separators means no triple, which means no overlay found at all on a screen that plainly
+ * carries one. Both read correctly at 3×. Trying 2× first is what keeps the `L` where it already reads, and the level
+ * being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
+ */
+const OVERLAY_SCALES = [2, 3];
+
+/**
+ * How bright a channel has to be for `brighten` to keep it. Low enough to hold the IV percentage, whose colour is what
+ * a chroma limit exists to drop.
+ */
+const OVERLAY_BRIGHTNESS = 120;
+
+/**
+ * The two ways to turn an overlay band into black on white, in the order to try. Neither wins outright, which is why
+ * both are here and why the percentage below arbitrates between them.
+ *
+ * Near-white first, because that is what every reading was measured against. What it costs is the thin strokes: the
+ * chroma ceiling clips the anti-aliased edge of a leading `1`, so `articuno-galar.png` reads `2/4/13` for `12/4/13`,
+ * `xurkitree.png` loses its attack entirely at `/2/14`, and `cherrim-overcast.png` yields nothing at any band at all.
+ * Brightness alone reads all three correctly — and misses `genesect-normal.png`, `nidoran-female.png` and
+ * `nidoran-male.png`, which near-white reads. So it is a second opinion rather than a replacement.
+ */
+const OVERLAY_TREATMENTS = [
+  (band: Image) => isolate(band, OVERLAY_LUMINANCE, OVERLAY_CHROMA),
+  (band: Image) => brighten(band, OVERLAY_BRIGHTNESS),
+];
+
+/**
+ * Whether the IV percentage PGSharp prints beside the triple agrees with it. It is `floor((a + d + s) / 45 * 100)`, so
+ * it is redundant — and redundancy is exactly what makes it a checksum, which is what settles which treatment to
+ * believe where two of them read different triples and both are possible. `articuno-galar.png` is the case: near-white
+ * says `2/4/13`, which would be 42%, and brightness says `12/4/13` and prints `64`.
+ *
+ * Searched for in the text ahead of the triple rather than as a whole word, since it runs into the digits beside it —
+ * `xurkitree.png`'s `82` arrives as `182`, the `1` being the first digit of an attack of 11.
+ */
+function confirmed(before: string, iv: IVs): boolean {
+  return before.includes(String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100)));
+}
+
+/**
+ * The alphabet the bracketed form is read with, which is deliberately not the one above widened: a whitelist is what
+ * stops a stray glyph splitting a number in two, and the letters a form needs are precisely the glyphs a digit is
+ * confused with — `O` for `0`, `S` for `5`, `B` for `8`. Two reads of the same crop therefore cost one more Tesseract
+ * call and leave the level and the IVs coming out of exactly the alphabet they were measured against.
+ *
+ * `[` and `\\` are in it because PGSharp draws them: it indexes the species' forms from `A`, so the game's 27th and
+ * 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[` and `\\`. Without them
+ * `unown-question.png`'s `(\\)` reads as `(X)` — a **real** Unown form, so the answer came back confidently wrong
+ * rather than merely absent.
+ *
+ * Digits are read on a second pass rather than added here, which is measured rather than assumed. Over 24 Unown the
+ * letters come back identical with them and without, and over 18 Pokémon that carry no suffix at all a single pass with
+ * digits invents one — `(251)` out of the artwork on a Decidueye — where the pass without them reads nothing on all 18.
+ * Spinda is the species that needs them, its forms being `00` to `19`, and what separates it from that false positive
+ * is the length: exactly two digits where the artwork gave three. So `SUFFIX_SHAPE` is the narrow claim, not the
+ * alphabet.
+ */
+const OVERLAY_FORM_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ()!?[\\ ';
+
+/** The same widened to digits, for the one species the game labels numerically. */
+const OVERLAY_NUMERIC_ALPHABET = OVERLAY_FORM_ALPHABET + '0123456789';
+
+/**
+ * What a suffix PGSharp drew can look like, which is the guard the two passes below need rather than an alphabet. Every
+ * form it labels is either one character — Unown's 26 letters, or the `[` and `\\` below for the other two — or
+ * Spinda's two digits. Nothing it draws is two letters, so `basculin-blue.png`'s `(SV)` and `spinda-04.png`'s `(OA)`
+ * are both
+ * noise out of the artwork, and rejecting them is what lets the numeric pass run at all: `O` for `0` and `A` for `4` is
+ * exactly the confusion a letters-only alphabet invites, and it answered a plausible-looking suffix for a Spinda whose
+ * real label is `04`.
+ */
+const SUFFIX_SHAPE = /^(?:[A-Z[\\]|\d{2})$/;
+
+/**
+ * The two suffixes PGSharp draws that are not the form's name. It labels a form by its index from `A`, which works for
+ * Unown's 26 letters and runs off the end of the alphabet for the other two: `'A'.charCodeAt(0) + 26` is `[` and `+ 27`
+ * is `\\`, where the game master spells them out. Nothing else in the game is labelled this way, so this is a table of
+ * two rather than arithmetic — and it has to be applied before the form is matched, since `identify` compares a suffix
+ * against a form name exactly and `[` is no form of anything.
+ */
+const PGSHARP_FORMS = new Map([
+  ['[', 'Exclamation Point'],
+  ['\\', 'Question Mark'],
+]);
+
+/**
+ * The last bracketed run on the line, since the suffix is appended and a stray bracket lands among the digits ahead of
+ * it — one capture read `L17 1V33 177(7 (L)`, where the first group is noise and the last is the form.
+ */
+const FORM_SUFFIX = /\(([^()]{1,20})\)/g;
+
+/** Bright enough to be the overlay's white text, and flat enough in colour not to be its IV percentage. */
+const OVERLAY_LUMINANCE = 150;
+const OVERLAY_CHROMA = 55;
+
+const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
+
+/**
+ * How far left of the three IVs the box reaches, in characters, which is what it is measured in. `L25 IV86 14/13/12`
+ * is eighteen, and the generosity beyond that is not spare: the em it is multiplied by is estimated from whatever
+ * line was recognised, often the triple alone, and a short triple under-estimates it. At 19 a box tightened on one
+ * Pokémon clipped the `L31` off the next while keeping its IVs — which reads as a success, so nothing widened the box
+ * and the level was simply lost. Measured per phone over 62 screens, 19 reads 49 of 50 levels and 30 reads all of
+ * them, with no reading gained or lost elsewhere.
+ */
+const OVERLAY_CHARACTERS = 30;
+
+/**
+ * How far right of them it reaches, in the same characters, for the form PGSharp appends there. Unlike the reach the
+ * other way this one is bounded on both sides, because the level and the IVs come out of the same crop: too short
+ * clips the suffix, and too long drags the artwork beyond it into a band `ocrLine` reads whole.
+ *
+ * Both bounds are measured rather than reasoned about, over 24 Unown and 26 Pokémon PGSharp appends nothing to. At one
+ * character — what the box had when it was only ever meant to hold the numbers — the letter comes back on 20 of the 24
+ * and cannot be told from the level's own `L`; from three up all 24 that have an overlay read a closed bracket, and the
+ * letters are identical at 3, 4, 5, 8 and 13. Going further costs readings: the no-suffix corpus reads 18 of its 26
+ * overlays at 3, 4 and 5 and only 16 at 6 and beyond, losing a Buzzwole's `13/15/11` and a Hisuian Decidueye's
+ * `11/15/14` — which is the IVs, not the suffix, so it would read as the overlay simply not being there. Five is the
+ * most generous reach that costs none of them, and the 24 Unown triples are identical at every reach including the old.
+ */
+const OVERLAY_SUFFIX_CHARACTERS = 5;
+
+/**
+ * How much wider than the triple's box to read the bracketed form out of, as a fraction of that box's width. The box
+ * `tighten` hands back is sized for the digits, and PGSharp appends the form to the right of them, so the crop that
+ * makes the IVs legible is the one that cuts the suffix off — measured, `unown-m.png` and `unown-exclamation.png` both
+ * read their bracket out of the untightened band and neither out of the tightened box.
+ */
+const OVERLAY_SUFFIX_REACH = 0.5;
+
+/** How far a row may be from a move's name, and how short a trailing token has to be to be an energy bar. */
+const MOVE_SLACK = 0.2;
+const MOVE_NOISE = 3;
+
+/** A form's own pool is a median of seven moves against 328, so a row may be much further from one of those. */
+const POOL_SLACK = 0.45;
+
+/** The tabs directly above the moves, and the first of whatever follows them. */
+const MOVE_TAB = /\b(gyms|raids|trainer battles)\b/;
+const BELOW_MOVES = /\b(new attack|caught|hatched|traded|swap buddies|transfer|appraise)\b/;
+
+/** Three rows of moves and a little slack; and how much of the width a name can occupy, short of its power. */
+const MOVE_ROWS = 6;
+const MOVE_WIDTH = 0.62;
+
+/** Move names are words, with a hyphen in a few — `Lock-On`, `Power-Up Punch` — and nothing else. */
+const MOVE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-' ";
+
+/** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
+const MAX_LEVEL = 51;
+
+/** A filled star measured 19.4% gold and an outline 0.00%, so anywhere between them will do. */
+/**
+ * Measured over the 62 committed captures: 51 are exactly 0, the nine real favourites run 18.18% to 26.49%, and three
+ * land between 0.36% and 1.34% with no filled star. `spinda-04.png` is why this is not 0.02 — a warm bokeh background
+ * puts **15.34%** in that corner behind a white-outline star, which is a false positive at any threshold below it. So
+ * this is a discriminator rather than headroom, and the margin is thin on both sides: 1.2 points under the lowest real
+ * favourite and 1.7 over the worst non-favourite.
+ */
+const FAVOURITE_GOLD = 0.17;
+
+/**
+ * The size badge's pill, as a band over the height: how far above the height's own top to reach and how far past its
+ * right, both in the height's own height. The pill is a little under two line-heights tall and the text beside it runs
+ * half again as wide as `0.15m` does, which is where 1.9 and 1.6 come from.
+ *
+ * `SIZE_CHROMA` is what separates the pill from the panel it sits on: the panel is neutral rgb(224,224,224) and both
+ * hues the pill takes are far from it — gold rgb(192,160,64) at 128 and teal rgb(96,192,192) at 96 — so anything over
+ * 60 catches either without catching the panel's own antialiasing. `SIZE_FILL` only has to beat the stray coloured
+ * pixel; a real pill is several per cent of the band.
+ */
+const SIZE_RISE = 1.9;
+const SIZE_SPAN = 1.6;
+const SIZE_CHROMA = 60;
+const SIZE_FILL = 0.01;
+
+/**
+ * The only three letters a badge can spell, and the four words it spells with them. Longest first, so an `XXL` is not
+ * answered by the `XL` inside it.
+ */
+const SIZE_ALPHABET = 'XSL';
+const SIZES = ['XXL', 'XXS', 'XL', 'XS'] as const satisfies readonly Size[];
+
+/**
+ * The gender symbol against the white panel behind it: how far below the panel's own level its ink has to fall, how
+ * neutral it has to stay, how much of the region it has to cover and how tall it has to be to be a female's.
+ */
+const GENDER_INK_BELOW = 20;
+const GENDER_INK_CHROMA = 45;
+const GENDER_INK_MIN = 0.01;
+const GENDER_TALL = 1.25;
+
+/**
+ * Where the overlay sits, found by the one thing nothing else on the screen carries: three small numbers separated by
+ * slashes. This is the expensive half and it only has to work once — a caller finds the box on whichever Pokemon it
+ * first succeeds on and reads every later one straight out of it, which is what keeps this independent of the phone.
+ * PGSharp draws the overlay itself rather than leaving it to Unity, so the box does not move between species; what it
+ * does do is move between devices, which is why this is found rather than configured.
+ */
+/** How far down the screen the overlay can sit, and how tall a band to sweep, as fractions of the screen's height. */
+const OVERLAY_FROM = 0.08;
+const OVERLAY_TO = 0.45;
+const OVERLAY_BAND = 0.03;
+
+/**
+ * How much of the width to sweep, centred. PGSharp centres the overlay — measured at 718 and 720 against a screen
+ * centre of 720 on one phone and 501 against 504 on another — and the widest of those boxes is 38% of its screen, so
+ * this is generous. What it buys is leaving out whatever sits along the edges, the movable PGSharp toolbar in
+ * particular, which is otherwise read as part of the same line.
+ */
+const OVERLAY_SPAN = 0.7;
+
+/**
+ * Where the overlay sits, found by sweeping narrow bands down the upper screen, isolating each and reading it. The
+ * obvious cheaper thing — looking for the triple among the lines a whole-screen read already produced — was tried and
+ * dropped: it found the box on nine of twelve captures from one phone and on none at all from another, where the text
+ * sat across the boundary of the inverted crop `readLines` makes and was too low in contrast against the artwork for
+ * the sparse pass either side of it. Isolating first is what makes the line legible, and a band is small enough that
+ * the rest of the screen cannot drown it. Each band is read as a line rather than sparsely, which is what a band is by
+ * construction and is not a detail: the same band holding `L1 IV48 5/2/15` reads as `r '` sparse, because sparse mode
+ * takes the isolated blocks either side for pictures. A sweep costs a second or two and is only ever paid once.
+ */
+/**
+ * The text of an isolated overlay crop upscaled by `factor`, or null where it holds no IV triple. The whitelist is what
+ * stops the isolated artwork either side of the text being read as glyphs that split a number in two.
+ */
+async function tripled(band: Image, factor: number): Promise<string | null> {
+  const text = (await legible(scale(band, factor), OVERLAY_ALPHABET))?.text ?? '';
+
+  return TRIPLE.test(text) ? text : null;
+}
+
+/**
+ * One band read as a line, where a band Tesseract cannot read at all counts as a band with nothing on it.
+ *
+ * Tesseract dies on some images rather than reporting that it found nothing, and it is the image and not the machine: the
+ * near-white treatment of `keldeo-resolute.png`'s band at y=356 kills it every time, at 1412×134. The sweep passes over
+ * forty bands a capture and tolerates every other kind of empty one, so letting this kind end the whole read meant one
+ * band of one capture failing that capture — and, through a memoised reading, three later tests that only wanted to
+ * look at it. A crash here is nothing to go on, which is what every other unreadable band is too.
+ */
+async function legible(image: Image, alphabet?: string): Promise<Line | null> {
+  try {
+    return await ocrLine(image, alphabet);
+  } catch (error) {
+    console.error(`  a band could not be read (${error instanceof Error ? error.message : String(error)})`);
+
+    return null;
+  }
+}
+
+/** Every treatment and scale, in the order to try them: the cheapest first, so a rescue costs only what it rescues. */
+const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map((factor) => ({ treat, factor })));
+
+/**
+ * What the sweep tries, which is deliberately less than `OVERLAY_PASSES`. Finding the band and reading it are different
+ * jobs: the sweep runs its passes over some forty bands a capture where `readOverlay` runs them over one box, so a pass
+ * added here costs forty Tesseract processes and a pass added there costs one. Both treatments at the first scale is
+ * enough to find every overlay in the corpus, and the scales that rescue a *reading* are left to `readOverlay`.
+ */
+const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALES[0] ?? 2 }));
+
+export async function findOverlay(image: Image): Promise<OverlayBox | null> {
+  const height = Math.round(image.height * OVERLAY_BAND);
+  const step = Math.max(1, Math.round(height / 3));
+  const width = Math.round(image.width * OVERLAY_SPAN);
+  const left = Math.round((image.width - width) / 2);
+
+  // A whole sweep per pass rather than every pass per band, which matters only for the clock: the overlay is found by
+  // the first pass on all but a handful, and trying them all at every band cost the suite 60% more wall time to rescue
+  // those few.
+  for (const { treat, factor } of OVERLAY_SWEEPS) {
+    for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
+      const band = treat(crop(image, left, top, width, height));
+      const line = await tripled(band, factor);
+
+      if (line === null) {
+        continue;
+      }
+
+      // The band itself, which is already the right shape: as wide as the sweep, and tall enough to hold the line it
+      // was just read out of. Sizing a box from that line instead does not work, because reading a band as one line
+      // is exactly what makes its width meaningless — everything in the band comes back as one box, which on one
+      // capture spanned 626 pixels against a true 329 and on another sat 250 to the right of the text. So the band is
+      // the floor, and `tighten` improves on it where it can.
+      const found = within({
+        x: left / image.width,
+        y: top / image.height,
+        width: width / image.width,
+        height: height / image.height,
+      });
+
+      // `tighten` improves on the band where it can, and has to be checked rather than trusted: it derives the box from
+      // the `top` Tesseract reports for a sparse line, which can sit a character-width above the glyphs — 434 against a
+      // true 460 on `eevee-background.png` — so the box comes out straddling the text instead of covering it, and the
+      // read that follows gets the bottom half of a row of digits. Keeping only a box that still yields a reading is
+      // the same rule the sweep above applies to the band, one step further in: measured over the corpus, 14 of the 15
+      // captures this used to answer nothing for read on the band.
+      const tightened = await tighten(image, found);
+
+      return tightened && (await readOverlay(image, tightened)) ? tightened : found;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * A second look at the band the sweep matched, measured from the three IVs alone. A band is a good enough crop to read
+ * from — ten of twelve captures on one phone and both on another — but a tight box is better, twelve of twelve, and a
+ * crop is small enough for the sparse mode to pick the triple out where it could not in the band it came from.
+ *
+ * Answers null where the sparse pass finds nothing, which is not a failure and must not be treated as one: the band it
+ * was handed already contains the text, and on the second phone this null is the difference between reading the
+ * overlay and reading nothing at all.
+ */
+async function tighten(image: Image, box: OverlayBox): Promise<OverlayBox | null> {
+  const left = box.x * image.width;
+  const top = box.y * image.height;
+  const region = crop(image, left, top, box.width * image.width, box.height * image.height);
+  const inner = (await ocr(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2))).find((l) =>
+    TRIPLE.test(l.text),
+  );
+
+  return inner
+    ? boxAround({ ...inner, left: left + inner.left / 2, top: top + inner.top / 2, width: inner.width / 2 }, image)
+    : null;
+}
+
+/**
+ * The box around a line the overlay was recognised in. It is sized from the width of one character rather than from
+ * the height Tesseract reports, because that height is not trustworthy: measured over twelve captures the same overlay
+ * came back 25, 28, 49 and 54 pixels tall as the row was merged with whatever fragment of the artwork sat beside it,
+ * and padding a 54 by half of itself reaches far enough into the picture to undo the whole point of cropping.
+ * Character width does not wander — 270/17, 264/17 and 130/8 across those captures are within a pixel of each other.
+ * It is anchored one character past the three IVs, since the part that goes missing is always the left: where only the
+ * triple is legible the level and the percentage ahead of it are still there to be read. It reaches further right than
+ * that anchor only because PGSharp appends the form there, and a box holding the whole overlay is the honest thing for
+ * `--config` to take and for `snap` to print.
+ */
+function boxAround(line: { left: number; top: number; width: number; text: string }, image: Image): OverlayBox {
+  const em = line.width / Math.max(1, line.text.length);
+  const anchor = line.left + line.width + em;
+  const left = anchor - OVERLAY_CHARACTERS * em;
+  const right = anchor + OVERLAY_SUFFIX_CHARACTERS * em;
+
+  return within({
+    x: left / image.width,
+    y: (line.top - em * 0.7) / image.height,
+    width: (right - left) / image.width,
+    height: (em * 3) / image.height,
+  });
+}
+
+/**
+ * A box kept inside the screen. `crop` clamps anyway, so this changes no reading — but a box is also what `--config`
+ * takes and what `snap` prints for someone to copy, and a reach of thirty characters off an em measured on the three
+ * IVs alone, which are all wide digits and slashes, comes out past the left edge often enough to be worth not
+ * reporting as `x: -0.17`.
+ */
+function within(box: OverlayBox): OverlayBox {
+  const x = Math.max(0, Math.min(1, box.x));
+  const y = Math.max(0, Math.min(1, box.y));
+
+  return { x, y, width: Math.min(1 - x, box.width + box.x - x), height: Math.min(1 - y, box.height + box.y - y) };
+}
+
+/** The smallest box covering both, so a box that clipped one Pokémon's line grows rather than flips between them. */
+export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+
+  return within({
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  });
+}
+
+/**
+ * The level and the three IVs, read out of a box already found. Isolating the white text and doubling it is what makes
+ * this reliable: measured over twelve captures the three IVs came out right in all twelve, where the same screens read
+ * whole gave three. The level is a guess by comparison, at ten of twelve — the `IV` label beside it OCRs as a `1` and
+ * runs into the digits — so it is offered rather than asserted, and `identify` keeps it only if the HP agrees.
+ *
+ * The bracketed form beside them is read as a second pass over the same isolated crop, with its own alphabet. That is
+ * the whole reason this costs two Tesseract calls rather than one: see `OVERLAY_FORM_ALPHABET`.
+ */
+export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
+  const raw = crop(
+    image,
+    box.x * image.width,
+    box.y * image.height,
+    box.width * image.width,
+    box.height * image.height,
+  );
+
+  // Every treatment and scale, keeping the first whose percentage confirms its own triple, and falling back on the
+  // first that read a possible one at all. Without that arbitration the order alone decides, and the first pass is
+  // wrong about `articuno-galar.png` in a way nothing downstream could notice: `2/4/13` is a perfectly possible triple.
+  let fallback: { iv: IVs; before: string } | null = null;
+  let chosen: { iv: IVs; before: string } | null = null;
+
+  for (const { treat, factor } of OVERLAY_PASSES) {
+    const region = scale(treat(raw), factor);
+    const text = (await legible(region, OVERLAY_ALPHABET))?.text ?? '';
+    const triple = TRIPLE.exec(text);
+
+    if (!triple) {
+      continue;
+    }
+
+    const [attack, defense, stamina] = triple.slice(1).map(Number) as [number, number, number];
+
+    if ([attack, defense, stamina].some((v) => v > 15)) {
+      continue;
+    }
+
+    const reading = { iv: { attack, defense, stamina }, before: text.slice(0, triple.index) };
+    fallback ??= reading;
+
+    if (confirmed(reading.before, reading.iv)) {
+      chosen = reading;
+      break;
+    }
+  }
+
+  const reading = chosen ?? fallback;
+
+  if (!reading) {
+    return null;
+  }
+
+  const { iv, before } = reading;
+
+  const suffixIn = async (crop: Image, alphabet: string) =>
+    [...((await legible(crop, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
+
+  // Both alphabets always run and a two-digit answer wins, because only one of them could have produced it: the letters
+  // alphabet holds no digits, so it can only ever say "letter", and it says one about Spinda's `(04)` either way — `OA`
+  // where both characters survive and a shape-valid `O` where the `4` does not. Reading the digits is the only thing
+  // that can tell a real `04` from a letter, and nothing but Spinda is labelled numerically, so a two-digit read is not
+  // a close call to arbitrate. Everything else is the letters alphabet's to answer.
+  //
+  // Off the first pass always, and deliberately not off whichever pass the triple came from: the two are separate
+  // readings of separate parts of the line, and each wants its own treatment. `unown-m.png`'s IVs are only right under
+  // brightness and its `(M)` only under near-white, so following the triple traded one for the other — and widening the
+  // bracket to every pass is worse again, since the 3× read invents a shape-valid suffix on `basculin-blue.png`, which
+  // carries none. One pass for the bracket is what was measured and is what the corpus bears out.
+  //
+  // Out of a wider crop than the triple, though, because the two want opposite things of the box. `tighten` narrows it
+  // onto the digits, which is what makes the IVs read — and the suffix is appended to the *right* of those digits, so
+  // the same narrowing clips it off: `unown-m.png` and `unown-exclamation.png` both lose their bracket to a box the
+  // triple needs. Half the box's width to the right is enough to reach it on both, and `crop` clamps what runs off the
+  // screen.
+  const shaped = (suffix: string | null) => (suffix !== null && SUFFIX_SHAPE.test(suffix) ? suffix : null);
+  const first = OVERLAY_PASSES[0];
+  const wide = crop(
+    image,
+    box.x * image.width,
+    box.y * image.height,
+    box.width * image.width * (1 + OVERLAY_SUFFIX_REACH),
+    box.height * image.height,
+  );
+  const bracket = first ? scale(first.treat(wide), first.factor) : wide;
+  const lettered = shaped(await suffixIn(bracket, OVERLAY_FORM_ALPHABET));
+  const numeric = shaped(await suffixIn(bracket, OVERLAY_NUMERIC_ALPHABET));
+
+  return {
+    levels: levelsIn(before),
+    iv,
+    form: (numeric !== null && /^\d{2}$/.test(numeric) ? numeric : null) ?? lettered ?? numeric,
+  };
+}
+
+/**
+ * Every level the digits ahead of the IVs could be: each one and two digit piece of every run of them, since which end
+ * of a run carries the stray `1` is exactly what cannot be told from the text. Restricting this to the first run was
+ * tried, on the reasoning that the percentage behind the level only adds noise, and it is the artwork ahead of the
+ * level that adds more — a band wide enough to find the overlay on one phone is wide enough to read a stray `4` to the
+ * left of it, which was then the only candidate and disagreed with an HP that was perfectly clear. Being generous is
+ * safe here: this is a shortlist for the HP to choose from, not an answer.
+ */
+function levelsIn(text: string): number[] {
+  const levels = new Set<number>();
+
+  for (const [digits] of text.matchAll(/\d+/g)) {
+    for (let at = 0; at < digits.length; at++) {
+      for (const length of [1, 2]) {
+        const piece = digits.slice(at, at + length);
+        const level = Number(piece);
+
+        if (piece.length === length && level >= 1 && level <= MAX_LEVEL) {
+          levels.add(level);
+        }
+      }
+    }
+  }
+
+  return [...levels];
+}
+
+/**
+ * The artwork, for the forms whose numbers are identical — Deerling's four, Burmy's three, Genesect's five. `signature`
+ * is the capture's own, from `signatureOf`, and `icons` is one per candidate form, from the game's own art.
+ *
+ * Handed in rather than fetched here so that `identify` stays a pure function of what it is given: the scan builds the
+ * map by downloading icons, and the test records them, which is the same division the game master already has.
+ */
+export interface Artwork {
+  signature: Signature;
+  icons: ReadonlyMap<Form, Signature>;
+}
+
+export interface Identity {
+  form: Form | null;
+  /**
+   * The CP this form at these IVs shows at this level, worked out rather than read. Null where the level is still
+   * ambiguous, since two levels are two CPs and guessing between them would be worse than saying nothing.
+   */
+  cp: number | null;
+  /** Other forms the numbers fit equally well, when they cannot be told apart. */
+  alternatives: Form[];
+  levels: number[];
+  nickname: string | null;
+  notes: string[];
+}
+
+/**
+ * Which species and form this is, and at what level. The name narrows the candidates when it is a species' name, the
+ * types narrow them further, and the overlay's IVs against the HP settle the rest — which is also what identifies a
+ * Pokémon whose nickname has hidden its species. Costumes share their base form's stats, so they are folded into it
+ * here and left to the `costume` search to report.
+ *
+ * The overlay's level is taken as a proposal rather than as a fact. It is the one field of the three that OCR gets
+ * wrong with any regularity, because the `IV` label beside it reads as a `1` and runs into the digits, so it is kept
+ * only where the HP agrees that the Pokémon can be that level and reported as a disagreement where it does not.
+ *
+ * The form PGSharp appends is the one thing here that the game's own screen cannot say, and it is needed for exactly
+ * the species the numbers cannot separate: Unown's 28 letters are one set of base stats, one type and one move pool, so
+ * HP, IVs and types narrow them to 28 and stop. Where the overlay carries no suffix the numbers were enough — an Alolan
+ * Geodude's reads `L20 ɪᴠ91 13/13/15` with nothing appended, because its stats and types already say Alola.
+ */
+export function identify(data: GameData, detail: Detail, overlay: Overlay | null, artwork?: Artwork): Identity {
+  const notes: string[] = [];
+  const iv = overlay?.iv ?? null;
+  const species = detail.name ? closest(detail.name, data.species, (s) => s) : null;
+  const nickname = detail.name && !species ? detail.name : null;
+  const fits = (f: Form) =>
+    (detail.types.length === 0 || sameTypes(f.types, detail.types)) &&
+    (iv === null || detail.hp === null || levelsOf(data, f, iv, detail.hp).length > 0);
+
+  let candidates = data.forms.filter((f) => f.species === species && fits(f));
+
+  if (candidates.length === 0 && iv !== null && detail.hp !== null && detail.types.length > 0) {
+    if (species) {
+      notes.push(`the numbers do not fit any form of ${species}; searched every species`);
+    }
+
+    candidates = data.forms.filter(fits);
+  }
+
+  // `fits` asks whether *some* level reproduces the HP, which is a weaker question than the screen can answer: the
+  // overlay states a level too, and a form only really fits if one of the levels its HP admits is one of those. Applied
+  // as a narrowing rather than inside `fits` because the stated shortlist is a reading and can be wrong — on
+  // `pikachu-witch-hat.png` it names no level the HP can be — and a hard filter there would empty the list and send the
+  // search off across every species. This is what settles `ho-oh.png`: five forms fit Fire/Flying at 152 HP, and only
+  // Ho-Oh shows 152 at the `L25` the capture states.
+  const stated = overlay?.levels ?? [];
+
+  if (stated.length > 0 && iv !== null && detail.hp !== null) {
+    const agreeing = candidates.filter((f) =>
+      levelsOf(data, f, iv, detail.hp as number).some((level) => stated.includes(level)),
+    );
+
+    if (agreeing.length > 0) {
+      candidates = agreeing;
+    }
+  }
+
+  // PGSharp's own label, which is the only thing that can separate Unown's 28 letters: they share one set of base
+  // stats, one type and one move pool, so nothing the game's own screen shows tells them apart. Applied ahead of the
+  // fold below, which is otherwise what collapses them to one — and only where it matches something, since a suffix
+  // read off the artwork must not empty a candidate list the numbers had narrowed correctly.
+  const drawn = overlay?.form ?? null;
+  const labelled = drawn === null ? null : (PGSHARP_FORMS.get(drawn) ?? drawn);
+  const named = labelled === null ? [] : candidates.filter((f) => fold(f.form) === fold(labelled));
+
+  if (named.length > 0) {
+    candidates = named;
+  } else if (labelled !== null) {
+    notes.push(`the overlay says form "${labelled}", which is no form of ${species ?? 'any species that fits'}`);
+  }
+
+  // The artwork, which is all that is left where the numbers are identical: Deerling's four seasons share
+  // `115/100/155 Normal+Grass` exactly, so nothing read off the panel can separate them and the fold below would keep
+  // whichever has the shorter name. Ahead of that fold for the same reason PGSharp's label is.
+  //
+  // Every candidate has to carry a signature, not just two of them, or a form the game master gives no
+  // `assetBundleValue` would be dropped for having no icon rather than for losing on its colours — which is `Basculin
+  // (White Striped)`, and is why Basculin is never narrowed here.
+  //
+  // An abstention costs nothing and fixes nothing: the fold below removes the rivals rather than demoting them, so a
+  // declined call still comes back as one form with no alternatives and no note — `shellos-west.png` is answered as
+  // East Sea either way. That is the pre-existing gap rather than one this opens, and closing it means `identify`
+  // reporting the fold it performed, which is a change to what every row of the CSV says.
+  if (candidates.length > 1 && artwork) {
+    const icons = new Map(candidates.map((f) => [f, artwork.icons.get(f)]));
+    const known = [...icons].every(([, signature]) => signature !== undefined);
+    const picked = known ? nearest(artwork.signature, icons as ReadonlyMap<Form, Signature>) : null;
+
+    if (picked) {
+      candidates = [picked];
+    }
+  }
+
+  // Costumes repeat their base form's stats and types exactly, so they are the same answer twice.
+  const distinct: Form[] = [];
+
+  for (const f of [...candidates].sort(
+    (a, b) => Number(a.costume) - Number(b.costume) || a.form.length - b.form.length,
+  )) {
+    if (!distinct.some((d) => d.dex === f.dex && sameStats(d, f) && sameTypes(d.types, f.types))) {
+      distinct.push(f);
+    }
+  }
+
+  const [form = null, ...alternatives] = distinct;
+  const consistent = form && iv && detail.hp !== null ? levelsOf(data, form, iv, detail.hp) : [];
+  const agreed = consistent.filter((l) => stated.includes(l));
+  const levels = agreed.length > 0 ? agreed : consistent;
+
+  if (nickname && iv === null) {
+    notes.push('a nickname hides the species, and only the IVs can say what it is');
+  } else if (distinct.length === 0 && (species || nickname)) {
+    notes.push('no form fits the HP, IVs and types read');
+  } else if (alternatives.length > 0) {
+    notes.push(`could also be ${alternatives.map(label).join(', ')}`);
+  }
+
+  if (stated.length > 0 && consistent.length > 0 && agreed.length === 0) {
+    notes.push(`the overlay reads as level ${stated.join(' or ')}, none of which this HP can be`);
+  }
+
+  if (levels.length > 1) {
+    notes.push(`level ambiguous: ${levels.join(' or ')}`);
+  }
+
+  const settled = levels.length === 1 ? (levels[0] ?? null) : null;
+  const multiplier = settled === null ? null : multiplierOf(data, settled);
+  const cp = form && iv && multiplier !== null ? cpOf(form, iv, multiplier) : null;
+
+  // Where OCR did read the CP it is worth saying so, since the two disagreeing means the level or the form is wrong
+  // rather than that the arithmetic is: CP is a pure function of the three things above it.
+  if (cp !== null && detail.cp !== null && cp !== detail.cp) {
+    notes.push(`the screen reads CP ${detail.cp}, where this form at this level is ${cp}`);
+  }
+
+  return { form, cp, alternatives, levels, nickname, notes };
+}
+
+export function label(f: Form): string {
+  return f.form ? `${f.species} (${f.form})` : f.species;
+}
+
+function sameTypes(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((t) => b.includes(t));
+}
+
+function sameStats(a: Form, b: Form): boolean {
+  return a.attack === b.attack && a.defense === b.defense && a.stamina === b.stamina;
+}

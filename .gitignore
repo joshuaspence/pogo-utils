@@ -19,3 +19,8 @@
 # Every subtask gets its own worktree and the harness puts them here, so this holds another branch's checkout rather
 # than anything of this one's. `.prettierignore` and `eslint.config.mjs` exclude it for the same reason.
 /.claude/worktrees/
+
+# `pnpm inventory` caches the game master and its saved screenshots here, and writes what it reads about a player's
+# own Pokémon to the CSV beside it. Neither belongs in the repository.
+/.cache/
+/inventory*.csv

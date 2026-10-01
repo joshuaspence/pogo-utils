@@ -1,3 +1,4 @@
 /data/events-feed.json linguist-generated
 /pnpm-lock.yaml linguist-generated
 /resources/gpx.xsd linguist-vendored
+scripts/inventory/fixtures/*.png filter=lfs diff=lfs merge=lfs -text

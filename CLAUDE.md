@@ -665,3 +665,554 @@ meant to remove noise.
   spans together unions the generations first and intersects that union with the other sources. Merging them can take
   the ambiguity warning with it as well as the characters: `shiny&1-151,152-251` mixes `,` with `&` and earns the
   caveat, where `shiny&1-251` does not.
+
+## Driving Pokémon GO over `adb`
+
+`scripts/inventory.mts` steers the game by screenshot and tap, so every step is a guess about a screen that has no
+accessibility tree to ask. Three traps, each of which read as a different bug than it was.
+
+- **Find a control by its text only where the text sits inside it.** Storage's search box and the Appraise row qualify;
+  the main menu's Pokémon button does not. Its label OCRs as `131,1735 186×32` and the icon's centre is `224,1874`, a
+  little over four label-heights below — so tapping `centre(line)` lands on the backdrop, which dismisses the menu and
+  drops back to the map. Three rounds of that is `could not find Pokémon storage; open it by hand and run again`, which
+  reads as the game being somewhere unexpected rather than as the tap being wrong. The configured `taps.pokemonButton`
+  at `[0.25, 0.82]` is inside the icon and works, so that button is tapped blind.
+- **Clearing the search box uncovers the Recent and Recommended suggestions, and Enter does not dismiss them.** With
+  text in the box the filtered grid shows behind and Enter only takes the keyboard away; with the box empty the panel
+  covers the grid outright, so `openFirst` finds no `CP` label and falls back to `taps.firstTile` — which lands on the
+  first Recent chip and searches for whatever was there last. That is worse than failing: the corpus silently became one
+  account's saved `0*,1*,2*&!costume&…` at 1,645 of 12,766, and the only sign was a query in a box nobody reads. One
+  Back closes the panel and leaves the unfiltered grid. Detect the panel by its own `Recommended` heading rather than by
+  the grid looking empty, since a search that genuinely matches nothing looks exactly the same and a Back there would
+  walk all of storage under that flag.
+- **A tile opens with an animation that outlasts one wait.** Read 1.1s after the tap, the detail screen has no CP or HP
+  on it yet, and `keyOf` cannot tell that from a grid with nothing in it — so the tap is reported as
+  `storage looks empty, or the first Pokémon did not open` on a screen that opened perfectly and finished a second
+  later. `readDetail` already retries once for exactly this, so `openFirst` goes through it rather than judging a single
+  screenshot.
+
+### Reading PGSharp's overlay
+
+The detail screen's CP does not survive OCR and the scanner no longer tries: white text over the artwork, it came back
+`ce1385` on one species and was not detected as a line at all on another. PGSharp draws `L25 IV86 14/13/12` over the
+same screen, which is the level and the three IVs stated outright, so that is where they are read from — and the
+appraisal pass, seven taps and some nine seconds per Pokémon, went with it.
+
+- **The overlay is drawn over Unity rather than by it, so it does not move between species — and does move between
+  devices.** `ocr.mts` is right that the game's own layout must be found by its text rather than by coordinates, and
+  this is the exception: measured at x 337-666, y 438-494 on two unrelated species, identical. So find the box once, on
+  whichever Pokémon first yields one, and crop every later screen out of it. Do not write the fractions down as a
+  default, because they are fractions of one phone's screen; finding it per run is what makes a new phone need no
+  configuration at all.
+- **Find it by sweeping isolated bands, not by looking through a whole-screen read.** Searching the lines `readLines`
+  already produced is the cheap and obvious thing and it does not work: nine of twelve captures on one phone and none at
+  all on the next, where the overlay straddled the boundary of the inverted top-fifth crop and was too low in contrast
+  for the sparse pass either side of it. Isolating first is what makes the line legible, and a band a few percent of the
+  screen tall is small enough that the rest of the screen cannot drown it. Keep only a box that actually yielded a
+  reading, since one that merely looked right goes on being wrong for every Pokémon behind it.
+- **Read each band as a line, not sparsely, and do not size the box from what comes back.** A band is one line by
+  construction, and the mode matters more than anything else in the sweep: the band holding `L1 IV48 5/2/15` on a bright
+  screen reads as `r '` under sparse mode and as `L1 1V48 5/2/15` as a line, because isolating turns the bright artwork
+  either side into blocks that sparse mode files as pictures. The cost is that everything in the band comes back as one
+  box, so a box measured from it spanned 626 pixels against a true 329 on one capture and sat 250 pixels right of the
+  text on another. Use the band itself as the box and let a second sparse pass over that crop tighten it where it can —
+  twelve of twelve on the first phone with the tightening, both captures on the second without it. The null it answers
+  when it cannot tighten must not be read as a failure: the band it was handed already holds the text.
+- **PGSharp centres its overlay, which is what makes sweeping the middle 70% safe** — 718 and 720 against a screen
+  centre of 720 on one phone, 501 against 504 on another, and the widest of those boxes 38% of its screen. Sweeping the
+  full width works too; sweeping the middle leaves out whatever sits along the edges, the movable PGSharp toolbar in
+  particular, which is otherwise read as part of the same line.
+- **Where a box is sized from a line, size it from character width, never from the height Tesseract reports.** The same
+  overlay row came back 25, 28, 49 and 54 pixels tall across twelve captures, as Tesseract merged it with whatever
+  fragment of artwork sat beside it — and padding a 54 by half of itself reaches far enough into the picture to undo the
+  crop. Character width does not wander: 270/17, 264/17 and 130/8 on those same captures are all within a pixel. Anchor
+  on the right edge and extend left, too, since the half that goes missing is always the left one — twice, only
+  `10/11/14` was located, with the level and percentage still on screen ahead of it.
+- **Upscale 2x and no further.** At 1x Tesseract read `14/18/12` for `14/13/12`; at 2x it read it correctly in every
+  treatment tried; at 3x and 4x it began reading the level's `L` as a `1`. Nearest-neighbour is enough.
+- **The IV percentage is colour-coded by quality and cannot be thresholded alongside the white text** — magenta at 93,
+  cyan at 86, green at 75, so magenta's luminance of about 78 falls below any floor that keeps the dark box out.
+  Isolating near-white (luminance >= 150, chroma <= 55) therefore deletes it — along with the `✨` PGSharp appends for a
+  shiny, which is worth knowing is there, since it is a signal the flag passes currently buy with a whole search each.
+  That deletion is the point rather than the cost: it is `floor((a + d + s) / 45 * 100)` and derivable from the three
+  IVs beside it. Measured, that isolation reads **12 of 12** IV triples where the same screens read whole give 3.
+- **The level is the one field of the three to distrust, and the way out is to read it as a shortlist.** The small-caps
+  `L` comes back as `L` on one phone and `1` on another, and the `IV` label behind it as another `1`, so `151` is `L15`
+  and a stray or a stray and `51` and the string cannot say which — `131` for `L31` is the same question on the other
+  phone. Do not pick. Offer every one and two digit piece of every run of digits ahead of the IVs and let `levelsOf`
+  intersect them with the levels that reproduce the HP: generous where it is cheap to be and exact where it matters. It
+  resolves the HP's own ambiguity in the same step, which is the part worth remembering — HP alone answered `30.5 or 31`
+  for the Shroomish and the digits alone `1, 13, 3 or 31`, and together they answer 31. Restricting this to the first
+  run was tried and is wrong: a band wide enough to find the overlay is wide enough to read a stray `4` to the left of
+  it, and that was then the only candidate, disagreeing with an HP that was perfectly clear. Measured, 12 of 12 levels
+  across the older phone's captures and both of the newer phone's.
+- **PGSharp's toolbar covers the first letter of whatever is behind it, so do not key off a heading.** Storage's
+  suggestions panel has to be recognised before it can be dismissed, and its `Recent` heading OCRs as `serccemt` with
+  the toolbar over the `R` while `Recommended` is not read at all. Recognise it by what it lacks instead: an empty
+  search matches everything, so a grid with no `CP` anywhere in it is that panel and can be nothing else. The user can
+  move that toolbar, which is the other reason not to depend on where it sits.
+- **A key that needs the CP is a key that does not exist.** `keyOf` required CP and HP, so with CP unreadable every
+  screen keyed null, `walk` counted three unreadable screens and stopped after three Pokémon — which reads as a broken
+  walk rather than as a broken CP. HP, weight, height and the IVs together discriminate better than CP ever did.
+
+### Making a reader more reliable
+
+`--keep-screens` saves every screenshot a scan takes, which turns "the OCR is flaky" into something with numbers on it:
+run the readers over a corpus of real screens, count each field, and fix the worst. Twenty-five Pokémon was enough to
+rank them, and the ranking was not what watching the scan suggested.
+
+- **Measure per field before changing anything.** The first count put types at **6 of 25** and everything else between
+  22 and 25, which is not what the log looked like — the log was full of `moves not fully read`, because that is what a
+  note is written for. Read the corpus, not the complaints.
+- **The whole-screen sparse pass is the weak link, every time.** Each field that read badly read well once it was found
+  by something else and then cropped, doubled and read as a single line with an alphabet: the types 6 to **25 of 25**,
+  the overlay 3 to 25. It is the same fix each time, and the reason is the same each time — sparse mode is being asked
+  to find small text among artwork, where a line read knows what it is looking at.
+- **Fixing an input fixes its consumers.** Types are not just a column: `identify` narrows candidates by them, so
+  missing types were also three species read as something the numbers then contradicted, and alternative lists running
+  to thirty forms. Reading them properly took the corpus to **25 of 25 forms identified, every one unambiguous, and none
+  disagreeing with its name** without touching `identify` at all.
+- **Size a band from something that does not vary with the reading.** The type band is measured in the anchor line's own
+  height, and the two candidate anchors do not report the same one — `0.44m` came back 45 pixels tall where the `5.42kg`
+  beside it came back 58, and a band sized off the shorter ended six pixels into the labels. Anchor on either of a pair,
+  and leave room for the smaller.
+- **A box tightened on one screen will clip another, so widen it rather than trusting it.** Two of twenty-five overlays
+  missed against a box cached from the first Pokémon, and both read perfectly against one swept for themselves — a three
+  digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
+  flip between the two Pokémon that disagree.
+
+### Telling two forms apart when the numbers cannot
+
+Some forms are identical in every field the detail screen states. HP is a function of `stamina` alone, so two forms
+sharing their types and all three base stats cannot be separated by anything `parseDetail` or the overlay reads — and
+`identify`'s fold then keeps whichever has the shorter form name, answering it with **no alternatives and no notes**.
+Measured against a real `loadGameData('.cache/inventory')`, 13 of the committed rows are in that position: Basculin's
+three are all `189/129/172 Water`, Burmy's three `53/83/120 Bug`, Deerling's four `115/100/155 Normal+Grass`, Genesect's
+five `252/199/174 Bug+Steel`, Cherrim's two `170/153/172 Grass`, Keldeo's two `260/192/209`, Shellos' two
+`103/105/183 Water`.
+
+The artwork is the only thing left, and the game master addresses it: every such form carries a distinct
+`assetBundleValue` under `formSettings`, 11 upwards, which is how PokeMiners' assets are named —
+`Images/Pokemon/pokemon_icon_585_11.png` is Spring Deerling, `_12` Summer, `_13` Autumn, `_14` Winter. They fetch at 6
+to 12 KB each, `Form.icon` carries the value, and `scripts/inventory/artwork.mts` compares a 12-bin hue histogram of the
+capture's artwork against those icons. `identify` takes the answer as a narrowing ahead of the fold, where PGSharp's
+bracketed suffix already goes. The figures below are measured over 17 captures from six families.
+
+- **The backdrop is the whole problem, not the colours.** A histogram over a fixed box scores **8 of 17**, because the
+  game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png` stands on an
+  orange bokeh event background against which a pink Deerling is some 15% of the frame, and the naive match called it
+  Winter. Worse than the misses are the confident misses — `shellos-west.png` came back East Sea with a 0.646 margin,
+  which is a reader being wrong and saying nothing about it.
+- **Bound the subject by the panel below it and by sharpness.** The game's own panel is flat rgb(224,224,224), so the
+  first row that is mostly panel is where the artwork stops; the model is rendered crisp over a blurred scene, so a
+  local-gradient mask grown by a few pixels covers it and not the backdrop. That takes the match to **12 of 17** and
+  fixes all four Deerling, the hardest family.
+- **Then keep only the largest connected component, because a backdrop is not always blurred.** `shellos-west.png` is a
+  pink Shellos on flat teal with crisp bubbles drawn over it, so dilating from those edges floods the mask with the one
+  colour that is also East Sea's. The Pokémon is one large component and the bubbles are small separate ones. This does
+  not raise the hit rate — still 12 of 17 — and it is the change that matters anyway, because it takes that capture's
+  margin from 0.407 down to 0.211 and so below any threshold worth using.
+- **Judge it on the margin, not the hit rate.** At a runner-up margin of 0.30 it answers **8 of 17 and is right on all
+  8**, abstaining on the other nine. That is the shape a reader here has to have: `defects` exists because a wrong
+  answer nothing flags is the expensive kind. Of the 13 rows the numbers cannot reach it settles five —
+  `deerling-summer`, `deerling-winter`, `burmy-sandy`, `burmy-trash` and `cherrim-overcast` — and the suite derives the
+  figure that justifies the threshold rather than restating it: **five** of the eight it declines are captures whose
+  nearest icon is the wrong one, so taking the nearest regardless would be confidently wrong five times.
+- **An abstention costs nothing and fixes nothing, which is worth being clear about.** `identify`'s fold removes the
+  rivals rather than demoting them, so a declined call still comes back as one form with no alternatives and no note —
+  `shellos-west.png` is answered as East Sea whether the artwork is consulted or not. Closing that means `identify`
+  reporting the fold it performed, which changes every row of the CSV.
+- **Require a signature for every candidate, not for two of them.** Otherwise a form the game master gives no
+  `assetBundleValue` is dropped for having no icon rather than for losing on its colours. That is why Basculin is never
+  narrowed, and it is checked rather than assumed: the suite's `ARTWORK` table deliberately holds no Basculin.
+- **The test records the signatures and a scan downloads them.** The same division the game master already has, and for
+  the same reason — a test of a reader must not reach the network. A scan fetches 86 icons once, under a megabyte, into
+  the git-ignored `.cache/`. A missing one is an abstention and not a failure: `pokemon_icon_718_1.png` is a 404,
+  Zygarde's value not following the 11-upwards pattern, and the scan reports it and carries on.
+- **Genesect cannot be done this way and that is worth knowing before trying.** Its five forms are one robot with a
+  differently-coloured drive cassette a few pixels across, so all five distances sit between 1.54 and 1.67 with margins
+  of 0.015 to 0.020 — indecisive by construction rather than by a weak mask. Expect to abstain on it for ever, and read
+  a tiny margin there as the measurement rather than as something to tune away.
+- **`assetBundleValue` is not always there.** `BASCULIN_WHITE_STRIPED` carries none where Red and Blue carry 11 and 12,
+  so a form's icon is not addressable from the game master alone in every case, and `basculin-white.png` was left out of
+  the 17 for that reason.
+
+### Pinning a reader with a committed capture
+
+`pnpm test:inventory` runs `scripts/inventory/screens.test.mts` over 62 real screenshots in
+`scripts/inventory/fixtures/`. Every reader on the detail screen is a pure function of one screenshot, so the screenshot
+is the whole of what a test needs — no phone, no network, and a hermetic `GameData` of eighteen type names for
+`parseDetail` plus, for `identify`, 122 forms over 41 species and the 101-entry CP multiplier table, each value read
+once out of a real `loadGameData` and recorded in the file. 1,133 tests in about four minutes, OCR being all of it: each
+attribute is a subtest under a parent per capture, so a failure names the reader that broke, and the reading is memoised
+per capture, which is why the assertions are free and only the 62 OCR passes cost anything.
+
+59 of the captures are a `Fixture` row, 30 species between them. The other three are not detail screens with a readable
+Pokémon and so cannot be rows — `overworld.png` is the map, and `no-pgsharp.png` and `pgsharp-no-overlay.png` are one
+Squirtle captured with PGSharp absent and with its toolbar up — so they are asserted as negative cases instead, which is
+the half of a corpus that valid screens cannot state: no overlay found, no HP, nothing `identify` could narrow.
+
+- **A row says what the Pokémon is, not what the readers answered.** Every field is the game's own statement of it: the
+  CP above the artwork, the name and the HP under it, PGSharp's level and IVs over the middle, all readable off the
+  committed file by anyone who opens it. So the assertions are what the readers must agree with rather than a transcript
+  of whatever they said first. What the orientation buys is measurable rather than tidy, and it is the CP: `cpOf`
+  derives one from the form, the IVs and the level's multiplier where the screen states it outright, and the arithmetic
+  cannot be wrong, so the two meeting means the form, the IVs and the level are every one of them right. A table
+  recording `cp` as whatever OCR made of it can only cross-check the captures OCR read a CP on, which is **20** of the
+  59; a table recording what the screen shows reaches the **56** where `identify` settles on exactly one level, agreeing
+  on 50. The other six are the check doing its other job rather than failing to run: each derives a CP that disagrees
+  with the screen, which is the pipeline saying the form or the level is wrong. It is also what settled the Ho-Oh below
+  to the digit, where a transcript could only have recorded the wrong answer.
+- **Pin a figure the prose quotes in a test, because prose is the one part of a test file no test reads.** That docblock
+  claimed the cross-check landed on **39** of the 61 for as long as nobody measured it, where it is 32, through a green
+  1,169-test suite — a count is exactly the kind of claim that rots silently. `COVERAGE` in that file is now eleven such
+  figures asserted in one `deepStrictEqual`, counted off `FIXTURES` rather than transcribed, with the partitions (40 +
+  1 + 20 = 61, 32 + 8 = 40) asserted beside them so three counts cannot all be right and still sum wrong.
+- **Select a fixture with a search that pins every attribute at once, and commit the search beside it.** A capture
+  chosen because a sprite looked small is only as good as the eye that chose it, where
+  `xxs&female&!lucky&!shiny&!costume&!background&!shadow&!purified` is the game stating all eight and is falsifiable:
+  re-run it and the first match is in the set the row claims. That is where a row's `size` and its six flags come from.
+  Negation is the half that only the search can give, too, since nothing on the screen says a Pokémon is **not** lucky —
+  so the seven searches live in a table above `FIXTURES` rather than in the rows, the rows having become statements
+  about the Pokémon and a search being neither that nor a reading. A capture is named for its species for the same
+  reason, and the species is still a field, because two of the 61 are Smolivs and two print the nickname `96%` where
+  their species should be: a file name is not a column. The other 54 rows have no search behind them, which is weaker
+  provenance and worth saying so — they arrived named for a form, a treatment or a missing overlay, and the name is a
+  claim the rendered screen then has to bear out.
+- **Re-encode a capture as colour-type-2 RGB before committing it.** The phone hands over RGBA with a fully opaque alpha
+  channel, so dropping it is lossless. Verify it by decoding the output back and comparing every non-alpha byte, since a
+  re-encode that quietly changed a pixel would move the very readings the fixture exists to pin. The corpus comes to 53
+  MB against a `.git` of 56 MB, which is the real cost of this and worth stating rather than discovering — and **57 of
+  the 64 are still colour type 6**, every one of them with a uniformly opaque alpha channel. Re-encoding those 57 as RGB
+  takes 50.3 MB to 35.6 MB, so **14.1 MB, 29%, is recoverable and lossless**, verified byte for byte on two of them.
+- **`encodePng` cannot do that re-encode, and a filter-0 encode is the wrong way to measure it.** `png.mts` writes
+  `[8, 6, 0, 0, 0]` into every IHDR, so it only ever emits colour type 6 — whatever produced the seven committed RGB
+  captures was not this repository. Use adaptive row filtering when measuring, too: the phone's own files are adaptively
+  filtered, and a filter-0 re-encode makes those seven **larger** by 0.6%, which would read as the saving not being
+  there at all. No `optipng`, `pngcrush` or ImageMagick is installed on this machine, so the encoder is yours to write.
+- **Assert every field, and put the disagreement in a `defects` field rather than leaving the field out.** A field
+  quietly dropped from an assertion is indistinguishable from one that passes, which is what the earlier shape cost:
+  `heightM` was left out because the badge corrupts it, `name` because one fixture is nicknamed `96%`, and `cp` because
+  `cpOf` derives it — three readers free to change their answers unremarked. So the row states the truth and an optional
+  `defects` beside it states what the reader answers instead, which is the inverse of recording the reading and
+  softening the row: fixing a reader fails here and has to say so. **22 of the 59 carry one**, eleven of the fourteen
+  `Defects` keys are in use, and the corpus test asserts the pinned set _exactly_ rather than one `ok` per key — so a
+  key arriving is as loud as a key leaving, and `box`, `favourite` and `tags` being absent is the record of three
+  readers fixed. It also asserts that some capture carries none, 37 doing so, since a reader wrong everywhere would
+  otherwise pass every row it had an entry in. Read the keys rather than testing them for truth: some of them are
+  `null`, and a truth test files those as absent.
+- **Two absences are two defects and a row has to say which.** `findOverlay` finding no box is `defects.box: null` where
+  PGSharp drawing no overlay at all is `overlay: null` on the row itself — so a row that conflated them could not say
+  whether the reader was wrong or right. Only the second is left: `findOverlay` has stopped missing a box that is on the
+  screen, so `defects.box` is asserted as an empty list rather than deleted, which is what makes a capture needing it
+  again visible. `defects.iv` is the third stage and holds a triple as well as a `null`, since `readOverlay` can read
+  one that is simply wrong — `basculin-blue.png` at `3/3/5` for an `8/3/5` is the only row left whose IVs are.
+- **A reading the whole corpus agrees on compares equal for ever and reads exactly like agreement.** 59 of the 61 carry
+  no chip, so a `tagsOn` returning `[]` unconditionally passes every row but two; 54 wear no badge, so a `sizeOf`
+  returning null passes 54. So assert the corpus's own coverage in a test of its own — that both sides of each flag
+  appear, that the size column holds all four bands and none, that some fixture carries two chips — and check that
+  dropping a fixture makes **that** test fail, which it does.
+- **Assert a gap in the corpus as the gap it is, rather than leaving it to be discovered — and then fill it.** `shadow`
+  and `purified` were false on all eight of the original captures, so nothing said either column was ever filled in and
+  the coverage test could not ask for both sides of them; asserting that they were all false is what made the hole
+  legible. `snorlax-purified.png` and `thundurus-shadow.png` are what the assertion was for: each failed that line on
+  arrival and got read into a row instead of silently joining a pair with one side, and the coverage test now asks for
+  both sides of all five flags.
+- **A regression fixture needs the trap asserted present, not just the reader asserted right.** The status-bar row's
+  assertions would read identically on a capture whose status bar held nothing to trip over, so a separate test asserts
+  that a line above the panel still OCRs as a loose measurement and that it is not the height. A capture is a file and
+  cannot change; which lines Tesseract finds in it can.
+- **Mutate every reader and account for each break that survives.** Nineteen breaks over these eight fixtures: sixteen
+  caught, by between one and seven fixtures each, and three shown unreachable rather than left as a bare 0 — the
+  zero-versus-non-zero fractions above, a `patchIn` bounding box one pixel narrow (the pill has white padding and the
+  crop feeds OCR, so a pixel changes no reading), and `SIZE_FILL` at 0, which only ever skips the OCR early: with no
+  saturated pixel `patchIn` answers a degenerate box, `crop` clamps it, and the badge still spells nothing. That last
+  one says `SIZE_FILL` is a cost control and not a correctness check, which is worth knowing before tightening it.
+- **Grep a mutation harness's own output at your peril.** One pass reported `pass=0 fail=1 caught=[]` for a break that
+  was in fact caught — the figure came from a parse of the test runner's output, not from the runner. Print the failing
+  test names the runner printed, and print a run that did not complete as a failure rather than as a number.
+- **`node --test` prints `spec` and not TAP, even into a pipe, so there is no `not ok` to grep for at all.** That is the
+  mechanism behind the bullet above, and it reads as a weak corpus rather than as a broken parse: every verdict comes
+  from the exit code and every break is recorded as having been caught by nothing. A failure is a `✖` line, and the
+  runner also prints its own `failing tests:` block — but that block lists leaves _without_ their parents, so where
+  eight captures each own a subtest called `identify levels` it cannot say which capture failed. Parse the indented live
+  log above it and rebuild the path from the `▶` lines. Then cross-check the parse against the exit code and print the
+  disagreement as `INCOHERENT`, which is what stops a verdict being banked for a run the harness could not read.
+- **A mutation pass over this suite need not edit the tree at all.** The test resolves its fixtures from
+  `new URL('fixtures/…', import.meta.url)` and `screens.mts` imports only three siblings, so a copy of the four modules
+  under `/tmp` beside a symlink to `fixtures/` runs the same suite — verified by a pristine control answering the same
+  166 pass off-tree. That retires the signal-handler hazard rather than managing it, and it is not merely tidier:
+  captures were being taken out of this checkout while a pass was running, so an in-place mutation would have handed a
+  live scan a deliberately broken reader.
+- **Run the whole pipeline on every capture, not on the one that looks hardest.** `identify` was asserted on the Unown
+  alone, and a break making `levelsOf` admit any HP at or above the one read survived it: the Unown's own shortlist is
+  `[1, 6, 16]`, whose largest member is already the true level, so nothing it could admit changes the answer. Asserting
+  `identify`'s form, levels, CP, nickname, alternatives and notes on all eight takes that break to **five captures
+  failing**, and costs no wall clock, the reading being memoised and the arithmetic free. Assert the two properties that
+  make it catchable in a test of their own — that some capture's shortlist offers a level **above** its true one, and
+  that some capture's does not contain its true level at all — since a corpus can quietly lose either. They belong in a
+  test that reads them off the captures rather than in a column of the table, a shortlist being a reading and not a fact
+  about a Pokémon, and that is also what keeps the second one honest: `fixtures/spoink.png` is offered `1` alone for a
+  Pokémon at level 7, so its HP is the only thing that settles the level.
+- **Account for a survivor over every capture on the machine, not only over the committed eight.** Three of twelve
+  breaks in the second pass survived and the git-ignored snaps settle all three by derivation, which is cheaper than a
+  fixture and does not commit an account's data. Dropping the name reader's second filter, the one that removes a
+  CP-like line, moves **0 of 23** captures: `l !== cpLine` already takes the one CP each screen has, so the filter earns
+  its place only where OCR reads a CP twice, and no real screen here does. Narrowing `OVERLAY_SUFFIX_CHARACTERS` from 5
+  to 1 reads the bracketed form identically on every Unown here and reads one capture _better_, for the reason
+  [the overlay section](#reading-pgsharps-overlay) now records — and a mutation that improves a reading is not a defect,
+  so nothing can catch it. The ternary intersecting the overlay's shortlist with the levels the HP admits moves **1 of
+  23**: it needs an HP that two adjacent half-levels both reproduce _and_ an overlay naming one of them, which
+  `pikachu-santa-hat.png` has at 76 HP for level 22.5 or 23 and no fixture committed at the time had at all.
+- **Re-run a survivor once the corpus grows, because "unreachable with this data" is a claim about the data.** That
+  ternary is now caught: `pikachu-santa-hat.png` and `cherrim-sunshine.png` are both committed rows, and dropping the
+  intersection moves exactly those two of the 64 — `[23]` to `[22.5, 23]` and `[31]` to `[31, 31.5]`. Measured off the
+  recorded readings rather than by running the suite, which is seconds instead of three minutes: import the real
+  `identify` and a copy of `screens.mts` with the one line changed, and diff their answers over every capture.
+- **A cut-down game master is honest only once it is measured against the real one.** The 122 forms recorded in the file
+  and a real `loadGameData('.cache/inventory')` carrying 1,449 over 1,024 species answer `identify` identically on **all
+  64** captures, field for field — form, CP, levels, nickname, alternatives and notes — down to one capture's five
+  alternatives and all three of its notes, and including the map, where both decline. It works because `identify`
+  narrows before it chooses — by species where the name matched, by type and HP where it did not — and because the
+  costume fold collapses Pikachu's 69 forms and Unown's 28 to one each. Unown's 28 and Spinda's 20 are all kept even so,
+  since PGSharp's bracketed form chooses between them _before_ the fold. `closest` was measured on the same footing, 41
+  species against 1,024: both answer null for each of `ate`, `ee JEN`, `aals15` and `Nickname`, and `Nidoran♀` for
+  `Nidorano`.
+- **Note that `loadGameData` is `async`, and type stripping will not catch you forgetting it.** Reading `.forms` off the
+  un-awaited Promise answers `undefined` at run time rather than erroring, because Node's own type stripping erases the
+  annotations without checking them — so a one-off probe run with `pnpm exec node` has none of the help
+  `pnpm lint:types` would have given. It surfaces as `Cannot read properties of undefined`, several lines after the real
+  mistake.
+- **Asserting a field the suite used to discard is what finds a defect; pin it rather than fixing it in the same
+  change.** Five findings across three of the eight captures, each pinned in that row's `defects` and stated with its
+  evidence in the suite's own docblock. The one to know about is not a reader at all: `fixtures/ho-oh.png` is **answered
+  as a Charizard and is a Ho-Oh**. Its nickname hides the species, five forms fit Fire/Flying at 152 HP after the fold,
+  and `fits` asks whether _some_ level reproduces the HP and checks the level the overlay states only afterwards,
+  against a form it has already chosen — where of those five only Ho-Oh shows 152 HP at the `L25` the capture states.
+  The CP settles it outright and is the strongest evidence of the lot, which is the first bullet of this section paying
+  for itself: a Ho-Oh at level 25 with 13/15/15 derives **2738**, the `CP 2738` the capture prints, where the Charizard
+  answered at level 34.5 derives 2640. Its 246.49kg and 4.6m agree too, against a Ho-Oh's base 199kg and 3.8m and a
+  Charizard's 90.5 and 1.7. That is a one-clause change to `fits` and a change to what the code does, so it is a pull
+  request of its own and not part of writing the tests.
+
+### What the detail screen will and will not tell you
+
+Worth settling once, since two of these look as though they ought to be readable and are not. Checked by opening one of
+each and reading the whole screen down to `SWAP BUDDIES`.
+
+- **The size is on the screen, in four bands and not two**: a pill saying `XXL`, `XL`, `XS` or `XXS`, drawn over the
+  height. So it is read rather than searched for, and the four are no longer flags. Checked against the game's own `xxl`
+  search, which marked the same Applin — 5/2/15 at 0.33m — that the badge does. `src/search/terms.js` already had all
+  four, and modelling only the two extremes meant `XL` and `XS` read as nothing at all.
+- **Try the longest badge first.** `XXL` contains `XL` and `XXS` contains `XS`, so a list searched shortest-first
+  answers `XL` for every `XXL`. Two of the eight committed fixtures catch that on their own.
+- **The pill's hue tracks the superlative rather than the size, so find it by saturation and never by colour.** It is
+  gold where that measurement is also a personal record for the species and teal where it is not:
+  `scripts/inventory/fixtures/unown.png` carries rgb(192,160,64) under a `SHORTEST` where `fixtures/smoliv-xxs.png`
+  carries rgb(96,192,192) under a plain `HEIGHT`, its gold `LIGHTEST` being over on the weight instead. A gold test
+  therefore answers only for a Pokémon that happens to be the tallest or shortest of its kind, which is why it read **0
+  of 78** real captures. Any hue at all separates it from a panel that is neutral rgb(224,224,224), and finds all four
+  bands.
+- **Anchor that band on the height alone, not on the row the height shares with the weight.** The pill sits above the
+  height, and a band taken as a fraction of the screen's width instead reaches past the right edge of the panel into the
+  page behind it, which is saturated navy and swamps anything the pill contributes. It is also what kept the older gold
+  test honest only by luck: the tall narrow patch of gold in one capture's artwork that passed it was in reach of the
+  wide band and is not in reach of this one.
+- **Crop to the pill before reading that badge.** The text is white and so is the panel around it, so isolating the
+  white over a band containing both turns the panel black as well and hands Tesseract a black page with one white island
+  in it — legible to a person, unreadable to anything else. The pill is the only thing that separates them: find it by
+  saturation, crop to it, and the badge becomes the whole page, where the text really is dark on light. The saturation
+  is a cheap pre-filter too, since most Pokémon have no badge — but not a sufficient one, so the text still has to spell
+  one of the four.
+- **The badge corrupts the height it is drawn over, which is a defect and not a quirk of one capture.** The pill's tail
+  points down into the digits, so `fixtures/spoink.png` renders `1.1m` and reads `1.4m`. It is the tail's position
+  relative to the digits that decides it rather than the badge's presence: `fixtures/xurkitree.png` wears the same gold
+  `XXL` and reads its `5.78m` correctly, because there the tail lands in the gap above the `8`. So a height from a
+  badged screen is suspect and a height from an unbadged one is not.
+- **A costume says nothing at all.** A costumed Pikachu is named `Pikachu` like any other and differs only in the
+  artwork, so costume can only come from the game's `costume` search, as a flag pass.
+- **Lucky, unlike costume and shiny, _is_ on the screen: the game draws `LUCKY POKÉMON` in green under the nickname.**
+  Visible on `scripts/inventory/fixtures/ho-oh.png`, and it is the game's own text rather than PGSharp's, so it scales
+  with the screen and is generalisable the way the size badge turned out to be. Nothing reads it yet — `lucky` is still
+  a flag pass, which is a walk of every lucky Pokémon in storage — so this is an opportunity rather than a trap. Do not
+  confuse it with the `Lucky ☘` **chip** on the same capture, which is one of the account's own tags.
+- **Tags are on the screen, as chips under the HP** — and finding that out took being told, because the check that said
+  otherwise could not have found them. Eighty-seven captures showed nothing between the HP and the weight, and not one
+  of those Pokémon was tagged: a band that is empty on every screen you own reads exactly like a band that is always
+  empty. The one tagged Pokémon that had been opened was only ever captured _scrolled_, with its chip above the fold. So
+  `--tags` names the tags to expect and nothing is searched for, which is a walk of 76 Pokémon saved.
+- **A chip is white on a coloured pill, so the colour finds it and the columns separate them.** One pill per tag, side
+  by side, so reading the row whole would run the names together; a run of coloured columns is one chip. Match what is
+  read against the names rather than trusting it, since `Trade to 0xNULL` comes back as `Trade to OxNULL` and only
+  agrees once folded.
+- **A chip named `Shiny` or `Lucky` is still one of the account's own tags, not a reading of the Pokémon.** Confirmed by
+  scrolling storage's own TAGS tab, which is where the vocabulary comes from: `Favorites` 1836, `Perfect` 406,
+  `Shadow ●` 21, `Mega Ω` 33, `Background ⛶` 24, `Lucky ☘` 24, `Level 50` 19, `GBL` 7, `Dynamax ⌗` 5, `Purified ○` 1. So
+  a chip reading `Shiny` is evidence about the player's filing and none at all about the Pokémon, which is why `shiny`
+  is still a flag pass on an account that happens to tag its shinies. The emoji inside the pill reads as letters —
+  `Shiny ✦` comes back `Shiny SJ` and `Lucky ☘` comes back `Lucky Me` — so the vocabulary is what turns a chip into a
+  name.
+- **Look in the top of that gap, not all of it.** The type icons sit at the foot of it and are coloured too, and a
+  Pokémon whose types are colourful — a Woobat against a Normal-type Glameow — has them in the same columns as its chip.
+  That makes one run of the two and drops its fill from 86% to 34%, which reads as no chip at all: three of six
+  known-tagged Pokémon were lost that way, and all six read once the band stopped short of the icons.
+- **Derive that band's floor from the gap rather than writing a fraction down, because the margin is a pixel wide.** At
+  0.45 of the gap the band clipped `scripts/inventory/fixtures/ho-oh.png`'s two chips, which span rows 44–110 of the
+  gap's 220, to a height of 55 against a floor of 2244 × 0.025 = 56.1 — so both chips of the only tagged capture in the
+  corpus were discarded by **1.1 pixels**, with their fill at 0.86 and nothing reporting it. Taking the whole gap is no
+  better, since that is the merge above. What makes it derivable is that the icons always reach the gap's bottom row and
+  a chip row never does, so the floor is the top of the last run of coloured rows, read off the gap itself: 188–219 for
+  the icons with 77 blank rows above them, against 44–110 for the chips.
+- **A pass reads most of its set, not all of it.** Before the tags were read off the screen, a pass over
+  `Trade to 0xNULL` marked 73 where the game says 76 have it, without the walk ever reporting that it gave up. Read a
+  pass's count against the number beside the game's own search and treat a few per cent short as ordinary; on a large
+  set — `shiny` is 733 here — that is tens of Pokémon whose flag will be blank rather than wrong.
+
+### Reading a move against what the Pokémon can learn
+
+The game master carries `quickMoves` and `cinematicMoves` per form, and `eliteQuickMove`, `eliteCinematicMove`,
+`nonTmCinematicMoves` and the shadow pair beside them. Together that is a median of **seven** moves against the 328 a
+row was being matched against, and matching against the seven is the single largest thing that can be done for the moves
+— 45 of 50 fast moves and 45 charged before, 50 and 50 after.
+
+- **A small candidate set affords slack a large one cannot.** `oO Tackle`, where the type icon has come through as two
+  letters, is two edits from `Tackle` and was rejected outright at the slack the full list needs. Against a pool of two
+  it is not close to anything else. Keep the full list as a fallback, since a Pokémon can still hold a move the game has
+  since dropped from its pool, and `Smeargle` has no pool at all.
+- **Bound the region below as well as above.** `GYMS & RAIDS` sits immediately above the moves and nothing else does,
+  which makes it the anchor — found on all fifty screens — where the weight and height are most of a screen away. Below
+  them, `CAUGHT IN THE WILD` and `São Paulo, Brazil` are ordinary prose, and reading down into them produced a `Rest`
+  and a `Fly` that neither Pokémon could learn. A row that is all digits is the power, not a move.
+- **A rescue read answers only to the pool.** Cropping a row and reading it again on its own recovers the ones the
+  whole-screen pass half caught — `t Breath` for `Frost Breath`, icon and first letters gone — but it is the least
+  trustworthy text on the screen, so offering it the whole list is how `Rest` and `Fly` got in. Restricting the rescue
+  to the pool and the region to the tabs took the band reads from 20 per screen to 0.5 and the false matches to none.
+- **`NEW ATTACK` cannot be used to tell whether a second charged move exists.** It is white on a green gradient and
+  never reads: 0 of 75 screens, on screens where a crop shows it plainly. Count the move rows instead — 60 of 75 have
+  exactly two, which is what one fast and one charged looks like.
+
+### Two ways a reader fails without reporting anything
+
+- **A crop that clips one end keeps what is at the other, and that reads as a success.** The overlay box is sized from
+  the width of one character, estimated from whatever line was recognised — often the three IVs alone, which
+  under-estimates it. A box tightened on one Pokémon then clipped the `L31` off the next while keeping its IVs, so the
+  read succeeded, nothing widened the box, and only the level was gone. Widening on a failed read does not cover this;
+  the answer is to reach further than the text can need — 19 characters reads 49 of 50 levels and 30 reads all of them.
+- **That holds leftward and not rightward, because what sits to the right of the overlay is the shiny sparkle.**
+  `OVERLAY_SUFFIX_CHARACTERS` reaches past the IVs for the bracketed form PGSharp appends, and measured over the 23
+  captures on this machine, 5 characters buys nothing a single character does not — the form reads identically on every
+  Unown — while costing one capture its whole overlay: `unown-m-shiny.png` yields no level and no IVs at reach 5 and
+  yields both at reach 1, the `✨` falling inside the wider box and garbling the triple. So the two reaches are not one
+  constant with two ends. Expect a mutation narrowing this one to **survive the fixtures**, and read that survival as
+  the measurement rather than as a gap.
+- **That survival outlived the reason first given for it, which is why a prediction needs re-measuring and not just
+  repeating.** The explanation was that the corpus held a single Unown. It now holds five — `unown.png`, `unown-b.png`,
+  `unown-exclamation.png`, `unown-m-shiny.png` and `unown-question.png`, with `unown-m-shiny.png` among them — and the
+  mutation still survives, because **all five read byte-identically at reach 1 and reach 5**, levels, IVs and bracketed
+  form alike. `unown-m-shiny.png` in particular yields `null` at _both_ reaches against the box `findOverlay` finds for
+  it, so the committed capture does not reproduce the sparkle effect measured on the snaps; whatever rescued it there
+  was the box and not the reach. Its row carries `defects.iv: null` for that reason. Same verdict, different mechanism,
+  and only re-running it says so.
+- **The unit is the part of a measurement that goes.** A Cyndaquil's `5.42kg` came back `5.42k` and was thrown away for
+  want of a `g`. Match the number: every weight and height the game shows carries a decimal point, and the stray digits
+  a crop picks out of the artwork do not. The decimal point is load-bearing and the screen furniture is where it bites:
+  `scripts/inventory/fixtures/xurkitree.png` has `0900 M © Os` at y38 — a 24-hour `09:00` with a notification icon OCR'd
+  as an `M` — which a `/(\d+)\s*m\b/` takes in preference to the real `5.78m` 1,137 pixels below it, and `sizeOf` and
+  `typesOf` are both anchored on that line and go with it. PGSharp's overlay is the second source, reading
+  `L16 1v53 m 0/7 (B` on one capture where the IVs garbled into a ` m`. Two of 78 captures reach it, so a corpus can
+  easily hold none: of the eight committed fixtures only the status-bar one does, the other seven having been taken at
+  13:xx with no icon beside the clock.
+- **Measure each phone on its own.** Running both corpora through one harness shares a box that widens as it goes, so a
+  box grown on one phone's screens rescues the other's and a real regression reads as a pass. Two phones measured
+  together said 24 characters was worse than 19; measured apart, it was neither.
+
+### Waiting for a screen rather than guessing at it
+
+- **Watch the panel for movement, never the frame.** A fixed sleep after a swipe can only guess, and comparing whole
+  screenshots never settles: the artwork holds an animated Pokémon that never stops and the status bar ticks with the
+  clock. The game's own panel does settle, and quickly — measured through one swipe at 31%, then 6.2%, then 0.54% and
+  steady — so watch `0.34` to `0.95` of the height and call anything under 2% still. Do not wait for zero; it does not
+  come, and 0.5% is what a settled screen looks like.
+- **Accept a reading only once something fits it.** A key that exists says the HP was read, not that the screen was
+  finished. The name, the types, the HP and the IVs all agreeing on one form is what a half-drawn screen cannot fake, so
+  `readDetail` asks `identify` and reads again if nothing fits. Over twenty-five Pokémon that took the IVs and the level
+  from 23 to 25 of 25 and cleared every `searched every species`, for about 10% more time per Pokémon.
+- **Count what is right, not what is filled in.** Gender came back 23 of 25 and looked like the next thing to fix; the
+  two blanks were Xerneas and Articuno, which have no gender. A blank is only a miss where the screen had something to
+  read, so check what the empties are before believing a ratio — and before spending a morning on one.
+
+### Reading the moves, and opening the right Pokémon
+
+- **Anchor the move floor on a line that names HP, not on a pair of numbers around a slash.** `parseMoves` drops
+  everything level with or above the weight and height, and used any `d/d` to find that row. Two other things on the
+  scrolled screen match it: PGSharp's overlay, which separates three IVs the same way, and `30/09/2026` in the catch
+  details — and that date sits _below_ the moves, so the floor landed past them and every Pokémon of a live scan came
+  back `moves not fully read` against a screenshot with `Astonish 7` and `Struggle 35` plainly on it.
+- **A charged move's energy bar OCRs as a couple of short nonsense tokens beside the name.** `© Energy Ball ay Ay` is
+  four characters past `closest`'s slack and matched nothing, which is why the only charged moves read at first were
+  `Struggle`, the one move with no bar. Try the whole row first and drop short trailing tokens one at a time only while
+  nothing has matched — longest-first is what stops `Aqua Jet` being shortened to `Aqua`, which matches nothing and
+  would trade one silent loss for another.
+- **Take the first tile's column from the configuration and only its row from the grid.** How far down the first row
+  sits depends on whether a search is showing, so it has to be read; which column is first does not, since the grid is
+  three even columns and 0.18 of the width lands in the leftmost on both phones. Taking the column from the label too
+  means opening the _second_ Pokémon whenever the first one's CP fails to OCR — in an `xxl` grid of five the top row's
+  only legible label was the middle tile's, so every walk began one along. It cost a member of every flag pass and the
+  first Pokémon of storage in the full one, and it showed up only as a count one short of what the search reported.
+  Check a flag pass against the number the game puts beside the search box, since nothing else notices — but let it
+  settle before reading it. That count is transient: it is drawn while the grid is still filtering and reads the
+  previous search's figure, or nothing at all, for a moment after the text goes in. A count read too early is worse than
+  no count, because it is the one number a pass is judged against.
+- **Read a detail screen more than twice before believing it.** A screen still settling has no HP on it and no overlay
+  yet, and one bad read costs a whole member of a flag pass — which is a Pokémon the full pass then never learns was in
+  the search, rather than a row with a gap in it.
+
+### What the detail screen tells you without OCR
+
+Three of the CSV's columns are pixels rather than text, and one that looks as though it should be is not.
+
+- **CP is derived, never read.** It is a pure function of the base stats, the three IVs and the level's multiplier, all
+  of which the overlay and the game master hand over exactly, so `cpOf` answers 635 for a level 31 Shroomish at 10/7/10
+  where OCR answered null. Where OCR does read a CP, a disagreement is worth a note rather than a correction: the
+  arithmetic cannot be wrong, so the two differing means the level or the form is.
+- **A favourite's star is solid gold and an ordinary one a white outline**, which colour settles outright — 19.4% of
+  that corner gold against 0.00%, over eighteen captures from two phones. The star is the game's own furniture rather
+  than PGSharp's, so it scales with the screen and a fraction holds where one for the overlay did not: 0.900, 0.074 of
+  one phone against 0.903, 0.080 of the other.
+- **Gender is shape, not colour.** Both symbols are drawn in the same pale blue-grey, so only the outline separates
+  them: a male's arrow leaves the circle up and to the right and a female's stem hangs below it, making the female's ink
+  taller than wide and the male's square. 1.51 against 0.99 on one phone and 1.51 against 1.00 on the other, so one
+  threshold serves both. Find it by where the HP is rather than by a fraction of the screen, and read no ink as no
+  gender rather than as a failure — all seven Xerneas captures report none, which is right.
+- **Derive what the ink is darker _than_ from the panel, because a level named outright is above it.** The panel is
+  rgb(224,224,224) and the symbol's own body is 175, so an ink test of "below 235" silhouettes the **panel**: every
+  pixel of the crop matches, the fraction is 1.0, and the ratio that was meant to measure a symbol's outline is
+  measuring the crop's own aspect — which means the gender was being decided by how tall OCR thought the HP was. **32 of
+  78** real captures named a gender for a Pokémon that has none. Read the modal luminance of the region and go 20 below
+  it, and the same captures answer 1.00 male, 1.51 female and no ink at all for genderless, with the panel at 224 in
+  91–100% of every region measured. A threshold above the background it is meant to exclude fails in the direction that
+  looks like success, so measure the background rather than assuming it is white.
+- **Two of these three fractions separate zero from non-zero, not small from large, so those two constants are headroom
+  and not discriminators.** Measured over all 64 committed captures: the badge band is **exactly 0** saturated pixels on
+  56 of the 63 with a readable height and 11.3–22.3% on the other seven; the gender region is exactly 0 ink pixels on 22
+  of the same 63 and 2.4–7.4% on the other 41. Neither has a single capture non-zero but below its threshold, so for
+  those two a mutation replacing the fraction by "any match at all" is **unreachable with this data** rather than missed
+  by the corpus — the panel is flat and a screenshot is lossless, so the noise the thresholds exist for is not produced
+  here. Expect it on a device that scales or compresses, and do not read a surviving mutation on one of them as a gap in
+  the fixtures.
+- **The star corner is the exception, and it was only ever an exception waiting for a capture to prove it.**
+  `FAVOURITE_GOLD` is a real discriminator and is currently **mis-set**. Over the same 64: exactly 0 gold on 51, and of
+  the thirteen that are not, three land non-zero and _below_ the 2% threshold — `pikachu-willows-assistant.png` at
+  1.34%, `growlithe-nickname.png` at 0.48%, `castform-normal.png` at 0.36%, all three correctly not favourites. So "any
+  gold at all" is reachable here and caught by three rows, where over the original eight captures it was not. Worse, the
+  nine genuine favourites run 18.18–26.49% and **`spinda-04.png` reaches 15.34% on a warm bokeh background with a white
+  outline star**, so `isFavourite` answers `true` for it: a false positive with only 2.84 points of margin to the lowest
+  real one. The old bullet's "19.4% on the one favourite and 0.00% on every other" was true of eighteen captures and did
+  not generalise — which is the lesson rather than the number. A threshold claimed to be headroom needs the whole
+  distribution, not its two ends.
+- **Do not take shiny from the `✨` PGSharp appends to its overlay, however much it looks like a free answer.** The box
+  it sits in is translucent, so the artwork behind it shows through, and a Hisuian Lilligant's yellow flower gives
+  **202** gold pixels inside that box against the sparkle's **121** — the false positive is the larger signal.
+  Restricting the search to the rows the text occupies does not separate them either, since the flower reaches into
+  them. Shiny comes from the game's own `shiny` search, as a flag pass, which is authoritative and costs a walk of every
+  shiny in storage.
