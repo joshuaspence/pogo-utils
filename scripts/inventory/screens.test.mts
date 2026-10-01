@@ -16,22 +16,21 @@
  * **What that orientation buys is the CP cross-check.** `cpOf` derives a CP from the form, the IVs and the level's
  * multiplier, where a row's own `cp` is the number the game itself printed, so the two meeting means the form, the IVs
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
- * recording `cp` as whatever OCR made of it could check only the 20 OCR reads it on, four of those wrongly.
+ * recording `cp` as whatever OCR made of it could check only the 20 OCR reads it on.
  *
- * It reaches the 40 rows where `identify` settles on exactly one level, and on 32 of those the derived CP is the CP the
- * screen prints. The other eight are the check doing its other job rather than failing to run: each derives a CP that
+ * It reaches the 56 rows where `identify` settles on exactly one level, and on 50 of those the derived CP is the CP the
+ * screen prints. The other six are the check doing its other job rather than failing to run: each derives a CP that
  * *disagrees* with the screen, which is the pipeline saying the form or the level is wrong, and is carried as
- * `defects.cp`. That is the whole of the evidence that `ho-oh.png` is a Ho-Oh answered as a Charizard — 2640 derived
- * against the `CP 2738` it prints. Of the remaining 21, `pikachu-witch-hat.png` settles on two levels and so derives
- * nothing, and 20 settle on none, every one of them an overlay a reader did not get to.
+ * `defects.cp`. Of the remaining three, `pikachu-witch-hat.png` settles on two levels and so derives nothing, and two
+ * carry no overlay for PGSharp to have stated a level on.
  *
  * `COVERAGE` below pins those counts, because a figure quoted in prose is a figure nothing checks: `39 of the 61` stood
- * in this paragraph until it was measured and turned out to be 32.
+ * in this paragraph until it was measured and turned out to be 32, through a green suite.
  *
  * **Provenance is not the same for all of them, and the difference is worth stating rather than glossing.** Seven
  * captures were selected by one of the game's own searches, recorded above `FIXTURES`: a search is falsifiable, and it
  * is the only thing that can state a negative, since nothing on the screen says a Pokémon is **not** lucky. The other
- * 57 arrived as a named file, so their provenance is the name plus what the screen renders — PGSharp appends a `✨` for
+ * 55 arrived as a named file, so their provenance is the name plus what the screen renders — PGSharp appends a `✨` for
  * a shiny and a `🖼` for a background, the game draws `LUCKY POKÉMON` under the nickname in green, and a shadow or a
  * purified Pokémon wears its own treatment. That is weaker, and it is why `background`, `costume`, `lucky`, `purified`,
  * `shadow` and `shiny` default to absent: a row claims one only where the capture shows it.
@@ -43,36 +42,30 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. There are seven kinds across the corpus:
+ * code does and so a pull request of its own. 23 of the 59 rows carry a `defects`, and the kinds group into four.
  *
- * - **`findOverlay` answers nothing on three screens that plainly carry an overlay** — `cherrim-overcast.png`,
- *   `deerling-autumn.png` and `meloetta-aria.png` — where on `basculin-blue.png`, `snorlax-purified.png` and
- *   `thundurus-shadow.png` it is right and PGSharp really drew none. A row says which by carrying `overlay: null` for
- *   the second kind and `defects.box: null` for the first, so the two absences cannot be confused.
- * - **`readOverlay` reads nothing out of a box `findOverlay` did find, on fourteen.** That is the costliest defect in
- *   the corpus: with no level and no IVs, `identify` stops at the species and the CP goes unchecked. The test below for
- *   `spinda-04.png` and the one for `xurkitree.png` each state what one such overlay was worth.
- * - **`typesOf` reads `[]` for both single-`Poison` Nidoran**, which are the only two captures in the corpus with no
- *   type read at all. `identify` then has nothing to narrow by, which is most of why `nidoran-male.png` is answered as
- *   a `Nidoran♀`.
- * - **`isFavourite` answers `true` for `spinda-04.png`, whose star is a white outline.** `FAVOURITE_GOLD` is 2% of the
- *   star corner and that capture's warm bokeh background puts **15.34%** there, against 18.18–26.49% for the nine real
- *   favourites — far enough above 2% that the constant is discriminating rather than the headroom `CLAUDE.md` calls it,
- *   and close enough to the real ones that no threshold separates the two by much. Three further captures land non-zero
- *   and below it and are correctly not favourites: `pikachu-willows-assistant.png` at 1.34%, `growlithe-nickname.png`
- *   at 0.48% and `castform-normal.png` at 0.36%. Those three are what make this corpus catch a mutation replacing the
- *   fraction with "any gold at all", which no capture of the original eight could.
- * - **`tagsOn` misses `snorlax-purified.png`'s one `Perfect` chip**, which is the only tagged capture besides
- *   `ho-oh.png` and reads `[]`.
- * - **The name reader walks past three nicknames** — `96%` on both `ho-oh.png` and `genesect-normal.png`, and
- *   `Nickname` is read correctly where the first two are not. A nickname carrying no run of three letters sends it on
- *   to the last line above the HP that does, which is PGSharp's own overlay: `aals15` and `ee JEN`.
- * - **PGSharp's two punctuation Unown suffixes are letters past Z, so neither can ever match its form.** At 4×
- *   magnification `unown-exclamation.png` draws `([)` and `unown-question.png` draws `(\)`, which is PGSharp indexing
- *   the alphabet from `A` for the game's 27th and 28th Unown: `'A'.charCodeAt(0) + 26` is `[` and `+ 27` is `\`, where
- *   the game master names those forms `Exclamation Point` and `Question Mark`. `identify` matches a suffix against a
- *   form name exactly, so the best either can do is be ignored — and `unown-question.png` does worse than that, its
- *   `\` reading as an `X`, which is a **real** Unown form, so the answer comes back confidently wrong.
+ * - **Forms the screen cannot separate at all, on thirteen rows.** HP is a function of `stamina` alone, so two forms
+ *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
+ *   whichever has the shorter name: Basculin's three, Deerling's four, Genesect's five, Keldeo's two, Shellos' two, and
+ *   — sharing only `stamina` — Deoxys' four, Dialga's two and Thundurus' two. `artwork.mts` settles five of them off
+ *   the game's own icons and declines the rest, which is why those carry `defects.label` and some a
+ *   `defects.alternatives` beside it. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can
+ *   never be settled that way. - **Two glyphs and one name the readers lose.** `nidoran-female.png` reads `Nidoran 2`
+ *   and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name coming back as a digit and a letter —
+ *   and `typesOf` reads `[]` for both, which are the only two captures here with no type read at all, so `identify` has
+ *   nothing to narrow by and answers the male one as a `Nidoran♀`. `articuno-kanto.png` reads `ate` for `Articuno`. -
+ *   **One triple read wrongly and one bracket not read.** `basculin-blue.png` comes back `3/3/5` for an `8/3/5`, the
+ *   only row left whose IVs are wrong. And `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species'
+ *   forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[`
+ *   and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One chip and one height.** `tagsOn`
+ *   misses `snorlax-purified.png`'s `Perfect`, the only tagged capture besides `ho-oh.png`. And `spoink.png` renders
+ *   `1.1m` and reads `1.4m`, the size pill's tail pointing down into the digits — `xurkitree.png` wears the same badge
+ *   and reads its height correctly, the tail landing in the gap above the `8`.
+ *
+ * Four kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so one
+ * coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer calls
+ * `spinda-04.png` a favourite, the CP is no longer misread on any capture, and `readOverlay` reads every overlay but
+ * one.
  *
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
  * the fold on every one. What would make even a negative control over it mean anything is the full 328-move list, which
@@ -475,8 +468,12 @@ interface Defects {
   /** True where `isFavourite` reads gold in the star corner of a Pokémon whose star is a white outline. */
   favourite?: boolean;
   height?: number;
-  /** Null where `readOverlay` reads nothing out of a box `findOverlay` did find. */
-  iv?: null;
+  /**
+   * What `readOverlay` makes of the triple where it is not what PGSharp drew: `null` where it reads nothing out of a
+   * box `findOverlay` did find, and the triple itself where it reads one that is wrong. `basculin-blue.png` is the
+   * second kind, at `3/3/5` for an `8/3/5` — which no amount of "the reader found nothing" could describe.
+   */
+  iv?: IVs | null;
   /** The name under the artwork, which is the nickname where one is set and so carries no species to fall back on. */
   name?: string;
   /** The bracketed form `readOverlay` reads, where it is not the one PGSharp drew. */
@@ -598,6 +595,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1705,
+    defects: { name: 'ate', nickname: 'ate' },
     file: 'articuno-kanto.png',
     form: null,
     gender: null,
@@ -610,6 +608,13 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 253,
+    defects: {
+      iv: { attack: 3, defense: 3, stamina: 5 },
+      label: 'Basculin (Red Striped)',
+      levels: [5],
+      cp: 247,
+      notes: ['the screen reads CP 253, where this form at this level is 247'],
+    },
     file: 'basculin-blue.png',
     form: 'Blue Striped',
     gender: 'male',
@@ -622,6 +627,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 393,
+    defects: { notes: ['the overlay reads as level 6, none of which this HP can be'] },
     file: 'basculin-red.png',
     form: 'Red Striped',
     gender: 'male',
@@ -635,6 +641,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 1173,
     favourite: true,
+    defects: { label: 'Basculin (Red Striped)' },
     file: 'basculin-white.png',
     form: 'White Striped',
     gender: 'female',
@@ -794,6 +801,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 373,
+    defects: { label: 'Deerling (Autumn)' },
     file: 'deerling-spring.png',
     form: 'Spring',
     gender: 'female',
@@ -831,6 +839,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1441,
+    defects: { label: 'Deoxys', cp: 1781, alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-attack.png',
     form: 'Attack',
     gender: null,
@@ -843,6 +852,12 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1569,
+    defects: {
+      label: 'Deoxys',
+      cp: 2190,
+      alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'],
+      notes: ['the screen reads CP 1569, where this form at this level is 2190'],
+    },
     file: 'deoxys-defense.png',
     form: 'Defense',
     gender: null,
@@ -855,6 +870,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1772,
+    defects: { alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-normal.png',
     form: '',
     gender: null,
@@ -867,6 +883,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2009,
+    defects: { label: 'Deoxys', cp: 2195, alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-speed.png',
     form: 'Speed',
     gender: null,
@@ -879,6 +896,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2848,
+    defects: { alternatives: ['Dialga (Origin)'] },
     file: 'dialga-altered.png',
     form: null,
     gender: null,
@@ -892,6 +910,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2845,
+    defects: { label: 'Dialga', cp: 2809, alternatives: ['Dialga (Origin)'] },
     file: 'dialga-origin.png',
     form: 'Origin',
     gender: null,
@@ -919,6 +938,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 1891,
     favourite: true,
+    defects: { label: 'Genesect' },
     file: 'genesect-burn.png',
     form: 'Burn',
     gender: null,
@@ -931,6 +951,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1889,
+    defects: { label: 'Genesect' },
     file: 'genesect-chill.png',
     form: 'Chill',
     gender: null,
@@ -943,6 +964,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1872,
+    defects: { label: 'Genesect' },
     file: 'genesect-douse.png',
     form: 'Douse',
     gender: null,
@@ -999,6 +1021,10 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 1540,
     favourite: true,
+    defects: {
+      label: 'Keldeo (Ordinary)',
+      notes: ['the overlay reads as level 4 or 45 or 5, none of which this HP can be'],
+    },
     file: 'keldeo-resolute.png',
     form: 'Resolute',
     gender: null,
@@ -1060,6 +1086,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 200,
+    defects: { name: 'Nidoran 2', types: [] },
     file: 'nidoran-female.png',
     form: null,
     gender: 'female',
@@ -1072,6 +1099,14 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 491,
+    defects: {
+      name: 'Nidorano',
+      types: [],
+      label: 'Nidoran♀',
+      levels: [16],
+      cp: 373,
+      notes: ['the overlay reads as level 4 or 1 or 12 or 2 or 20 or 11 or 10, none of which this HP can be'],
+    },
     file: 'nidoran-male.png',
     form: null,
     gender: 'male',
@@ -1137,6 +1172,13 @@ const FIXTURES: readonly Fixture[] = [
   {
     costume: 'a purple witch hat',
     cp: 625,
+    defects: {
+      levels: [26.5, 27],
+      notes: [
+        'the overlay reads as level 2 or 7 or 5 or 51 or 1, none of which this HP can be',
+        'level ambiguous: 26.5 or 27',
+      ],
+    },
     file: 'pikachu-witch-hat.png',
     form: null,
     gender: 'female',
@@ -1173,6 +1215,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 628,
+    defects: { label: 'Shellos (East Sea)' },
     file: 'shellos-west.png',
     form: 'West Sea',
     gender: 'female',
@@ -1199,6 +1242,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 2304,
     favourite: true,
+    defects: { tags: [] },
     file: 'snorlax-purified.png',
     form: null,
     gender: 'female',
@@ -1225,6 +1269,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 247,
+    defects: { height: 1.4, notes: ['the overlay reads as level 1, none of which this HP can be'] },
     file: 'spoink.png',
     form: null,
     gender: 'male',
@@ -1238,6 +1283,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1876,
+    defects: { label: 'Thundurus (Therian)', alternatives: ['Thundurus (Incarnate)'] },
     file: 'thundurus-shadow.png',
     form: 'Incarnate',
     gender: 'male',
@@ -1264,6 +1310,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 517,
+    defects: { suffix: null, label: 'Unown (A)' },
     file: 'unown-exclamation.png',
     form: 'Exclamation Point',
     gender: null,
@@ -1348,7 +1395,18 @@ const read = async (file: string) => {
 const readings = new Map<string, ReturnType<typeof read>>();
 
 const readingOf = (file: string) => {
-  const reading = readings.get(file) ?? read(file);
+  // Forgotten again if it rejects, because what rejects here is the machine rather than the capture: Tesseract runs
+  // some thousands of times over a suite and the kernel occasionally kills one. Remembering the rejection made that one
+  // flake fail every later test that touches the same capture, which reads as four unrelated failures rather than one
+  // retry.
+  const reading =
+    readings.get(file) ??
+    read(file).catch((error: unknown) => {
+      readings.delete(file);
+
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    });
+
   readings.set(file, reading);
 
   return reading;
@@ -1416,7 +1474,9 @@ for (const fixture of FIXTURES) {
     // a reader fixed at either stage has to fail here. Nine captures carry no overlay at all, and on three of those
     // nine PGSharp really drew one.
     await t.test('overlay found', () => assert.strictEqual(box !== null, boxed));
-    await t.test('overlay ivs', () => assert.deepStrictEqual(overlay?.iv ?? null, legible?.iv ?? null));
+    await t.test('overlay ivs', () =>
+      assert.deepStrictEqual(overlay?.iv ?? null, ('iv' in defects ? defects.iv : legible?.iv) ?? null),
+    );
 
     await t.test('overlay form', () =>
       assert.strictEqual(overlay?.form ?? null, ('suffix' in defects ? defects.suffix : legible?.suffix) ?? null),
@@ -1476,17 +1536,17 @@ test('every committed capture is either a row or a negative case', () => {
  * that paragraph. Counted off `FIXTURES` and `overlayOf`, so this is free and cannot disagree with the loop.
  */
 const COVERAGE = {
-  rows: 61,
-  answeredAsThemselves: 35,
-  oneLevel: 40,
-  crossCheckAgrees: 32,
-  crossCheckDisagrees: 8,
+  rows: 59,
+  answeredAsThemselves: 44,
+  oneLevel: 56,
+  crossCheckAgrees: 50,
+  crossCheckDisagrees: 6,
   severalLevels: 1,
-  noLevel: 20,
-  noDefects: 15,
-  noOverlayDrawn: 3,
-  boxNotFound: 3,
-  overlayNotRead: 14,
+  noLevel: 2,
+  noDefects: 36,
+  noOverlayDrawn: 2,
+  boxNotFound: 0,
+  overlayNotRead: 1,
 };
 
 test('the corpus is the shape the docblock says it is', () => {
@@ -1526,7 +1586,7 @@ test('the corpus is the shape the docblock says it is', () => {
  * what the screen shows, so the disagreement is a filter and not a list to keep in step. Three of the four are an order
  * of magnitude out, the leading digit having been lost to the artwork behind it, and `unown-b.png` loses two.
  */
-test('the CP is read off 20 of the 61 captures, four of them wrongly', async () => {
+test('the CP is read off 20 of the 59 captures, and no longer wrongly on any', async () => {
   const states = new Map<string, number>();
 
   for (const fixture of FIXTURES) {
@@ -1540,34 +1600,39 @@ test('the CP is read off 20 of the 61 captures, four of them wrongly', async () 
   assert.deepStrictEqual(
     Object.fromEntries(states),
     {
+      'basculin-blue.png': 253,
       'basculin-red.png': 393,
       'burmy-plant.png': 206,
       'burmy-sandy.png': 196,
-      'castform-snowy.png': 46,
+      'castform-snowy.png': 746,
       'castform-sunny.png': 979,
       'charizard-gigantamax.png': 1605,
       'cherrim-sunshine.png': 1658,
-      'deoxys-defense.png': 15,
+      'deoxys-defense.png': 1569,
       'dialga-altered.png': 2848,
       'genesect-douse.png': 1872,
       'genesect-normal.png': 1904,
       'meowth-alola.png': 446,
       'nidoran-female.png': 200,
       'pikachu-witch-hat.png': 625,
-      'shellos-east.png': 84,
-      'unown-b.png': 48,
-      'unown-m-shiny.png': 839,
+      'shellos-east.png': 784,
+      'unown-b.png': 487,
+      'unown-m.png': 839,
       'unown-question.png': 486,
-      'unown.png': 499,
       'xurkitree.png': 2197,
     },
     'which captures state a CP, or what they state, has changed',
   );
 
+  // And which of them it reads *wrongly*, derived from the map rather than listed again — a row already states what the
+  // screen shows, so a disagreement is a filter and not a second list to keep in step. It is empty, which is the whole
+  // measurement: `castform-snowy.png` read 46 for 746, `shellos-east.png` 84 for 784, `unown-b.png` 48 for 487 and
+  // `deoxys-defense.png` 15 for 1569, and the band rescue reads all four. Asserted as empty rather than deleted, since
+  // a misread coming back is exactly what this existed to catch.
   assert.deepStrictEqual(
     FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
-    ['castform-snowy.png', 'deoxys-defense.png', 'shellos-east.png', 'unown-b.png'],
-    'which captures misread the CP has changed',
+    [],
+    'a capture has started misreading its CP again',
   );
 });
 
@@ -1644,7 +1709,7 @@ test('the shortlists the overlay states both overshoot a true level and miss one
   }
 
   const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
-  assert.strictEqual(offered.length, 40, 'how many overlays are read has changed, so these two properties say less');
+  assert.strictEqual(offered.length, 56, 'how many overlays are read has changed, so these two properties say less');
   assert.ok(
     offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
     'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
@@ -1663,13 +1728,13 @@ test('the shortlists the overlay states both overshoot a true level and miss one
  * nothing anywhere saying it was a choice of 28.
  */
 test('without the form PGSharp appends, Unown is answered confidently and wrongly', async () => {
-  const { detail, overlay } = await readingOf('unown.png');
+  const { detail, overlay } = await readingOf('unown-b.png');
   assert.ok(overlay, 'the fixture has lost its overlay');
 
   const identity = identify(DATA, detail, { ...overlay, form: null });
 
   assert.strictEqual(identity.form?.species, 'Unown');
-  assert.notStrictEqual(identity.form?.form, 'L');
+  assert.notStrictEqual(identity.form?.form, 'B');
   assert.deepStrictEqual(identity.alternatives, [], 'the fold no longer collapses the 28, so this test is obsolete');
   assert.deepStrictEqual(
     identity.levels,
@@ -1912,8 +1977,8 @@ test('the corpus reaches both sides of every attribute', () => {
 
   assert.deepStrictEqual(
     distinct(FIXTURES, (f) => f.size),
-    ['XL', 'XS', 'XXL', 'XXS', 'undefined'],
-    'four bands and none',
+    ['XL', 'XXL', 'XXS', 'undefined'],
+    'three of the four bands and none; no capture wears an `XS`, which is a gap and not a licence to drop the band',
   );
   assert.deepStrictEqual(
     distinct(FIXTURES, (f) => f.gender),
@@ -1937,10 +2002,17 @@ test('the corpus reaches both sides of every attribute', () => {
   );
 
   // Both kinds of absent overlay, which the loop asserts apart and so a corpus holding one kind alone would let it
-  // conflate: PGSharp drew none on three captures and `findOverlay` missed one on three others.
+  // conflate. Only one of the two is left in the corpus, and that is the measurement rather than a hole: `findOverlay`
+  // has stopped missing a box that is on the screen, so no capture needs `defects.box` any more. Asserted as an empty
+  // list rather than dropped, because a capture needing it again is a regression this reports and silence would absorb.
   assert.ok(
-    FIXTURES.some((f) => f.overlay === null) && FIXTURES.some((f) => f.defects && 'box' in f.defects),
-    'one of the two ways a capture has no overlay box is gone, so nothing says the readers separate them',
+    FIXTURES.some((f) => f.overlay === null),
+    'no capture is left where PGSharp drew no overlay at all, which is one of the two ways to have no box',
+  );
+  assert.deepStrictEqual(
+    FIXTURES.filter((f) => f.defects && 'box' in f.defects).map((f) => f.file),
+    [],
+    'a capture needs `defects.box` again, so `findOverlay` has started missing a box that is on the screen',
   );
 
   // And both kinds of bracketed form, which is what says `identify` matches a suffix against a form name exactly: four
@@ -1959,30 +2031,20 @@ test('the corpus reaches both sides of every attribute', () => {
     'every wrong answer is at least the right species, so nothing says a label is more than a form name',
   );
 
-  // Every `Defects` key is pinned by some capture. The keys rather than the values, because three of the defects are
-  // `null` — a box never found, a triple never read, a suffix that reads as nothing — and a truth test would file those
-  // as absent. A key nothing pins is a reader free to change its answer unremarked, which is the same hazard an
-  // unasserted field is and reads exactly the same way.
-  const pinned = new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})));
-
-  for (const key of [
-    'box',
-    'favourite',
-    'heightM',
-    'iv',
-    'name',
-    'suffix',
-    'tags',
-    'types',
-    'label',
-    'nickname',
-    'levels',
-    'cp',
-    'alternatives',
-    'notes',
-  ] as const) {
-    assert.ok(pinned.has(key), `nothing pins a reader disagreeing with the screen about ${key} any more`);
-  }
+  // Which `Defects` keys any capture pins, as the whole set rather than one `ok` per key, so that a key arriving is as
+  // loud as a key leaving. The keys rather than the values, because some of the defects are `null` — a triple never
+  // read, a suffix that reads as nothing — and a truth test would file those as absent. A key nothing pins is a reader
+  // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
+  // way.
+  //
+  // `box` and `favourite` are deliberately absent, and that is the point of asserting the set: `findOverlay` now finds
+  // a box on every screen that carries one, and `isFavourite` no longer calls `spinda-04.png` a favourite. Each of
+  // those used to need a key here, so one coming back is a regression this line reports rather than absorbs.
+  assert.deepStrictEqual(
+    [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
+    ['alternatives', 'cp', 'height', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix', 'tags', 'types'],
+    'a reader has started or stopped disagreeing with the screen about something',
+  );
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.

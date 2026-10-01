@@ -910,13 +910,40 @@ const OVERLAY_SPAN = 0.7;
  * stops the isolated artwork either side of the text being read as glyphs that split a number in two.
  */
 async function tripled(band: Image, factor: number): Promise<string | null> {
-  const text = (await ocrLine(scale(band, factor), OVERLAY_ALPHABET))?.text ?? '';
+  const text = (await legible(scale(band, factor), OVERLAY_ALPHABET))?.text ?? '';
 
   return TRIPLE.test(text) ? text : null;
 }
 
+/**
+ * One band read as a line, where a band Tesseract cannot read at all counts as a band with nothing on it.
+ *
+ * Tesseract dies on some images rather than reporting that it found nothing, and it is the image and not the machine: the
+ * near-white treatment of `keldeo-resolute.png`'s band at y=356 kills it every time, at 1412×134. The sweep passes over
+ * forty bands a capture and tolerates every other kind of empty one, so letting this kind end the whole read meant one
+ * band of one capture failing that capture — and, through a memoised reading, three later tests that only wanted to
+ * look at it. A crash here is nothing to go on, which is what every other unreadable band is too.
+ */
+async function legible(image: Image, alphabet?: string): Promise<Line | null> {
+  try {
+    return await ocrLine(image, alphabet);
+  } catch (error) {
+    console.error(`  a band could not be read (${error instanceof Error ? error.message : String(error)})`);
+
+    return null;
+  }
+}
+
 /** Every treatment and scale, in the order to try them: the cheapest first, so a rescue costs only what it rescues. */
 const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map((factor) => ({ treat, factor })));
+
+/**
+ * What the sweep tries, which is deliberately less than `OVERLAY_PASSES`. Finding the band and reading it are different
+ * jobs: the sweep runs its passes over some forty bands a capture where `readOverlay` runs them over one box, so a pass
+ * added here costs forty Tesseract processes and a pass added there costs one. Both treatments at the first scale is
+ * enough to find every overlay in the corpus, and the scales that rescue a *reading* are left to `readOverlay`.
+ */
+const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALES[0] ?? 2 }));
 
 export async function findOverlay(image: Image): Promise<OverlayBox | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
@@ -927,7 +954,7 @@ export async function findOverlay(image: Image): Promise<OverlayBox | null> {
   // A whole sweep per pass rather than every pass per band, which matters only for the clock: the overlay is found by
   // the first pass on all but a handful, and trying them all at every band cost the suite 60% more wall time to rescue
   // those few.
-  for (const { treat, factor } of OVERLAY_PASSES) {
+  for (const { treat, factor } of OVERLAY_SWEEPS) {
     for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
       const band = treat(crop(image, left, top, width, height));
       const line = await tripled(band, factor);
@@ -1062,7 +1089,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 
   for (const { treat, factor } of OVERLAY_PASSES) {
     const region = scale(treat(raw), factor);
-    const text = (await ocrLine(region, OVERLAY_ALPHABET))?.text ?? '';
+    const text = (await legible(region, OVERLAY_ALPHABET))?.text ?? '';
     const triple = TRIPLE.exec(text);
 
     if (!triple) {
@@ -1093,7 +1120,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   const { iv, before } = reading;
 
   const suffixIn = async (crop: Image, alphabet: string) =>
-    [...((await ocrLine(crop, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
+    [...((await legible(crop, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
 
   // Both alphabets always run and a two-digit answer wins, because only one of them could have produced it: the letters
   // alphabet holds no digits, so it can only ever say "letter", and it says one about Spinda's `(04)` either way — `OA`
