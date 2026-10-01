@@ -781,29 +781,51 @@ rank them, and the ranking was not what watching the scan suggested.
 Every reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test
 needs — no phone, no network, and a hermetic `GameData` of eighteen type names for `parseDetail` plus, for `identify`,
 38 forms and the 101-entry CP multiplier table, each value read once out of a real `loadGameData` and recorded in the
-file. 173 tests in about 33 seconds, OCR being all of it: each attribute is a subtest under a parent per capture, so a
+file. 166 tests in about 33 seconds, OCR being all of it: each attribute is a subtest under a parent per capture, so a
 failure names the reader that broke, and the reading is memoised per capture, which is why the assertions are free and
 only the eight OCR passes cost anything.
 
+- **A row says what the Pokémon is, not what the readers answered.** Every field is the game's own statement of it: the
+  CP above the artwork, the name and the HP under it, PGSharp's level and IVs over the middle, all readable off the
+  committed file by anyone who opens it. So the assertions are what the readers must agree with rather than a transcript
+  of whatever they said first. What the orientation buys is measurable rather than tidy, and it is the CP: `cpOf`
+  derives one from the form, the IVs and the level's multiplier where the screen states it outright, and the arithmetic
+  cannot be wrong, so the two meeting means the form, the IVs and the level are every one of them right. A table
+  recording `cp` as whatever OCR made of it can only cross-check the captures OCR read a CP on, which is **two** of the
+  eight; a table recording what the screen shows cross-checks **seven**, all but the one whose overlay goes unread. It
+  also settles the Ho-Oh below to the digit, where a transcript could only record the wrong answer.
 - **Select a fixture with a search that pins every attribute at once, and commit the search beside it.** A capture
   chosen because a sprite looked small is only as good as the eye that chose it, where
   `xxs&female&!lucky&!shiny&!costume&!background&!shadow&!purified` is the game stating all eight and is falsifiable:
-  re-run it and the first match is in the set the row claims. That makes a row's `size` and `gender` the game's own
-  answers and the assertions what the readers must agree with, rather than a transcript of whatever they said first.
-  Negation is the half that only the search can give, too, since nothing on the screen says a Pokémon is **not** lucky.
+  re-run it and the first match is in the set the row claims. That is where a row's `size` and its six flags come from.
+  Negation is the half that only the search can give, too, since nothing on the screen says a Pokémon is **not** lucky —
+  so the eight searches live in a table above `FIXTURES` rather than in the rows, the rows having become statements
+  about the Pokémon and a search being neither that nor a reading. A capture is named for its species for the same
+  reason, and the species is still a field, because two of the eight are Smolivs and one prints the nickname `96%` where
+  its species should be: a file name is not a column.
 - **Re-encode a capture as colour-type-2 RGB before committing it.** The phone hands over RGBA with a fully opaque alpha
   channel, so dropping it is lossless and worth about 22% — 716 KB to 559 KB on one. Verify it by decoding the output
   back and comparing every non-alpha byte, since a re-encode that quietly changed a pixel would move the very readings
   the fixture exists to pin. The eight come to 4.8 MB against a `.git` of 2.6 MB, which is the real cost of this and
   worth stating rather than discovering.
-- **Assert what is _not_ asserted, and why.** `heightM` is left out because the badge corrupts it, `name` because it is
-  a nickname field and one fixture is nicknamed `96%`, `cp` because `cpOf` derives it. A field quietly dropped from an
-  assertion is indistinguishable from one that passes.
+- **Assert every field, and put the disagreement in a `defects` field rather than leaving the field out.** A field
+  quietly dropped from an assertion is indistinguishable from one that passes, which is what the earlier shape cost:
+  `heightM` was left out because the badge corrupts it, `name` because one fixture is nicknamed `96%`, and `cp` because
+  `cpOf` derives it — three readers free to change their answers unremarked. So the row states the truth and an optional
+  `defects` beside it states what the reader answers instead, which is the inverse of recording the reading and
+  softening the row: fixing a reader fails here and has to say so. Three of the eight carry one, and the corpus test
+  asserts that every `defects` key is still pinned by some capture _and_ that some capture carries none, since a reader
+  wrong everywhere would otherwise pass every row it had an entry in. Read the keys rather than testing them for truth —
+  two of them are `null`, and a truth test files those as absent.
 - **A reading the whole corpus agrees on compares equal for ever and reads exactly like agreement.** Seven of the eight
   carry no chip, so a `tagsOn` returning `[]` unconditionally passes every row but one; three wear no badge, so a
   `sizeOf` returning null passes three. So assert the corpus's own coverage in a test of its own — that both sides of
-  each of the eight attributes appear across the searches, that the size column holds all four bands and none, that some
-  fixture carries two chips — and check that dropping a fixture makes **that** test fail, which it does.
+  each flag appear, that the size column holds all four bands and none, that some fixture carries two chips — and check
+  that dropping a fixture makes **that** test fail, which it does.
+- **Assert a gap in the corpus as the gap it is, rather than leaving it to be discovered.** `shadow` and `purified` are
+  false on all eight, so nothing here says either column is ever filled in and the coverage test cannot ask for both
+  sides of them. Asserting that they are all false is what makes the hole legible: it names what the corpus is short of,
+  and a shadow capture arriving fails that line and gets read instead of silently joining a pair with one side.
 - **A regression fixture needs the trap asserted present, not just the reader asserted right.** The status-bar row's
   assertions would read identically on a capture whose status bar held nothing to trip over, so a separate test asserts
   that a line above the panel still OCRs as a loose measurement and that it is not the height. A capture is a file and
@@ -827,16 +849,19 @@ only the eight OCR passes cost anything.
 - **A mutation pass over this suite need not edit the tree at all.** The test resolves its fixtures from
   `new URL('fixtures/…', import.meta.url)` and `screens.mts` imports only three siblings, so a copy of the four modules
   under `/tmp` beside a symlink to `fixtures/` runs the same suite — verified by a pristine control answering the same
-  173 pass off-tree. That retires the signal-handler hazard rather than managing it, and it is not merely tidier:
+  166 pass off-tree. That retires the signal-handler hazard rather than managing it, and it is not merely tidier:
   captures were being taken out of this checkout while a pass was running, so an in-place mutation would have handed a
   live scan a deliberately broken reader.
 - **Run the whole pipeline on every capture, not on the one that looks hardest.** `identify` was asserted on the Unown
   alone, and a break making `levelsOf` admit any HP at or above the one read survived it: the Unown's own shortlist is
   `[1, 6, 16]`, whose largest member is already the true level, so nothing it could admit changes the answer. Asserting
   `identify`'s form, levels, CP, nickname, alternatives and notes on all eight takes that break to **five captures
-  failing**, and costs no wall clock, the reading being memoised and the arithmetic free. Assert the property that makes
-  it catchable in the corpus test too — that some capture's shortlist offers a level above its true one — since a corpus
-  can quietly lose that again.
+  failing**, and costs no wall clock, the reading being memoised and the arithmetic free. Assert the two properties that
+  make it catchable in a test of their own — that some capture's shortlist offers a level **above** its true one, and
+  that some capture's does not contain its true level at all — since a corpus can quietly lose either. They belong in a
+  test that reads them off the captures rather than in a column of the table, a shortlist being a reading and not a fact
+  about a Pokémon, and that is also what keeps the second one honest: `fixtures/spoink.png` is offered `1` alone for a
+  Pokémon at level 7, so its HP is the only thing that settles the level.
 - **Account for a survivor over every capture on the machine, not only over the committed eight.** Three of twelve
   breaks in the second pass survived and the git-ignored snaps settle all three by derivation, which is cheaper than a
   fixture and does not commit an account's data. Dropping the name reader's second filter, the one that removes a
@@ -855,12 +880,14 @@ only the eight OCR passes cost anything.
   form chooses between them _before_ the fold. Where the small table is weaker is `species`, eleven names against 1,024,
   so the nickname row asserts the wiring rather than that `aals15` resembles no real species.
 - **Asserting a field the suite used to discard is what finds a defect; pin it rather than fixing it in the same
-  change.** Five readings disagree with their screen, each row carries what the capture renders beside what the reader
-  answered, and the suite's own docblock states all five with the evidence. The one to know about is not a reader at
-  all: `fixtures/lucky-shiny.png` is **answered as a Charizard and is a Ho-Oh**. Its nickname hides the species, five
-  forms fit Fire/Flying at 152 HP after the fold, and `fits` asks whether _some_ level reproduces the HP and checks the
-  level the overlay states only afterwards, against a form it has already chosen — where of those five only Ho-Oh shows
-  152 HP at the `L25` the capture states, and its 246.49kg and 4.6m agree with a Ho-Oh's base 199kg and 3.8m against a
+  change.** Five findings across three of the eight captures, each pinned in that row's `defects` and stated with its
+  evidence in the suite's own docblock. The one to know about is not a reader at all: `fixtures/ho-oh.png` is **answered
+  as a Charizard and is a Ho-Oh**. Its nickname hides the species, five forms fit Fire/Flying at 152 HP after the fold,
+  and `fits` asks whether _some_ level reproduces the HP and checks the level the overlay states only afterwards,
+  against a form it has already chosen — where of those five only Ho-Oh shows 152 HP at the `L25` the capture states.
+  The CP settles it outright and is the strongest evidence of the lot, which is the first bullet of this section paying
+  for itself: a Ho-Oh at level 25 with 13/15/15 derives **2738**, the `CP 2738` the capture prints, where the Charizard
+  answered at level 34.5 derives 2640. Its 246.49kg and 4.6m agree too, against a Ho-Oh's base 199kg and 3.8m and a
   Charizard's 90.5 and 1.7. That is a one-clause change to `fits` and a change to what the code does, so it is a pull
   request of its own and not part of writing the tests.
 
@@ -877,7 +904,7 @@ each and reading the whole screen down to `SWAP BUDDIES`.
   answers `XL` for every `XXL`. Two of the eight committed fixtures catch that on their own.
 - **The pill's hue tracks the superlative rather than the size, so find it by saturation and never by colour.** It is
   gold where that measurement is also a personal record for the species and teal where it is not:
-  `scripts/inventory/fixtures/xs-unown.png` carries rgb(192,160,64) under a `SHORTEST` where `fixtures/xxs-female.png`
+  `scripts/inventory/fixtures/unown.png` carries rgb(192,160,64) under a `SHORTEST` where `fixtures/smoliv-xxs.png`
   carries rgb(96,192,192) under a plain `HEIGHT`, its gold `LIGHTEST` being over on the weight instead. A gold test
   therefore answers only for a Pokémon that happens to be the tallest or shortest of its kind, which is why it read **0
   of 78** real captures. Any hue at all separates it from a panel that is neutral rgb(224,224,224), and finds all four
@@ -894,17 +921,17 @@ each and reading the whole screen down to `SWAP BUDDIES`.
   is a cheap pre-filter too, since most Pokémon have no badge — but not a sufficient one, so the text still has to spell
   one of the four.
 - **The badge corrupts the height it is drawn over, which is a defect and not a quirk of one capture.** The pill's tail
-  points down into the digits, so `fixtures/xxl-male.png` renders `1.1m` and reads `1.4m`. It is the tail's position
-  relative to the digits that decides it rather than the badge's presence: `fixtures/xxl-status-bar.png` wears the same
-  gold `XXL` and reads its `5.78m` correctly, because there the tail lands in the gap above the `8`. So a height from a
+  points down into the digits, so `fixtures/spoink.png` renders `1.1m` and reads `1.4m`. It is the tail's position
+  relative to the digits that decides it rather than the badge's presence: `fixtures/xurkitree.png` wears the same gold
+  `XXL` and reads its `5.78m` correctly, because there the tail lands in the gap above the `8`. So a height from a
   badged screen is suspect and a height from an unbadged one is not.
 - **A costume says nothing at all.** A costumed Pikachu is named `Pikachu` like any other and differs only in the
   artwork, so costume can only come from the game's `costume` search, as a flag pass.
 - **Lucky, unlike costume and shiny, _is_ on the screen: the game draws `LUCKY POKÉMON` in green under the nickname.**
-  Visible on `scripts/inventory/fixtures/lucky-shiny.png`, and it is the game's own text rather than PGSharp's, so it
-  scales with the screen and is generalisable the way the size badge turned out to be. Nothing reads it yet — `lucky` is
-  still a flag pass, which is a walk of every lucky Pokémon in storage — so this is an opportunity rather than a trap.
-  Do not confuse it with the `Lucky ☘` **chip** on the same capture, which is one of the account's own tags.
+  Visible on `scripts/inventory/fixtures/ho-oh.png`, and it is the game's own text rather than PGSharp's, so it scales
+  with the screen and is generalisable the way the size badge turned out to be. Nothing reads it yet — `lucky` is still
+  a flag pass, which is a walk of every lucky Pokémon in storage — so this is an opportunity rather than a trap. Do not
+  confuse it with the `Lucky ☘` **chip** on the same capture, which is one of the account's own tags.
 - **Tags are on the screen, as chips under the HP** — and finding that out took being told, because the check that said
   otherwise could not have found them. Eighty-seven captures showed nothing between the HP and the weight, and not one
   of those Pokémon was tagged: a band that is empty on every screen you own reads exactly like a band that is always
@@ -926,12 +953,12 @@ each and reading the whole screen down to `SWAP BUDDIES`.
   That makes one run of the two and drops its fill from 86% to 34%, which reads as no chip at all: three of six
   known-tagged Pokémon were lost that way, and all six read once the band stopped short of the icons.
 - **Derive that band's floor from the gap rather than writing a fraction down, because the margin is a pixel wide.** At
-  0.45 of the gap the band clipped `scripts/inventory/fixtures/lucky-shiny.png`'s two chips, which span rows 44–110 of
-  the gap's 220, to a height of 55 against a floor of 2244 × 0.025 = 56.1 — so both chips of the only tagged capture in
-  the corpus were discarded by **1.1 pixels**, with their fill at 0.86 and nothing reporting it. Taking the whole gap is
-  no better, since that is the merge above. What makes it derivable is that the icons always reach the gap's bottom row
-  and a chip row never does, so the floor is the top of the last run of coloured rows, read off the gap itself: 188–219
-  for the icons with 77 blank rows above them, against 44–110 for the chips.
+  0.45 of the gap the band clipped `scripts/inventory/fixtures/ho-oh.png`'s two chips, which span rows 44–110 of the
+  gap's 220, to a height of 55 against a floor of 2244 × 0.025 = 56.1 — so both chips of the only tagged capture in the
+  corpus were discarded by **1.1 pixels**, with their fill at 0.86 and nothing reporting it. Taking the whole gap is no
+  better, since that is the merge above. What makes it derivable is that the icons always reach the gap's bottom row and
+  a chip row never does, so the floor is the top of the last run of coloured rows, read off the gap itself: 188–219 for
+  the icons with 77 blank rows above them, against 44–110 for the chips.
 - **A pass reads most of its set, not all of it.** Before the tags were read off the screen, a pass over
   `Trade to 0xNULL` marked 73 where the game says 76 have it, without the walk ever reporting that it gave up. Read a
   pass's count against the number beside the game's own search and treat a few per cent short as ordinary; on a large
@@ -977,9 +1004,9 @@ row was being matched against, and matching against the seven is the single larg
 - **The unit is the part of a measurement that goes.** A Cyndaquil's `5.42kg` came back `5.42k` and was thrown away for
   want of a `g`. Match the number: every weight and height the game shows carries a decimal point, and the stray digits
   a crop picks out of the artwork do not. The decimal point is load-bearing and the screen furniture is where it bites:
-  `scripts/inventory/fixtures/xxl-status-bar.png` has `0900 M © Os` at y38 — a 24-hour `09:00` with a notification icon
-  OCR'd as an `M` — which a `/(\d+)\s*m\b/` takes in preference to the real `5.78m` 1,137 pixels below it, and `sizeOf`
-  and `typesOf` are both anchored on that line and go with it. PGSharp's overlay is the second source, reading
+  `scripts/inventory/fixtures/xurkitree.png` has `0900 M © Os` at y38 — a 24-hour `09:00` with a notification icon OCR'd
+  as an `M` — which a `/(\d+)\s*m\b/` takes in preference to the real `5.78m` 1,137 pixels below it, and `sizeOf` and
+  `typesOf` are both anchored on that line and go with it. PGSharp's overlay is the second source, reading
   `L16 1v53 m 0/7 (B` on one capture where the IVs garbled into a ` m`. Two of 78 captures reach it, so a corpus can
   easily hold none: of the eight committed fixtures only the status-bar one does, the other seven having been taken at
   13:xx with no icon beside the clock.
