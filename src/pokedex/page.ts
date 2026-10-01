@@ -8,15 +8,7 @@
  */
 
 import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, spriteOf, type Entry } from './entries.js';
-import {
-  availabilityOf,
-  emptyState,
-  FLAGS,
-  fromFragment,
-  HUNT_FLAGS,
-  matches,
-  toFragment,
-} from './state.js';
+import { availabilityOf, emptyState, FLAGS, fromFragment, HUNT_FLAGS, matches, toFragment } from './state.js';
 import { byId, el } from '../dom.js';
 
 type Card = { item: HTMLLIElement; card: HTMLButtonElement };

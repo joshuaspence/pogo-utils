@@ -436,9 +436,9 @@ function card(ev: ParsedEvent, now: Date) {
   }
 
   /**
-   * What this repository added for the event, linking through to it on the map. Last, so that the absolute dates and the
-   * relative ones stay together above it. The fragment is what lands the link on the entry rather than on a page of 81
-   * rows. The stylesheet puts the Map tab's own glyph in front, so the destination is named the same way twice; the
+   * What this repository added for the event, linking through to it on the map. Last, so that the absolute dates and
+   * the relative ones stay together above it. The fragment is what lands the link on the entry rather than on a page of
+   * 81 rows. The stylesheet puts the Map tab's own glyph in front, so the destination is named the same way twice; the
    * accessible name says it in words instead.
    */
   const here = routeIndex[ev.eventID];
@@ -646,8 +646,8 @@ function renderCalendar(now: Date) {
 
       /**
        * A segment continues past the week only where the week's own edge is what stopped it. Reaching column 0 while
-       * having begun earlier means it ran in from the row above; anything starting later than column 0 began inside this
-       * week, because it misses the column before.
+       * having begun earlier means it ran in from the row above; anything starting later than column 0 began inside
+       * this week, because it misses the column before.
        */
       bars.append(
         calBar(ev, now, cols, {
@@ -919,8 +919,8 @@ function setScope(next: Prefs['filterScope']) {
  *
  * Each chip also wears its type's colour class, which turns the row into the legend for the colour-coded cards, bars
  * and bars. That needs the `eventType` slug the colours are keyed by, while the filters themselves are keyed by the
- * human `heading` — so the pairing is read off the events rather than kept as a second list that could drift out of step
- * with the feed.
+ * human `heading` — so the pairing is read off the events rather than kept as a second list that could drift out of
+ * step with the feed.
  */
 function fillTypes() {
   const slugs = new Map<string, string>();
@@ -1004,7 +1004,8 @@ async function load() {
 
   /**
    * Fetch all three sources concurrently and tolerate any failing: a dead feed still shows the repo events, a missing
-   * local file still shows the feed, and a missing index costs the cards their link through to the map and nothing else.
+   * local file still shows the feed, and a missing index costs the cards their link through to the map and nothing
+   * else.
    */
   const [feed, local, index] = await Promise.allSettled([
     fetchEvents(FEED_URL),
@@ -1110,8 +1111,8 @@ els.scopeView.addEventListener('click', () => setScope('view'));
 els.reset.addEventListener('click', () => {
   prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
 
-  // Emptied rather than filled with the defaults, because an absent set is what hiddenFor(prefs, view) seeds from the global one —
-  // so this returns every view to the same set the chips now show, whichever scope a reader comes back in.
+  // Emptied rather than filled with the defaults, because an absent set is what hiddenFor(prefs, view) seeds from the
+  // global one — so this returns every view to the same set the chips now show, whichever scope a reader comes back in.
   prefs.hiddenByView = {};
   prefs.filterScope = 'global';
   prefs.dismissed.clear();
@@ -1159,6 +1160,6 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Only the first load lands a fragment: a ten-minute re-fetch calling this would overwrite whatever the reader has since
-// typed into the search box.
+// Only the first load lands a fragment: a ten-minute re-fetch calling this would overwrite whatever the reader has
+// since typed into the search box.
 load().then(focusHashEvent);

@@ -1,9 +1,9 @@
 /**
  * Leaflet by name rather than by member, which is what leaves all thirteen `L.` references and the four `L.Polyline`-
- * style type annotations in this file exactly as the UMD global left them — the import replaces where `L` comes from and
- * nothing about how it is spelled. Its stylesheet is imported beside it because this module is what needs it: esbuild
- * emits the CSS as `app.css` beside `app.js`, which is the path `map.html` links, so the two cannot drift apart any more
- * than the `<script src>` and the bundle can.
+ * style type annotations in this file exactly as the UMD global left them — the import replaces where `L` comes from
+ * and nothing about how it is spelled. Its stylesheet is imported beside it because this module is what needs it:
+ * esbuild emits the CSS as `app.css` beside `app.js`, which is the path `map.html` links, so the two cannot drift apart
+ * any more than the `<script src>` and the bundle can.
  */
 
 import * as L from 'leaflet';
@@ -181,8 +181,8 @@ async function copyRoute(entry: RouteEntry, btn: HTMLButtonElement) {
 class FetchError extends Error {}
 
 /**
- * Read one file: fetch it, parse it, and let `gpxEntries` split it by element. The whole file text is returned alongside,
- * for the copy button to hand over.
+ * Read one file: fetch it, parse it, and let `gpxEntries` split it by element. The whole file text is returned
+ * alongside, for the copy button to hand over.
  */
 async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[]; waypoints: Waypoint[] }> {
   let res;
@@ -273,8 +273,8 @@ function clearSelection() {
 }
 
 /**
- * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever else
- * is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
+ * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever
+ * else is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
  * focusHashEvent calls it once per entry instead, so an event's whole set is selected at once.
  */
 function highlightRoute(entry: RouteEntry) {
@@ -398,8 +398,8 @@ async function loadEventNames() {
 
 /**
  * The event an entry was added for, as a link through to it on the Events page. It takes a line of its own rather than
- * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for a
- * name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
+ * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for
+ * a name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
  * its text; the click is stopped short of the row, which would otherwise select the entry as the page unloads.
  */
 function buildEventLine(event: string): HTMLElement {
@@ -673,8 +673,8 @@ function focusHashEvent() {
   }
 
   /**
-   * A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set needs
-   * what follows, where no one of them can own the view or be the one the popup names.
+   * A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set
+   * needs what follows, where no one of them can own the view or be the one the popup names.
    */
   if (routes.length + places.length === 1) {
     const [route] = routes;

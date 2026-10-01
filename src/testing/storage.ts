@@ -1,7 +1,7 @@
 /**
- * A `localStorage` for a test: the three members the preference readers use, over a Map, plus the one thing the real API
- * does that a Map does not — `throws` makes every call raise, which is what a browser in private mode or with storage
- * disabled does and is the case every reader has a `catch` for.
+ * A `localStorage` for a test: the three members the preference readers use, over a Map, plus the one thing the real
+ * API does that a Map does not — `throws` makes every call raise, which is what a browser in private mode or with
+ * storage disabled does and is the case every reader has a `catch` for.
  *
  * Installed as the global rather than injected, because `localStorage` being a global is the thing under test: the
  * readers treat an unreadable store exactly as they treat a key that was never written, and a parameter would let a

@@ -87,8 +87,8 @@ test('addDays steps calendar days across a month and year boundary', () => {
  *
  * Walking a whole year is what reaches that, since the two readings agree on every other day — so in a zone with no DST
  * at all they cannot be told apart, and this passes for a reason rather than catching anything. That is why the zone
- * sweep is part of the check: the fixed-span reading survives here at AEST and on CI at UTC, and fails under a zone that
- * changes its clocks.
+ * sweep is part of the check: the fixed-span reading survives here at AEST and on CI at UTC, and fails under a zone
+ * that changes its clocks.
  */
 test('addDays keeps the wall clock across every day of a year', () => {
   let day = at(2026, 1, 1);
@@ -260,7 +260,9 @@ test.for([
   expect(relativeUnit(target, NOW)).toEqual({ value, unit });
 });
 
-/** An event the feed gave no type keeps the default colour rather than wearing a `type-` class with nothing after it. */
+/**
+ * An event the feed gave no type keeps the default colour rather than wearing a `type-` class with nothing after it.
+ */
 test('typeClass is empty for an event with no type', () => {
   expect(typeClass('community-day')).toBe(' type-community-day');
   expect(typeClass('')).toBe('');
@@ -284,7 +286,10 @@ test('an entry the feed does not carry is added rather than dropped', () => {
   expect(merged.map((ev) => ev.eventID).sort()).toEqual(['a', 'b']);
 });
 
-/** Either side may be empty, which is what lets the page tolerate a dead feed or a missing local file and draw the other. */
+/**
+ * Either side may be empty, which is what lets the page tolerate a dead feed or a missing local file and draw the
+ * other.
+ */
 test.for([
   { missing: 'the feed', feed: [], local: [feedEvent({ eventID: 'local' })], ids: ['local'] },
   { missing: 'the local list', feed: [feedEvent({ eventID: 'feed' })], local: [], ids: ['feed'] },

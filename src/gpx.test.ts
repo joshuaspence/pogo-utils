@@ -42,7 +42,9 @@ test('a name and an extension field are read from the element itself, not its de
   expect(extText(trk, 'variant')).toBeNull();
 });
 
-/** The country is the sidebar's own grouping, so `placeName` leaves it out and each caller adds it where it needs it. */
+/**
+ * The country is the sidebar's own grouping, so `placeName` leaves it out and each caller adds it where it needs it.
+ */
 test('placeName pairs the name with its locality and stops there', () => {
   const doc = gpx(
     '<wpt lat="1" lon="2"><name>Kings Park</name>' +
@@ -157,8 +159,8 @@ test('eachTrack pairs a track with its points from every segment', () => {
  *
  * `parseGpxDocument` is the one reader no test here reaches, and deliberately: it tells a malformed file apart by
  * `querySelector('parsererror')`, a browser convention `@xmldom/xmldom` does not implement at all — it throws from
- * `parseFromString` instead. So a test over xmldom would be checking a different contract, and the browser suite is what
- * covers it.
+ * `parseFromString` instead. So a test over xmldom would be checking a different contract, and the browser suite is
+ * what covers it.
  */
 const respondWith = (body: unknown, init?: { ok?: boolean; status?: number; statusText?: string }) => {
   globalThis.fetch = () =>
@@ -193,8 +195,8 @@ test('loadManifest refuses a response the server would not give', async () => {
 });
 
 /**
- * `Response#json` answers `any`, so this guard is the whole of what says the result is a list of strings — nothing at the
- * type level reads the `some`. Each shape is something a half-written or wrong file would actually be.
+ * `Response#json` answers `any`, so this guard is the whole of what says the result is a list of strings — nothing at
+ * the type level reads the `some`. Each shape is something a half-written or wrong file would actually be.
  */
 test.for([
   { body: 'a bare string', value: 'Melbourne Zoo.gpx' },

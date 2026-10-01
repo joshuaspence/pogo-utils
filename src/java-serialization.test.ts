@@ -353,7 +353,9 @@ test('a class reference citing a value is refused', () => {
   );
 });
 
-/** Where a class descriptor belongs, nothing else will do — including a string, which is otherwise a valid content item. */
+/**
+ * Where a class descriptor belongs, nothing else will do — including a string, which is otherwise a valid content item.
+ */
 test('a tag where a class descriptor belongs is refused', () => {
   const bytes = twoStrings();
   const at = positions(bytes, [TC_CLASSDESC, ...named('java.util.HashMap')]);
@@ -373,7 +375,9 @@ test('an object with no class descriptor is refused', () => {
   expect(() => loads(bytes)).toThrow(/^object with no class descriptor/);
 });
 
-/** A tag this codec has no reader for is refused rather than skipped, since skipping it would desynchronise the rest. */
+/**
+ * A tag this codec has no reader for is refused rather than skipped, since skipping it would desynchronise the rest.
+ */
 test('a tag nothing reads is refused', () => {
   // 0x7b is TC_EXCEPTION, a real tag in Java's own set and one nothing here handles.
   const bytes = splice(twoStrings(), [TC_STRING, ...named('first')], [0x7b]);
@@ -451,14 +455,14 @@ test.for([
 });
 
 /**
- * Every width a declared field can have, reached by rewriting an Integer's own declaration and its payload together — so
- * what each case says is that the reader advanced by exactly the bytes that width takes, which the trailing-bytes check
- * at the end of `loads` is what proves. The writer declares only `I`, `J`, `F` and `Z`, the first three of which the
- * round trips above already cover.
+ * Every width a declared field can have, reached by rewriting an Integer's own declaration and its payload together —
+ * so what each case says is that the reader advanced by exactly the bytes that width takes, which the trailing-bytes
+ * check at the end of `loads` is what proves. The writer declares only `I`, `J`, `F` and `Z`, the first three of which
+ * the round trips above already cover.
  *
- * `C` and `L` are the two that read something a box cannot hold — a character and an object reference — so each lands on
- * the value-field guard rather than coming back as a box. That is the right end for both: a `java.lang.Integer` whose
- * `value` is a string is a stream no JVM wrote.
+ * `C` and `L` are the two that read something a box cannot hold — a character and an object reference — so each lands
+ * on the value-field guard rather than coming back as a box. That is the right end for both: a `java.lang.Integer`
+ * whose `value` is a string is a stream no JVM wrote.
  */
 test.for([
   { width: 'a double', tcode: 'D', payload: [0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], reads: box('I', 0.5) },
@@ -499,7 +503,9 @@ test('a value field declared as an object reference reads its type string and it
   );
 });
 
-/** A width nothing reads is refused at the declaration, rather than read at some other width and silently misaligned. */
+/**
+ * A width nothing reads is refused at the declaration, rather than read at some other width and silently misaligned.
+ */
 test('a field declared at a width nothing reads is refused', () => {
   const bytes = dumps(box('I', 7));
   const declared = splice(bytes, [ascii('I')[0] ?? 0, ...named('value')], [ascii('Q')[0] ?? 0, ...named('value')]);
@@ -508,9 +514,9 @@ test('a field declared at a width nothing reads is refused', () => {
 });
 
 /**
- * What `dumps` refuses outright. A number is the near miss worth naming: a map value that should have been boxed and was
- * not is a `typeof number` reaching the writer, which has no width to write it at and would otherwise fall through every
- * branch to no bytes at all.
+ * What `dumps` refuses outright. A number is the near miss worth naming: a map value that should have been boxed and
+ * was not is a `typeof number` reaching the writer, which has no width to write it at and would otherwise fall through
+ * every branch to no bytes at all.
  *
  * The writer's own `no encoding for boxed field type` default is unreachable rather than uncovered: every code `BOX`
  * carries has a case in that switch, and `box` refuses any other code before a `Box` can exist. It earns its place by

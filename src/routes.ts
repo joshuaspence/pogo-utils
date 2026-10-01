@@ -1,10 +1,10 @@
 /**
  * What a GPX file says to the Routes page, and how far a track goes.
  *
- * `src/app.ts` holds the Leaflet map and the sidebar and so cannot be reached outside a browser; none of this needs one.
- * The shapes are the viewer's rather than the format's — a `<trk>` becomes something with a `latlngs` Leaflet will draw,
- * where the backup builder's `gpxFavourites` turns the same element into a list of triples PGSharp stores — which is why
- * the two readers are separate and both sit on the primitives in `gpx.ts`.
+ * `src/app.ts` holds the Leaflet map and the sidebar and so cannot be reached outside a browser; none of this needs
+ * one. The shapes are the viewer's rather than the format's — a `<trk>` becomes something with a `latlngs` Leaflet will
+ * draw, where the backup builder's `gpxFavourites` turns the same element into a list of triples PGSharp stores — which
+ * is why the two readers are separate and both sit on the primitives in `gpx.ts`.
  */
 
 import { eachTrack, entryCoords, entryCountry, extText, placeName } from './gpx.js';
@@ -83,8 +83,8 @@ export function byKey(a: readonly [string, unknown], b: readonly [string, unknow
 }
 
 /**
- * One file's routes and waypoints, split by element rather than by where it sits: a `<trk>` is a path to walk, a `<wpt>`
- * is one place to stand, and a file may hold either or both.
+ * One file's routes and waypoints, split by element rather than by where it sits: a `<trk>` is a path to walk, a
+ * `<wpt>` is one place to stand, and a file may hold either or both.
  *
  * Name, locality, country, variant and event all come from the file's own metadata; an entry missing what it needs is
  * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant

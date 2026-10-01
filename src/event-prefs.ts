@@ -206,10 +206,10 @@ export function persist(prefs: Prefs, name: keyof typeof KEYS) {
 }
 
 /**
- * The hidden set the chips are editing: the global one, or this view's own — seeded from the global set the first time a
- * view is filtered on its own, so switching to per-view filtering keeps what was already hidden rather than reading as a
- * bug. Seeding does not write to storage: a click does, and a seed nothing has clicked says the same as the global set
- * it came from.
+ * The hidden set the chips are editing: the global one, or this view's own — seeded from the global set the first time
+ * a view is filtered on its own, so switching to per-view filtering keeps what was already hidden rather than reading
+ * as a bug. Seeding does not write to storage: a click does, and a seed nothing has clicked says the same as the global
+ * set it came from.
  */
 export function hiddenFor(prefs: Prefs, view: string) {
   if (prefs.filterScope !== 'view') {

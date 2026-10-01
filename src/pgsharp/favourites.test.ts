@@ -98,7 +98,9 @@ test.for([
   },
   {
     fault: 'an unparseable coordinate',
-    body: '<wpt lat="1" lon="east"><name>Nowhere</name><extensions><pgr:country>Australia</pgr:country></extensions></wpt>',
+    body:
+      '<wpt lat="1" lon="east"><name>Nowhere</name>' +
+      '<extensions><pgr:country>Australia</pgr:country></extensions></wpt>',
     says: '<wpt> at 1,east has an unparseable coordinate',
   },
 ])('an entry with $fault is refused', ({ body, says }) => {
@@ -183,10 +185,7 @@ test('byName folds accents, so São Paulo files under Sao', () => {
 test('byName sorts past the flag rather than by it', () => {
   const names = ['🇦🇺 Zoo, Melbourne, Australia', '🇯🇵 Akihabara, Tokyo, Japan'].map((name) => ({ name }));
 
-  expect(names.sort(byName).map((e) => e.name)).toEqual([
-    '🇯🇵 Akihabara, Tokyo, Japan',
-    '🇦🇺 Zoo, Melbourne, Australia',
-  ]);
+  expect(names.sort(byName).map((e) => e.name)).toEqual(['🇯🇵 Akihabara, Tokyo, Japan', '🇦🇺 Zoo, Melbourne, Australia']);
 });
 
 /** Two names the fold cannot tell apart still order deterministically, on the spelling the files gave. */

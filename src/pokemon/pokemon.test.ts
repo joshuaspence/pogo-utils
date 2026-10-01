@@ -170,7 +170,9 @@ test('a configure callback is handed the variant, so what is true of it is said 
   expect(species.shinyEligible).toBe(true);
 });
 
-/** The target stays put, which is what tells `addForm` from `withForm`: a second form is the species', not the first's. */
+/**
+ * The target stays put, which is what tells `addForm` from `withForm`: a second form is the species', not the first's.
+ */
 test('a configure callback leaves the target where it was', () => {
   const species = new Pokemon(SPARE).addForm('FIRST', (form) => form.isNotReleased()).addForm('SECOND');
 
@@ -258,7 +260,9 @@ test('a marker asserting a default puts it back after the one that took it away'
   expect(shiny.form('SPEED').shinyEligible).toBe(true);
 });
 
-/** Every marker lands on all of what was declared last, which is what makes `addForms` one declaration and not several. */
+/**
+ * Every marker lands on all of what was declared last, which is what makes `addForms` one declaration and not several.
+ */
 test('a marker after addForms reaches every form it declared', () => {
   const species = new Pokemon(SPARE).addForms('ONE', 'TWO', 'THREE').isNotReleased().isShinyEligible();
 

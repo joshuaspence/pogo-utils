@@ -118,10 +118,10 @@ export function relativeUnit(target: Date, now: Date) {
  * That is rarely the announced-but-unscheduled event it sounds like. ScrapedDuck reads an event's identity off Leek
  * Duck's event list but joins its dates in from `leekduck.com/feeds/events.json`, and that feed drops an event days
  * before the list page does, so everything under the list's "Recently ended" divider reaches us dateless. On 2026-09-24
- * the feed's five dateless events were exactly that divider's five, among them
- * `gbl-twilight-trails_great-league_ultra-league-mega-edition_willpower-cup-great-league-edition`, which Leek Duck's own
- * page dates 15 to 22 September. So `tbd` mostly means an event already over whose dates went missing on the way here —
- * which is why renderCards() keeps the bucket behind a toggle rather than showing it by default.
+ * the feed's five dateless events were exactly that divider's five, among them `gbl-twilight-trails_great-league_ultra-
+ * league-mega-edition_willpower-cup-great-league-edition`, which Leek Duck's own page dates 15 to 22 September. So
+ * `tbd` mostly means an event already over whose dates went missing on the way here — which is why renderCards() keeps
+ * the bucket behind a toggle rather than showing it by default.
  */
 export function statusOf(ev: ParsedEvent, now: Date): Status {
   if (!ev.start && !ev.end) {
@@ -170,8 +170,8 @@ export function overlaps(win: Span | null, from: number, to: number) {
 
 /**
  * The columns of one week row an event's window touches, as `[first, last]` inclusive, or null for a week it misses
- * entirely. A window is one contiguous interval, so the columns it covers are contiguous too and the pair describes them
- * completely. A single-day event yields a one-column span and needs no special case.
+ * entirely. A window is one contiguous interval, so the columns it covers are contiguous too and the pair describes
+ * them completely. A single-day event yields a one-column span and needs no special case.
  */
 export function weekColumns(win: Span | null, weekStart: Date): readonly [number, number] | null {
   let first = -1;
@@ -234,11 +234,11 @@ function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
 
 /**
  * The two feeds as one list, sorted by start, with this repository's own entries last so one of them overrides a feed
- * event of the same `eventID` rather than duplicating it. Either side may be empty, which is what lets the page tolerate
- * a dead feed or a missing local file and still draw the other.
+ * event of the same `eventID` rather than duplicating it. Either side may be empty, which is what lets the page
+ * tolerate a dead feed or a missing local file and still draw the other.
  *
- * A dateless event sorts to the end rather than to the front, which is where the cards view's own bucket order wants it:
- * `Infinity` for a missing start, so the comparison is between two numbers however many of them are missing.
+ * A dateless event sorts to the end rather than to the front, which is where the cards view's own bucket order wants
+ * it: `Infinity` for a missing start, so the comparison is between two numbers however many of them are missing.
  *
  * The Map is annotated because a bare `new Map()` is a `Map<any, any>` that a `set` does not refine, so `[...values()]`
  * would be an `any[]` and normalise() would check nothing at all about what it was handed — the claim its return type

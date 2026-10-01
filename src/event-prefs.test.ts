@@ -13,9 +13,9 @@ beforeEach(() => {
 const store = (key: keyof typeof KEYS, value: unknown) => storage.setItem(KEYS[key], JSON.stringify(value));
 
 /**
- * A first visit, which is the case the whole absent-versus-empty distinction exists for: no key has been written, so the
- * hidden types are the default rather than nothing, and `seen` is null rather than an empty set — null being what tells
- * a first visit from a reader who has acknowledged everything.
+ * A first visit, which is the case the whole absent-versus-empty distinction exists for: no key has been written, so
+ * the hidden types are the default rather than nothing, and `seen` is null rather than an empty set — null being what
+ * tells a first visit from a reader who has acknowledged everything.
  */
 test('a first visit gets the defaults, and a null seen set', () => {
   const prefs = loadPrefs();
@@ -28,10 +28,10 @@ test('a first visit gets the defaults, and a null seen set', () => {
 });
 
 /**
- * The default hides the recurring types plus three that describe a standing state rather than somewhere to be at a time.
- * The recurring half is read off the list the calendar feed shares rather than spelled again, so the two cannot drift —
- * and the three extras are checked to be extras, since the point of keeping them out of `RECURRING_TYPES` is that a
- * subscription still carries them.
+ * The default hides the recurring types plus three that describe a standing state rather than somewhere to be at a
+ * time. The recurring half is read off the list the calendar feed shares rather than spelled again, so the two cannot
+ * drift — and the three extras are checked to be extras, since the point of keeping them out of `RECURRING_TYPES` is
+ * that a subscription still carries them.
  */
 test('the default hidden set is the recurring types and three standing states', () => {
   expect(RECURRING_TYPES.every((type) => DEFAULT_HIDDEN.includes(type))).toBe(true);
@@ -43,8 +43,8 @@ test('the default hidden set is the recurring types and three standing states', 
 });
 
 /**
- * An empty stored set is a reader who cleared everything, and has to survive a reload as such. This is the assertion the
- * one-key-per-set design exists for: in a single object, saving any other set would have decided this one too.
+ * An empty stored set is a reader who cleared everything, and has to survive a reload as such. This is the assertion
+ * the one-key-per-set design exists for: in a single object, saving any other set would have decided this one too.
  */
 test('an empty stored set is not a first visit', () => {
   store('hiddenTypes', []);
@@ -225,8 +225,8 @@ test('hiddenFor answers the global set where the scope is global', () => {
 
 /**
  * A view filtered on its own for the first time is seeded from the global set, so flipping the scope toggle changes
- * nothing on screen until a chip is clicked — a control that rearranged the page the moment it was touched would read as
- * a bug. The seed is a copy rather than the same set, which is what lets the two then diverge.
+ * nothing on screen until a chip is clicked — a control that rearranged the page the moment it was touched would read
+ * as a bug. The seed is a copy rather than the same set, which is what lets the two then diverge.
  */
 test('hiddenFor seeds a view from the global set, as a copy', () => {
   const prefs = prefsFor({ filterScope: 'view', hiddenTypes: new Set(['Community Day']) });

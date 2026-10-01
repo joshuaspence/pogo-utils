@@ -10,8 +10,8 @@ const gpx = (body: string) =>
   );
 
 /**
- * The sphere's own radius is 6,371,000 m, so a degree of a great circle is `R × π / 180` and half a circumference is
- * `π × R` — both exact and derivable without running anything, which is what makes them the anchors rather than a figure
+ * The sphere's own radius is 6,371,000 m, so a degree of a great circle is `R × π / 180` and half a circumference is `π
+ * × R` — both exact and derivable without running anything, which is what makes them the anchors rather than a figure
  * read back out of the function. A degree of latitude and a degree of longitude *at the equator* are the same distance,
  * which is the other half of what says the formula weighs longitude by the cosine of the latitude.
  */
@@ -57,8 +57,8 @@ test('haversine agrees with an independently computed distance', () => {
 
 /**
  * The walked length over every consecutive pair, so a route doubling back counts both legs — it is how far you walk and
- * not how far you end up from the start. Fewer than two points is no distance rather than an error; `gpxEntries` is what
- * refuses a `<trk>` that cannot be drawn.
+ * not how far you end up from the start. Fewer than two points is no distance rather than an error; `gpxEntries` is
+ * what refuses a `<trk>` that cannot be drawn.
  */
 test('routeDistance sums every leg', () => {
   const melbourne = [-37.8136, 144.9631] as const;
@@ -111,9 +111,10 @@ test.for([
 });
 
 /**
- * The comparison `Array#sort` would have made over the keys alone, which is what the sidebar's two levels were sorted by
- * before each key started travelling beside its value. `<` over two strings compares UTF-16 code units, so an uppercase
- * letter sorts above every lowercase one — the sidebar's keys are country and continent names, all capitalised.
+ * The comparison `Array#sort` would have made over the keys alone, which is what the sidebar's two levels were sorted
+ * by before each key started travelling beside its value. `<` over two strings compares UTF-16 code units, so an
+ * uppercase letter sorts above every lowercase one — the sidebar's keys are country and continent names, all
+ * capitalised.
  */
 test('byKey orders two keyed pairs by their keys', () => {
   expect(byKey(['Australia', 1], ['Brazil', 2])).toBe(-1);
@@ -211,8 +212,8 @@ test.for([
 
 /**
  * A `<trk>` that kept a single point is a track that cannot be *drawn*, which is the viewer's rule rather than the
- * format's — `eachTrack` yields it and this is what refuses it. The emptied one gpx.studio writes for a cleared route is
- * a different thing and is skipped a level down, so a file holding only that reads as having nothing to show at all.
+ * format's — `eachTrack` yields it and this is what refuses it. The emptied one gpx.studio writes for a cleared route
+ * is a different thing and is skipped a level down, so a file holding only that reads as having nothing to show at all.
  */
 test('a track of one point is refused rather than drawn', () => {
   const body =
