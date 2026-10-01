@@ -10,8 +10,8 @@ permissions:
   contents: 'read'
 
 jobs:
-  test:
-    name: 'test'
+  unit-test:
+    name: 'Unit Test'
     runs-on: 'ubuntu-latest'
     steps:
       - uses: 'actions/checkout@v7'

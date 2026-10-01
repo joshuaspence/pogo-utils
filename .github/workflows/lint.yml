@@ -10,6 +10,15 @@ permissions:
   contents: 'read'
 
 jobs:
+  all:
+    name: 'Lint'
+    needs: 'lint'
+    if: 'always()'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - if: "needs.lint.result != 'success'"
+        run: 'exit 1'
+
   lint:
     name: '${{ matrix.check }}'
     runs-on: 'ubuntu-latest'

@@ -1,0 +1,25 @@
+---
+version: 2
+
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+
+    groups:
+      # `@vitest/coverage-v8` peer-depends on an exact `vitest` version, so the two cannot land separately.
+      'vitest':
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+
+    ignore:
+      # `typescript-eslint` throws against TypeScript 7 (typescript-eslint#10940). Drop this once that is fixed.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
