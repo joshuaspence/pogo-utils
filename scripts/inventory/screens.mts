@@ -634,6 +634,19 @@ export interface Overlay {
 const OVERLAY_ALPHABET = 'L0123456789/ ';
 
 /**
+ * How much to upscale the isolated overlay before reading it, in the order to try. 2 first because that is what the IVs
+ * were measured against — at 1× Tesseract read `14/18/12` for `14/13/12`, and at 3× and 4× it starts taking the level's
+ * small-caps `L` for a `1`.
+ *
+ * 3 is a fallback and not a replacement, for the one thing 2× loses: the slashes. `deerling-autumn.png` reads
+ * `15 141512` at 2× for a perfectly legible `L15 ɪᴠ 14/15/12`, and `meloetta-aria.png` reads `13/1512` — one separator
+ * gone and one surviving. No separators means no triple, which means no overlay found at all on a screen that plainly
+ * carries one. Both read correctly at 3×. Trying 2× first is what keeps the `L` where it already reads, and the level
+ * being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
+ */
+const OVERLAY_SCALES = [2, 3];
+
+/**
  * The alphabet the bracketed form is read with, which is deliberately not the one above widened: a whitelist is what
  * stops a stray glyph splitting a number in two, and the letters a form needs are precisely the glyphs a digit is
  * confused with — `O` for `0`, `S` for `5`, `B` for `8`. Two reads of the same crop therefore cost one more Tesseract
@@ -808,23 +821,39 @@ const OVERLAY_SPAN = 0.7;
  * construction and is not a detail: the same band holding `L1 IV48 5/2/15` reads as `r '` sparse, because sparse mode
  * takes the isolated blocks either side for pictures. A sweep costs a second or two and is only ever paid once.
  */
+/**
+ * The text of an isolated overlay crop upscaled by `factor`, or null where it holds no IV triple. The whitelist is what
+ * stops the isolated artwork either side of the text being read as glyphs that split a number in two.
+ */
+async function tripled(band: Image, factor: number): Promise<string | null> {
+  const text = (await ocrLine(scale(band, factor), OVERLAY_ALPHABET))?.text ?? '';
+
+  return TRIPLE.test(text) ? text : null;
+}
+
 export async function findOverlay(image: Image): Promise<OverlayBox | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
   const step = Math.max(1, Math.round(height / 3));
   const width = Math.round(image.width * OVERLAY_SPAN);
   const left = Math.round((image.width - width) / 2);
 
-  for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
-    const band = isolate(crop(image, left, top, width, height), OVERLAY_LUMINANCE, OVERLAY_CHROMA);
-    const line = await ocrLine(scale(band, 2));
+  // A whole sweep per scale rather than both scales per band, which matters only for the clock: the overlay is found at
+  // 2× on all but three captures, and reading every band twice to rescue those three cost the suite 60% more wall time.
+  for (const factor of OVERLAY_SCALES) {
+    for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
+      const band = isolate(crop(image, left, top, width, height), OVERLAY_LUMINANCE, OVERLAY_CHROMA);
+      const line = await tripled(band, factor);
 
-    if (line && TRIPLE.test(line.text)) {
+      if (line === null) {
+        continue;
+      }
+
       // The band itself, which is already the right shape: as wide as the sweep, and tall enough to hold the line it
       // was just read out of. Sizing a box from that line instead does not work, because reading a band as one line
       // is exactly what makes its width meaningless — everything in the band comes back as one box, which on one
       // capture spanned 626 pixels against a true 329 and on another sat 250 to the right of the text. So the band is
       // the floor, and `tighten` improves on it where it can.
-      const band = within({
+      const found = within({
         x: left / image.width,
         y: top / image.height,
         width: width / image.width,
@@ -837,9 +866,9 @@ export async function findOverlay(image: Image): Promise<OverlayBox | null> {
       // read that follows gets the bottom half of a row of digits. Keeping only a box that still yields a reading is
       // the same rule the sweep above applies to the band, one step further in: measured over the corpus, 14 of the 15
       // captures this used to answer nothing for read on the band.
-      const tightened = await tighten(image, band);
+      const tightened = await tighten(image, found);
 
-      return tightened && (await readOverlay(image, tightened)) ? tightened : band;
+      return tightened && (await readOverlay(image, tightened)) ? tightened : found;
     }
   }
 
@@ -929,19 +958,21 @@ export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
  * the whole reason this costs two Tesseract calls rather than one: see `OVERLAY_FORM_ALPHABET`.
  */
 export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
-  const region = scale(
-    isolate(
-      crop(image, box.x * image.width, box.y * image.height, box.width * image.width, box.height * image.height),
-      OVERLAY_LUMINANCE,
-      OVERLAY_CHROMA,
-    ),
-    2,
+  const band = isolate(
+    crop(image, box.x * image.width, box.y * image.height, box.width * image.width, box.height * image.height),
+    OVERLAY_LUMINANCE,
+    OVERLAY_CHROMA,
   );
-  const line = await ocrLine(region, OVERLAY_ALPHABET);
-  const text = line?.text ?? '';
-  const triple = TRIPLE.exec(text);
+  const region = scale(band, OVERLAY_SCALES[0] ?? 2);
+  let text: string | null = null;
 
-  if (!triple) {
+  for (const factor of OVERLAY_SCALES) {
+    text ??= await tripled(band, factor);
+  }
+
+  const triple = text === null ? null : TRIPLE.exec(text);
+
+  if (!text || !triple) {
     return null;
   }
 
@@ -954,8 +985,11 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   const suffixIn = async (alphabet: string) =>
     [...((await ocrLine(region, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
 
-  // Both passes always run and the shape decides, rather than the letters pass winning by going first: it reads a real
-  // Spinda label as letters, so taking its answer whenever it has one is what hid `04` behind `OA`.
+  // Both passes always run and a two-digit answer wins, because only one of them could have produced it: the letters
+  // alphabet holds no digits, so it can only ever say "letter", and it says one about Spinda's `(04)` either way — `OA`
+  // where both characters survive and a shape-valid `O` where the `4` does not. Reading the digits is the only thing
+  // that can tell a real `04` from a letter, and nothing but Spinda is labelled numerically, so a two-digit read is not
+  // a close call to arbitrate. Everything else is the letters pass's to answer.
   const shaped = (suffix: string | null) => (suffix !== null && SUFFIX_SHAPE.test(suffix) ? suffix : null);
   const lettered = shaped(await suffixIn(OVERLAY_FORM_ALPHABET));
   const numeric = shaped(await suffixIn(OVERLAY_NUMERIC_ALPHABET));
@@ -963,7 +997,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   return {
     levels: levelsIn(text.slice(0, triple.index)),
     iv: { attack, defense, stamina },
-    form: lettered ?? numeric,
+    form: (numeric !== null && /^\d{2}$/.test(numeric) ? numeric : null) ?? lettered ?? numeric,
   };
 }
 
@@ -1054,6 +1088,24 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
     candidates = data.forms.filter(fits);
   }
 
+  // `fits` asks whether *some* level reproduces the HP, which is a weaker question than the screen can answer: the
+  // overlay states a level too, and a form only really fits if one of the levels its HP admits is one of those. Applied
+  // as a narrowing rather than inside `fits` because the stated shortlist is a reading and can be wrong — on
+  // `pikachu-witch-hat.png` it names no level the HP can be — and a hard filter there would empty the list and send the
+  // search off across every species. This is what settles `ho-oh.png`: five forms fit Fire/Flying at 152 HP, and only
+  // Ho-Oh shows 152 at the `L25` the capture states.
+  const stated = overlay?.levels ?? [];
+
+  if (stated.length > 0 && iv !== null && detail.hp !== null) {
+    const agreeing = candidates.filter((f) =>
+      levelsOf(data, f, iv, detail.hp as number).some((level) => stated.includes(level)),
+    );
+
+    if (agreeing.length > 0) {
+      candidates = agreeing;
+    }
+  }
+
   // PGSharp's own label, which is the only thing that can separate Unown's 28 letters: they share one set of base
   // stats, one type and one move pool, so nothing the game's own screen shows tells them apart. Applied ahead of the
   // fold below, which is otherwise what collapses them to one — and only where it matches something, since a suffix
@@ -1103,7 +1155,6 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
 
   const [form = null, ...alternatives] = distinct;
   const consistent = form && iv && detail.hp !== null ? levelsOf(data, form, iv, detail.hp) : [];
-  const stated = overlay?.levels ?? [];
   const agreed = consistent.filter((l) => stated.includes(l));
   const levels = agreed.length > 0 ? agreed : consistent;
 
