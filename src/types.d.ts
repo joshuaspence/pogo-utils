@@ -7,11 +7,13 @@
  */
 
 /**
- * One entry of the ScrapedDuck events feed, read from `data/events.json` and from the upstream URL.
+ * One entry of the ScrapedDuck events feed, read from `data/events-feed.json` and `data/events.json` — and, once per
+ * hourly vend, from the upstream URL.
  *
  * `start` and `end` are nullable because the feed leaves them null for an event with no announced date. Nothing here is
  * optional: the feed sends all eight keys on every entry, so an absent one means the shape has changed rather than that
- * this event is unusual.
+ * this event is unusual. `vendable()` in `src/event-feed.ts` is held to these keys by the compiler, so a field added
+ * here because a page started reading it fails the build until the vend carries it.
  */
 export interface FeedEvent {
   eventID: string;

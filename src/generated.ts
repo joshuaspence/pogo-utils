@@ -4,10 +4,10 @@
  * the list of those files, `ENTRIES_BY_EVENT` the `<pgr:event>` associations inside them, counted per event.
  * `EVENTS_FEED` is the iCalendar feed a calendar app subscribes to, which `events.html` links and nothing here fetches.
  *
- * Named here because nine places read them — the map, the events page, the PGSharp builder, the validator that writes
- * the indexes, the generator that writes the feed and the assembler that publishes all three. Renaming the pair once
- * already broke the calendar generator, which spelled the old name in a script `npm run lint` does not run: the build
- * was dead for a commit and nothing said so.
+ * Named here because eight places read them — the map, the events page, the PGSharp builder, the validator that writes
+ * the indexes and the generator that writes the feed. Renaming the pair once already broke the calendar generator,
+ * which spelled the old name in a script `npm run lint` does not run: the build was dead for a commit and nothing said
+ * so.
  *
  * No name needs a second spelling for the two kinds of consumer that share it. A page resolves a relative URL against
  * its own, and the pages sit at the repository root — which is also where a script is run from, so one relative path

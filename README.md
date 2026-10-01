@@ -90,25 +90,47 @@ In Google Calendar, that is **Other calendars → + → From URL**; iOS and Outl
 subscribed URL on its own schedule, typically somewhere between a few hours and a day, so a newly announced event does
 not appear there as promptly as it does on the page.
 
-A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does live has to happen
-ahead of time. [`scripts/build-ics.mts`](scripts/build-ics.mts) does it, and the
-[Pages workflow](.github/workflows/pages.yml) runs it on a six-hourly schedule as well as on every push:
+Both the page and the subscription read Leek Duck's events from [`data/events-feed.json`](data/events-feed.json), a copy
+of the [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) mirror kept here rather than fetched from it on every
+visit. That is what holds the two in step — a browser reading the mirror live and a generator that had read it hours
+earlier could disagree — and it gives the feed a history, ScrapedDuck's own being a single commit force-pushed on every
+scrape, so `git log -p data/events-feed.json` says when an event appeared, was renamed, moved or lost its dates.
+[`scripts/vend-feed.mts`](scripts/vend-feed.mts) takes the copy and the [Vend workflow](.github/workflows/vend.yml) runs
+it hourly:
 
 ```sh
-pnpm build && pnpm build:ics
+pnpm vend:events
 ```
 
-The feed is not in version control and is not produced by `pnpm build` either — the generator writes it straight into
-the `dist/` that build has just assembled, which is why the two run in that order. It fetches the upstream feed, and
-`pnpm lint:types` _is_ `pnpm build`, so folding it in would put somebody else's server in front of every lint. Through
-pnpm rather than `node` directly: the generator is TypeScript, and `devEngines` is what holds the run to a Node new
-enough to strip it.
+Each event is cut down to the eight fields the pages read and the list is sorted by `eventID`, so a reworded `extraData`
+blurb, a rehosted image or a reordering upstream is not a diff here. That is what makes the commit conditional:
+[`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) pushes the copy only when it
+differs, and the run passes without a commit when it does not. An empty list or an event with no `eventID` is refused
+rather than written, an empty list being what a broken scrape looks like.
 
-The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
-[`data/entries-by-event.json`](data/entries-by-event.json) — so a scheduled run that finds the event data unmoved
-publishes the bytes a subscriber already holds, rather than a fresh set of timestamps four times a day. Note that GitHub
-disables a scheduled workflow after 60 days without a commit to the repository, and nothing here commits: if the feed
-goes stale during a quiet stretch, re-enable the workflow from the Actions tab.
+This is now the only scheduled workflow, so it is the one GitHub's 60-day rule applies to: a schedule is disabled after
+60 days with no commit to the repository. Its own hourly commits are what keep it alive, which holds as long as the
+events keep moving; if everything here goes stale at once, re-enable it from the Actions tab.
+
+A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does has to happen ahead of
+time. [`scripts/build-ics.mts`](scripts/build-ics.mts) does it, as a step of the build rather than after one:
+
+```sh
+pnpm build
+```
+
+The feed is not in version control — it is derived from `data/events-feed.json`, [`data/events.json`](data/events.json)
+and [`data/entries-by-event.json`](data/entries-by-event.json), all three of which are, so there is no second copy to
+keep in step. The generator reads no clock and makes no request, which is why it can sit inside `pnpm build` at all:
+`pnpm lint:types` _is_ `pnpm build`, so a generator that fetched would put somebody else's server in front of every
+lint. A local run therefore produces exactly the bytes a deploy does.
+
+Nothing is on a timer. The [Pages workflow](.github/workflows/pages.yml) deploys on a push, and since a push made with
+the default `GITHUB_TOKEN` raises no workflow run, the Vend workflow asks for the deploy itself once it has committed a
+change. So a quiet stretch upstream deploys nothing at all rather than republishing identical bytes, and the page and
+the subscription are always siblings of one deploy. Two things follow: data on the page is up to an hour old where it
+had been live, and a deploy lost to a failed dispatch waits for the next change to the feed rather than for the next
+tick — **Run workflow** on either workflow closes that by hand.
 
 An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
 exactly an iCalendar floating time: a `DTSTART` carrying neither a `TZID` nor a trailing `Z`. The ones that are a single

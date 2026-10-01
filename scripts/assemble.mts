@@ -11,24 +11,10 @@
  * the check at the end turns that into a failed build instead of something found by opening the site.
  */
 
-import { EVENTS_FEED } from '../src/generated.ts';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
 
 const DIST = 'dist';
-
-/**
- * The one path the markup names that this build does not produce. `scripts/build-ics.mts` fetches the upstream feed,
- * and `pnpm lint:types` is `pnpm build`, so generating it here would put a third-party request in front of every lint
- * and make the artifact a different thing on each run; the deploy runs `pnpm build:ics` over the finished artifact
- * instead.
- *
- * Which leaves it outside the reference check below, and a path simply skipped there is the one path no page is held
- * to. So it is asserted in both directions rather than exempted: a page has to name it, and `dist/` has to not hold it
- * yet.
- */
-const DEPLOYED_LATER = EVENTS_FEED;
-let deployedLater = 0;
 
 /**
  * What the site serves that the compiler does not write, relative to the repository root. An entry ending `*.ext` takes
@@ -134,11 +120,6 @@ function mustResolve(from: string, ref: string): void {
   const at = join(dirname(from), path);
   checked += 1;
 
-  if (at === DEPLOYED_LATER) {
-    deployedLater += 1;
-    return;
-  }
-
   if (!existsSync(join(DIST, at))) {
     missing.push(`${from} names ${ref}`);
   }
@@ -224,21 +205,7 @@ if (missing.length > 0) {
   throw new Error(`Not in the artifact:\n  ${missing.join('\n  ')}`);
 }
 
-/*
- * The other half of the skip above. No page naming the feed is a subscription link quietly deleted, and the deploy
- * would still write a file nothing reaches; a feed already here means something produced it before the deploy does, so
- * the artifact carries whichever of the two ran last rather than the one that read the upstream.
- */
-if (deployedLater === 0) {
-  throw new Error(`No page names ${DEPLOYED_LATER}, which the deploy writes into the artifact for them.`);
-}
-
-if (existsSync(join(DIST, DEPLOYED_LATER))) {
-  throw new Error(`${join(DIST, DEPLOYED_LATER)} is already here, and the deploy is what writes it.`);
-}
-
 console.log(`${copied} path(s) copied into ${DIST}/ beside the compiler's output.`);
 console.log(
-  `${checked} local reference(s) across ${pages.length} page(s) and ${manifests.size} manifest(s) resolve inside it, ` +
-    `${deployedLater} of them naming the ${DEPLOYED_LATER} the deploy adds.`,
+  `${checked} local reference(s) across ${pages.length} page(s) and ${manifests.size} manifest(s) resolve inside it.`,
 );

@@ -1,7 +1,9 @@
 /**
- * The events calendar page. Fetches Leek Duck's event feed (through ScrapedDuck's JSON mirror) live in the browser and
- * renders current, upcoming and — on request — recently ended or undated Pokémon GO events. The feed is read directly,
- * the same way the map reads the GPX files rather than a baked-in copy.
+ * The events calendar page. Loads Leek Duck's event list from `data/events-feed.json` — the copy of ScrapedDuck's JSON
+ * mirror that `scripts/vend-feed.mts` refreshes hourly — and renders current, upcoming and — on request — recently
+ * ended or undated Pokémon GO events. Reading this site's own copy rather than the mirror is what keeps the page and
+ * the subscribable calendar feed built from one fetch. A card's `image` is still a `cdn.leekduck.com` URL, the feed
+ * carrying it as one, so this moves where the event data comes from rather than everything a visit fetches.
  *
  * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
  * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
@@ -13,7 +15,7 @@
  * Gantt chart). The view toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
-import { FEED_URL, LOCAL_EVENTS, routeSummary } from './event-feed.js';
+import { LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from './event-feed.js';
 import {
   DEFAULT_HIDDEN,
   hiddenFor,
@@ -56,8 +58,11 @@ let routeIndex: RouteIndex = {};
 
 /**
  * How often to recompute the "starts in…/ends in…" labels against the wall clock, and — every REFETCH_EVERY ticks —
- * pull the feed again. The feed itself carries `cache-control: max-age=300`, so re-fetching more often than that only
- * hits the browser cache.
+ * pull the feed again. Pages serves `data/events-feed.json` with `cache-control: max-age=600`, so the ten minutes these
+ * two multiply to is the soonest a refetch can reach the network at all rather than the browser cache.
+ *
+ * The copy itself moves at most hourly, so this is for a tab left open all day rather than for catching an
+ * announcement.
  */
 const TICK_MS = 60_000;
 const REFETCH_EVERY = 10;
@@ -1008,7 +1013,7 @@ async function load() {
    * else.
    */
   const [feed, local, index] = await Promise.allSettled([
-    fetchEvents(FEED_URL),
+    fetchEvents(VENDED_EVENTS),
     fetchEvents(LOCAL_EVENTS),
     fetchRouteIndex(),
   ]);
