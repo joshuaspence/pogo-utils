@@ -1,0 +1,435 @@
+/**
+ * Telling two forms apart by the artwork, for the ones the numbers cannot reach.
+ *
+ * HP is a function of `stamina` alone, so two forms sharing their types and all three base stats are identical in every
+ * field the detail screen states — Deerling's four seasons are `115/100/155 Normal+Grass` to the last point, and so are
+ * Burmy's three, Basculin's three, Genesect's five, Cherrim's two, Keldeo's two and Shellos' two. `identify` folds them
+ * to one and answers it with no alternatives and no notes, which is a wrong answer that flags nothing.
+ *
+ * The artwork is the only thing left, and the game master addresses it: each such form carries its own
+ * `assetBundleValue`, which is how the game's own icons are named. So the question is whether a capture's artwork can
+ * be matched against those icons, and the answer is a qualified yes — qualified by abstention rather than by accuracy,
+ * because a reader that is wrong and says nothing is the expensive kind.
+ *
+ * **The backdrop is the whole problem, not the colours.** A hue histogram over a fixed box scores 8 of 17 captures,
+ * because the game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png`
+ * stands on orange bokeh against which a pink Deerling is some 15% of the frame, and the naive match called it Winter.
+ * Bounding the subject by the panel below it and by sharpness takes that to 12 of 17 and fixes all four Deerling.
+ *
+ * **A backdrop is not always blurred, which is what the largest component is for.** `shellos-west.png` is a pink
+ * Shellos on flat teal with crisp bubbles drawn over it, so growing the mask from those edges floods it with the one
+ * colour that is also East Sea's. Keeping only the largest connected run does not raise the hit rate at all — still 12
+ * of 17 — and is the change that matters anyway, because it takes that capture from a confidently wrong answer to an
+ * abstention.
+ *
+ * **Judge it on the margin.** At `MARGIN` the match answers 8 of those 17 and is right on all 8, and five of the ones
+ * it declines are captures whose nearest icon is the wrong one — so the margin is what stands between it and being
+ * confidently wrong five times. An abstention costs nothing and fixes nothing: `identify`'s fold still collapses the
+ * rivals silently, so a declined call is exactly as wrong as it was before and no louder. Genesect is unreachable this
+ * way rather than merely missed — its five forms are one robot with a differently-coloured drive cassette a few pixels
+ * across, so every margin lands between 0.015 and 0.020.
+ */
+
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { type Form, type GameData } from './game-master.mts';
+import { decodePng, rgb, type Image } from './png.mts';
+
+/** Where the game's own form icons live, named by dex and the form's `assetBundleValue`. */
+const ICONS = 'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Pokemon/';
+
+/** How long a cached icon is good for. Artwork changes with a game update, not with a session. */
+const WEEK = 7 * 24 * 60 * 60 * 1000;
+
+/** How many hue bins a signature holds. Coarse on purpose: the model is lit and posed, where the icon is flat art. */
+const BINS = 12;
+
+/**
+ * How saturated and how bright a pixel has to be to carry form information. Below these it is the game's own furniture,
+ * a shadow or the panel — and the white UI falling out here for free is why the arc, the CP, the star and PGSharp's own
+ * overlay need no excluding by position.
+ */
+const SATURATION = 0.35;
+const VALUE = 0.2;
+
+/** The flat grey the game draws its panel in, which is what the artwork stands on and where it stops. */
+const PANEL = 224;
+const PANEL_TOLERANCE = 12;
+
+/** How much of a row has to be panel for that row to be the top of it, and where to look for it. */
+const PANEL_FILL = 0.9;
+const PANEL_FROM = 0.25;
+const PANEL_TO = 0.6;
+
+/** The artwork's top where no overlay was found to put a floor under it, and how much of the width to take. */
+const ARTWORK_FROM = 0.215;
+const ARTWORK_SPAN = { from: 0.28, to: 0.72 };
+
+/**
+ * How far apart two luminances have to be, and over how many pixels, for the gap to be an edge of the model rather than
+ * the gradient of a blurred scene. Then how far to grow those edges, which is what takes in the flat interior they
+ * bound — a body's own colour has no gradient in it at all, so edges alone would sample the outline and nothing else.
+ */
+const EDGE = 28;
+const EDGE_RADIUS = 2;
+const GROW = 6;
+
+/**
+ * How much closer the nearest form has to be than the runner-up before the answer is worth having. Measured over 17
+ * captures: at 0.30 the match answers 8 and is right on all 8, where taking the nearest regardless is right on 12 of 17
+ * and wrong with conviction on one — `shellos-west.png` at a margin of 0.211, and 0.407 before the largest-component
+ * step. Abstaining is cheap and being confidently wrong is not, so this is set above the worst of those rather than to
+ * maximise the hit rate.
+ */
+export const MARGIN = 0.3;
+
+/** A normalised hue histogram. Comparable between a capture and an icon, which is the only thing the two share. */
+export type Signature = readonly number[];
+
+/** The first row of the game's own panel, which bounds the artwork below. */
+function panelTop(image: Image): number {
+  const from = Math.round(image.width * 0.2);
+  const to = Math.round(image.width * 0.8);
+  const wanted = ((to - from) / 4) * PANEL_FILL;
+
+  for (let y = Math.round(image.height * PANEL_FROM); y < image.height * PANEL_TO; y++) {
+    let flat = 0;
+
+    for (let x = from; x < to; x += 4) {
+      const [r, g, b] = rgb(image, x, y);
+
+      if (
+        Math.abs(r - PANEL) <= PANEL_TOLERANCE &&
+        Math.abs(g - PANEL) <= PANEL_TOLERANCE &&
+        Math.abs(b - PANEL) <= PANEL_TOLERANCE
+      ) {
+        flat++;
+      }
+    }
+
+    if (flat > wanted) {
+      return y;
+    }
+  }
+
+  return Math.round(image.height * 0.34);
+}
+
+/** Hue in turns, saturation and value, which is what separates a body's colour from the lighting on it. */
+function hsv(r: number, g: number, b: number): [number, number, number] {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const span = max - min;
+  let hue = 0;
+
+  if (span !== 0) {
+    if (max === r) {
+      hue = ((g - b) / span + 6) % 6;
+    } else if (max === g) {
+      hue = (b - r) / span + 2;
+    } else {
+      hue = (r - g) / span + 4;
+    }
+  }
+
+  return [hue / 6, max === 0 ? 0 : span / max, max / 255];
+}
+
+/** The histogram of a list of pixels, and how many of them carried any hue at all. */
+function histogram(pixels: Iterable<[number, number, number]>): { signature: Signature; counted: number } {
+  const bins = new Array<number>(BINS).fill(0);
+  let counted = 0;
+
+  for (const [r, g, b] of pixels) {
+    const [hue, saturation, value] = hsv(r, g, b);
+
+    if (saturation < SATURATION || value < VALUE) {
+      continue;
+    }
+
+    const bin = Math.min(BINS - 1, Math.floor(hue * BINS));
+    bins[bin] = (bins[bin] ?? 0) + 1;
+    counted++;
+  }
+
+  return { signature: bins.map((n) => n / (counted || 1)), counted };
+}
+
+/** Grown by `radius` in both directions, done as two passes since a square structuring element separates. */
+function grow(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
+  const across = new Uint8Array(mask.length);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!mask[y * width + x]) {
+        continue;
+      }
+
+      for (let d = -radius; d <= radius; d++) {
+        const nx = x + d;
+
+        if (nx >= 0 && nx < width) {
+          across[y * width + nx] = 1;
+        }
+      }
+    }
+  }
+
+  const out = new Uint8Array(mask.length);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!across[y * width + x]) {
+        continue;
+      }
+
+      for (let d = -radius; d <= radius; d++) {
+        const ny = y + d;
+
+        if (ny >= 0 && ny < height) {
+          out[ny * width + x] = 1;
+        }
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * The biggest connected run of the mask, which is the subject rather than the scenery. The Pokémon is one large
+ * component where a backdrop's own detail — bubbles, leaves, bokeh edges — is many small ones.
+ */
+function largest(mask: Uint8Array, width: number, height: number): Uint8Array {
+  const seen = new Uint8Array(mask.length);
+  const stack: number[] = [];
+  let best: number[] = [];
+
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || seen[start]) {
+      continue;
+    }
+
+    const blob: number[] = [];
+    seen[start] = 1;
+    stack.push(start);
+
+    for (let p = stack.pop(); p !== undefined; p = stack.pop()) {
+      blob.push(p);
+      const x = p % width;
+      const y = (p - x) / width;
+
+      for (const [nx, ny] of [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ] as const) {
+        if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+          continue;
+        }
+
+        const q = ny * width + nx;
+
+        if (mask[q] && !seen[q]) {
+          seen[q] = 1;
+          stack.push(q);
+        }
+      }
+    }
+
+    if (blob.length > best.length) {
+      best = blob;
+    }
+  }
+
+  const out = new Uint8Array(mask.length);
+
+  for (const p of best) {
+    out[p] = 1;
+  }
+
+  return out;
+}
+
+/**
+ * The signature of the Pokémon on a detail screen, or null where too little of it was found to mean anything.
+ *
+ * `from` is where the artwork starts, as a fraction of the height — PGSharp's overlay sits over the artwork and its own
+ * box is the floor to use where one was found, since a fraction written down here would be one phone's.
+ */
+export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null {
+  const left = Math.round(image.width * ARTWORK_SPAN.from);
+  const right = Math.round(image.width * ARTWORK_SPAN.to);
+  const top = Math.round(image.height * from);
+  const bottom = panelTop(image);
+  const width = right - left;
+  const height = bottom - top;
+
+  if (width < 1 || height < 1) {
+    return null;
+  }
+
+  const luminance = (x: number, y: number) => {
+    const [r, g, b] = rgb(image, x, y);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+
+  const edges = new Uint8Array(width * height);
+
+  for (let y = top; y < bottom; y++) {
+    for (let x = left; x < right; x++) {
+      if (
+        x - EDGE_RADIUS < 0 ||
+        x + EDGE_RADIUS >= image.width ||
+        y - EDGE_RADIUS < 0 ||
+        y + EDGE_RADIUS >= image.height
+      ) {
+        continue;
+      }
+
+      const here = luminance(x, y);
+      const gap = Math.max(
+        Math.abs(here - luminance(x - EDGE_RADIUS, y)),
+        Math.abs(here - luminance(x + EDGE_RADIUS, y)),
+        Math.abs(here - luminance(x, y - EDGE_RADIUS)),
+        Math.abs(here - luminance(x, y + EDGE_RADIUS)),
+      );
+
+      if (gap >= EDGE) {
+        edges[(y - top) * width + (x - left)] = 1;
+      }
+    }
+  }
+
+  const mask = largest(grow(edges, width, height, GROW), width, height);
+  const pixels: [number, number, number][] = [];
+
+  for (let y = top; y < bottom; y++) {
+    for (let x = left; x < right; x++) {
+      if (mask[(y - top) * width + (x - left)]) {
+        pixels.push(rgb(image, x, y));
+      }
+    }
+  }
+
+  const { signature, counted } = histogram(pixels);
+
+  return counted === 0 ? null : signature;
+}
+
+/** The signature of one of the game's own form icons, which is flat art over transparency. */
+export function signatureOfIcon(image: Image): Signature {
+  const pixels: [number, number, number][] = [];
+
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if ((image.data[(y * image.width + x) * 4 + 3] ?? 0) >= 128) {
+        pixels.push(rgb(image, x, y));
+      }
+    }
+  }
+
+  return histogram(pixels).signature;
+}
+
+/** How far apart two signatures are, as the sum of the differences per bin. 0 is identical and 2 shares no hue. */
+export function distance(a: Signature, b: Signature): number {
+  let total = 0;
+
+  for (let i = 0; i < BINS; i++) {
+    total += Math.abs((a[i] ?? 0) - (b[i] ?? 0));
+  }
+
+  return total;
+}
+
+/**
+ * Whichever reference the signature is nearest, or null where nothing is near enough *ahead of the rest* to be worth
+ * answering. The margin is the whole of the contract: a list of one is answered outright, and anything closer than
+ * `margin` to its runner-up is declined rather than guessed at.
+ */
+export function nearest<T>(signature: Signature, references: ReadonlyMap<T, Signature>, margin = MARGIN): T | null {
+  const ranked = [...references].map(([key, reference]) => ({ key, gap: distance(signature, reference) }));
+
+  ranked.sort((a, b) => a.gap - b.gap);
+
+  const [best, runner] = ranked;
+
+  if (!best) {
+    return null;
+  }
+
+  return runner === undefined || runner.gap - best.gap >= margin ? best.key : null;
+}
+
+/**
+ * The forms worth fetching an icon for: those a group of two or more share every number with, where **every** member of
+ * the group has an icon. A group with a gap in it can never be narrowed — `identify` declines to choose between forms
+ * it cannot all see — so downloading the rest would be work for nothing.
+ *
+ * Measured over a real game master: 52 groups are identical in dex, types and all three stats, holding 237 forms, and
+ * only 13 of those groups have an icon for every member. Scatterbug, Spewpa, Vivillon and Minior have none at all.
+ */
+export function ambiguous(data: GameData): Form[] {
+  const groups = new Map<string, Form[]>();
+
+  for (const form of data.forms) {
+    if (form.costume) {
+      continue;
+    }
+
+    const key = `${form.dex}|${[...form.types].sort().join('+')}|${form.attack}|${form.defense}|${form.stamina}`;
+    const group = groups.get(key) ?? [];
+    group.push(form);
+    groups.set(key, group);
+  }
+
+  return [...groups.values()].filter((g) => g.length > 1 && g.every((f) => f.icon !== null)).flat();
+}
+
+async function iconBytes(dir: string, name: string, refresh: boolean): Promise<Buffer | null> {
+  const path = join(dir, name);
+
+  if (!refresh && existsSync(path) && Date.now() - statSync(path).mtimeMs < WEEK) {
+    return readFileSync(path);
+  }
+
+  const response = await fetch(ICONS + name);
+
+  if (!response.ok) {
+    // An icon is an improvement rather than a prerequisite, so a missing one costs an abstention and not a scan.
+    console.error(`  ${name}: ${response.status} ${response.statusText}; forms sharing its numbers stay ambiguous`);
+
+    return existsSync(path) ? readFileSync(path) : null;
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path, bytes);
+
+  return bytes;
+}
+
+/**
+ * A signature per form for every form the artwork could settle, downloading the icons once and caching them beside the
+ * game master. Roughly 90 files of some 8 KB on a real game master, so this is a one-off of under a megabyte.
+ */
+export async function iconsFor(dir: string, data: GameData, refresh = false): Promise<Map<Form, Signature>> {
+  const forms = ambiguous(data);
+  const signatures = new Map<Form, Signature>();
+
+  if (forms.length > 0) {
+    console.error(`Reading ${forms.length} form icons`);
+  }
+
+  for (const form of forms) {
+    const bytes = await iconBytes(join(dir, 'icons'), `pokemon_icon_${form.dex}_${form.icon}.png`, refresh);
+
+    if (bytes !== null) {
+      signatures.set(form, signatureOfIcon(decodePng(bytes)));
+    }
+  }
+
+  return signatures;
+}
