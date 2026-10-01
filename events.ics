@@ -97,31 +97,6 @@ URL:https://pokemongo.com/en/news/2026_ana_green
 CATEGORIES:Regional Event
 END:VEVENT
 BEGIN:VEVENT
-UID:mega-malamar-in-mega-raids-september-2026@pogo-utils.joshuaspence.githu
- b.io
-DTSTAMP:20260923T060000Z
-DTSTART:20260923T060000
-DTEND:20260929T220000
-SUMMARY:Mega Malamar in Mega Raids
-DESCRIPTION:Raid Battles\nhttps://leekduck.com/events/mega-malamar-in-mega-
- raids-september-2026/
-URL:https://leekduck.com/events/mega-malamar-in-mega-raids-september-2026/
-CATEGORIES:Raid Battles
-END:VEVENT
-BEGIN:VEVENT
-UID:xurkitree-pheromosa-buzzwole-in-5-star-raid-battles-september-2026@pogo
- -utils.joshuaspence.github.io
-DTSTAMP:20260923T060000Z
-DTSTART:20260923T060000
-DTEND:20260929T220000
-SUMMARY:Xurkitree\, Pheromosa\, and Buzzwole in 5-star Raid Battles
-DESCRIPTION:Raid Battles\nhttps://leekduck.com/events/xurkitree-pheromosa-b
- uzzwole-in-5-star-raid-battles-september-2026/
-URL:https://leekduck.com/events/xurkitree-pheromosa-buzzwole-in-5-star-raid
- -battles-september-2026/
-CATEGORIES:Raid Battles
-END:VEVENT
-BEGIN:VEVENT
 UID:dancing-in-the-moonlight-2026@pogo-utils.joshuaspence.github.io
 DTSTAMP:20260923T100000Z
 DTSTART:20260923T100000
