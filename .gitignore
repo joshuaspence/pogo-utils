@@ -5,6 +5,12 @@
 /dist/
 /.types/
 
+# The two indexes `scripts/validate-gpx.mts --write` derives from the GPX files, which `pnpm build` runs before it
+# assembles `dist/`. Tracked they were a second copy of what `git ls-files` and the `<pgr:event>` fields already say,
+# kept in step by a check that could only ever report the copy was stale.
+/data/entries-by-event.json
+/data/gpx-paths.json
+
 # `tsc -b` needs `composite` in both projects, and `composite` writes a build cache per project. The browser one is
 # named into `.types/` above, since its default position is derived from `outDir` and so falls inside the artifact;
 # `scripts/` emits nothing, so its own stays beside its config.

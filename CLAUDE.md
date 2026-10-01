@@ -166,13 +166,34 @@ property.
   fragment esbuild passes through rather than failing to resolve.
 - **Run a script through pnpm, never as a bare `node`.** `devEngines.runtime` pins the Node floor that guarantees type
   stripping and governs only what pnpm invokes, so `pnpm build:ics` is safe where `node scripts/build-ics.mts` fails
-  below Node 22.18. Every entry point has a `package.json` script, and `calendar.yml` calls that.
+  below Node 22.18. Every entry point has a `package.json` script, and `pages.yml` calls that.
 - **A `files` glob matching nothing is silent.** `eslint.config.mjs`'s browser-globals block named `src/**/*.js` and
   matched not one file, which reads exactly like a clean lint, so move such a glob in the same commit as the rename.
-  `.github/workflows/calendar.yml`'s `paths` filter is the same hazard with no linter over it at all — and it fails the
-  other way round too: moving a rule `scripts/build-ics.mts` reads into a new module takes that input out from under its
-  own trigger, and a push editing it then waits up to six hours for the cron instead of rebuilding `events.ics`. Name
-  every file the generator reads there in the same commit that creates it.
+- **A path a check cannot resolve wants both its directions asserted rather than an exemption**, which is
+  [the probe rule](#designing-a-probe) one level down in the build. The deploy writes `events.ics` into `dist/` after
+  `pnpm build`, so `assemble.mts` cannot resolve the relative `href` `events.html` gives it — and the skip on its own
+  would have left that the one path no page is held to. The pair costs nothing: a page has to name it, and `dist/` has
+  to not already hold it. Reaching the second means planting the file mid-build, since re-running `assemble` over a
+  finished artifact trips `publish`'s overwrite guard on `events.html` first. The generator asserts the artifact is
+  there for the same reason — run ahead of the build instead of after it, `rm -rf dist` eats the feed and the run still
+  prints its event count.
+- **Tracking a generated file buys nothing but the check that it is in step, so let the build write it instead.** The
+  two indexes were committed and `validate-gpx.mts` compared them byte-for-byte against what it had just derived, which
+  is a check whose only finding is ever "the copy is stale" — three messages, two `readFileSync` calls and a
+  `lint:xml:fix` script, 289 lines of generator down to 267 once `pnpm build` was the one that wrote them. What makes
+  this safe is that the index was already derived rather than authored: `git ls-files` and the `<pgr:event>` fields are
+  the source, and a regenerated file matched the tracked one byte-for-byte, which is the measurement to take before
+  untracking anything.
+- **Only one of `pnpm lint`'s six checks may write a given file, `--parallel` being what it runs them with.**
+  `lint:types` is `pnpm build` and the build now writes `data/gpx-paths.json`, so `lint:xml` beside it has to be the
+  checks alone — hence `--write` naming which caller wants the indexes rather than a mode the script is in. Two writers
+  would race on identical bytes and a reader would see a `writeFileSync` mid-truncation, which is a zero-byte index
+  published into `dist/` by a build that passed.
+- **A path inside a directory the allowlist already publishes wants no entry of its own, and `publish` says so.** Moving
+  the indexes under `data/` left them named twice in `PUBLISHED`, which answers
+  `Error: data would overwrite dist/data, which the build already wrote` rather than copying either twice — the guard
+  that exists for `bundle.mts` and `assemble.mts` clashing, reading the redundancy as the same kind of thing. Count the
+  summary line too: 22 copied paths became 20.
 - **pnpm 11 gates install scripts in `pnpm-workspace.yaml`, and `pnpm.ignoredBuiltDependencies` in `package.json` is
   silently ineffective.** Adding esbuild left `ERR_PNPM_IGNORED_BUILDS` and pnpm then refused every command.
   `allowBuilds: {esbuild: false}` is right because the binary arrives from an optional dependency and the postinstall

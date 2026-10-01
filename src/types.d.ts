@@ -30,5 +30,5 @@ export interface RouteCounts {
   waypoints: number;
 }
 
-/** `entries-by-event.json`, keyed by `FeedEvent.eventID`. */
+/** `data/entries-by-event.json`, keyed by `FeedEvent.eventID`. */
 export type RouteIndex = Record<string, RouteCounts>;

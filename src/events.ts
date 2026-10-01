@@ -6,7 +6,7 @@
  * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
  * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
  * event Leek Duck has not listed yet, say). Either source failing still renders the other. A third,
- * `entries-by-event.json`, says which events have routes here, so a card can link through to them on the map.
+ * `data/entries-by-event.json`, says which events have routes here, so a card can link through to them on the map.
  *
  * Three views over the same data: a card list grouped by status, a month grid where every event is a bar spanning the
  * days it covers within each week, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a

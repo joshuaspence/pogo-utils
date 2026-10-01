@@ -24,22 +24,18 @@ python3 -m http.server --directory dist
 # then open http://localhost:8000/map.html
 ```
 
-Static hosting cannot list a directory, so the viewer is handed the paths in [`gpx-paths.json`](gpx-paths.json). Nothing
-but the paths comes from it. Each listed file is read for what it holds: a `<trk>` becomes a track and a `<wpt>` becomes
-a waypoint, so which directory a file sits in decides nothing.
+Static hosting cannot list a directory, so the viewer is handed the paths in
+[`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it
+holds: a `<trk>` becomes a track and a `<wpt>` becomes a waypoint, so which directory a file sits in decides nothing.
 
-[`entries-by-event.json`](entries-by-event.json) is generated for the same kind of reason. The Events page links through
-to an event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a GPX file —
-finding those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and waypoints
-it has.
+[`data/entries-by-event.json`](data/entries-by-event.json) is generated for the same kind of reason. The Events page
+links through to an event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a
+GPX file — finding those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and
+waypoints it has.
 
-Both are written by the script that validates the files rather than kept by hand, so a stale index fails `pnpm lint`
-instead of quietly dropping a route from the map or mislabelling a card. Regenerate them after adding or removing a
-`.gpx`:
-
-```sh
-pnpm lint:xml:fix
-```
+Neither is in version control. `pnpm build` writes both, out of the very pass that validates the files, so adding or
+removing a `.gpx` is the whole of the change — there is no index to regenerate alongside it and no stale copy for a
+check to catch.
 
 ## File format
 
@@ -96,21 +92,23 @@ not appear there as promptly as it does on the page.
 
 A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does live has to happen
 ahead of time. [`scripts/build-ics.mts`](scripts/build-ics.mts) does it, and the
-[Calendar workflow](.github/workflows/calendar.yml) runs it every six hours and commits the result:
+[Pages workflow](.github/workflows/pages.yml) runs it on a six-hourly schedule as well as on every push:
 
 ```sh
-pnpm build:ics
+pnpm build && pnpm build:ics
 ```
 
-Through pnpm rather than `node` directly: the generator is TypeScript, and `devEngines` is what holds the run to a Node
-new enough to strip it.
+The feed is not in version control and is not produced by `pnpm build` either — the generator writes it straight into
+the `dist/` that build has just assembled, which is why the two run in that order. It fetches the upstream feed, and
+`pnpm lint:types` _is_ `pnpm build`, so folding it in would put somebody else's server in front of every lint. Through
+pnpm rather than `node` directly: the generator is TypeScript, and `devEngines` is what holds the run to a Node new
+enough to strip it.
 
 The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
-[`entries-by-event.json`](entries-by-event.json) — so an unchanged file after a run means the event data has not moved.
-That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
-[`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the feed only
-when it differs, and passes without a commit when it does not. Note that GitHub disables a scheduled workflow after 60
-days without a commit to the repository; re-enable it from the Actions tab if the feed ever goes stale.
+[`data/entries-by-event.json`](data/entries-by-event.json) — so a scheduled run that finds the event data unmoved
+publishes the bytes a subscriber already holds, rather than a fresh set of timestamps four times a day. Note that GitHub
+disables a scheduled workflow after 60 days without a commit to the repository, and nothing here commits: if the feed
+goes stale during a quiet stretch, re-enable the workflow from the Actions tab.
 
 An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
 exactly an iCalendar floating time: a `DTSTART` carrying neither a `TZID` nor a trailing `Z`. The ones that are a single
