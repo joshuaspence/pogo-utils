@@ -538,10 +538,35 @@ export interface Overlay {
    */
   levels: number[];
   iv: IVs;
+  /**
+   * What PGSharp appends in brackets after the IVs, as read — `L` for an Unown, and nothing at all for most Pokémon.
+   * Matching it to a form of the species is `identify`'s job, since only it knows which species this is.
+   */
+  form: string | null;
 }
 
 /** Only these survive the whitelist: the level's `L`, the digits and the slashes between the three IVs. */
 const OVERLAY_ALPHABET = 'L0123456789/ ';
+
+/**
+ * The alphabet the bracketed form is read with, which is deliberately not the one above widened: a whitelist is what
+ * stops a stray glyph splitting a number in two, and the letters a form needs are precisely the glyphs a digit is
+ * confused with — `O` for `0`, `S` for `5`, `B` for `8`. Two reads of the same crop therefore cost one more Tesseract
+ * call and leave the level and the IVs coming out of exactly the alphabet they were measured against.
+ *
+ * Digits are left out of it, which is measured rather than assumed. Over 24 Unown the letters come back identical with
+ * them and without, and over 18 Pokémon that carry no suffix at all the pass with digits invents one — `(251)` out of
+ * the artwork on a Decidueye — where the pass without them reads nothing on all 18. Spinda's forms are `00` to `19`, so
+ * a species labelled numerically would need them back; nothing here says PGSharp labels one, and the note `identify`
+ * writes for a suffix it cannot place is what would say so.
+ */
+const OVERLAY_FORM_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ()!? ';
+
+/**
+ * The last bracketed run on the line, since the suffix is appended and a stray bracket lands among the digits ahead of
+ * it — one capture read `L17 1V33 177(7 (L)`, where the first group is noise and the last is the form.
+ */
+const FORM_SUFFIX = /\(([^()]{1,20})\)/g;
 
 /** Bright enough to be the overlay's white text, and flat enough in colour not to be its IV percentage. */
 const OVERLAY_LUMINANCE = 150;
@@ -558,6 +583,21 @@ const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
  * them, with no reading gained or lost elsewhere.
  */
 const OVERLAY_CHARACTERS = 30;
+
+/**
+ * How far right of them it reaches, in the same characters, for the form PGSharp appends there. Unlike the reach the
+ * other way this one is bounded on both sides, because the level and the IVs come out of the same crop: too short
+ * clips the suffix, and too long drags the artwork beyond it into a band `ocrLine` reads whole.
+ *
+ * Both bounds are measured rather than reasoned about, over 24 Unown and 26 Pokémon PGSharp appends nothing to. At one
+ * character — what the box had when it was only ever meant to hold the numbers — the letter comes back on 20 of the 24
+ * and cannot be told from the level's own `L`; from three up all 24 that have an overlay read a closed bracket, and the
+ * letters are identical at 3, 4, 5, 8 and 13. Going further costs readings: the no-suffix corpus reads 18 of its 26
+ * overlays at 3, 4 and 5 and only 16 at 6 and beyond, losing a Buzzwole's `13/15/11` and a Hisuian Decidueye's
+ * `11/15/14` — which is the IVs, not the suffix, so it would read as the overlay simply not being there. Five is the
+ * most generous reach that costs none of them, and the 24 Unown triples are identical at every reach including the old.
+ */
+const OVERLAY_SUFFIX_CHARACTERS = 5;
 
 /** How far a row may be from a move's name, and how short a trailing token has to be to be an energy bar. */
 const MOVE_SLACK = 0.2;
@@ -681,13 +721,16 @@ async function tighten(image: Image, box: OverlayBox): Promise<OverlayBox | null
  * came back 25, 28, 49 and 54 pixels tall as the row was merged with whatever fragment of the artwork sat beside it,
  * and padding a 54 by half of itself reaches far enough into the picture to undo the whole point of cropping.
  * Character width does not wander — 270/17, 264/17 and 130/8 across those captures are within a pixel of each other.
- * It is anchored on the right edge and extended left, since the part that goes missing is always the left: where only
- * the three IVs are legible the level and the percentage ahead of them are still there to be read.
+ * It is anchored one character past the three IVs, since the part that goes missing is always the left: where only the
+ * triple is legible the level and the percentage ahead of it are still there to be read. It reaches further right than
+ * that anchor only because PGSharp appends the form there, and a box holding the whole overlay is the honest thing for
+ * `--config` to take and for `snap` to print.
  */
 function boxAround(line: { left: number; top: number; width: number; text: string }, image: Image): OverlayBox {
   const em = line.width / Math.max(1, line.text.length);
-  const right = line.left + line.width + em;
-  const left = right - OVERLAY_CHARACTERS * em;
+  const anchor = line.left + line.width + em;
+  const left = anchor - OVERLAY_CHARACTERS * em;
+  const right = anchor + OVERLAY_SUFFIX_CHARACTERS * em;
 
   return within({
     x: left / image.width,
@@ -728,16 +771,20 @@ export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
  * this reliable: measured over twelve captures the three IVs came out right in all twelve, where the same screens read
  * whole gave three. The level is a guess by comparison, at ten of twelve — the `IV` label beside it OCRs as a `1` and
  * runs into the digits — so it is offered rather than asserted, and `identify` keeps it only if the HP agrees.
+ *
+ * The bracketed form beside them is read as a second pass over the same isolated crop, with its own alphabet. That is
+ * the whole reason this costs two Tesseract calls rather than one: see `OVERLAY_FORM_ALPHABET`.
  */
 export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
-  const region = crop(
-    image,
-    box.x * image.width,
-    box.y * image.height,
-    box.width * image.width,
-    box.height * image.height,
+  const region = scale(
+    isolate(
+      crop(image, box.x * image.width, box.y * image.height, box.width * image.width, box.height * image.height),
+      OVERLAY_LUMINANCE,
+      OVERLAY_CHROMA,
+    ),
+    2,
   );
-  const line = await ocrLine(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2), OVERLAY_ALPHABET);
+  const line = await ocrLine(region, OVERLAY_ALPHABET);
   const text = line?.text ?? '';
   const triple = TRIPLE.exec(text);
 
@@ -751,7 +798,13 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     return null;
   }
 
-  return { levels: levelsIn(text.slice(0, triple.index)), iv: { attack, defense, stamina } };
+  const bracketed = [...((await ocrLine(region, OVERLAY_FORM_ALPHABET))?.text.matchAll(FORM_SUFFIX) ?? [])];
+
+  return {
+    levels: levelsIn(text.slice(0, triple.index)),
+    iv: { attack, defense, stamina },
+    form: bracketed.at(-1)?.[1]?.trim() ?? null,
+  };
 }
 
 /**
@@ -804,6 +857,11 @@ export interface Identity {
  * The overlay's level is taken as a proposal rather than as a fact. It is the one field of the three that OCR gets
  * wrong with any regularity, because the `IV` label beside it reads as a `1` and runs into the digits, so it is kept
  * only where the HP agrees that the Pokémon can be that level and reported as a disagreement where it does not.
+ *
+ * The form PGSharp appends is the one thing here that the game's own screen cannot say, and it is needed for exactly
+ * the species the numbers cannot separate: Unown's 28 letters are one set of base stats, one type and one move pool, so
+ * HP, IVs and types narrow them to 28 and stop. Where the overlay carries no suffix the numbers were enough — an Alolan
+ * Geodude's reads `L20 ɪᴠ91 13/13/15` with nothing appended, because its stats and types already say Alola.
  */
 export function identify(data: GameData, detail: Detail, overlay: Overlay | null): Identity {
   const notes: string[] = [];
@@ -822,6 +880,19 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
     }
 
     candidates = data.forms.filter(fits);
+  }
+
+  // PGSharp's own label, which is the only thing that can separate Unown's 28 letters: they share one set of base
+  // stats, one type and one move pool, so nothing the game's own screen shows tells them apart. Applied ahead of the
+  // fold below, which is otherwise what collapses them to one — and only where it matches something, since a suffix
+  // read off the artwork must not empty a candidate list the numbers had narrowed correctly.
+  const labelled = overlay?.form ?? null;
+  const named = labelled === null ? [] : candidates.filter((f) => fold(f.form) === fold(labelled));
+
+  if (named.length > 0) {
+    candidates = named;
+  } else if (labelled !== null) {
+    notes.push(`the overlay says form "${labelled}", which is no form of ${species ?? 'any species that fits'}`);
   }
 
   // Costumes repeat their base form's stats and types exactly, so they are the same answer twice.
