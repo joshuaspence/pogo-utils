@@ -652,10 +652,9 @@ accessibility tree to ask. Three traps, each of which read as a different bug th
 - **Find a control by its text only where the text sits inside it.** Storage's search box and the Appraise row qualify;
   the main menu's Pokémon button does not. Its label OCRs as `131,1735 186×32` and the icon's centre is `224,1874`, a
   little over four label-heights below — so tapping `centre(line)` lands on the backdrop, which dismisses the menu and
-  drops back to the map. Three rounds of that is
-  `could not find Pokémon storage; open it by hand and run again with --no-launch`, which reads as the game being
-  somewhere unexpected rather than as the tap being wrong. The configured `taps.pokemonButton` at `[0.25, 0.82]` is
-  inside the icon and works, so that button is tapped blind.
+  drops back to the map. Three rounds of that is `could not find Pokémon storage; open it by hand and run again`, which
+  reads as the game being somewhere unexpected rather than as the tap being wrong. The configured `taps.pokemonButton`
+  at `[0.25, 0.82]` is inside the icon and works, so that button is tapped blind.
 - **Clearing the search box uncovers the Recent and Recommended suggestions, and Enter does not dismiss them.** With
   text in the box the filtered grid shows behind and Enter only takes the keyboard away; with the box empty the panel
   covers the grid outright, so `openFirst` finds no `CP` label and falls back to `taps.firstTile` — which lands on the
