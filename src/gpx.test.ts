@@ -1,6 +1,6 @@
-import { expect, test } from 'vitest';
+import { afterEach, expect, test } from 'vitest';
 
-import { eachTrack, entryCoords, entryCountry, extText, placeName } from './gpx.js';
+import { eachTrack, entryCoords, entryCountry, extText, loadManifest, placeName } from './gpx.js';
 import { parseXml } from './testing/xml.js';
 
 const gpx = (body: string) =>
@@ -148,4 +148,61 @@ test('eachTrack pairs a track with its points from every segment', () => {
     [3, 4],
     [5, 6],
   ]);
+});
+
+/**
+ * `loadManifest` is the one reader here that needs a global rather than a tree, so the tree-based cases above cannot
+ * reach it. The stub is `fetch` itself because that is what the function names: a parameter would be a seam the page
+ * does not have, and what the guard is about is a response this repository's own build wrote going wrong.
+ *
+ * `parseGpxDocument` is the one reader no test here reaches, and deliberately: it tells a malformed file apart by
+ * `querySelector('parsererror')`, a browser convention `@xmldom/xmldom` does not implement at all — it throws from
+ * `parseFromString` instead. So a test over xmldom would be checking a different contract, and the browser suite is what
+ * covers it.
+ */
+const respondWith = (body: unknown, init?: { ok?: boolean; status?: number; statusText?: string }) => {
+  globalThis.fetch = () =>
+    Promise.resolve({
+      ok: init?.ok ?? true,
+      status: init?.status ?? 200,
+      statusText: init?.statusText ?? 'OK',
+      json: () => Promise.resolve(body),
+    } as Response);
+};
+
+afterEach(() => {
+  Reflect.deleteProperty(globalThis, 'fetch');
+});
+
+test('loadManifest answers the list of paths the build wrote', async () => {
+  respondWith(['Australia/Melbourne Zoo.gpx', 'England/West End, London.gpx']);
+
+  await expect(loadManifest()).resolves.toEqual(['Australia/Melbourne Zoo.gpx', 'England/West End, London.gpx']);
+});
+
+/** An empty manifest is a repository with no files rather than a failure, and the pages say so themselves. */
+test('loadManifest answers an empty list as an empty list', async () => {
+  respondWith([]);
+  await expect(loadManifest()).resolves.toEqual([]);
+});
+
+/** A status the server refused on names itself, so a 404 from a missing build reads differently from a 503. */
+test('loadManifest refuses a response the server would not give', async () => {
+  respondWith(null, { ok: false, status: 404, statusText: 'Not Found' });
+  await expect(loadManifest()).rejects.toThrow('404 Not Found');
+});
+
+/**
+ * `Response#json` answers `any`, so this guard is the whole of what says the result is a list of strings — nothing at the
+ * type level reads the `some`. Each shape is something a half-written or wrong file would actually be.
+ */
+test.for([
+  { body: 'a bare string', value: 'Melbourne Zoo.gpx' },
+  { body: 'an object', value: { files: [] } },
+  { body: 'null', value: null },
+  { body: 'a list with a number in it', value: ['a.gpx', 42] },
+  { body: 'a list of nulls', value: [null] },
+])('loadManifest refuses $body', async ({ value }) => {
+  respondWith(value);
+  await expect(loadManifest()).rejects.toThrow('is not a list of paths');
 });

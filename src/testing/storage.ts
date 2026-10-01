@@ -1,5 +1,5 @@
 /**
- * A `localStorage` for a test: the five members the preference readers use, over a Map, plus the one thing the real API
+ * A `localStorage` for a test: the three members the preference readers use, over a Map, plus the one thing the real API
  * does that a Map does not — `throws` makes every call raise, which is what a browser in private mode or with storage
  * disabled does and is the case every reader has a `catch` for.
  *
@@ -11,10 +11,6 @@ export class FakeStorage {
   readonly #entries = new Map<string, string>();
 
   throws = false;
-
-  get length() {
-    return this.#entries.size;
-  }
 
   getItem(key: string) {
     this.#check();
@@ -29,14 +25,6 @@ export class FakeStorage {
   removeItem(key: string) {
     this.#check();
     this.#entries.delete(key);
-  }
-
-  clear() {
-    this.#entries.clear();
-  }
-
-  key(index: number) {
-    return [...this.#entries.keys()][index] ?? null;
   }
 
   /** What the store holds, for an assertion about what was written rather than about what reads back. */

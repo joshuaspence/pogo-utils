@@ -218,3 +218,21 @@ test('the controls compose', () => {
   expect(admits.every((e) => e.generation === 1 && e.released && e.categories.includes('legendary'))).toBe(true);
   expect(admits.map((entry) => entry.dex)).not.toContain(entryAt(25).dex);
 });
+
+/**
+ * The three toggles that are not categories, each asking something of the entry that a category does not: whether any
+ * released part of it has a shiny, whether any spawns in the wild, and whether it has forms at all. Checked against the
+ * entries rather than a count, for the reason the flag combination above is.
+ */
+test.for([
+  { flag: 'shiny', holds: (entry: Entry) => entry.shiny },
+  { flag: 'wild', holds: (entry: Entry) => entry.spawns },
+  { flag: 'forms', holds: (entry: Entry) => entry.variants.length > 0 },
+])('the $flag toggle admits exactly the entries it holds of', ({ flag, holds }) => {
+  const admits = admitted({ flags: new Set([flag]) });
+
+  // Both directions, since a toggle admitting nothing and one admitting everything both satisfy "every entry holds".
+  expect(admits.length).toBeGreaterThan(0);
+  expect(admits.length).toBeLessThan(ENTRIES.length);
+  expect(admits).toEqual(ENTRIES.filter(holds));
+});
