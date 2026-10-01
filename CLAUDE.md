@@ -775,22 +775,88 @@ rank them, and the ranking was not what watching the scan suggested.
   digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
   flip between the two Pokémon that disagree.
 
+### Pinning a reader with a committed capture
+
+`pnpm test` runs `scripts/inventory/screens.test.mts` over eight real screenshots in `scripts/inventory/fixtures/`.
+Every reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test
+needs — no phone, no network, and a hermetic 18-element `GameData`, since `parseDetail` reaches the game master only
+through `typesOf` and that wants the type names and nothing else. The whole suite is about 17 seconds, OCR being all of
+it.
+
+- **Select a fixture with a search that pins every attribute at once, and commit the search beside it.** A capture
+  chosen because a sprite looked small is only as good as the eye that chose it, where
+  `xxs&female&!lucky&!shiny&!costume&!background&!shadow&!purified` is the game stating all eight and is falsifiable:
+  re-run it and the first match is in the set the row claims. That makes a row's `size` and `gender` the game's own
+  answers and the assertions what the readers must agree with, rather than a transcript of whatever they said first.
+  Negation is the half that only the search can give, too, since nothing on the screen says a Pokémon is **not** lucky.
+- **Re-encode a capture as colour-type-2 RGB before committing it.** The phone hands over RGBA with a fully opaque alpha
+  channel, so dropping it is lossless and worth about 22% — 716 KB to 559 KB on one. Verify it by decoding the output
+  back and comparing every non-alpha byte, since a re-encode that quietly changed a pixel would move the very readings
+  the fixture exists to pin. The eight come to 4.8 MB against a `.git` of 2.6 MB, which is the real cost of this and
+  worth stating rather than discovering.
+- **Assert what is _not_ asserted, and why.** `heightM` is left out because the badge corrupts it, `name` because it is
+  a nickname field and one fixture is nicknamed `96%`, `cp` because `cpOf` derives it. A field quietly dropped from an
+  assertion is indistinguishable from one that passes.
+- **A reading the whole corpus agrees on compares equal for ever and reads exactly like agreement.** Seven of the eight
+  carry no chip, so a `tagsOn` returning `[]` unconditionally passes every row but one; three wear no badge, so a
+  `sizeOf` returning null passes three. So assert the corpus's own coverage in a test of its own — that both sides of
+  each of the eight attributes appear across the searches, that the size column holds all four bands and none, that some
+  fixture carries two chips — and check that dropping a fixture makes **that** test fail, which it does.
+- **A regression fixture needs the trap asserted present, not just the reader asserted right.** The status-bar row's
+  assertions would read identically on a capture whose status bar held nothing to trip over, so a separate test asserts
+  that a line above the panel still OCRs as a loose measurement and that it is not the height. A capture is a file and
+  cannot change; which lines Tesseract finds in it can.
+- **Mutate every reader and account for each break that survives.** Nineteen breaks over these eight fixtures: sixteen
+  caught, by between one and seven fixtures each, and three shown unreachable rather than left as a bare 0 — the
+  zero-versus-non-zero fractions above, a `patchIn` bounding box one pixel narrow (the pill has white padding and the
+  crop feeds OCR, so a pixel changes no reading), and `SIZE_FILL` at 0, which only ever skips the OCR early: with no
+  saturated pixel `patchIn` answers a degenerate box, `crop` clamps it, and the badge still spells nothing. That last
+  one says `SIZE_FILL` is a cost control and not a correctness check, which is worth knowing before tightening it.
+- **Grep a mutation harness's own output at your peril.** One pass reported `pass=0 fail=1 caught=[]` for a break that
+  was in fact caught — the figure came from a parse of the test runner's output, not from the runner. Print the failing
+  test names the runner printed, and print a run that did not complete as a failure rather than as a number.
+
 ### What the detail screen will and will not tell you
 
 Worth settling once, since two of these look as though they ought to be readable and are not. Checked by opening one of
 each and reading the whole screen down to `SWAP BUDDIES`.
 
-- **The size is on the screen**: a gold pill saying `XXL` or `XXS`, above the height. So it is read rather than searched
-  for, and `xxl` and `xxs` are no longer flags. Checked against the game's own `xxl` search, which marked the same
-  Applin — 5/2/15 at 0.33m — that the badge does.
-- **Crop to the gold before reading that badge.** The text is white and so is the panel around it, so isolating the
+- **The size is on the screen, in four bands and not two**: a pill saying `XXL`, `XL`, `XS` or `XXS`, drawn over the
+  height. So it is read rather than searched for, and the four are no longer flags. Checked against the game's own `xxl`
+  search, which marked the same Applin — 5/2/15 at 0.33m — that the badge does. `src/search/terms.js` already had all
+  four, and modelling only the two extremes meant `XL` and `XS` read as nothing at all.
+- **Try the longest badge first.** `XXL` contains `XL` and `XXS` contains `XS`, so a list searched shortest-first
+  answers `XL` for every `XXL`. Two of the eight committed fixtures catch that on their own.
+- **The pill's hue tracks the superlative rather than the size, so find it by saturation and never by colour.** It is
+  gold where that measurement is also a personal record for the species and teal where it is not:
+  `scripts/inventory/fixtures/xs-unown.png` carries rgb(192,160,64) under a `SHORTEST` where `fixtures/xxs-female.png`
+  carries rgb(96,192,192) under a plain `HEIGHT`, its gold `LIGHTEST` being over on the weight instead. A gold test
+  therefore answers only for a Pokémon that happens to be the tallest or shortest of its kind, which is why it read **0
+  of 78** real captures. Any hue at all separates it from a panel that is neutral rgb(224,224,224), and finds all four
+  bands.
+- **Anchor that band on the height alone, not on the row the height shares with the weight.** The pill sits above the
+  height, and a band taken as a fraction of the screen's width instead reaches past the right edge of the panel into the
+  page behind it, which is saturated navy and swamps anything the pill contributes. It is also what kept the older gold
+  test honest only by luck: the tall narrow patch of gold in one capture's artwork that passed it was in reach of the
+  wide band and is not in reach of this one.
+- **Crop to the pill before reading that badge.** The text is white and so is the panel around it, so isolating the
   white over a band containing both turns the panel black as well and hands Tesseract a black page with one white island
-  in it — legible to a person, unreadable to anything else. The gold pill is the only thing that separates them: find it
-  by colour, crop to it, and the badge becomes the whole page, where the text really is dark on light. The gold is a
-  cheap pre-filter too, since most Pokémon have no badge — but not a sufficient one, as a tall narrow patch of gold in
-  one capture's artwork passed it and only the text ruled it out.
+  in it — legible to a person, unreadable to anything else. The pill is the only thing that separates them: find it by
+  saturation, crop to it, and the badge becomes the whole page, where the text really is dark on light. The saturation
+  is a cheap pre-filter too, since most Pokémon have no badge — but not a sufficient one, so the text still has to spell
+  one of the four.
+- **The badge corrupts the height it is drawn over, which is a defect and not a quirk of one capture.** The pill's tail
+  points down into the digits, so `fixtures/xxl-male.png` renders `1.1m` and reads `1.4m`. It is the tail's position
+  relative to the digits that decides it rather than the badge's presence: `fixtures/xxl-status-bar.png` wears the same
+  gold `XXL` and reads its `5.78m` correctly, because there the tail lands in the gap above the `8`. So a height from a
+  badged screen is suspect and a height from an unbadged one is not.
 - **A costume says nothing at all.** A costumed Pikachu is named `Pikachu` like any other and differs only in the
   artwork, so costume can only come from the game's `costume` search, as a flag pass.
+- **Lucky, unlike costume and shiny, _is_ on the screen: the game draws `LUCKY POKÉMON` in green under the nickname.**
+  Visible on `scripts/inventory/fixtures/lucky-shiny.png`, and it is the game's own text rather than PGSharp's, so it
+  scales with the screen and is generalisable the way the size badge turned out to be. Nothing reads it yet — `lucky` is
+  still a flag pass, which is a walk of every lucky Pokémon in storage — so this is an opportunity rather than a trap.
+  Do not confuse it with the `Lucky ☘` **chip** on the same capture, which is one of the account's own tags.
 - **Tags are on the screen, as chips under the HP** — and finding that out took being told, because the check that said
   otherwise could not have found them. Eighty-seven captures showed nothing between the HP and the weight, and not one
   of those Pokémon was tagged: a band that is empty on every screen you own reads exactly like a band that is always
@@ -800,10 +866,24 @@ each and reading the whole screen down to `SWAP BUDDIES`.
   by side, so reading the row whole would run the names together; a run of coloured columns is one chip. Match what is
   read against the names rather than trusting it, since `Trade to 0xNULL` comes back as `Trade to OxNULL` and only
   agrees once folded.
+- **A chip named `Shiny` or `Lucky` is still one of the account's own tags, not a reading of the Pokémon.** Confirmed by
+  scrolling storage's own TAGS tab, which is where the vocabulary comes from: `Favorites` 1836, `Perfect` 406,
+  `Shadow ●` 21, `Mega Ω` 33, `Background ⛶` 24, `Lucky ☘` 24, `Level 50` 19, `GBL` 7, `Dynamax ⌗` 5, `Purified ○` 1. So
+  a chip reading `Shiny` is evidence about the player's filing and none at all about the Pokémon, which is why `shiny`
+  is still a flag pass on an account that happens to tag its shinies. The emoji inside the pill reads as letters —
+  `Shiny ✦` comes back `Shiny SJ` and `Lucky ☘` comes back `Lucky Me` — so the vocabulary is what turns a chip into a
+  name.
 - **Look in the top of that gap, not all of it.** The type icons sit at the foot of it and are coloured too, and a
   Pokémon whose types are colourful — a Woobat against a Normal-type Glameow — has them in the same columns as its chip.
   That makes one run of the two and drops its fill from 86% to 34%, which reads as no chip at all: three of six
   known-tagged Pokémon were lost that way, and all six read once the band stopped short of the icons.
+- **Derive that band's floor from the gap rather than writing a fraction down, because the margin is a pixel wide.** At
+  0.45 of the gap the band clipped `scripts/inventory/fixtures/lucky-shiny.png`'s two chips, which span rows 44–110 of
+  the gap's 220, to a height of 55 against a floor of 2244 × 0.025 = 56.1 — so both chips of the only tagged capture in
+  the corpus were discarded by **1.1 pixels**, with their fill at 0.86 and nothing reporting it. Taking the whole gap is
+  no better, since that is the merge above. What makes it derivable is that the icons always reach the gap's bottom row
+  and a chip row never does, so the floor is the top of the last run of coloured rows, read off the gap itself: 188–219
+  for the icons with 77 blank rows above them, against 44–110 for the chips.
 - **A pass reads most of its set, not all of it.** Before the tags were read off the screen, a pass over
   `Trade to 0xNULL` marked 73 where the game says 76 have it, without the walk ever reporting that it gave up. Read a
   pass's count against the number beside the game's own search and treat a few per cent short as ordinary; on a large
@@ -841,7 +921,13 @@ row was being matched against, and matching against the seven is the single larg
   the answer is to reach further than the text can need — 19 characters reads 49 of 50 levels and 30 reads all of them.
 - **The unit is the part of a measurement that goes.** A Cyndaquil's `5.42kg` came back `5.42k` and was thrown away for
   want of a `g`. Match the number: every weight and height the game shows carries a decimal point, and the stray digits
-  a crop picks out of the artwork do not.
+  a crop picks out of the artwork do not. The decimal point is load-bearing and the screen furniture is where it bites:
+  `scripts/inventory/fixtures/xxl-status-bar.png` has `0900 M © Os` at y38 — a 24-hour `09:00` with a notification icon
+  OCR'd as an `M` — which a `/(\d+)\s*m\b/` takes in preference to the real `5.78m` 1,137 pixels below it, and `sizeOf`
+  and `typesOf` are both anchored on that line and go with it. PGSharp's overlay is the second source, reading
+  `L16 1v53 m 0/7 (B` on one capture where the IVs garbled into a ` m`. Two of 78 captures reach it, so a corpus can
+  easily hold none: of the eight committed fixtures only the status-bar one does, the other seven having been taken at
+  13:xx with no icon beside the clock.
 - **Measure each phone on its own.** Running both corpora through one harness shares a box that widens as it goes, so a
   box grown on one phone's screens rescues the other's and a real regression reads as a pass. Two phones measured
   together said 24 characters was worse than 19; measured apart, it was neither.
@@ -879,7 +965,10 @@ row was being matched against, and matching against the seven is the single larg
   means opening the _second_ Pokémon whenever the first one's CP fails to OCR — in an `xxl` grid of five the top row's
   only legible label was the middle tile's, so every walk began one along. It cost a member of every flag pass and the
   first Pokémon of storage in the full one, and it showed up only as a count one short of what the search reported.
-  Check a flag pass against the number the game puts beside the search box, since nothing else notices.
+  Check a flag pass against the number the game puts beside the search box, since nothing else notices — but let it
+  settle before reading it. That count is transient: it is drawn while the grid is still filtering and reads the
+  previous search's figure, or nothing at all, for a moment after the text goes in. A count read too early is worse than
+  no count, because it is the one number a pass is judged against.
 - **Read a detail screen more than twice before believing it.** A screen still settling has no HP on it and no overlay
   yet, and one bad read costs a whole member of a flag pass — which is a Pokémon the full pass then never learns was in
   the search, rather than a row with a gap in it.
@@ -901,6 +990,22 @@ Three of the CSV's columns are pixels rather than text, and one that looks as th
   taller than wide and the male's square. 1.51 against 0.99 on one phone and 1.51 against 1.00 on the other, so one
   threshold serves both. Find it by where the HP is rather than by a fraction of the screen, and read no ink as no
   gender rather than as a failure — all seven Xerneas captures report none, which is right.
+- **Derive what the ink is darker _than_ from the panel, because a level named outright is above it.** The panel is
+  rgb(224,224,224) and the symbol's own body is 175, so an ink test of "below 235" silhouettes the **panel**: every
+  pixel of the crop matches, the fraction is 1.0, and the ratio that was meant to measure a symbol's outline is
+  measuring the crop's own aspect — which means the gender was being decided by how tall OCR thought the HP was. **32 of
+  78** real captures named a gender for a Pokémon that has none. Read the modal luminance of the region and go 20 below
+  it, and the same captures answer 1.00 male, 1.51 female and no ink at all for genderless, with the panel at 224 in
+  91–100% of every region measured. A threshold above the background it is meant to exclude fails in the direction that
+  looks like success, so measure the background rather than assuming it is white.
+- **These three fractions separate zero from non-zero, not small from large, so the constants are headroom and not
+  discriminators.** Measured over all 78 captures: the star corner is **exactly 0** gold pixels on 77 and 19% on the one
+  favourite; the badge band is exactly 0 saturated pixels on 52 of the 57 with a readable height and 11–22% on the other
+  five; the gender region is exactly 0 ink pixels on 22 of the 32 with a readable HP and 2.4–7.0% on the other ten. Not
+  one capture of the 78 lands non-zero but below its threshold. So a mutation replacing the fraction by "any match at
+  all" is **unreachable with this data** rather than missed by the corpus, and no capture from these 78 could catch it —
+  the panel is flat and a screenshot is lossless, so the noise the thresholds exist for is not produced here. Expect it
+  on a device that scales or compresses, and do not read a surviving mutation on one of them as a gap in the fixtures.
 - **Do not take shiny from the `✨` PGSharp appends to its overlay, however much it looks like a free answer.** The box
   it sits in is translucent, so the artwork behind it shows through, and a Hisuian Lilligant's yellow flower gives
   **202** gold pixels inside that box against the sparkle's **121** — the false positive is the larger signal.
