@@ -429,7 +429,7 @@ interface Defects {
   box?: null;
   /** True where `isFavourite` reads gold in the star corner of a Pokémon whose star is a white outline. */
   favourite?: boolean;
-  heightM?: number;
+  height?: number;
   /** Null where `readOverlay` reads nothing out of a box `findOverlay` did find. */
   iv?: null;
   /** The name under the artwork, which is the nickname where one is set and so carries no species to fall back on. */
@@ -466,10 +466,14 @@ interface Fixture {
   /** The CP above the artwork, which `cpOf` must derive and OCR reads on 20 of the 61. */
   cp: number;
   defects?: Defects;
+  /** Whether the game draws the Dynamax treatment behind the artwork. */
+  dynamax?: boolean;
   favourite?: boolean;
   file: string;
-  /** The game master's own name for the form, `''` for a base form. */
-  form: string;
+  /** Whether the game draws the Gigantamax treatment behind the artwork. */
+  gigantamax?: boolean;
+  /** The game master's own name for the form, `null` for a base form. */
+  form: string | null;
   gender: Gender | null;
   height: number;
   hp: number;
@@ -761,7 +765,7 @@ const FIXTURES: readonly Fixture[] = [
     file: 'deerling-summer.png',
     form: 'Summer',
     gender: 'female',
-    height 0.65,
+    height: 0.65,
     hp: 89,
     overlay: { iv: { attack: 3, defense: 0, stamina: 13 }, level: 16 },
     species: 'Deerling',
@@ -1000,7 +1004,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 423,
     file: 'meowth-kanto.png',
-    form: null
+    form: null,
     gender: 'male',
     height: 0.36,
     hp: 80,
@@ -1335,8 +1339,8 @@ for (const fixture of FIXTURES) {
     await t.test('gender', () => assert.strictEqual(detail.gender, fixture.gender));
     await t.test('hp', () => assert.strictEqual(detail.hp, fixture.hp));
     await t.test('name', () => assert.strictEqual(detail.name, defects.name ?? name));
-    await t.test('weight', () => assert.strictEqual(detail.weightKg, fixture.weightKg));
-    await t.test('height', () => assert.strictEqual(detail.heightM, defects.heightM ?? fixture.heightM));
+    await t.test('weight', () => assert.strictEqual(detail.weight, fixture.weight));
+    await t.test('height', () => assert.strictEqual(detail.height, defects.height ?? fixture.height));
     await t.test('types', () => assert.deepStrictEqual(detail.types, defects.types ?? fixture.types));
 
     await t.test('favourite', () =>

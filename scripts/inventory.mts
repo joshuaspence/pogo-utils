@@ -598,8 +598,8 @@ async function scan() {
         fast_move: moves.fast,
         charged_move_1: moves.charged[0] ?? null,
         charged_move_2: moves.charged[1] ?? null,
-        weight_kg: detail.weightKg,
-        height_m: detail.heightM,
+        weight_kg: detail.weight,
+        height_m: detail.height,
         types: detail.types.join(' / '),
         notes: [...notes, ...id.notes].join('; '),
       };
@@ -682,7 +682,7 @@ function keyOf(detail: Detail, overlay: Overlay | null): string | null {
 function looseKeyOf(detail: Detail, overlay: Overlay | null): string {
   const iv = overlay ? `${overlay.iv.attack}/${overlay.iv.defense}/${overlay.iv.stamina}` : '';
 
-  return [detail.hp, detail.weightKg, detail.heightM, iv].join('|');
+  return [detail.hp, detail.weight, detail.height, iv].join('|');
 }
 
 function isStorage(lines: readonly Line[]): boolean {
