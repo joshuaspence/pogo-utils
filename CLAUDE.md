@@ -817,15 +817,15 @@ bracketed suffix already goes. The figures below are measured over 17 captures f
 
 ### Pinning a reader with a committed capture
 
-`pnpm test` runs `scripts/inventory/screens.test.mts` over 64 real screenshots in `scripts/inventory/fixtures/`. Every
+`pnpm test` runs `scripts/inventory/screens.test.mts` over 62 real screenshots in `scripts/inventory/fixtures/`. Every
 reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test needs —
 no phone, no network, and a hermetic `GameData` of eighteen type names for `parseDetail` plus, for `identify`, 122 forms
 over 41 species and the 101-entry CP multiplier table, each value read once out of a real `loadGameData` and recorded in
-the file. 1,170 tests in about 2.8 minutes, OCR being all of it: each attribute is a subtest under a parent per capture,
-so a failure names the reader that broke, and the reading is memoised per capture, which is why the assertions are free
-and only the 64 OCR passes cost anything.
+the file. 1,133 tests in about four minutes, OCR being all of it: each attribute is a subtest under a parent per
+capture, so a failure names the reader that broke, and the reading is memoised per capture, which is why the assertions
+are free and only the 62 OCR passes cost anything.
 
-61 of the captures are a `Fixture` row, 30 species between them. The other three are not detail screens with a readable
+59 of the captures are a `Fixture` row, 30 species between them. The other three are not detail screens with a readable
 Pokémon and so cannot be rows — `overworld.png` is the map, and `no-pgsharp.png` and `pgsharp-no-overlay.png` are one
 Squirtle captured with PGSharp absent and with its toolbar up — so they are asserted as negative cases instead, which is
 the half of a corpus that valid screens cannot state: no overlay found, no HP, nothing `identify` could narrow.
@@ -837,10 +837,10 @@ the half of a corpus that valid screens cannot state: no overlay found, no HP, n
   derives one from the form, the IVs and the level's multiplier where the screen states it outright, and the arithmetic
   cannot be wrong, so the two meeting means the form, the IVs and the level are every one of them right. A table
   recording `cp` as whatever OCR made of it can only cross-check the captures OCR read a CP on, which is **20** of the
-  61 and four of those wrongly; a table recording what the screen shows reaches the **40** where `identify` settles on
-  exactly one level, agreeing on 32. The other eight are the check doing its other job rather than failing to run: each
-  derives a CP that disagrees with the screen, which is the pipeline saying the form or the level is wrong. It also
-  settles the Ho-Oh below to the digit, where a transcript could only record the wrong answer.
+  59; a table recording what the screen shows reaches the **56** where `identify` settles on exactly one level, agreeing
+  on 50. The other six are the check doing its other job rather than failing to run: each derives a CP that disagrees
+  with the screen, which is the pipeline saying the form or the level is wrong. It is also what settled the Ho-Oh below
+  to the digit, where a transcript could only have recorded the wrong answer.
 - **Pin a figure the prose quotes in a test, because prose is the one part of a test file no test reads.** That docblock
   claimed the cross-check landed on **39** of the 61 for as long as nobody measured it, where it is 32, through a green
   1,169-test suite — a count is exactly the kind of claim that rots silently. `COVERAGE` in that file is now eleven such
@@ -873,15 +873,18 @@ the half of a corpus that valid screens cannot state: no overlay found, no HP, n
   `heightM` was left out because the badge corrupts it, `name` because one fixture is nicknamed `96%`, and `cp` because
   `cpOf` derives it — three readers free to change their answers unremarked. So the row states the truth and an optional
   `defects` beside it states what the reader answers instead, which is the inverse of recording the reading and
-  softening the row: fixing a reader fails here and has to say so. **46 of the 61 carry one** and all fourteen `Defects`
-  keys are in use, and the corpus test asserts that every key is still pinned by some capture _and_ that some capture
-  carries none — fifteen do — since a reader wrong everywhere would otherwise pass every row it had an entry in. Read
-  the keys rather than testing them for truth: three of them can be `null`, and a truth test files those as absent.
+  softening the row: fixing a reader fails here and has to say so. **23 of the 59 carry one**, twelve of the fourteen
+  `Defects` keys are in use, and the corpus test asserts the pinned set _exactly_ rather than one `ok` per key — so a
+  key arriving is as loud as a key leaving, and `box` and `favourite` being absent is the record of two readers fixed.
+  It also asserts that some capture carries none, 36 doing so, since a reader wrong everywhere would otherwise pass
+  every row it had an entry in. Read the keys rather than testing them for truth: some of them are `null`, and a truth
+  test files those as absent.
 - **Two absences are two defects and a row has to say which.** `findOverlay` finding no box is `defects.box: null` where
-  PGSharp drawing no overlay at all is `overlay: null` on the row itself, and the corpus holds three of each — so a row
-  that conflated them could not say whether the reader was wrong or right. `readOverlay` reading nothing out of a box
-  that _was_ found is the third stage and `defects.iv: null`, on fourteen. That is the costliest defect here, since with
-  no level and no IVs `identify` stops at the species and the CP goes unchecked.
+  PGSharp drawing no overlay at all is `overlay: null` on the row itself — so a row that conflated them could not say
+  whether the reader was wrong or right. Only the second is left: `findOverlay` has stopped missing a box that is on the
+  screen, so `defects.box` is asserted as an empty list rather than deleted, which is what makes a capture needing it
+  again visible. `defects.iv` is the third stage and holds a triple as well as a `null`, since `readOverlay` can read
+  one that is simply wrong — `basculin-blue.png` at `3/3/5` for an `8/3/5` is the only row left whose IVs are.
 - **A reading the whole corpus agrees on compares equal for ever and reads exactly like agreement.** 59 of the 61 carry
   no chip, so a `tagsOn` returning `[]` unconditionally passes every row but two; 54 wear no badge, so a `sizeOf`
   returning null passes 54. So assert the corpus's own coverage in a test of its own — that both sides of each flag
