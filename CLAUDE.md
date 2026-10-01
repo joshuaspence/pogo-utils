@@ -237,6 +237,14 @@ Which route a change takes turns on whether it changes what the code _does_ or o
 - **A feature or a logic change needs a pull request.** Anything that changes behaviour rather than content: a new page
   or control, a rendering, filtering or sorting rule, the shape of a file the pages read, a script, a workflow, a
   refactor. Branch, push, and open it against `master`.
+- **A dependency bump lands itself, and the gate is `master`'s protection rule rather than `automerge.yml`.** Auto-merge
+  can only be enabled on a pull request that is _blocked_, so against an unprotected branch the step fails with the pull
+  request already being in a clean status — the rule requiring `Complete` and `test` is what gives it something to wait
+  on. `Complete` is one check on purpose: a matrix leg's check is named after the leg, so requiring those directly would
+  copy `lint.yml`'s six names into the repository's settings and leave a seventh added later required by nothing. Admin
+  bypass stays on, which is what keeps a data change pushable to `master` directly. Do not count on the merge deploying:
+  a push a `GITHUB_TOKEN` made creates no workflow run, so the six-hourly schedule rather than `pages.yml`'s `push` is
+  what is known to serve a bumped bundle. Watch which fired before concluding either way.
 - **Open the pull request ready for review, not as a draft.** A draft says the work is not finished, and there is
   nothing here that wants parking half-done. If it is not ready, leave it unopened.
 - **A change that is both is a logic change.** Adding a species to a filter is data; changing how that filter decides
