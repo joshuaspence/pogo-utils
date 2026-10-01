@@ -639,7 +639,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 764,
     file: 'castform-normal.png',
-    form: 'Normal',
+    form: null,
     gender: 'male',
     height: 0.24,
     hp: 102,
@@ -835,7 +835,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 2848,
     file: 'dialga-altered.png',
-    form: 'Altered',
+    form: null,
     gender: null,
     height: 6.82,
     hp: 146,
@@ -911,7 +911,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 1904,
     file: 'genesect-normal.png',
-    form: 'Normal',
+    form: null,
     gender: null,
     height: 1.51,
     hp: 112,
@@ -980,7 +980,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 446,
     file: 'meowth-alola.png',
-    form: 'Alolan',
+    form: 'Alola',
     gender: 'male',
     height: 0.38,
     hp: 74,
