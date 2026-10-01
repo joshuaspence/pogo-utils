@@ -68,14 +68,24 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const hpLine = lines.find((l) => /hp/i.test(l.text) && hpPattern.test(l.text));
   const hp = hpLine ? Number(hpPattern.exec(hpLine.text)?.[2]) : null;
 
-  // The name is the nearest line of words above the HP bar. A nickname reads here as readily as a species does.
+  // The name is the nearest line above the HP bar; a nickname reads here as readily as a species does, and a player can
+  // set one that is no words at all. Three letters alone was the test, which is what a species has and `96%` has not,
+  // so on the two captures nicknamed that the search walked hundreds of pixels back up the screen to the nearest line
+  // that did — PGSharp's own overlay, giving `aals15` and `ee JEN`. Two digits is the other way to be readable.
+  //
+  // Two characters of *anything* is too loose, and the measurement says why rather than the guess: the name sits 117 to
+  // 173 pixels above the HP across the corpus, and what sits nearer than that is the bar's own furniture, read as `os`
+  // or `oy` on five captures at a gap of 57 to 62. Two letters admits those and they win for being nearest. Neither
+  // three letters nor two digits does, and the far wrong answers stay beaten by distance — `96%` at a gap of 173
+  // against `aals/15 +` at 618.
   const nameLine = hpLine
     ? lines
-        .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}/u.test(l.text))
+        .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}|\p{N}{2}/u.test(l.text))
         .filter((l) => !/\bcp\s?\d/.test(fold(l.text)))
         .at(-1)
     : undefined;
-  const name = nameLine ? nameLine.text.replace(/[^\p{L}\p{N} .'♀♂:-]/gu, '').trim() || null : null;
+  // `%` is here for the same reason: it is a character a nickname can be made of, and stripping it left `96` for `96%`.
+  const name = nameLine ? nameLine.text.replace(/[^\p{L}\p{N} .'%♀♂:-]/gu, '').trim() || null : null;
 
   const number = (pattern: RegExp) => {
     const line = lines.find((l) => pattern.test(l.text));
