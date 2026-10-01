@@ -336,36 +336,36 @@ interface Defects {
  * asserted against, and where one disagrees that goes in `defects` rather than softening a field.
  */
 interface Fixture {
-  file: string;
-  /** The species, which is `identify`'s to answer and is not on the screen at all where a nickname is set. */
-  species: string;
-  size: Size | null;
-  gender: Gender | null;
-  favourite: boolean;
-  /** The chips under the HP, as names once resolved against `TAGS`. */
-  tags: string[];
-  hp: number;
-  types: string[];
-  weightKg: number;
-  heightM: number;
-  /** The name the screen prints under the artwork: the species, or the nickname where one is set. */
-  name: string;
+  background: string | null;
+  /** What the artwork wears, or null for none. Described rather than named, the game showing no label for either. */
+  costume: string | null;
   /** The CP above the artwork, which `cpOf` must derive and OCR reads on two of the eight. */
   cp: number;
+  defects?: Defects;
+  favourite: boolean;
+  file: string;
+  /** The form, which PGSharp appends in brackets after the IVs and is how a form is asserted with no species data. */
+  form: string | null;
+  gender: Gender | null;
+  heightM: number;
+  hp: number;
   /** PGSharp's statement of the IVs, which the green percentage beside them corroborates. */
   iv: IVs;
   /** The level PGSharp states and the HP reproduces — one number, where `levelsIn` offers a shortlist. */
   level: number;
-  /** The form, which PGSharp appends in brackets after the IVs and is how a form is asserted with no species data. */
-  form: string | null;
   lucky: boolean;
-  shiny: boolean;
-  /** What the artwork wears, or null for none. Described rather than named, the game showing no label for either. */
-  costume: string | null;
-  background: string | null;
-  shadow: boolean;
+  /** The name the screen prints under the artwork: the species, or the nickname where one is set. */
+  name: string;
   purified: boolean;
-  defects?: Defects;
+  shadow: boolean;
+  shiny: boolean;
+  size: Size | null;
+  /** The species, which is `identify`'s to answer and is not on the screen at all where a nickname is set. */
+  species: string;
+  /** The chips under the HP, as names once resolved against `TAGS`. */
+  tags: string[];
+  types: string[];
+  weightKg: number;
 }
 
 /**
@@ -395,126 +395,109 @@ interface Fixture {
  */
 const FIXTURES: readonly Fixture[] = [
   {
-    file: 'spoink.png',
-    species: 'Spoink',
-    size: 'XXL',
-    gender: 'male',
-    favourite: false,
-    tags: [],
-    hp: 59,
-    types: ['Psychic'],
-    weightKg: 43.83,
-    heightM: 1.1,
-    name: 'Spoink',
-    cp: 247,
-    iv: { attack: 14, defense: 4, stamina: 14 },
-    level: 7,
-    form: null,
-    lucky: false,
-    shiny: false,
-    costume: null,
     background: null,
-    shadow: false,
-    purified: false,
+    costume: null,
+    cp: 247,
 
     // The pill's tail reaches down into the second digit of the height, and `levelsIn` offers `1` alone for a band that
     // plainly reads `L7` — so the HP is the only thing left that settles the level, and `identify` says so in a note.
     defects: { heightM: 1.4, notes: ['the overlay reads as level 1, none of which this HP can be'] },
+
+    favourite: false,
+    file: 'spoink.png',
+    form: null,
+    gender: 'male',
+    heightM: 1.1,
+    hp: 59,
+    iv: { attack: 14, defense: 4, stamina: 14 },
+    level: 7,
+    lucky: false,
+    name: 'Spoink',
+    purified: false,
+    shadow: false,
+    shiny: false,
+    size: 'XXL',
+    species: 'Spoink',
+    tags: [],
+    types: ['Psychic'],
+    weightKg: 43.83,
   },
   {
-    file: 'applin.png',
-    species: 'Applin',
-    size: 'XL',
-    gender: 'female',
-    favourite: false,
-    tags: [],
-    hp: 69,
-    types: ['Grass', 'Dragon'],
-    weightKg: 0.95,
-    heightM: 0.28,
-    name: 'Applin',
+    background: null,
+    costume: null,
     cp: 286,
+    favourite: false,
+    file: 'applin.png',
+    form: null,
+    gender: 'female',
+    heightM: 0.28,
+    hp: 69,
     iv: { attack: 10, defense: 14, stamina: 14 },
     level: 15,
-    form: null,
     lucky: false,
-    shiny: false,
-    costume: null,
-    background: null,
-    shadow: false,
+    name: 'Applin',
     purified: false,
+    shadow: false,
+    shiny: false,
+    size: 'XL',
+    species: 'Applin',
+    tags: [],
+    types: ['Grass', 'Dragon'],
+    weightKg: 0.95,
   },
   {
     // The one capture where every link of the chain is independently attested, which is why it is also a test of its
     // own below: the name against the species list, 77 HP against 136/91/134 and 5/15/11 for level 16 alone out of 101,
     // the overlay's own shortlist containing that 16, and a derived `CP 499` meeting the `CP 499` on the screen.
-    file: 'unown.png',
-    species: 'Unown',
-    size: 'XS',
-    gender: null,
-    favourite: false,
-    tags: [],
-    hp: 77,
-    types: ['Psychic'],
-    weightKg: 1.66,
-    heightM: 0.33,
-    name: 'Unown',
+    background: null,
+    costume: null,
     cp: 499,
+    favourite: false,
+    file: 'unown.png',
+    form: 'L',
+    gender: null,
+    heightM: 0.33,
+    hp: 77,
     iv: { attack: 5, defense: 15, stamina: 11 },
     level: 16,
-    form: 'L',
     lucky: false,
-    shiny: false,
-    costume: null,
-    background: null,
-    shadow: false,
+    name: 'Unown',
     purified: false,
+    shadow: false,
+    shiny: false,
+    size: 'XS',
+    species: 'Unown',
+    tags: [],
+    types: ['Psychic'],
+    weightKg: 1.66,
   },
   {
-    file: 'smoliv-xxs.png',
-    species: 'Smoliv',
-    size: 'XXS',
-    gender: 'female',
-    favourite: false,
-    tags: [],
-    hp: 68,
-    types: ['Grass', 'Normal'],
-    weightKg: 0.97,
-    heightM: 0.15,
-    name: 'Smoliv',
+    background: null,
+    costume: null,
     cp: 340,
+    favourite: false,
+    file: 'smoliv-xxs.png',
+    form: null,
+    gender: 'female',
+    heightM: 0.15,
+    hp: 68,
     iv: { attack: 11, defense: 10, stamina: 12 },
     level: 15,
-    form: null,
     lucky: false,
-    shiny: false,
-    costume: null,
-    background: null,
-    shadow: false,
+    name: 'Smoliv',
     purified: false,
+    shadow: false,
+    shiny: false,
+    size: 'XXS',
+    species: 'Smoliv',
+    tags: [],
+    types: ['Grass', 'Normal'],
+    weightKg: 0.97,
   },
   {
-    file: 'ho-oh.png',
-    species: 'Ho-Oh',
-    size: null,
-    gender: null,
-    favourite: true,
-    tags: ['Shiny', 'Lucky'],
-    hp: 152,
-    types: ['Fire', 'Flying'],
-    weightKg: 246.49,
-    heightM: 4.6,
-    name: '96%',
-    cp: 2738,
-    iv: { attack: 13, defense: 15, stamina: 15 },
-    level: 25,
-    form: null,
-    lucky: true,
-    shiny: true,
-    costume: null,
     background: null,
-    shadow: false,
-    purified: false,
+    costume: null,
+    cp: 2738,
 
     // The only ambiguous capture of the eight, and the wrong answer the module docblock accounts for: with the name
     // read as a nickname, 13/15/15 at 152 HP and `Fire`/`Flying` fit five distinct forms, and only Ho-Oh fits them at
@@ -533,33 +516,52 @@ const FIXTURES: readonly Fixture[] = [
         'the overlay reads as level 2 or 25 or 5 or 51 or 1, none of which this HP can be',
       ],
     },
+
+    favourite: true,
+    file: 'ho-oh.png',
+    form: null,
+    gender: null,
+    heightM: 4.6,
+    hp: 152,
+    iv: { attack: 13, defense: 15, stamina: 15 },
+    level: 25,
+    lucky: true,
+    name: '96%',
+    purified: false,
+    shadow: false,
+    shiny: true,
+    size: null,
+    species: 'Ho-Oh',
+    tags: ['Shiny', 'Lucky'],
+    types: ['Fire', 'Flying'],
+    weightKg: 246.49,
   },
   {
     // A costume says nothing at all: a costumed Pikachu is named `Pikachu` and shares its base form's stats and types,
     // so the fold answers the one Pikachu and no alternatives. Which is what makes this capture's two flags the game's
     // own to know and not a reading — and the only reason it is nonetheless certain that it carries them is that
     // PGSharp marks the background with a `🖼` after the IVs, where the shirt is simply there to be looked at.
-    file: 'pikachu.png',
-    species: 'Pikachu',
-    size: null,
-    gender: 'female',
-    favourite: false,
-    tags: [],
-    hp: 63,
-    types: ['Electric'],
-    weightKg: 3.04,
-    heightM: 0.35,
-    name: 'Pikachu',
+    background: 'gold chevrons',
+    costume: 'a zigzag-knit shirt',
     cp: 382,
+    favourite: false,
+    file: 'pikachu.png',
+    form: null,
+    gender: 'female',
+    heightM: 0.35,
+    hp: 63,
     iv: { attack: 12, defense: 13, stamina: 11 },
     level: 15,
-    form: null,
     lucky: false,
-    shiny: false,
-    costume: 'a zigzag-knit shirt',
-    background: 'gold chevrons',
-    shadow: false,
+    name: 'Pikachu',
     purified: false,
+    shadow: false,
+    shiny: false,
+    size: null,
+    species: 'Pikachu',
+    tags: [],
+    types: ['Electric'],
+    weightKg: 3.04,
   },
   {
     // Found by `alola`, which pins the region and nothing else, because what this capture is for is above the panel
@@ -567,55 +569,56 @@ const FIXTURES: readonly Fixture[] = [
     // notification icon. A measurement anchor that does not require a decimal point takes that line, 1,137 pixels above
     // the real `5.78m`, and every reader hung off the height goes with it. The other seven captures were all taken at
     // 13:xx with no icon beside the clock, so not one of them can fail that way.
-    file: 'xurkitree.png',
-    species: 'Xurkitree',
-    size: 'XXL',
-    gender: null,
-    favourite: false,
-    tags: [],
-    hp: 124,
-    types: ['Electric'],
-    weightKg: 162.2,
-    heightM: 5.78,
-    name: 'Xurkitree',
-    cp: 2197,
-    iv: { attack: 11, defense: 12, stamina: 14 },
-    level: 20,
-    form: null,
-    lucky: false,
-    shiny: false,
-    costume: null,
     background: null,
-    shadow: false,
-    purified: false,
+    costume: null,
+    cp: 2197,
 
     // The species is answered from the name and the types alone, and then the pipeline stops: with no IVs read there is
     // no level and no CP, so the `CP 2197` the screen does show is checked against nothing. A test below measures what
     // that costs, and the answer is exactly one number.
     defects: { iv: null, levels: [], cp: null },
+
+    favourite: false,
+    file: 'xurkitree.png',
+    form: null,
+    gender: null,
+    heightM: 5.78,
+    hp: 124,
+    iv: { attack: 11, defense: 12, stamina: 14 },
+    level: 20,
+    lucky: false,
+    name: 'Xurkitree',
+    purified: false,
+    shadow: false,
+    shiny: false,
+    size: 'XXL',
+    species: 'Xurkitree',
+    tags: [],
+    types: ['Electric'],
+    weightKg: 162.2,
   },
   {
-    file: 'smoliv.png',
-    species: 'Smoliv',
-    size: null,
-    gender: 'male',
-    favourite: false,
-    tags: [],
-    hp: 68,
-    types: ['Grass', 'Normal'],
-    weightKg: 4.57,
-    heightM: 0.24,
-    name: 'Smoliv',
+    background: null,
+    costume: null,
     cp: 350,
+    favourite: false,
+    file: 'smoliv.png',
+    form: null,
+    gender: 'male',
+    heightM: 0.24,
+    hp: 68,
     iv: { attack: 14, defense: 11, stamina: 11 },
     level: 15,
-    form: null,
     lucky: false,
-    shiny: false,
-    costume: null,
-    background: null,
-    shadow: false,
+    name: 'Smoliv',
     purified: false,
+    shadow: false,
+    shiny: false,
+    size: null,
+    species: 'Smoliv',
+    tags: [],
+    types: ['Grass', 'Normal'],
+    weightKg: 4.57,
   },
 ];
 
