@@ -5,22 +5,16 @@ on:
   pull_request: {}
 
 permissions:
-  contents: 'read'
+  contents: 'write'
+  pull-requests: 'write'
 
 jobs:
-  # Auto-merge rather than a merge from here, so the gate is `master`'s branch protection rule. It can only be enabled
-  # on a pull request that rule blocks, and a workflow Dependabot triggers gets a read-only token without the below.
   dependabot:
     name: 'Dependabot'
     if: "github.event.pull_request.user.login == 'dependabot[bot]'"
     runs-on: 'ubuntu-latest'
-
-    permissions:
-      contents: 'write'
-      pull-requests: 'write'
-
     steps:
-      - run: 'gh pr merge --auto --squash "$PR_URL"'
+      - run: 'gh pr merge --auto --squash "${PR_URL}"'
         env:
           GH_TOKEN: '${{ github.token }}'
           PR_URL: '${{ github.event.pull_request.html_url }}'
