@@ -161,9 +161,10 @@ property.
   `publish()` throws on an `existsSync`, proved firing by planting the file.
 - **No cycles in the graph is what makes bundling semantically inert here, and it is one query.** Concatenating modules
   in topological order evaluates them in the order the loader would, but only because there is nothing to order
-  ambiguously: 53 `import-statement` edges over 33 modules and not one cycle, the six `node_modules` inputs included.
-  The only edges that are not imports are four `url-token`s out of `leaflet.css`, one of them `url(#default#VML)` — a
-  fragment esbuild passes through rather than failing to resolve.
+  ambiguously: 65 `import-statement` edges over 40 modules and not one cycle, the six `node_modules` inputs included.
+  Re-measure it when a module is added — extracting the four pure cores out of the entry points moved both figures and
+  neither the rule nor the answer. The only edges that are not imports are four `url-token`s out of `leaflet.css`, one
+  of them `url(#default#VML)` — a fragment esbuild passes through rather than failing to resolve.
 - **Run a script through pnpm, never as a bare `node`.** `devEngines.runtime` pins the Node floor that guarantees type
   stripping and governs only what pnpm invokes, so `pnpm build:ics` is safe where `node scripts/build-ics.mts` fails
   below Node 22.18. Every entry point has a `package.json` script, and `pages.yml` calls that.
@@ -292,18 +293,65 @@ Which route a change takes turns on whether it changes what the code _does_ or o
   together, because moving one `last` moves the `first` the next row is weighed against.
 - **`pnpm test:coverage` names the files to count, because the default counts only the ones a test loaded.** Vitest 4
   resolves `coverage.include` against what the run imported, so a module with no test is _absent_ from the figure rather
-  than 0% in it — 92.92% of statements over the twenty modules something imported, against 30.83% over all 29. Deleting
-  a test therefore _raises_ the default headline, taking its module out of the denominator with it. Naming `src/**/*.ts`
-  statically is the fix, and it reaches a module Node cannot import at all: `app.ts` dies at module scope on its
-  stylesheet and v8 still reports `0% 18-934` for it from static analysis rather than failing the run. Seven of the nine
+  than 0% in it. Deleting a test therefore _raises_ the default headline, taking its module out of the denominator with
+  it. Naming `src/**/*.ts` statically is the fix, and it reaches a module Node cannot import at all: `app.ts` dies at
+  module scope on its stylesheet and v8 still reports `0%` for it from static analysis rather than failing the run. The
   0% rows are then the browser-probe list of [Differentials](#differentials) restated as a number, which is the one
-  thing a coverage figure is good for here. The other two are `generated.ts` and `recurring-types.ts`, and they should
-  stay there: each holds one list whose contract is that it is spelled once, which the consumers reading it already hold
-  and a test could only restate.
+  thing a coverage figure is good for here — the five entry points, `dom.ts`, and `generated.ts` and
+  `recurring-types.ts`. The last two should stay there: each holds one list whose contract is that it is spelled once,
+  which the consumers reading it already hold and a test could only restate.
 - **A file missing from the coverage table means either nothing uncovered or nothing measured, and the two read alike.**
   The text reporter printed 6 rows where `coverage-final.json` held 20, the other 14 being at 100% on all four metrics;
   `--coverage.skipFull=false` does not bring them back, the flag being accepted and ignored. Ask the JSON reporter which
   files were measured, since it is the only output that lists them rather than selecting among them.
+- **Most of what a page entry point does is not about the DOM, and extracting that half is the only way a test reaches
+  it.** All five report 0% from v8's static analysis — they die at module scope under Node on their first `byId` — so
+  1,597 of 1,710 uncovered statements sat inside them, and no assertion about a status bucket, a Gson escape or a
+  haversine could be made without opening a page. Pulling each pure core into a sibling module took statements over
+  `src/` from 30.83% to 45.10%, and `event-feed.ts`, `search/query.ts`, `pokedex/entries.ts` and
+  `pgsharp/{filters, controls,scan-config}.ts` were already that move made six times. What is left is irreducibly a
+  rendering.
+- **Cut the seam at the narrowest browser dependency, which for a GPX reader is `DOMParser` and nothing else.**
+  `gpxFavourites` and `gpxEntries` take a `Document` rather than the file's text, so everything but the parse runs under
+  Node: `@xmldom/xmldom` answers `localName`, `children`, `textContent` and `getAttribute` exactly as a browser does,
+  and `src/testing/xml.ts` is the one cast that buys it — xmldom types `localName` as nullable on every node, so its
+  `Document` is not structurally a DOM one however alike the two behave. `parseGpxDocument` is what cannot come along:
+  it tells a malformed file by `querySelector('parsererror')`, which **xmldom does not implement at all** and answers by
+  throwing from `parseFromString` instead.
+- **Stub a global as that global, never as a new parameter.** `localStorage` and `fetch` being globals is part of what
+  `event-prefs.ts` and `loadManifest` are about, and a parameter would be a seam the page does not have — one a test
+  could reach a state through that the page cannot. `src/testing/storage.ts` is the three members the readers call plus
+  a `throws` flag, which is the one thing a `Map` cannot do and the case every `catch` in that file exists for. It
+  carries nothing else: a stand-in answering more than its subject asks for is surface with no check behind it.
+- **Measure a suite by breaking the module under it, and read a survivor as a question about reachability rather than
+  about the corpus.** 79 of 81 deliberate breaks were caught, each by one or two tests — a break that fails every test
+  is usually one reaching a shared fixture instead of the behaviour. Both survivors were findings: `childText`'s blank
+  test cannot be singled out, every reader above it treating `''` and `null` alike; and `addDays` written as
+  `t + 86_400_000 * n` is **provably identical** to the calendar form in a zone that never changes its clocks, so the
+  test that walks a year catches it at `America/New_York` and not at AEST or at CI's UTC. Check a mutation is not a
+  no-op before believing a miss — `new Set(readSet(k) ?? DEFAULT)` against `readSet(k) ?? new Set(DEFAULT)` is the same
+  function.
+- **Run the zone sweep, not just `TZ=UTC`.** Four zones — the machine's own, UTC, one with DST and `Asia/Kathmandu` for
+  a 45-minute offset — because each catches something the others cannot, and the DST one is load-bearing rather than
+  belt-and-braces. Build every date fixture from local parts rather than parsing a string, and assert a length, a
+  boundary or an order rather than an instant.
+- **Derive an expectation independently, and when it comes out wrong ask which of the two was.** Three did here and all
+  three were the expectation, each worth writing down: `Math.round` breaks a tie towards positive infinity, so an event
+  90 minutes off reads "in 2 hours" ahead of now and "1 hour ago" behind it; `1005 / 1000` is 1.0049999999999998934, so
+  1005 m reads as "1.00 km" and 1006 m is the first to read as 1.01; and a great circle between two points on a parallel
+  is _shorter_ than the parallel, by half a metre in 55.6 km at 60°N. A haversine's anchors are exact on paper —
+  `R × π / 180` for a degree, `π × R` for half a circumference — so they are the ones to assert against.
+- **Reach a reader's guard by patching a stream the writer made, and derive every offset rather than counting it.** Took
+  `java-serialization.ts` from 89.11% to 99.41%, the two remaining lines being ones the tests name as unreachable from
+  `dumps`. Handle numbers are the trap: handle 3 is `"Melbourne Zoo"` in a two-string stream and `java.lang.Integer`'s
+  descriptor in a two-box one, which is the whole reason a `TC_REFERENCE` carries no kind and the reader has to ask.
+  Splicing into a classAnnotation wants `TC_NULL` rather than a string, since a string claims a handle the writer did
+  not and shifts every later one.
+- **A test over a live data table pins a relationship, not a count.** Filter membership and a `released` flag are data
+  changes that land on `master` alone, so `toBe(48)` for the shiny-and-legendary set would turn every such edit into a
+  test edit; that the intersection is inside both and smaller than both is the whole of what ANDing means. Where a
+  figure is fixed by something other than data — 151 for generation 1, a partition summing to `ENTRIES.length` — name
+  it.
 - **`coverage.exclude` merges with Vitest's own defaults rather than replacing them.** So `*.test.ts` wants no entry of
   its own, the defaults dropping it either way, and adding one is a flag that rejects nothing — judged the way
   [Annotating](#annotating) judges an annotation. What the defaults miss is `.d.ts`: `src/assets.d.ts` and

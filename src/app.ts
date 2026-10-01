@@ -1,9 +1,9 @@
 /**
  * Leaflet by name rather than by member, which is what leaves all thirteen `L.` references and the four `L.Polyline`-
- * style type annotations in this file exactly as the UMD global left them — the import replaces where `L` comes from and
- * nothing about how it is spelled. Its stylesheet is imported beside it because this module is what needs it: esbuild
- * emits the CSS as `app.css` beside `app.js`, which is the path `map.html` links, so the two cannot drift apart any more
- * than the `<script src>` and the bundle can.
+ * style type annotations in this file exactly as the UMD global left them — the import replaces where `L` comes from
+ * and nothing about how it is spelled. Its stylesheet is imported beside it because this module is what needs it:
+ * esbuild emits the CSS as `app.css` beside `app.js`, which is the path `map.html` links, so the two cannot drift apart
+ * any more than the `<script src>` and the bundle can.
  */
 
 import * as L from 'leaflet';
@@ -12,7 +12,8 @@ import 'leaflet/dist/leaflet.css';
 import COUNTRIES from './countries.js';
 import { said } from './errors.js';
 import { GPX_PATHS } from './generated.js';
-import { eachTrack, entryCoords, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from './gpx.js';
+import { loadManifest, parseGpxDocument } from './gpx.js';
+import { byKey, fmtDist, gpxEntries, routeDistance, type Route, type Waypoint } from './routes.js';
 import { byId } from './dom.js';
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -32,31 +33,6 @@ const countEl = byId('count');
 const filterEl = byId('filter', HTMLInputElement);
 const bannerEl = byId('banner');
 const toastEl = byId('toast');
-
-/**
- * A drawable track as the file gives it. `latlngs` is a list of *pairs* rather than a list of lists, because that is
- * what Leaflet means by a `LatLngExpression`: an unannotated `[lat, lon]` literal infers `number[]`, which `L.polyline`
- * rejects, where a `[number, number]` tuple is accepted.
- */
-interface Route {
-  latlngs: [number, number][];
-  name: string;
-  country: string;
-  variant: string;
-  event: string;
-}
-
-/**
- * One place to stand. `coordStr` is the file's own lat/lon text rather than the parsed pair restringified, so what the
- * copy button hands over is exactly what the file said.
- */
-interface Waypoint {
-  name: string;
-  country: string;
-  event: string;
-  coords: [number, number];
-  coordStr: string;
-}
 
 /**
  * A route once the page has it: the file it came from, the layer drawn for it, the row built for it and the distance
@@ -197,56 +173,16 @@ async function copyRoute(entry: RouteEntry, btn: HTMLButtonElement) {
   toast(ok ? `Copied “${entry.name}” GPX to clipboard` : 'Copy failed');
 }
 
-function haversine(a: readonly [number, number], b: readonly [number, number]): number {
-  const R = 6371000,
-    toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b[0] - a[0]),
-    dLon = toRad(b[1] - a[1]);
-  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(s));
-}
-
-/**
- * The walked length of a track, summed over consecutive pairs. The previous point is carried rather than read back out
- * of the list by `i - 1`: an index and the length test above it are two questions nothing joins, where holding the
- * point the loop has just had is one.
- */
-function routeDistance(latlngs: readonly [number, number][]): number {
-  let d = 0;
-  let previous;
-
-  for (const at of latlngs) {
-    if (previous) {
-      d += haversine(previous, at);
-    }
-
-    previous = at;
-  }
-
-  return d;
-}
-
-function fmtDist(m: number): string {
-  return m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m';
-}
-
 /**
  * A file the server would not hand over — a status the fetch rejected on, or a connection that never got there. The
- * banner keeps these apart from the defects loadGpxFile throws for below: a 503 is a hiccup to reload through, not
- * metadata anyone can go and fix.
+ * banner keeps these apart from the defects gpxEntries throws for: a 503 is a hiccup to reload through, not metadata
+ * anyone can go and fix.
  */
 class FetchError extends Error {}
 
 /**
- * Read one file, splitting it into routes and waypoints by element rather than by where it sits: a <trk> is a path to
- * walk, a <wpt> is one place to stand, and a file may hold either or both. This is how the backup writer has always
- * read these files (see parseGpxFavourites), so the two now agree about what a file contains instead of the viewer
- * being told separately.
- *
- * Name, locality, country, variant and event all come from the file's own metadata; an entry missing what it needs is
- * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant
- * and event stay optional — empty for a route with no short/long counterpart and for a place that stands on its own. The
- * whole file text is returned once, for the copy button to hand over.
+ * Read one file: fetch it, parse it, and let `gpxEntries` split it by element. The whole file text is returned
+ * alongside, for the copy button to hand over.
  */
 async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[]; waypoints: Waypoint[] }> {
   let res;
@@ -264,43 +200,7 @@ async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[
   }
 
   const text = await res.text();
-  const doc = parseGpxDocument(text);
-
-  const routes: Route[] = [];
-
-  for (const { trk, trkpts } of eachTrack(doc)) {
-    const latlngs = [...trkpts].map((p) => entryCoords(p).coords);
-
-    if (latlngs.length < 2) {
-      throw new Error('<trk> has fewer than two usable <trkpt>');
-    }
-
-    routes.push({
-      latlngs,
-      name: placeName(trk),
-      country: entryCountry(trk),
-      variant: extText(trk, 'variant') || '',
-      event: extText(trk, 'event') || '',
-    });
-  }
-
-  const waypoints: Waypoint[] = [];
-
-  for (const w of doc.getElementsByTagName('wpt')) {
-    waypoints.push({
-      country: entryCountry(w),
-      name: placeName(w),
-      ...entryCoords(w),
-      event: extText(w, 'event') || '',
-    });
-  }
-
-  // A listed file holding neither is a defect too: something is in data/gpx-paths.json that has nothing to show.
-  if (routes.length === 0 && waypoints.length === 0) {
-    throw new Error('has no <trk> or <wpt>');
-  }
-
-  return { text, routes, waypoints };
+  return { text, ...gpxEntries(parseGpxDocument(text)) };
 }
 
 function clearMarkers(entry: RouteEntry) {
@@ -373,8 +273,8 @@ function clearSelection() {
 }
 
 /**
- * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever else
- * is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
+ * Draw one route as selected — accent line, start and end dots, a popup bound and its row marked — leaving whatever
+ * else is selected alone. selectRoute is this plus clearing the rest, which is what a click on a row or a line wants;
  * focusHashEvent calls it once per entry instead, so an event's whole set is selected at once.
  */
 function highlightRoute(entry: RouteEntry) {
@@ -498,8 +398,8 @@ async function loadEventNames() {
 
 /**
  * The event an entry was added for, as a link through to it on the Events page. It takes a line of its own rather than
- * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for a
- * name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
+ * another slot at the row's right edge, which is already carrying the distance and the Copy button and has no room for
+ * a name beside them. The wrapping span is what pushes it onto that line, so the link's own hit area stays the width of
  * its text; the click is stopped short of the row, which would otherwise select the entry as the page unloads.
  */
 function buildEventLine(event: string): HTMLElement {
@@ -592,15 +492,6 @@ function buildCityRow(c: CityEntry): HTMLElement {
  * entry has been made, so building a row eagerly would label its event by the raw ID the file carries.
  */
 type Row = { name: string; dist: number; build: () => HTMLElement };
-
-/**
- * Two keyed pairs in the order `Array#sort` with no comparator would have put their keys in. Both levels of the sidebar
- * were sorted that way before each key started travelling beside its value, and this is that comparison written out
- * rather than a different one — `<` over two distinct strings is exactly what the default does.
- */
-function byKey(a: readonly [string, unknown], b: readonly [string, unknown]): number {
-  return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
-}
 
 /**
  * Render one list grouped by country. Within each country, tracks and waypoints are interleaved and sorted
@@ -782,8 +673,8 @@ function focusHashEvent() {
   }
 
   /**
-   * A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set needs
-   * what follows, where no one of them can own the view or be the one the popup names.
+   * A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set
+   * needs what follows, where no one of them can own the view or be the one the popup names.
    */
   if (routes.length + places.length === 1) {
     const [route] = routes;

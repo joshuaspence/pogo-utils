@@ -238,3 +238,293 @@ test("the map's capacity follows HashMap's own growth rather than its entry coun
   expect(blockData(12)).toEqual([16, 12]);
   expect(blockData(13)).toEqual([32, 13]);
 });
+
+/**
+ * Everything below reaches a path `dumps` does not take, by patching a stream it wrote rather than writing bytes by
+ * hand: a hand-built stream tests the bytes someone typed, where a patched one differs from a working stream in exactly
+ * the thing the case is about. Each patch finds its own offset and asserts the match was unique, because the obvious
+ * offset is wrong often enough to matter — the four bytes of a boxed value are not the last four, HashMap's own
+ * `TC_ENDBLOCKDATA` following them.
+ */
+
+const TC_NULL = 0x70,
+  TC_REFERENCE = 0x71,
+  TC_CLASSDESC = 0x72,
+  TC_STRING = 0x74,
+  TC_BLOCKDATA = 0x77,
+  TC_ENDBLOCKDATA = 0x78,
+  TC_BLOCKDATALONG = 0x7a;
+const BASE_HANDLE = 0x7e0000;
+
+/** The same stream with one byte sequence swapped for another, which need not be the same length. */
+function splice(bytes: Uint8Array, find: readonly number[], replace: readonly number[]): Uint8Array {
+  const found = positions(bytes, find);
+
+  if (found.length !== 1 || found[0] === undefined) {
+    throw new Error(`${found.length} matches for the sequence to patch, expected 1`);
+  }
+
+  const at = found[0];
+  return Uint8Array.from([...bytes.subarray(0, at), ...replace, ...bytes.subarray(at + find.length)]);
+}
+
+/**
+ * A handle number as the four bytes a `TC_REFERENCE` carries, written big-endian because that is what a stream is —
+ * `Int32Array`'s own buffer is host-endian, so it would have read back differently on a big-endian machine.
+ */
+function handle(h: number) {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setInt32(0, BASE_HANDLE + h, false);
+  return [...bytes];
+}
+
+/** The `u2` length and bytes a field or class name takes up in a classdesc. */
+const named = (text: string) => [0x00, text.length, ...ascii(text)];
+
+/** A two-entry map, whose second value cites the first string and whose class descriptors are therefore all in play. */
+const twoStrings = () =>
+  dumps(
+    new Map<JavaValue, JavaValue>([
+      ['first', 'Melbourne Zoo'],
+      ['second', 'Melbourne Zoo'],
+    ]),
+  );
+
+test('a character between U+0080 and U+07FF takes two bytes rather than one or three', () => {
+  // The middle band of modified UTF-8, which ASCII text never reaches and an emoji skips past. U+00E9 is `0xC3 0xA9`:
+  // `0xC0 | (0xE9 >> 6)` is `0xC3` and `0x80 | (0xE9 & 0x3F)` is `0xA9` — the same two bytes ordinary UTF-8 writes, the
+  // two encodings differing only at NUL and above the BMP.
+  expect(dumps('é')).toEqual(stream(0xac, 0xed, 0x00, 0x05, 0x74, 0x00, 0x02, 0xc3, 0xa9));
+  expect([...new TextEncoder().encode('é')]).toEqual([0xc3, 0xa9]);
+  expect(loads(dumps('é'))).toBe('é');
+});
+
+/**
+ * A stream that stops mid-object, which is what a half-written file looks like. Both readers that can run off the end
+ * say so rather than reading `undefined` as a byte: `u1` reads the slot and tests it, and `raw` compares the length it
+ * got against the length it asked for — a `subarray` past the end is short rather than an error.
+ */
+test('a stream that stops short is refused at the byte that is missing', () => {
+  const whole = twoStrings();
+
+  // One byte short is the map's own closing TC_ENDBLOCKDATA, read through `u1`.
+  expect(whole.at(-1)).toBe(TC_ENDBLOCKDATA);
+  expect(() => loads(whole.subarray(0, whole.length - 1))).toThrow(/^truncated stream/);
+
+  // Cut three bytes into HashMap's eight-byte block data, which `raw` is what asks for.
+  const found = positions(whole, [TC_BLOCKDATA, 0x08]);
+  expect(found).toHaveLength(1);
+  expect(() => loads(whole.subarray(0, (found[0] ?? 0) + 2 + 3))).toThrow(/^truncated stream/);
+});
+
+/**
+ * A back-reference is an index into the handle table, and the table is built as the stream is read — so a file whose
+ * references have been shifted or scrambled cites something that is not there, or is there and is the wrong kind of
+ * thing. All three are refused rather than read as whatever happens to sit at that index.
+ */
+test('a handle reference that cites nothing is refused', () => {
+  // Handle 3 is the "Melbourne Zoo" the second entry cites, and the only reference in the stream — asserted rather than
+  // counted off the claims, since the claims run classdesc, map, key, string and are easy to be one out on.
+  const bytes = splice(twoStrings(), [TC_REFERENCE, ...handle(3)], [TC_REFERENCE, ...handle(99)]);
+  expect(() => loads(bytes)).toThrow(/^bad handle reference 99/);
+});
+
+test('a value reference citing a class descriptor is refused', () => {
+  // Handle 0 is java.util.HashMap's descriptor, claimed before the map itself — so this is a reference of the right
+  // shape pointing at the wrong kind of entry, which is what a shifted handle looks like.
+  const bytes = splice(twoStrings(), [TC_REFERENCE, ...handle(3)], [TC_REFERENCE, ...handle(0)]);
+  expect(() => loads(bytes)).toThrow(/^handle 0 is a class descriptor, not a value/);
+});
+
+test('a class reference citing a value is refused', () => {
+  // The writer cites a class descriptor it has already written, so a second box of one type carries one. Pointing it at
+  // the string's handle is the mirror of the case above.
+  const twoBoxes = dumps(
+    new Map<JavaValue, JavaValue>([
+      ['a', box('I', 1)],
+      ['b', box('I', 2)],
+    ]),
+  );
+  // Handle 3 is java.lang.Integer's descriptor here, where in the two-string stream the same number was a string —
+  // which is the whole reason a reference carries no kind and the reader has to check.
+  expect(positions(twoBoxes, [TC_REFERENCE, ...handle(3)])).toHaveLength(1);
+  expect(() => loads(splice(twoBoxes, [TC_REFERENCE, ...handle(3)], [TC_REFERENCE, ...handle(2)]))).toThrow(
+    /^handle 2 is a value, not a class descriptor/,
+  );
+});
+
+/**
+ * Where a class descriptor belongs, nothing else will do — including a string, which is otherwise a valid content item.
+ */
+test('a tag where a class descriptor belongs is refused', () => {
+  const bytes = twoStrings();
+  const at = positions(bytes, [TC_CLASSDESC, ...named('java.util.HashMap')]);
+
+  expect(at).toHaveLength(1);
+  expect(() => loads(splice(bytes, [TC_CLASSDESC, ...named('java.util.HashMap')], [TC_STRING]))).toThrow(
+    /^expected classdesc, got 0x74 at 5/,
+  );
+});
+
+/**
+ * A null class descriptor is well-formed in the stream and meaningless for an object, so it is its own message rather
+ * than a `null` travelling into the field walk.
+ */
+test('an object with no class descriptor is refused', () => {
+  const bytes = splice(twoStrings(), [TC_CLASSDESC, ...named('java.util.HashMap')], [TC_NULL]);
+  expect(() => loads(bytes)).toThrow(/^object with no class descriptor/);
+});
+
+/**
+ * A tag this codec has no reader for is refused rather than skipped, since skipping it would desynchronise the rest.
+ */
+test('a tag nothing reads is refused', () => {
+  // 0x7b is TC_EXCEPTION, a real tag in Java's own set and one nothing here handles.
+  const bytes = splice(twoStrings(), [TC_STRING, ...named('first')], [0x7b]);
+  expect(() => loads(bytes)).toThrow(/^unsupported tag 0x7b/);
+});
+
+/**
+ * A boxed primitive is recognised by its class name and read through the one field that name implies, so a descriptor
+ * naming the field anything else is a box with nothing to unbox. One byte reaches it, which is why the guard reads the
+ * slot rather than testing for the field and then indexing it.
+ */
+test('a box whose value field is named something else is refused', () => {
+  const bytes = dumps(box('I', 7));
+  const renamed = splice(bytes, named('value'), named('valve'));
+
+  expect(renamed).toHaveLength(bytes.length);
+  expect(() => loads(renamed)).toThrow(/^java\.lang\.Integer declares no primitive value field/);
+});
+
+/** A class neither boxed nor HashMap is refused by name, which is the whole of what this codec claims to read. */
+test('a class this codec does not know is refused', () => {
+  const bytes = dumps(box('I', 7));
+  expect(() => loads(splice(bytes, named('java.lang.Integer'), named('java.lang.Intege_')))).toThrow(
+    /^unsupported class java\.lang\.Intege_/,
+  );
+});
+
+/**
+ * A class flagged as having written custom data gets its payload read by a handler named for the class — so a stream
+ * whose HashMap has been renamed reaches the handler lookup rather than the class check below it, there being no way to
+ * read past a `writeObject` payload without knowing its shape.
+ */
+test('custom data for a class with no handler is refused', () => {
+  const bytes = twoStrings();
+  expect(() => loads(splice(bytes, named('java.util.HashMap'), named('java.util.HashMip')))).toThrow(
+    /^no custom-data handler for java\.util\.HashMip/,
+  );
+});
+
+test('a HashMap payload that does not start with block data is refused', () => {
+  const bytes = twoStrings();
+  expect(() => loads(splice(bytes, [TC_BLOCKDATA, 0x08], [TC_NULL, 0x08]))).toThrow(/^expected HashMap block data/);
+});
+
+test('a HashMap payload that does not end where it says is refused', () => {
+  const whole = twoStrings();
+
+  // The last byte is the map's own TC_ENDBLOCKDATA, so swapping it for anything else is the case — and it is a swap
+  // rather than a truncation, which the stream-level bounds check would catch first.
+  expect(whole.at(-1)).toBe(TC_ENDBLOCKDATA);
+  const patched = Uint8Array.from([...whole.subarray(0, whole.length - 1), TC_NULL]);
+
+  expect(() => loads(patched)).toThrow(/^expected TC_ENDBLOCKDATA after HashMap/);
+});
+
+/**
+ * A classAnnotation is whatever a `writeObject` on the class put there and this reader discards it — but discarding it
+ * means reading past it, and the three shapes it can take are each sized differently. The writer only ever emits an
+ * empty one, so these splice the other three into a stream that is otherwise untouched: a short block, a long block and
+ * a bare content item. All three have to leave the stream readable, which the round trip is what says.
+ */
+test.for([
+  { shape: 'a short block', inserted: [TC_BLOCKDATA, 0x02, 0xaa, 0xbb] },
+  { shape: 'a long block', inserted: [TC_BLOCKDATALONG, 0x00, 0x00, 0x00, 0x02, 0xaa, 0xbb] },
+  // TC_NULL rather than a string, because a string claims a handle the writer did not and would shift every later one.
+  { shape: 'a bare content item', inserted: [TC_NULL] },
+  { shape: 'all three at once', inserted: [TC_BLOCKDATA, 0x01, 0xaa, TC_NULL, TC_BLOCKDATALONG, 0, 0, 0, 1, 0xbb] },
+])('a classAnnotation holding $shape is read past', ({ inserted }) => {
+  const bytes = dumps(box('Z', true));
+  const annotation = [...named('value'), TC_ENDBLOCKDATA];
+  const patched = splice(bytes, annotation, [...named('value'), ...inserted, TC_ENDBLOCKDATA]);
+
+  expect(patched.length).toBe(bytes.length + inserted.length);
+  expect(loads(patched)).toEqual(box('Z', true));
+});
+
+/**
+ * Every width a declared field can have, reached by rewriting an Integer's own declaration and its payload together —
+ * so what each case says is that the reader advanced by exactly the bytes that width takes, which the trailing-bytes
+ * check at the end of `loads` is what proves. The writer declares only `I`, `J`, `F` and `Z`, the first three of which
+ * the round trips above already cover.
+ *
+ * `C` and `L` are the two that read something a box cannot hold — a character and an object reference — so each lands
+ * on the value-field guard rather than coming back as a box. That is the right end for both: a `java.lang.Integer`
+ * whose `value` is a string is a stream no JVM wrote.
+ */
+test.for([
+  { width: 'a double', tcode: 'D', payload: [0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], reads: box('I', 0.5) },
+  { width: 'a byte', tcode: 'B', payload: [0x2a], reads: box('I', 42) },
+  { width: 'a short', tcode: 'S', payload: [0xff, 0xfe], reads: box('I', -2) },
+  { width: 'a signed short', tcode: 'S', payload: [0x7f, 0xff], reads: box('I', 32767) },
+])('a value field declared as $width is read at that width', ({ tcode, payload, reads }) => {
+  const bytes = dumps(box('I', 0x41424344));
+  const declared = splice(bytes, [ascii('I')[0] ?? 0, ...named('value')], [ascii(tcode)[0] ?? 0, ...named('value')]);
+
+  expect(loads(splice(declared, [0x41, 0x42, 0x43, 0x44], payload))).toEqual(reads);
+});
+
+test('a value field declared as a character is read and then refused as a value', () => {
+  const bytes = dumps(box('I', 0x41424344));
+  const declared = splice(bytes, [ascii('I')[0] ?? 0, ...named('value')], [ascii('C')[0] ?? 0, ...named('value')]);
+
+  expect(() => loads(splice(declared, [0x41, 0x42, 0x43, 0x44], [0x00, 0x41]))).toThrow(
+    /^java\.lang\.Integer declares no primitive value field/,
+  );
+});
+
+/**
+ * An object-reference field carries its type string in the declaration and its value as a content item, which is two
+ * reads where a primitive is one. A null value is the cheapest content item there is, and lands on the value guard for
+ * the reason the character does.
+ */
+test('a value field declared as an object reference reads its type string and its value', () => {
+  const bytes = dumps(box('I', 0x41424344));
+  const declared = splice(
+    bytes,
+    [ascii('I')[0] ?? 0, ...named('value')],
+    [ascii('L')[0] ?? 0, ...named('value'), TC_STRING, ...named('Ljava/lang/Object;')],
+  );
+
+  expect(() => loads(splice(declared, [0x41, 0x42, 0x43, 0x44], [TC_NULL]))).toThrow(
+    /^java\.lang\.Integer declares no primitive value field/,
+  );
+});
+
+/**
+ * A width nothing reads is refused at the declaration, rather than read at some other width and silently misaligned.
+ */
+test('a field declared at a width nothing reads is refused', () => {
+  const bytes = dumps(box('I', 7));
+  const declared = splice(bytes, [ascii('I')[0] ?? 0, ...named('value')], [ascii('Q')[0] ?? 0, ...named('value')]);
+
+  expect(() => loads(declared)).toThrow(/^unsupported field type 'Q'/);
+});
+
+/**
+ * What `dumps` refuses outright. A number is the near miss worth naming: a map value that should have been boxed and
+ * was not is a `typeof number` reaching the writer, which has no width to write it at and would otherwise fall through
+ * every branch to no bytes at all.
+ *
+ * The writer's own `no encoding for boxed field type` default is unreachable rather than uncovered: every code `BOX`
+ * carries has a case in that switch, and `box` refuses any other code before a `Box` can exist. It earns its place by
+ * being what fails if a fifth entry is added to `BOX` and not encoded — which is a future edit, not a case.
+ */
+test('a value that is none of the four things a stream can hold is refused', () => {
+  // @ts-expect-error -- a bare number is no `JavaValue`, which is the compile-time half of this check
+  expect(() => dumps(42)).toThrow(/^cannot serialize number/);
+  // @ts-expect-error -- nor is an array, which is the shape a caller reaching for a Java array would try
+  expect(() => dumps([1, 2])).toThrow(/^cannot serialize object/);
+});

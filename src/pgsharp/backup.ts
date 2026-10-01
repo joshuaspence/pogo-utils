@@ -6,166 +6,24 @@
  * java-serialization.js — nothing is read from an existing backup, so importing it leaves the rest of the profile be.
  */
 
-import tzlookup from 'tz-lookup';
-
-import COUNTRIES from '../countries.js';
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
-import { eachTrack, entryCoords, entryCountry, extText, loadManifest, parseGpxDocument, placeName } from '../gpx.js';
+import { loadManifest, parseGpxDocument } from '../gpx.js';
 import { JavaSer } from '../java-serialization.js';
 import { CONTROL_RESETS } from './controls.js';
+import {
+  applyTimezones,
+  byName,
+  dedupeByName,
+  encodePoints,
+  encodeRoutes,
+  gpxFavourites,
+  POINTS_KEY,
+  ROUTES_KEY,
+  type Point,
+  type Route,
+} from './favourites.js';
 import { byId } from '../dom.js';
-
-const POINTS_KEY = 'hlfavor';
-const ROUTES_KEY = 'hlfavorRoute';
-/**
- * Third element of every stored route point, and the neutral playback state of a route that has not been walked — both
- * copied from PGSharp's own output.
- */
-const ROUTE_POINT_FLAG = 65536;
-const ROUTE_MODE = 2;
-const newRouteState = () => ({
-  direction: 1,
-  nextNodePos: 0,
-  preNodePos: -1,
-  loopcount: 0,
-  lat: 0,
-  lng: 0,
-});
-
-/**
- * The two favourite schemas, one per key. Both stay local: `src/types.d.ts` holds the wire formats with no owner, and
- * these have one — nothing outside this file reads or writes either, since the map viewer reads the GPX files
- * themselves and never sees a backup.
- *
- * Three fields are optional because the code as written allows each. `tz` is written by `applyTimezones` onto points
- * `parseGpxFavourites` built without one, and `mode` and `state` are what `encodeRoutes` falls back for. A route point
- * is a fixed triple rather than a list of numbers — latitude, longitude and `ROUTE_POINT_FLAG` — which is what
- * `encodeRoutes` re-emits positionally, and `state` is read off `newRouteState` rather than transcribed beside it.
- */
-type RoutePoint = [number, number, number];
-type Point = { name: string; lat: number; lng: number; tz?: string };
-type Route = { name: string; points: RoutePoint[]; mode?: number; state?: ReturnType<typeof newRouteState> };
-
-/**
- * Gson's JSON spelling: no spaces, forward slashes escaped. Points escape non-ASCII as \uXXXX (what "hlfavor"
- * contains); Routes write it literally ("São Paulo") — the two keys differ, so they don't share an encoder. A flag is
- * escaped per UTF-16 code unit either way, matching hot places for Points and leaving the Route stream to write the
- * surrogates as Java's modified UTF-8 does.
- */
-
-const escSlashes = (s: string) => s.replace(/\//g, '\\/');
-
-const asciiEscape = (s: string) =>
-  s.replace(/[\u0080-\uFFFF]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
-
-function encodePoints(entries: readonly Point[]) {
-  const arr = entries.map((e) => {
-    const o: Point = { name: e.name, lat: e.lat, lng: e.lng };
-
-    if (e.tz) {
-      o.tz = e.tz;
-    }
-
-    return o;
-  });
-  return escSlashes(asciiEscape(JSON.stringify(arr)));
-}
-
-function encodeRoutes(entries: readonly Route[]) {
-  const arr = entries.map((e) => ({
-    points: e.points,
-    mode: e.mode ?? ROUTE_MODE,
-    state: e.state || newRouteState(),
-    name: e.name,
-  }));
-  return escSlashes(JSON.stringify(arr));
-}
-
-/**
- * A favourite's whole name — the sidebar's "<name>, <locality>" plus the country and, for one of a short/long pair, the
- * variant: "Kings Park, Perth, Western Australia, Australia (long)". PGSharp lists and deletes favourites by name, so
- * this is the only identity a favourite has, which is why every part of it comes from the file rather than the path —
- * this mirrors pgsedit's entry_name.
- */
-function entryName(el: Element) {
-  const label = `${placeName(el)}, ${entryCountry(el)}`;
-  const variant = extText(el, 'variant');
-  return variant ? `${label} (${variant})` : label;
-}
-
-/**
- * A subdivision flag is a black flag, the region and subdivision letters as tag characters (ASCII shifted into the tag
- * block), then the cancel tag.
- */
-const REGIONAL_INDICATOR_A = 0x1f1e6,
-  TAG_BLOCK = 0xe0000,
-  CANCEL_TAG = 0xe007f;
-const BLACK_FLAG = '\u{1F3F4}';
-
-/**
- * The emoji flag for a country, derived from its alpha-2 code in COUNTRIES.
- *
- * PGSharp's own hot places carry a country flag at the front of the name — "🇺🇸 Pier 39, California, USA" — in the
- * same {name,lat,lng,tz} schema our waypoints use. The format has no icon field, so the flag is simply the first
- * characters of the name, and both favourite kinds here follow that convention.
- *
- * The country comes from a <pgr:country>, so it must have an entry in COUNTRIES; one that does not errors rather than
- * importing without a flag.
- */
-function countryFlag(country: string) {
-  const code = COUNTRIES[country]?.code;
-
-  if (!code) {
-    throw new Error(`no flag for "${country}" — add it to COUNTRIES`);
-  }
-
-  if (code.includes('-')) {
-    const tags = [...code.replace('-', '').toLowerCase()].map((c) => String.fromCodePoint(TAG_BLOCK + c.charCodeAt(0)));
-    return BLACK_FLAG + tags.join('') + String.fromCodePoint(CANCEL_TAG);
-  }
-
-  return [...code].map((c) => String.fromCodePoint(REGIONAL_INDICATOR_A + c.charCodeAt(0) - 65)).join('');
-}
-
-/**
- * A favourite's name with its country's flag in front.
- */
-function flaggedName(el: Element) {
-  return `${countryFlag(entryCountry(el))} ${entryName(el)}`;
-}
-
-/**
- * Split one GPX file into Points and Routes by element, not by filename: a <wpt> is one coordinate (a Point), a <trk>
- * is a path (a Route keeping all of its <trkpt>). A file may hold either or both. Mirrors pgsedit's parse_gpx — an
- * empty <trk> is skipped (gpx.studio writes one for a cleared track) rather than treated as a route. Both kinds are
- * flagged, so the two lists read alike in the app even though PGSharp shows them on separate tabs.
- */
-function parseGpxFavourites(text: string) {
-  const doc = parseGpxDocument(text);
-
-  const points: Point[] = [];
-
-  const routes: Route[] = [];
-
-  for (const wpt of doc.getElementsByTagName('wpt')) {
-    const [lat, lng] = entryCoords(wpt).coords;
-    points.push({ name: flaggedName(wpt), lat, lng });
-  }
-
-  for (const { trk, trkpts } of eachTrack(doc)) {
-    const pts: RoutePoint[] = [];
-
-    for (const p of trkpts) {
-      const [lat, lng] = entryCoords(p).coords;
-      pts.push([lat, lng, ROUTE_POINT_FLAG]);
-    }
-
-    routes.push({ name: flaggedName(trk), points: pts, mode: ROUTE_MODE, state: newRouteState() });
-  }
-
-  return { points, routes };
-}
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -207,7 +65,7 @@ async function buildRepoFavourites() {
     let parsed;
 
     try {
-      parsed = parseGpxFavourites(text);
+      parsed = gpxFavourites(parseGpxDocument(text));
     } catch (e) {
       throw new Error(`${file}: ${said(e)}`, { cause: e });
     }
@@ -217,96 +75,6 @@ async function buildRepoFavourites() {
   }
 
   return { points, routes };
-}
-
-/**
- * A coordinate's IANA zone, or `null` where tz-lookup will not name one. It throws a `RangeError` outside ±90/±180 and
- * answers a zone for every coordinate inside them, so the `catch` is the whole of the failure case — nothing guards the
- * call itself, the library being in this module's own bundle rather than a `<script>` that may not have run yet.
- */
-function zoneOf(lat: number, lng: number) {
-  try {
-    return tzlookup(lat, lng);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Fill in each Point's IANA timezone from its coordinates, mirroring pgsedit's apply_timezones. The name is a property
- * of a boundary polygon rather than anything a formula can derive from a coordinate — Melbourne and Sydney share a UTC
- * offset but not a zone name, and Missouri is America/Chicago, not America/New_York — so it comes from the boundary
- * data tz-lookup carries. Routes have no tz field, so nothing is looked up for them. A point whose zone cannot be found
- * is left without one; the count is returned so the caller can say so once rather than per point. PGSharp accepts
- * entries with no tz.
- */
-function applyTimezones(points: Point[]) {
-  let unknown = 0;
-
-  for (const p of points) {
-    const tz = zoneOf(p.lat, p.lng);
-
-    if (tz) {
-      p.tz = tz;
-    } else {
-      unknown++;
-    }
-  }
-
-  return unknown;
-}
-
-/**
- * Names must be unique within a kind (PGSharp lists and deletes by name), so drop any repeated name, keeping the first.
- * It is generic over the two kinds rather than taking a `{name: string}`, because the caller sorts and timezones what
- * it hands back: a parameter naming only the field this reads would answer with only that field.
- */
-function dedupeByName<T extends { name: string }>(entries: readonly T[]) {
-  const seen = new Set();
-
-  const out: T[] = [];
-  let dropped = 0;
-
-  for (const e of entries) {
-    if (seen.has(e.name)) {
-      dropped++;
-      continue;
-    }
-
-    seen.add(e.name);
-    out.push(e);
-  }
-
-  return { out, dropped };
-}
-
-/**
- * Order favourites the way pgsedit's `reorder` does: fold accents (decompose with NFKD, then drop the combining marks)
- * and case, so "São Paulo" files under S rather than after every ASCII name. A tie on the folded key falls back to the
- * exact spelling, so names differing only by accent still order deterministically. Each kind is sorted within itself,
- * as PGSharp lists them separately. A favourite's leading flag is decoration rather than part of how the list reads, so
- * it is folded out too — otherwise every place would sort by its country's regional-indicator code instead of by name.
- */
-const sortKey = (name: string) =>
-  (name || '')
-    .replace(/^[^\p{L}\p{N}]+/u, '')
-    .normalize('NFKD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase();
-
-function byName(a: { name: string }, b: { name: string }) {
-  const ka = sortKey(a.name),
-    kb = sortKey(b.name);
-
-  if (ka !== kb) {
-    return ka < kb ? -1 : 1;
-  }
-
-  if (a.name !== b.name) {
-    return a.name < b.name ? -1 : 1;
-  }
-
-  return 0;
 }
 
 const backupRunEl = byId('backupRun', HTMLButtonElement);
