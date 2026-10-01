@@ -4,10 +4,6 @@ name: 'Pages'
 on:
   push:
     branches: ['master']
-
-  # The Vend workflow's commit cannot reach the trigger above: GitHub raises no `push` event for one made with the
-  # default `GITHUB_TOKEN`. So it asks for the deploy here instead, and this trigger is as much for that as for a run by
-  # hand. There is no schedule, nothing the artifact holds being derived from anything outside the repository.
   workflow_dispatch: {}
 
 permissions:
