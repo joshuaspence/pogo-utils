@@ -26,8 +26,8 @@ export interface Detail {
   cp: number | null;
   name: string | null;
   hp: number | null;
-  weightKg: number | null;
-  heightM: number | null;
+  weight: number | null;
+  height: number | null;
   types: string[];
   /** Null where the species has no gender rather than where the symbol was not read; see `genderOf`. */
   gender: Gender | null;
@@ -85,25 +85,25 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const row = lines.find((l) => measurement(l.text));
   // The size badge sits over the height in particular, so that line is found on its own rather than taken from the row
   // the two share — which is the weight as often as not, since they are read as separate lines at the same height.
-  const height = lines.find((l) => HEIGHT.test(l.text));
-  let weightKg = number(WEIGHT);
-  let heightM = number(HEIGHT);
+  const heightLine = lines.find((l) => HEIGHT.test(l.text));
+  let weight = number(WEIGHT);
+  let height = number(HEIGHT);
 
   if (row) {
-    weightKg ??= await measured(image, row, 0);
-    heightM ??= await measured(image, row, 1 - MEASURE_WIDTH);
+    weight ??= await measured(image, row, 0);
+    height ??= await measured(image, row, 1 - MEASURE_WIDTH);
   }
 
   return {
     cp,
     name,
     hp,
-    weightKg,
-    heightM,
+    weight,
+    height,
     types: await typesOf(lines, data, image),
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
-    size: height ? await sizeOf(image, height) : null,
+    size: heightLine ? await sizeOf(image, heightLine) : null,
     tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
   };
 }
