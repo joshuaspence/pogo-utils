@@ -37,6 +37,13 @@ export interface Form {
   defense: number;
   stamina: number;
   /**
+   * The game master's own `assetBundleValue`, which is how its artwork is named — `pokemon_icon_585_13.png` is the
+   * Autumn Deerling. Null where the form carries none, which happens: `BASCULIN_WHITE_STRIPED` has no value where Red
+   * and Blue have 11 and 12. It is the only thing that separates the forms whose stats and types are identical, so
+   * `artwork.mts` reads it and nothing else here does.
+   */
+  icon: number | null;
+  /**
    * Every move this form can hold: the ordinary pools, the elite ones a legacy Pokémon may still carry, Rayquaza's
    * untradeable Dragon Ascent, and the Frustration and Return a shadow or purified one has. Reading a move against
    * this rather than against all 328 is the difference between choosing among three and choosing among hundreds.
@@ -80,7 +87,10 @@ interface Template {
       nonTmCinematicMoves?: string[];
       shadow?: { shadowChargeMove?: string; purifiedChargeMove?: string };
     };
-    formSettings?: { pokemon: string; forms?: { form: string; isCostume?: boolean }[] };
+    formSettings?: {
+      pokemon: string;
+      forms?: { form: string; isCostume?: boolean; assetBundleValue?: number }[];
+    };
     moveSettings?: object;
     playerLevel?: { cpMultiplier: number[] };
   };
@@ -101,11 +111,16 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
   };
 
   const costumes = new Set<string>();
+  const icons = new Map<string, number>();
 
   for (const { data } of templates) {
     for (const f of data.formSettings?.forms ?? []) {
       if (f.isCostume) {
         costumes.add(f.form);
+      }
+
+      if (f.assetBundleValue !== undefined) {
+        icons.set(f.form, f.assetBundleValue);
       }
     }
   }
@@ -149,6 +164,7 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
       // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it.
       form: /(^|_)NORMAL$/.test(suffix) ? '' : titleise(suffix),
       costume: settings.form !== undefined && costumes.has(settings.form),
+      icon: settings.form === undefined ? null : (icons.get(settings.form) ?? null),
       types: [settings.type, settings.type2].filter((t) => t !== undefined).map(typeName),
       attack: baseAttack,
       defense: baseDefense,

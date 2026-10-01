@@ -83,6 +83,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
+import { distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
 import {
   findOverlay,
@@ -131,6 +132,9 @@ const form = (dex: number, species: string, types: string[], stats: [number, num
   species,
   form: name,
   costume: false,
+  // What the game addresses this form's artwork by. Null throughout, because nothing here fetches an icon: the
+  // signatures `ARTWORK` records below stand in for them, and `identify` is handed those rather than a URL.
+  icon: null,
   types,
   attack: stats[0],
   defense: stats[1],
@@ -410,6 +414,47 @@ const TAGS = [
   'Shiny',
 ];
 const TAG_SLACK = 0.3;
+
+/**
+ * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
+ * `pokemon_icon_{dex}_{assetBundleValue}.png` and recorded here for the same reason the forms and the CP multipliers
+ * are: a test of a reader must not reach the network. Four decimal places, where the margin that decides an answer is
+ * 0.3.
+ *
+ * Six families only, which are the ones this corpus reaches. Basculin is deliberately absent: `White Striped` carries
+ * no `assetBundleValue` at all, and `identify` declines to choose between candidates it cannot all see, so its three
+ * stay ambiguous and the rows say so. Genesect is present and never decides anything — its five forms differ by a drive
+ * cassette a few pixels across, so every margin lands around 0.02 — which is worth having as the negative control.
+ */
+const ARTWORK = new Map<string, Signature>([
+  ['Burmy (Plant)', [0, 0.0501, 0.0387, 0.9072, 0, 0, 0, 0, 0.0037, 0.0004, 0, 0]],
+  ['Burmy (Sandy)', [0, 0.9487, 0.0396, 0, 0, 0, 0.0037, 0.0081, 0, 0, 0, 0]],
+  ['Burmy (Trash)', [0.4348, 0.0062, 0.0105, 0, 0, 0, 0.0062, 0, 0, 0, 0, 0.5423]],
+  ['Cherrim (Overcast)', [0.0243, 0, 0.0003, 0.0517, 0.179, 0, 0, 0, 0.2273, 0.3674, 0.0034, 0.1466]],
+  ['Cherrim (Sunny)', [0.111, 0.6545, 0.0107, 0.0022, 0.0056, 0, 0, 0, 0, 0, 0, 0.2159]],
+  ['Deerling (Autumn)', [0.6577, 0.3348, 0.0076, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+  ['Deerling (Spring)', [0.1511, 0.325, 0.0108, 0, 0, 0, 0, 0, 0, 0, 0.0043, 0.5089]],
+  ['Deerling (Summer)', [0.007, 0.2719, 0.0395, 0.5231, 0.1585, 0, 0, 0, 0, 0, 0, 0]],
+  ['Deerling (Winter)', [0.3671, 0.6076, 0.02, 0, 0, 0, 0, 0, 0, 0, 0.0007, 0.0047]],
+  ['Genesect (Burn)', [0.0003, 0, 0, 0, 0, 0, 0.0006, 0.0025, 0.0916, 0.679, 0.0093, 0.2166]],
+  ['Genesect (Chill)', [0.0003, 0, 0, 0, 0, 0, 0.0007, 0.0028, 0.1021, 0.7566, 0.0087, 0.1288]],
+  ['Genesect (Douse)', [0.0003, 0, 0, 0, 0, 0, 0.099, 0.0044, 0.0918, 0.6803, 0.0084, 0.1158]],
+  ['Genesect (Shock)', [0.0003, 0.079, 0.0169, 0, 0, 0, 0.0006, 0.0025, 0.0921, 0.6844, 0.0078, 0.1163]],
+  ['Genesect', [0.0034, 0.0975, 0, 0, 0, 0, 0.0006, 0.0025, 0.086, 0.6928, 0.008, 0.1092]],
+  ['Keldeo (Ordinary)', [0.3549, 0.121, 0.009, 0, 0, 0.0004, 0.5072, 0.0075, 0, 0, 0, 0]],
+  ['Keldeo (Resolute)', [0.3786, 0.0879, 0.0088, 0.0017, 0, 0.0005, 0.5138, 0.0086, 0, 0, 0, 0]],
+  ['Shellos (East Sea)', [0.0004, 0.0415, 0.4131, 0.0708, 0.0024, 0.0065, 0.4652, 0, 0, 0, 0, 0]],
+  ['Shellos (West Sea)', [0.0317, 0.2153, 0.0108, 0, 0, 0, 0, 0, 0, 0, 0.11, 0.6322]],
+]);
+
+/** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
+const ICONS: ReadonlyMap<Form, Signature> = new Map(
+  FORMS.flatMap((f): [Form, Signature][] => {
+    const signature = ARTWORK.get(label(f));
+
+    return signature ? [[f, signature]] : [];
+  }),
+);
 
 /**
  * What a reader answers where it disagrees with the row it sits in. Its presence marks a defect pinned rather than a
@@ -1284,7 +1329,20 @@ const read = async (file: string) => {
   const detail = await parseDetail(lines, DATA, image);
   const box = await findOverlay(image);
 
-  return { image, lines, detail, box, overlay: box ? await readOverlay(image, box) : null };
+  // The artwork's own signature, which is the only thing that separates forms identical in every number. Floored on the
+  // overlay's box where one was found, PGSharp drawing over the artwork, so no fraction of one phone's screen is
+  // written down here. Memoised with the reading because the segmentation walks the pixels and the assertions are meant
+  // to be free.
+  const signature = signatureOf(image, box ? box.y + box.height : undefined);
+
+  return {
+    image,
+    lines,
+    detail,
+    box,
+    overlay: box ? await readOverlay(image, box) : null,
+    artwork: signature ? { signature, icons: ICONS } : undefined,
+  };
 };
 
 const readings = new Map<string, ReturnType<typeof read>>();
@@ -1333,7 +1391,7 @@ for (const fixture of FIXTURES) {
   ];
 
   test(`${fixture.file} reads as the ${truth} on the screen`, async (t) => {
-    const { detail, box, overlay } = await readingOf(fixture.file);
+    const { detail, box, overlay, artwork } = await readingOf(fixture.file);
 
     await t.test('size', () => assert.strictEqual(detail.size, fixture.size ?? null));
     await t.test('gender', () => assert.strictEqual(detail.gender, fixture.gender));
@@ -1367,7 +1425,7 @@ for (const fixture of FIXTURES) {
     // The end of the pipeline, run on every capture rather than on one, which is what catches `levelsOf` admitting any
     // HP at or above the one read: against a shortlist whose largest member is already the true level, as
     // `fixtures/unown.png`'s `[1, 6, 16]` is, that break cannot move an answer.
-    const identity = identify(DATA, detail, overlay);
+    const identity = identify(DATA, detail, overlay, artwork);
 
     await t.test('identify form', () => assert.strictEqual(identity.form && label(identity.form), answered));
     await t.test('identify levels', () => assert.deepStrictEqual(identity.levels, levels));
@@ -1740,6 +1798,103 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * The `defects` keys are asserted the same way and for the same reason. Each is pinned by some capture, several by one
  * alone, so dropping that capture would take the pin with it and leave a reader free to change its answer unremarked.
  */
+/**
+ * What the artwork match answers, and — the half that matters — what it refuses to answer. These sixteen captures are
+ * the ones whose form shares its dex, types and all three base stats with another, so nothing `parseDetail` or the
+ * overlay reads can separate them and `identify` would otherwise fold them to whichever has the shorter name.
+ *
+ * Asserted as the whole map rather than as a count, so a reader that gained one answer and lost another cannot come out
+ * even. Two things are then **derived** from it rather than transcribed again: that nothing it answered is wrong, and
+ * that five of the eight it declined would have been wrong had it answered them. That second figure is what says the
+ * margin is load-bearing rather than decorative — `shellos-west.png` is nearest to East Sea, every Genesect is nearest
+ * to Chill, and `keldeo-resolute.png` is nearest to Ordinary. A match that took the nearest regardless would be
+ * confidently wrong on all five, which is the one failure mode this corpus exists to make impossible.
+ */
+test('the artwork settles eight forms the numbers cannot, and declines the eight it cannot see', async () => {
+  const answers = new Map<string, string>();
+  const nearests = new Map<string, string>();
+
+  for (const fixture of FIXTURES) {
+    const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
+    const mine = FORMS.find((f) => label(f) === truth);
+
+    if (!mine) {
+      continue;
+    }
+
+    // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
+    const family = FORMS.filter(
+      (f) =>
+        f.dex === mine.dex &&
+        !f.costume &&
+        f.attack === mine.attack &&
+        f.defense === mine.defense &&
+        f.stamina === mine.stamina &&
+        [...f.types].sort().join() === [...mine.types].sort().join(),
+    );
+
+    if (family.length < 2 || !family.every((f) => ARTWORK.has(label(f)))) {
+      continue;
+    }
+
+    const { artwork } = await readingOf(fixture.file);
+    assert.ok(artwork, `${fixture.file} yields no artwork signature at all`);
+
+    const icons = new Map(
+      family.flatMap((f): [string, Signature][] => {
+        const signature = ARTWORK.get(label(f));
+
+        return signature ? [[label(f), signature]] : [];
+      }),
+    );
+    const ranked = [...icons].sort((a, b) => distance(artwork.signature, a[1]) - distance(artwork.signature, b[1]));
+    const closest = ranked[0];
+    assert.ok(closest, `${fixture.file} has no icon to compare against`);
+
+    answers.set(fixture.file, nearest(artwork.signature, icons) ?? 'declined');
+    nearests.set(fixture.file, closest[0]);
+  }
+
+  assert.deepStrictEqual(Object.fromEntries(answers), {
+    'burmy-plant.png': 'Burmy (Plant)',
+    'burmy-sandy.png': 'Burmy (Sandy)',
+    'burmy-trash.png': 'Burmy (Trash)',
+    'cherrim-overcast.png': 'Cherrim (Overcast)',
+    'cherrim-sunshine.png': 'Cherrim (Sunny)',
+    'deerling-autumn.png': 'declined',
+    'deerling-spring.png': 'declined',
+    'deerling-summer.png': 'Deerling (Summer)',
+    'deerling-winter.png': 'Deerling (Winter)',
+    'genesect-burn.png': 'declined',
+    'genesect-chill.png': 'declined',
+    'genesect-douse.png': 'declined',
+    'genesect-normal.png': 'declined',
+    'keldeo-resolute.png': 'declined',
+    'shellos-east.png': 'Shellos (East Sea)',
+    'shellos-west.png': 'declined',
+  });
+
+  const truthOf = (file: string) => {
+    const row = FIXTURES.find((f) => f.file === file);
+    assert.ok(row, `${file} has left the corpus`);
+
+    return row.form ? `${row.species} (${row.form})` : row.species;
+  };
+
+  const wrong = [...answers].filter(([file, answer]) => answer !== 'declined' && answer !== truthOf(file));
+  assert.deepStrictEqual(wrong, [], 'the artwork answered a form that is not the one on the screen');
+
+  const rescued = [...answers]
+    .filter(([file, answer]) => answer === 'declined' && nearests.get(file) !== truthOf(file))
+    .map(([file]) => file);
+
+  assert.deepStrictEqual(
+    rescued,
+    ['genesect-burn.png', 'genesect-douse.png', 'genesect-normal.png', 'keldeo-resolute.png', 'shellos-west.png'],
+    `the ${MARGIN} margin no longer rescues the captures whose nearest icon is the wrong one`,
+  );
+});
+
 test('the corpus reaches both sides of every attribute', () => {
   for (const flag of ['favourite', 'lucky', 'purified', 'shadow', 'shiny'] as const) {
     assert.ok(

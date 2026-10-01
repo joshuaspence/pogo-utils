@@ -19,6 +19,7 @@ import {
   type Move,
 } from './game-master.mts';
 import { fold, ocr, ocrLine, type Line } from './ocr.mts';
+import { nearest, type Signature } from './artwork.mts';
 import { crop, isolate, scale, type Image } from './png.mts';
 
 export interface Detail {
@@ -993,6 +994,18 @@ function levelsIn(text: string): number[] {
   return [...levels];
 }
 
+/**
+ * The artwork, for the forms whose numbers are identical — Deerling's four, Burmy's three, Genesect's five. `signature`
+ * is the capture's own, from `signatureOf`, and `icons` is one per candidate form, from the game's own art.
+ *
+ * Handed in rather than fetched here so that `identify` stays a pure function of what it is given: the scan builds the
+ * map by downloading icons, and the test records them, which is the same division the game master already has.
+ */
+export interface Artwork {
+  signature: Signature;
+  icons: ReadonlyMap<Form, Signature>;
+}
+
 export interface Identity {
   form: Form | null;
   /**
@@ -1022,7 +1035,7 @@ export interface Identity {
  * HP, IVs and types narrow them to 28 and stop. Where the overlay carries no suffix the numbers were enough — an Alolan
  * Geodude's reads `L20 ɪᴠ91 13/13/15` with nothing appended, because its stats and types already say Alola.
  */
-export function identify(data: GameData, detail: Detail, overlay: Overlay | null): Identity {
+export function identify(data: GameData, detail: Detail, overlay: Overlay | null, artwork?: Artwork): Identity {
   const notes: string[] = [];
   const iv = overlay?.iv ?? null;
   const species = detail.name ? closest(detail.name, data.species, (s) => s) : null;
@@ -1053,6 +1066,28 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
     candidates = named;
   } else if (labelled !== null) {
     notes.push(`the overlay says form "${labelled}", which is no form of ${species ?? 'any species that fits'}`);
+  }
+
+  // The artwork, which is all that is left where the numbers are identical: Deerling's four seasons share
+  // `115/100/155 Normal+Grass` exactly, so nothing read off the panel can separate them and the fold below would keep
+  // whichever has the shorter name. Ahead of that fold for the same reason PGSharp's label is.
+  //
+  // Every candidate has to carry a signature, not just two of them, or a form the game master gives no
+  // `assetBundleValue` would be dropped for having no icon rather than for losing on its colours — which is `Basculin
+  // (White Striped)`, and is why Basculin is never narrowed here.
+  //
+  // An abstention costs nothing and fixes nothing: the fold below removes the rivals rather than demoting them, so a
+  // declined call still comes back as one form with no alternatives and no note — `shellos-west.png` is answered as
+  // East Sea either way. That is the pre-existing gap rather than one this opens, and closing it means `identify`
+  // reporting the fold it performed, which is a change to what every row of the CSV says.
+  if (candidates.length > 1 && artwork) {
+    const icons = new Map(candidates.map((f) => [f, artwork.icons.get(f)]));
+    const known = [...icons].every(([, signature]) => signature !== undefined);
+    const picked = known ? nearest(artwork.signature, icons as ReadonlyMap<Form, Signature>) : null;
+
+    if (picked) {
+      candidates = [picked];
+    }
   }
 
   // Costumes repeat their base form's stats and types exactly, so they are the same answer twice.

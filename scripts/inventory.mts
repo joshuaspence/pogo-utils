@@ -38,7 +38,8 @@
  */
 
 import { Device, KEY, sleep } from './inventory/adb.mts';
-import { closest, loadGameData, type GameData } from './inventory/game-master.mts';
+import { iconsFor, signatureOf, type Signature } from './inventory/artwork.mts';
+import { closest, loadGameData, type Form, type GameData } from './inventory/game-master.mts';
 import { centre, findLine, fold, ocr, type Line } from './inventory/ocr.mts';
 import { decodePng, difference, encodePng, type Image } from './inventory/png.mts';
 import {
@@ -210,8 +211,19 @@ const { values: options, positionals } = parseArgs({
 const [command = 'help', ...rest] = positionals;
 const config = loadConfig(options.config);
 
+/**
+ * The artwork a screenshot shows, for the forms whose numbers are identical. PGSharp's overlay is drawn over the
+ * artwork, so where its box was found that is the floor to start below — a fraction written down instead would be one
+ * phone's.
+ */
+function artworkIn(image: Image, box: OverlayBox | null, icons: ReadonlyMap<Form, Signature>) {
+  const signature = signatureOf(image, box ? box.y + box.height : undefined);
+
+  return signature ? { signature, icons } : undefined;
+}
+
 /** Everything each reader makes of one screenshot, for tuning. */
-async function report(image: Image, data: GameData) {
+async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Signature>) {
   const lines = await readLines(image);
 
   for (const l of lines) {
@@ -221,7 +233,7 @@ async function report(image: Image, data: GameData) {
   const detail = await parseDetail(lines, data, image);
   const box = config.overlay ?? (await findOverlay(image));
   const overlay = box ? await readOverlay(image, box) : null;
-  const id = identify(data, detail, overlay);
+  const id = identify(data, detail, overlay, artworkIn(image, box, icons));
   console.log('detail:', detail);
   console.log('moves:', await parseMoves(lines, data, id.form, image));
   console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
@@ -238,6 +250,7 @@ async function scan() {
   const device = new Device(options.serial);
   await device.check();
   const data = await loadGameData(CACHE, options.refresh);
+  const icons = await iconsFor(CACHE, data, options.refresh);
   const flags = options.flags === undefined ? DEFAULT_FLAGS : parseFlags(options.flags);
   // The chips under the HP say which tags a Pokémon carries, so this is a vocabulary rather than a list to search for:
   // the names are the user's own, and only something to match against can say that `Shiny SJ` is the `Shiny` chip with
@@ -417,7 +430,7 @@ async function scan() {
       const detail = await parseDetail(await readLines(image), data, image);
       const overlay = await overlayOf(image);
       const key = keyOf(detail, overlay);
-      const id = identify(data, detail, overlay);
+      const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
       // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
       // every Pokémon on a phone that is not running PGSharp. A form that fits is the other half: the name, the types,
       // the HP and the IVs agreeing is what a half-read screen cannot fake, and is a surer test than any one of them.
@@ -739,13 +752,15 @@ if (command === 'scan') {
   mkdirSync(join(CACHE, 'snaps'), { recursive: true });
   writeFileSync(path, encodePng(image));
   console.log(`Saved ${path} (${image.width}×${image.height})`);
-  await report(image, await loadGameData(CACHE, options.refresh));
+  const data = await loadGameData(CACHE, options.refresh);
+  await report(image, data, await iconsFor(CACHE, data, options.refresh));
 } else if (command === 'parse' && rest.length > 0) {
   const data = await loadGameData(CACHE, options.refresh);
+  const icons = await iconsFor(CACHE, data, options.refresh);
 
   for (const path of rest) {
     console.log(`\n=== ${basename(path)}`);
-    await report(decodePng(readFileSync(path)), data);
+    await report(decodePng(readFileSync(path)), data, icons);
   }
 } else {
   console.error(
