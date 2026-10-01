@@ -644,6 +644,7 @@ meant to remove noise.
   spans together unions the generations first and intersects that union with the other sources. Merging them can take
   the ambiguity warning with it as well as the characters: `shiny&1-151,152-251` mixes `,` with `&` and earns the
   caveat, where `shiny&1-251` does not.
+
 ## Driving Pokémon GO over `adb`
 
 `scripts/inventory.mts` steers the game by screenshot and tap, so every step is a guess about a screen that has no
@@ -817,13 +818,13 @@ bracketed suffix already goes. The figures below are measured over 17 captures f
 
 ### Pinning a reader with a committed capture
 
-`pnpm test` runs `scripts/inventory/screens.test.mts` over 62 real screenshots in `scripts/inventory/fixtures/`. Every
-reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test needs —
-no phone, no network, and a hermetic `GameData` of eighteen type names for `parseDetail` plus, for `identify`, 122 forms
-over 41 species and the 101-entry CP multiplier table, each value read once out of a real `loadGameData` and recorded in
-the file. 1,133 tests in about four minutes, OCR being all of it: each attribute is a subtest under a parent per
-capture, so a failure names the reader that broke, and the reading is memoised per capture, which is why the assertions
-are free and only the 62 OCR passes cost anything.
+`pnpm test:inventory` runs `scripts/inventory/screens.test.mts` over 62 real screenshots in
+`scripts/inventory/fixtures/`. Every reader on the detail screen is a pure function of one screenshot, so the screenshot
+is the whole of what a test needs — no phone, no network, and a hermetic `GameData` of eighteen type names for
+`parseDetail` plus, for `identify`, 122 forms over 41 species and the 101-entry CP multiplier table, each value read
+once out of a real `loadGameData` and recorded in the file. 1,133 tests in about four minutes, OCR being all of it: each
+attribute is a subtest under a parent per capture, so a failure names the reader that broke, and the reading is memoised
+per capture, which is why the assertions are free and only the 62 OCR passes cost anything.
 
 59 of the captures are a `Fixture` row, 30 species between them. The other three are not detail screens with a readable
 Pokémon and so cannot be rows — `overworld.png` is the map, and `no-pgsharp.png` and `pgsharp-no-overlay.png` are one
@@ -1194,4 +1195,3 @@ Three of the CSV's columns are pixels rather than text, and one that looks as th
   Restricting the search to the rows the text occupies does not separate them either, since the flower reaches into
   them. Shiny comes from the game's own `shiny` search, as a flag pass, which is authoritative and costs a walk of every
   shiny in storage.
-
