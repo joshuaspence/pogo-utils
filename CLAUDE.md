@@ -259,6 +259,16 @@ Which route a change takes turns on whether it changes what the code _does_ or o
   which `toBe` tells apart from `+0` through `Object.is`. Subtract so the sign comes out of the data rather than out of
   a unary minus, and run the two zones rather than the one — this is the [`events.html` figure](#designing-a-probe)
   again with the machine standing in for the feed.
+- **A `toEqual` against the object the value was built from compares a round trip of itself.**
+  `expect(JSON.parse(CONTROL_RESETS.resetScan.hlscan)).toEqual(SCAN_CONFIG)` holds however `scan-config.ts` reads, so
+  `onlyShiny: true → false` is a mutation it cannot see. It still earns its place — it is what says `hlscan` carries
+  that table rather than a feed filter — but the values want literals beside it. The same applies to a key list taken
+  off the object under test: spell the order out, since `Object.keys(x)` compared with itself is a tautology.
+- **Ask whether a mutation could single an assertion out before writing it, since one that nothing can reach is worse
+  than none.** A check for an empty `continent` in `countries.ts` is unreachable: `''` joins the set of continents like
+  any other value and sorts to the front of it, so the set assertion above it already fails. Where the answer is "only a
+  coordinated edit", say which — `GENERATIONS` is checked for an inverted span, and reaching it takes two rows moved
+  together, because moving one `last` moves the `first` the next row is weighed against.
 
 ## Checking the pages in a browser
 
