@@ -874,12 +874,12 @@ the half of a corpus that valid screens cannot state: no overlay found, no HP, n
   `heightM` was left out because the badge corrupts it, `name` because one fixture is nicknamed `96%`, and `cp` because
   `cpOf` derives it — three readers free to change their answers unremarked. So the row states the truth and an optional
   `defects` beside it states what the reader answers instead, which is the inverse of recording the reading and
-  softening the row: fixing a reader fails here and has to say so. **23 of the 59 carry one**, twelve of the fourteen
+  softening the row: fixing a reader fails here and has to say so. **22 of the 59 carry one**, eleven of the fourteen
   `Defects` keys are in use, and the corpus test asserts the pinned set _exactly_ rather than one `ok` per key — so a
-  key arriving is as loud as a key leaving, and `box` and `favourite` being absent is the record of two readers fixed.
-  It also asserts that some capture carries none, 36 doing so, since a reader wrong everywhere would otherwise pass
-  every row it had an entry in. Read the keys rather than testing them for truth: some of them are `null`, and a truth
-  test files those as absent.
+  key arriving is as loud as a key leaving, and `box`, `favourite` and `tags` being absent is the record of three
+  readers fixed. It also asserts that some capture carries none, 37 doing so, since a reader wrong everywhere would
+  otherwise pass every row it had an entry in. Read the keys rather than testing them for truth: some of them are
+  `null`, and a truth test files those as absent.
 - **Two absences are two defects and a row has to say which.** `findOverlay` finding no box is `defects.box: null` where
   PGSharp drawing no overlay at all is `overlay: null` on the row itself — so a row that conflated them could not say
   whether the reader was wrong or right. Only the second is left: `findOverlay` has stopped missing a box that is on the

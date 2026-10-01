@@ -42,7 +42,7 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 23 of the 59 rows carry a `defects`, and the kinds group into four.
+ * code does and so a pull request of its own. 22 of the 59 rows carry a `defects`, and the kinds group into four.
  *
  * - **Forms the screen cannot separate at all, on thirteen rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
@@ -57,15 +57,14 @@
  *   **One triple read wrongly and one bracket not read.** `basculin-blue.png` comes back `3/3/5` for an `8/3/5`, the
  *   only row left whose IVs are wrong. And `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species'
  *   forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[`
- *   and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One chip and one height.** `tagsOn`
- *   misses `snorlax-purified.png`'s `Perfect`, the only tagged capture besides `ho-oh.png`. And `spoink.png` renders
+ *   and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One height.** `spoink.png` renders
  *   `1.1m` and reads `1.4m`, the size pill's tail pointing down into the digits — `xurkitree.png` wears the same badge
  *   and reads its height correctly, the tail landing in the gap above the `8`.
  *
- * Four kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so one
+ * Five kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so one
  * coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer calls
- * `spinda-04.png` a favourite, the CP is no longer misread on any capture, and `readOverlay` reads every overlay but
- * one.
+ * `spinda-04.png` a favourite, `tagsOn` no longer cuts away `snorlax-purified.png`'s `Perfect` chip as though it were
+ * the type icons, the CP is no longer misread on any capture, and `readOverlay` reads every overlay but one.
  *
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
  * the fold on every one. What would make even a negative control over it mean anything is the full 328-move list, which
@@ -1241,7 +1240,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2304,
-    defects: { tags: [] },
     favourite: true,
     file: 'snorlax-purified.png',
     form: null,
@@ -1543,7 +1541,7 @@ const COVERAGE = {
   crossCheckDisagrees: 6,
   severalLevels: 1,
   noLevel: 2,
-  noDefects: 36,
+  noDefects: 37,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 1,
@@ -2037,12 +2035,13 @@ test('the corpus reaches both sides of every attribute', () => {
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
   //
-  // `box` and `favourite` are deliberately absent, and that is the point of asserting the set: `findOverlay` now finds
-  // a box on every screen that carries one, and `isFavourite` no longer calls `spinda-04.png` a favourite. Each of
+  // `box`, `favourite` and `tags` are deliberately absent, and that is the point of asserting the set: `findOverlay`
+  // now finds a box on every screen that carries one, `isFavourite` no longer calls `spinda-04.png` a favourite, and
+  // `tagsOn` reads `snorlax-purified.png`'s chip. Each of
   // those used to need a key here, so one coming back is a regression this line reports rather than absorbs.
   assert.deepStrictEqual(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
-    ['alternatives', 'cp', 'height', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix', 'tags', 'types'],
+    ['alternatives', 'cp', 'height', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix', 'types'],
     'a reader has started or stopped disagreeing with the screen about something',
   );
 
