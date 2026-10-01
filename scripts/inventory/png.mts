@@ -219,6 +219,27 @@ export function isolate(image: Image, minLuminance: number, maxChroma: number): 
  * status bar ticks with the clock. So a caller watching for a screen to stop moving watches the panel and nothing
  * else, and compares against a figure between those two — not against zero, which never arrives.
  */
+/**
+ * Black where a channel reaches `min` and white elsewhere, which is `isolate` without the colour test. What that buys
+ * is the overlay: its IV percentage is colour-coded by quality — magenta at 93, cyan at 86, green at 75 — so a chroma
+ * limit deletes it, and the same limit clips the anti-aliased edge of a thin white `1` beside it. Measured on five
+ * captures, the near-white treatment reads `2/4/13` where this reads `12/4/13`.
+ */
+export function brighten(image: Image, min: number): Image {
+  const data = new Uint8Array(image.data.length);
+
+  for (let i = 0; i < image.data.length; i += 4) {
+    const value = Math.max(image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0) >= min ? 0 : 255;
+
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+    data[i + 3] = 255;
+  }
+
+  return { width: image.width, height: image.height, data };
+}
+
 export function difference(a: Image, b: Image, from: number, to: number): number {
   if (a.width !== b.width || a.height !== b.height) {
     return 1;

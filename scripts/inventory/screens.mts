@@ -20,7 +20,7 @@ import {
 } from './game-master.mts';
 import { fold, ocr, ocrLine, type Line } from './ocr.mts';
 import { nearest, type Signature } from './artwork.mts';
-import { crop, isolate, scale, type Image } from './png.mts';
+import { brighten, crop, isolate, scale, type Image } from './png.mts';
 
 export interface Detail {
   /** What OCR made of the CP, which is usually nothing; `Identity.cp` is the one to believe. */
@@ -657,6 +657,40 @@ const OVERLAY_ALPHABET = 'L0123456789/ ';
 const OVERLAY_SCALES = [2, 3];
 
 /**
+ * How bright a channel has to be for `brighten` to keep it. Low enough to hold the IV percentage, whose colour is what
+ * a chroma limit exists to drop.
+ */
+const OVERLAY_BRIGHTNESS = 120;
+
+/**
+ * The two ways to turn an overlay band into black on white, in the order to try. Neither wins outright, which is why
+ * both are here and why the percentage below arbitrates between them.
+ *
+ * Near-white first, because that is what every reading was measured against. What it costs is the thin strokes: the
+ * chroma ceiling clips the anti-aliased edge of a leading `1`, so `articuno-galar.png` reads `2/4/13` for `12/4/13`,
+ * `xurkitree.png` loses its attack entirely at `/2/14`, and `cherrim-overcast.png` yields nothing at any band at all.
+ * Brightness alone reads all three correctly — and misses `genesect-normal.png`, `nidoran-female.png` and
+ * `nidoran-male.png`, which near-white reads. So it is a second opinion rather than a replacement.
+ */
+const OVERLAY_TREATMENTS = [
+  (band: Image) => isolate(band, OVERLAY_LUMINANCE, OVERLAY_CHROMA),
+  (band: Image) => brighten(band, OVERLAY_BRIGHTNESS),
+];
+
+/**
+ * Whether the IV percentage PGSharp prints beside the triple agrees with it. It is `floor((a + d + s) / 45 * 100)`, so
+ * it is redundant — and redundancy is exactly what makes it a checksum, which is what settles which treatment to
+ * believe where two of them read different triples and both are possible. `articuno-galar.png` is the case: near-white
+ * says `2/4/13`, which would be 42%, and brightness says `12/4/13` and prints `64`.
+ *
+ * Searched for in the text ahead of the triple rather than as a whole word, since it runs into the digits beside it —
+ * `xurkitree.png`'s `82` arrives as `182`, the `1` being the first digit of an attack of 11.
+ */
+function confirmed(before: string, iv: IVs): boolean {
+  return before.includes(String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100)));
+}
+
+/**
  * The alphabet the bracketed form is read with, which is deliberately not the one above widened: a whitelist is what
  * stops a stray glyph splitting a number in two, and the letters a form needs are precisely the glyphs a digit is
  * confused with — `O` for `0`, `S` for `5`, `B` for `8`. Two reads of the same crop therefore cost one more Tesseract
@@ -738,6 +772,14 @@ const OVERLAY_CHARACTERS = 30;
  * most generous reach that costs none of them, and the 24 Unown triples are identical at every reach including the old.
  */
 const OVERLAY_SUFFIX_CHARACTERS = 5;
+
+/**
+ * How much wider than the triple's box to read the bracketed form out of, as a fraction of that box's width. The box
+ * `tighten` hands back is sized for the digits, and PGSharp appends the form to the right of them, so the crop that
+ * makes the IVs legible is the one that cuts the suffix off — measured, `unown-m.png` and `unown-exclamation.png` both
+ * read their bracket out of the untightened band and neither out of the tightened box.
+ */
+const OVERLAY_SUFFIX_REACH = 0.5;
 
 /** How far a row may be from a move's name, and how short a trailing token has to be to be an energy bar. */
 const MOVE_SLACK = 0.2;
@@ -841,17 +883,21 @@ async function tripled(band: Image, factor: number): Promise<string | null> {
   return TRIPLE.test(text) ? text : null;
 }
 
+/** Every treatment and scale, in the order to try them: the cheapest first, so a rescue costs only what it rescues. */
+const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map((factor) => ({ treat, factor })));
+
 export async function findOverlay(image: Image): Promise<OverlayBox | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
   const step = Math.max(1, Math.round(height / 3));
   const width = Math.round(image.width * OVERLAY_SPAN);
   const left = Math.round((image.width - width) / 2);
 
-  // A whole sweep per scale rather than both scales per band, which matters only for the clock: the overlay is found at
-  // 2× on all but three captures, and reading every band twice to rescue those three cost the suite 60% more wall time.
-  for (const factor of OVERLAY_SCALES) {
+  // A whole sweep per pass rather than every pass per band, which matters only for the clock: the overlay is found by
+  // the first pass on all but a handful, and trying them all at every band cost the suite 60% more wall time to rescue
+  // those few.
+  for (const { treat, factor } of OVERLAY_PASSES) {
     for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
-      const band = isolate(crop(image, left, top, width, height), OVERLAY_LUMINANCE, OVERLAY_CHROMA);
+      const band = treat(crop(image, left, top, width, height));
       const line = await tripled(band, factor);
 
       if (line === null) {
@@ -968,45 +1014,88 @@ export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
  * the whole reason this costs two Tesseract calls rather than one: see `OVERLAY_FORM_ALPHABET`.
  */
 export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
-  const band = isolate(
-    crop(image, box.x * image.width, box.y * image.height, box.width * image.width, box.height * image.height),
-    OVERLAY_LUMINANCE,
-    OVERLAY_CHROMA,
+  const raw = crop(
+    image,
+    box.x * image.width,
+    box.y * image.height,
+    box.width * image.width,
+    box.height * image.height,
   );
-  const region = scale(band, OVERLAY_SCALES[0] ?? 2);
-  let text: string | null = null;
 
-  for (const factor of OVERLAY_SCALES) {
-    text ??= await tripled(band, factor);
+  // Every treatment and scale, keeping the first whose percentage confirms its own triple, and falling back on the
+  // first that read a possible one at all. Without that arbitration the order alone decides, and the first pass is
+  // wrong about `articuno-galar.png` in a way nothing downstream could notice: `2/4/13` is a perfectly possible triple.
+  let fallback: { iv: IVs; before: string } | null = null;
+  let chosen: { iv: IVs; before: string } | null = null;
+
+  for (const { treat, factor } of OVERLAY_PASSES) {
+    const region = scale(treat(raw), factor);
+    const text = (await ocrLine(region, OVERLAY_ALPHABET))?.text ?? '';
+    const triple = TRIPLE.exec(text);
+
+    if (!triple) {
+      continue;
+    }
+
+    const [attack, defense, stamina] = triple.slice(1).map(Number) as [number, number, number];
+
+    if ([attack, defense, stamina].some((v) => v > 15)) {
+      continue;
+    }
+
+    const reading = { iv: { attack, defense, stamina }, before: text.slice(0, triple.index) };
+    fallback ??= reading;
+
+    if (confirmed(reading.before, reading.iv)) {
+      chosen = reading;
+      break;
+    }
   }
 
-  const triple = text === null ? null : TRIPLE.exec(text);
+  const reading = chosen ?? fallback;
 
-  if (!text || !triple) {
+  if (!reading) {
     return null;
   }
 
-  const [attack, defense, stamina] = triple.slice(1).map(Number) as [number, number, number];
+  const { iv, before } = reading;
 
-  if ([attack, defense, stamina].some((v) => v > 15)) {
-    return null;
-  }
+  const suffixIn = async (crop: Image, alphabet: string) =>
+    [...((await ocrLine(crop, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
 
-  const suffixIn = async (alphabet: string) =>
-    [...((await ocrLine(region, alphabet))?.text.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
-
-  // Both passes always run and a two-digit answer wins, because only one of them could have produced it: the letters
+  // Both alphabets always run and a two-digit answer wins, because only one of them could have produced it: the letters
   // alphabet holds no digits, so it can only ever say "letter", and it says one about Spinda's `(04)` either way — `OA`
   // where both characters survive and a shape-valid `O` where the `4` does not. Reading the digits is the only thing
   // that can tell a real `04` from a letter, and nothing but Spinda is labelled numerically, so a two-digit read is not
-  // a close call to arbitrate. Everything else is the letters pass's to answer.
+  // a close call to arbitrate. Everything else is the letters alphabet's to answer.
+  //
+  // Off the first pass always, and deliberately not off whichever pass the triple came from: the two are separate
+  // readings of separate parts of the line, and each wants its own treatment. `unown-m.png`'s IVs are only right under
+  // brightness and its `(M)` only under near-white, so following the triple traded one for the other — and widening the
+  // bracket to every pass is worse again, since the 3× read invents a shape-valid suffix on `basculin-blue.png`, which
+  // carries none. One pass for the bracket is what was measured and is what the corpus bears out.
+  //
+  // Out of a wider crop than the triple, though, because the two want opposite things of the box. `tighten` narrows it
+  // onto the digits, which is what makes the IVs read — and the suffix is appended to the *right* of those digits, so
+  // the same narrowing clips it off: `unown-m.png` and `unown-exclamation.png` both lose their bracket to a box the
+  // triple needs. Half the box's width to the right is enough to reach it on both, and `crop` clamps what runs off the
+  // screen.
   const shaped = (suffix: string | null) => (suffix !== null && SUFFIX_SHAPE.test(suffix) ? suffix : null);
-  const lettered = shaped(await suffixIn(OVERLAY_FORM_ALPHABET));
-  const numeric = shaped(await suffixIn(OVERLAY_NUMERIC_ALPHABET));
+  const first = OVERLAY_PASSES[0];
+  const wide = crop(
+    image,
+    box.x * image.width,
+    box.y * image.height,
+    box.width * image.width * (1 + OVERLAY_SUFFIX_REACH),
+    box.height * image.height,
+  );
+  const bracket = first ? scale(first.treat(wide), first.factor) : wide;
+  const lettered = shaped(await suffixIn(bracket, OVERLAY_FORM_ALPHABET));
+  const numeric = shaped(await suffixIn(bracket, OVERLAY_NUMERIC_ALPHABET));
 
   return {
-    levels: levelsIn(text.slice(0, triple.index)),
-    iv: { attack, defense, stamina },
+    levels: levelsIn(before),
+    iv,
     form: (numeric !== null && /^\d{2}$/.test(numeric) ? numeric : null) ?? lettered ?? numeric,
   };
 }
