@@ -31,5 +31,12 @@
     // erase — an `enum`, a `namespace`, a parameter property — has to be rejected here as well as next door.
     "erasableSyntaxOnly": true
   },
-  "include": ["src/countries.ts", "src/event-feed.ts", "src/generated.ts", "src/recurring-types.ts", "src/types.d.ts"]
+  "include": [
+    "src/countries.ts",
+    "src/event-feed.ts",
+    "src/generated.ts",
+    "src/gpx-dialect.ts",
+    "src/recurring-types.ts",
+    "src/types.d.ts"
+  ]
 }

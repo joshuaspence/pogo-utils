@@ -130,9 +130,14 @@ property.
 - **`src/recurring-types.ts` is in neither half, and `tsconfig.shared.json` is what holds that.** `src/events.ts`
   imports it and so does `scripts/build-ics`, so a third project with no `DOM` in its `lib` and an empty `types` is what
   makes a stray `Document` or `process` an error there rather than something one consumer happens to notice.
-  `src/countries.ts`, `src/event-feed.ts`, `src/generated.ts` and `src/types.d.ts` are in it for the same reason. A rule
-  the page and the feed both apply belongs there rather than in the entry point: the feed URL, `data/events.json`,
-  `HAS_ZONE` and `routeSummary` were each spelled twice because the only thing importable from `events.ts` is the DOM.
+  `src/countries.ts`, `src/event-feed.ts`, `src/generated.ts`, `src/gpx-dialect.ts` and `src/types.d.ts` are in it for
+  the same reason. A rule the page and the feed both apply belongs there rather than in the entry point: the feed URL,
+  `data/events.json`, `HAS_ZONE` and `routeSummary` were each spelled twice because the only thing importable from
+  `events.ts` is the DOM. The GPX dialect is the sharpest case, because the two copies had already drifted: a one-point
+  `<trk>` passed all six checks at exit 0 and then threw in `gpxEntries`, the validator's own filter being `> 0` where
+  `routes.ts` wanted two. `PGR_FIELDS` and `MIN_TRKPTS` are one definition now, and `PgrField` typing `extText`'s `tag`
+  is what the move bought beyond the one spelling — `extText(trk, 'varient')` is a `TS2345` naming all four fields where
+  it used to answer `null` and read as a file not carrying the field.
 - **Build mode wants every file a project reads listed by the project that reads it.** `scripts/tsconfig.json`
   references `tsconfig.shared.json` and reads its declarations rather than checking those files a second time under the
   Node lib set.

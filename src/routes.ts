@@ -7,6 +7,7 @@
  * is why the two readers are separate and both sit on the primitives in `gpx.ts`.
  */
 
+import { MIN_TRKPTS } from './gpx-dialect.js';
 import { eachTrack, entryCoords, entryCountry, extText, placeName } from './gpx.js';
 
 /**
@@ -100,7 +101,7 @@ export function gpxEntries(doc: Document): { routes: Route[]; waypoints: Waypoin
   for (const { trk, trkpts } of eachTrack(doc)) {
     const latlngs = [...trkpts].map((p) => entryCoords(p).coords);
 
-    if (latlngs.length < 2) {
+    if (latlngs.length < MIN_TRKPTS) {
       throw new Error('<trk> has fewer than two usable <trkpt>');
     }
 

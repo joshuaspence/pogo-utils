@@ -16,6 +16,7 @@
 
 import COUNTRIES from '../src/countries.ts';
 import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
+import { MIN_TRKPTS, PGR_FIELDS } from '../src/gpx-dialect.ts';
 import type { FeedEvent, RouteCounts } from '../src/types.js';
 import { DOMParser, Node, type Document, type Element } from '@xmldom/xmldom';
 import { execFileSync } from 'node:child_process';
@@ -52,12 +53,19 @@ if (valid) {
 }
 
 /**
- * The `pgr` fields the viewer reads, matched by local name. An element that is in the `pgr` namespace but is not one
- * of these is a misspelling the viewer would silently ignore, leaving a countryless entry the banner then complains
- * about — the very failure this pass moves forward to here.
+ * An element in the `pgr` namespace that is not one of the fields `src/gpx-dialect.ts` names is a misspelling the
+ * viewer would silently ignore, leaving a countryless entry the banner then complains about — the very failure this
+ * pass moves forward to here. The namespace itself is this pass's own business: the viewer matches on local name alone,
+ * leaving the prefix a file's affair, so there is nothing to share.
  */
 const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';
-const PGR_FIELDS = new Set(['country', 'city', 'variant', 'event']);
+
+/**
+ * A `Set` over the shared tuple rather than a second list beside it. `has` takes a `string`, where the tuple's own
+ * `includes` would reject one — the field names being literal types is what types `extText` next door.
+ */
+const PGR_FIELD_NAMES = new Set<string>(PGR_FIELDS);
+
 const VARIANTS = new Set(['short', 'long']);
 
 // Spelled out of PGR_FIELDS rather than beside it, so adding a field cannot leave the message naming the old set.
@@ -112,15 +120,38 @@ for (const { fileName, contents } of sources) {
     continue;
   }
 
+  const tracks = Array.from(doc.getElementsByTagName('trk')).map((trk) => ({
+    trk,
+    points: trk.getElementsByTagName('trkpt').length,
+  }));
+
   /**
    * A `<trk>` and a `<wpt>` are the two things the viewer turns into entries, and each must name its country. An
-   * emptied `<trk>` (no `<trkpt>`) is what a cleared track looks like on export; the viewer skips it, so its `pgr`
+   * emptied `<trk>` (no `<trkpt>`) is what a cleared track looks like on export; `eachTrack` skips it, so its `pgr`
    * fields are not required and nothing is checked for it here.
    */
-  const entries = [
-    ...Array.from(doc.getElementsByTagName('trk')).filter((trk) => trk.getElementsByTagName('trkpt').length > 0),
-    ...Array.from(doc.getElementsByTagName('wpt')),
-  ];
+  const kept = tracks.filter(({ points }) => points > 0);
+  const entries = [...kept.map(({ trk }) => trk), ...Array.from(doc.getElementsByTagName('wpt'))];
+
+  /**
+   * A `<trk>` that kept a single point is a track there is no line to draw between, and `gpxEntries` throws on it. The
+   * schema cannot say so — `trkpt` is `minOccurs="0"` — so without this the file passed every check, went into both
+   * generated indexes and broke the Routes page when someone opened it.
+   */
+  for (const { trk, points } of kept) {
+    if (points < MIN_TRKPTS) {
+      report(fileName, trk, `<trk> has ${points} <trkpt> — expected at least ${MIN_TRKPTS}`);
+    }
+  }
+
+  /**
+   * A file with neither is the other half of that gap: `gpxEntries` throws rather than drawing an empty map, and the
+   * file reaches the viewer because GPX_PATHS is every `.gpx` in the repository. A cleared track is this case, its
+   * `<trk>` having been dropped as an entry above.
+   */
+  if (entries.length === 0) {
+    report(fileName, undefined, 'has no <trk> or <wpt>');
+  }
 
   for (const entry of entries) {
     entryCount++;
@@ -139,12 +170,12 @@ for (const { fileName, contents } of sources) {
        * A `pgr`-namespace element the viewer has no field for is a misspelling. A foreign element from another tool
        * is not ours to judge — the viewer leaves it be, and so does this.
        */
-      if (field.namespaceURI === PGR_NS && !PGR_FIELDS.has(name)) {
+      if (field.namespaceURI === PGR_NS && !PGR_FIELD_NAMES.has(name)) {
         report(fileName, field, `<${field.tagName}> is not a pgr field — expected ${PGR_EXPECTED}`);
         continue;
       }
 
-      if (!PGR_FIELDS.has(name)) {
+      if (!PGR_FIELD_NAMES.has(name)) {
         continue;
       }
 

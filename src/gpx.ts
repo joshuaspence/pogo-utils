@@ -6,6 +6,7 @@
  */
 
 import { GPX_PATHS } from './generated.js';
+import type { PgrField } from './gpx-dialect.js';
 
 /**
  * The file list, checked to be one. `Response#json` answers `any`, and the guard below is the whole of what says
@@ -75,15 +76,15 @@ function childText(el: Element, tag: string): string | null {
 }
 
 /**
- * The text of a <pgr:*> field in this element's own <extensions>, or null. GPX 1.1 has no element for a locality, a
- * country or a short/long variant, so each is its own extension field rather than parts packed into one <name>.
- * Matching on local name leaves the prefix a file's own business.
+ * The text of a <pgr:*> field in this element's own <extensions>, or null. Which fields there are is PGR_FIELDS, shared
+ * with the validator, and `tag` is typed by it rather than left a string: a misspelling answered null, which every
+ * caller here reads as the file not carrying the field. Matching on local name leaves the prefix a file's own business.
  *
  * Worth knowing when editing: an editor that does not model foreign extensions drops the whole block on export —
  * gpx.studio is one — so a round trip through such a tool loses these fields, and the viewer will say so rather than
  * fall back to the path.
  */
-export function extText(el: Element, tag: string): string | null {
+export function extText(el: Element, tag: PgrField): string | null {
   const ext = [...el.children].find((child) => child.localName === 'extensions');
   return ext ? childText(ext, tag) : null;
 }
