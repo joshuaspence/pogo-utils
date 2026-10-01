@@ -772,8 +772,9 @@ five `252/199/174 Bug+Steel`, Cherrim's two `170/153/172 Grass`, Keldeo's two `2
 The artwork is the only thing left, and the game master addresses it: every such form carries a distinct
 `assetBundleValue` under `formSettings`, 11 upwards, which is how PokeMiners' assets are named —
 `Images/Pokemon/pokemon_icon_585_11.png` is Spring Deerling, `_12` Summer, `_13` Autumn, `_14` Winter. They fetch at 6
-to 12 KB each. A prototype comparing a 12-bin hue histogram of the capture's artwork against those icons was measured
-over 17 captures from six families; the numbers below are its, and nothing is wired to it yet.
+to 12 KB each, `Form.icon` carries the value, and `scripts/inventory/artwork.mts` compares a 12-bin hue histogram of the
+capture's artwork against those icons. `identify` takes the answer as a narrowing ahead of the fold, where PGSharp's
+bracketed suffix already goes. The figures below are measured over 17 captures from six families.
 
 - **The backdrop is the whole problem, not the colours.** A histogram over a fixed box scores **8 of 17**, because the
   game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png` stands on an
@@ -789,10 +790,23 @@ over 17 captures from six families; the numbers below are its, and nothing is wi
   colour that is also East Sea's. The Pokémon is one large component and the bubbles are small separate ones. This does
   not raise the hit rate — still 12 of 17 — and it is the change that matters anyway, because it takes that capture's
   margin from 0.407 down to 0.211 and so below any threshold worth using.
-- **Judge it on the margin, not the hit rate.** At a runner-up margin of 0.30 the prototype answers **8 of 17 and is
-  right on all 8**, abstaining on the other nine. That is the shape a reader here has to have: `defects` exists because
-  a wrong answer nothing flags is the expensive kind. Of the 13 rows the numbers cannot reach, it would settle five —
-  `deerling-summer`, `deerling-winter`, `burmy-sandy`, `burmy-trash` and `cherrim-overcast`.
+- **Judge it on the margin, not the hit rate.** At a runner-up margin of 0.30 it answers **8 of 17 and is right on all
+  8**, abstaining on the other nine. That is the shape a reader here has to have: `defects` exists because a wrong
+  answer nothing flags is the expensive kind. Of the 13 rows the numbers cannot reach it settles five —
+  `deerling-summer`, `deerling-winter`, `burmy-sandy`, `burmy-trash` and `cherrim-overcast` — and the suite derives the
+  figure that justifies the threshold rather than restating it: **five** of the eight it declines are captures whose
+  nearest icon is the wrong one, so taking the nearest regardless would be confidently wrong five times.
+- **An abstention costs nothing and fixes nothing, which is worth being clear about.** `identify`'s fold removes the
+  rivals rather than demoting them, so a declined call still comes back as one form with no alternatives and no note —
+  `shellos-west.png` is answered as East Sea whether the artwork is consulted or not. Closing that means `identify`
+  reporting the fold it performed, which changes every row of the CSV.
+- **Require a signature for every candidate, not for two of them.** Otherwise a form the game master gives no
+  `assetBundleValue` is dropped for having no icon rather than for losing on its colours. That is why Basculin is never
+  narrowed, and it is checked rather than assumed: the suite's `ARTWORK` table deliberately holds no Basculin.
+- **The test records the signatures and a scan downloads them.** The same division the game master already has, and for
+  the same reason — a test of a reader must not reach the network. A scan fetches 86 icons once, under a megabyte, into
+  the git-ignored `.cache/`. A missing one is an abstention and not a failure: `pokemon_icon_718_1.png` is a 404,
+  Zygarde's value not following the 11-upwards pattern, and the scan reports it and carries on.
 - **Genesect cannot be done this way and that is worth knowing before trying.** Its five forms are one robot with a
   differently-coloured drive cassette a few pixels across, so all five distances sit between 1.54 and 1.67 with margins
   of 0.015 to 0.020 — indecisive by construction rather than by a weak mask. Expect to abstain on it for ever, and read
