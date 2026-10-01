@@ -1,28 +1,25 @@
 /**
  * Builds the iCalendar feed the Events page links to, holding what that page shows by default, writing it into the
- * artifact `pnpm build` has already assembled rather than into the checkout.
+ * `dist/` the rest of `pnpm build` is assembling rather than into the checkout.
  *
  * It exists because a calendar subscription is a URL a calendar app fetches by itself. Google Calendar cannot run
- * events.html's JavaScript, so the merge the browser does live — ScrapedDuck's mirror of Leek Duck, overridden by
- * data/events.json where an `eventID` is in both — has to be done ahead of time and the result committed as a static
- * file. data/entries-by-event.json puts the same "2 routes · 1 waypoint" line into an event's description as it puts on
- * its card.
+ * events.html's JavaScript, so the merge the browser does — data/events-feed.json, the copy of Leek Duck's list that
+ * scripts/vend-feed.mts keeps, overridden by data/events.json where an `eventID` is in both — has to be done ahead of
+ * time and the result published as a static file. data/entries-by-event.json puts the same "2 routes · 1 waypoint" line
+ * into an event's description as it puts on its card.
  *
- * Nothing here reads the clock. The output is a pure function of those three inputs, so a rebuild that finds the event
- * data unmoved publishes the bytes a subscriber already holds, where a fresh set of timestamps every six hours would be
- * a changed feed four times a day saying nothing. A `DTSTAMP` is required all the same, so each event's is derived from
- * its own start.
- *
- * A failed fetch of the feed aborts rather than writing the handful of events data/events.json holds on its own. The
- * deploy publishes whatever this writes, so a feed of five events would replace one of forty; aborting leaves the
- * previous deploy serving subscribers untouched.
+ * Nothing here reads the clock, and nothing here touches the network either: fetching the feed is vend-feed.mts's job,
+ * which is what lets this be a step of `pnpm build` beside the rest and a local run give exactly the file a deploy
+ * would. The output is a pure function of those three files, so a build that finds the event data unmoved publishes the
+ * bytes a subscriber already holds. A `DTSTAMP` is required all the same, so each event's is derived from its own
+ * start.
  */
 
-import { FEED_URL, HAS_ZONE, LOCAL_EVENTS, routeSummary } from '../src/event-feed.ts';
+import { byCodeUnit, HAS_ZONE, LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from '../src/event-feed.ts';
 import { ENTRIES_BY_EVENT, EVENTS_FEED } from '../src/generated.ts';
 import RECURRING_TYPES from '../src/recurring-types.ts';
 import type { FeedEvent, RouteIndex } from '../src/types.js';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -32,9 +29,12 @@ import { join } from 'node:path';
 const SITE = 'https://joshuaspence.github.io/pogo-utils';
 
 /**
- * The artifact this writes into, which `scripts/assemble.mts` spells for itself: the feed is the one thing `dist/`
- * carries that `pnpm build` does not produce, so there is nothing to copy it in afterwards and nothing left in the
- * checkout to copy.
+ * The artifact this writes into, which `scripts/assemble.mts` spells for itself. The feed is produced here rather than
+ * copied in because nothing in the checkout holds one: it is derived from three files that are, so there is no second
+ * copy to keep in step and nothing to publish from the allowlist.
+ *
+ * `scripts/bundle.mts` is what creates this directory — `tsconfig.json` has no `outDir`, emitting declarations alone —
+ * so this runs after it and before `assemble.mts` has the artifact to check.
  */
 const DIST = 'dist';
 
@@ -210,32 +210,7 @@ function calendar({ name, description }: typeof FEED, events: FeedEvent[], index
   return lines.map(fold).join('\r\n') + '\r\n';
 }
 
-async function fetchFeed(url: string): Promise<FeedEvent[]> {
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    throw new Error(`${url}: ${res.status} ${res.statusText}`);
-  }
-
-  const raw = await res.json();
-
-  if (!Array.isArray(raw)) {
-    throw new Error(`${url}: not a list of events`);
-  }
-
-  return raw;
-}
-
-/*
- * Before the fetch, because the ordering is the one mistake this script can make and the network has nothing to do with
- * it. Run ahead of `pnpm build` instead of after it, the feed lands in a directory that build's own `rm -rf dist` then
- * deletes — a run that passes, prints the event count and publishes no feed at all.
- */
-if (!existsSync(DIST)) {
-  throw new Error(`${DIST}/ is not there: this adds the feed to a built artifact, so run \`pnpm build\` first.`);
-}
-
-const feed = await fetchFeed(FEED_URL);
+const feed: FeedEvent[] = JSON.parse(readFileSync(VENDED_EVENTS, 'utf8'));
 const local: FeedEvent[] = JSON.parse(readFileSync(LOCAL_EVENTS, 'utf8'));
 const index: RouteIndex = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
 
@@ -252,14 +227,13 @@ for (const ev of [...feed, ...local]) {
  * are still unannounced or went missing between Leek Duck and us. Sorted by start so the file reads in order and a diff
  * between two runs stays local to what moved.
  *
- * The comparison is over the raw strings, by code unit rather than through localeCompare: a zoned time and a floating
- * one have no shared instant to sort by, and collation varies with the ICU build, which would churn the committed
- * files whenever a runner's Node changed. The eventID breaks a tie so the order is total.
+ * The comparison is over the raw strings rather than through a `Date`, because a zoned time and a floating one have no
+ * shared instant to sort by. `byCodeUnit` is why it is not `localeCompare`; the eventID breaks a tie so the order is
+ * total.
  */
-const order = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 const dated = [...byId.values()]
   .filter((ev) => icsDate(ev.start) ?? icsDate(ev.end))
-  .sort((a, b) => order(a.start ?? '', b.start ?? '') || order(a.eventID, b.eventID));
+  .sort((a, b) => byCodeUnit(a.start ?? '', b.start ?? '') || byCodeUnit(a.eventID, b.eventID));
 
 const events = dated.filter((ev) => !RECURRING.has(ev.heading));
 

@@ -170,14 +170,15 @@ property.
   below Node 22.18. Every entry point has a `package.json` script, and `pages.yml` calls that.
 - **A `files` glob matching nothing is silent.** `eslint.config.mjs`'s browser-globals block named `src/**/*.js` and
   matched not one file, which reads exactly like a clean lint, so move such a glob in the same commit as the rename.
-- **A path a check cannot resolve wants both its directions asserted rather than an exemption**, which is
-  [the probe rule](#designing-a-probe) one level down in the build. The deploy writes `events.ics` into `dist/` after
-  `pnpm build`, so `assemble.mts` cannot resolve the relative `href` `events.html` gives it — and the skip on its own
-  would have left that the one path no page is held to. The pair costs nothing: a page has to name it, and `dist/` has
-  to not already hold it. Reaching the second means planting the file mid-build, since re-running `assemble` over a
-  finished artifact trips `publish`'s overwrite guard on `events.html` first. The generator asserts the artifact is
-  there for the same reason — run ahead of the build instead of after it, `rm -rf dist` eats the feed and the run still
-  prints its event count.
+- **A path a check cannot resolve wants both its directions asserted rather than an exemption — and the exemption is the
+  thing to remove.** This is [the probe rule](#designing-a-probe) one level down in the build. `events.ics` was written
+  into `dist/` by the deploy, after `pnpm build`, so `assemble.mts` could not resolve the relative `href` `events.html`
+  gives it, and the skip on its own would have left that the one path no page is held to. The pair that answered it cost
+  nothing — a page has to name it, and `dist/` has to not already hold it — but it only existed because the feed arrived
+  late, and the generator's own `existsSync(DIST)` guard existed for the same reason. Both went when
+  `data/events-feed.json` took the fetch out of the generator and let it move inside `pnpm build`: the `href` resolves
+  like any other now. So assert both directions while the path is unresolvable, and keep asking what makes it
+  unresolvable.
 - **Tracking a generated file buys nothing but the check that it is in step, so let the build write it instead.** The
   two indexes were committed and `validate-gpx.mts` compared them byte-for-byte against what it had just derived, which
   is a check whose only finding is ever "the copy is stale" — three messages, two `readFileSync` calls and a
@@ -421,11 +422,18 @@ run, since a stale `dist/` is the edit-not-served trap one level above the brows
   every action. Draw the timeline with that settle counted in and pick the gap off it.
 - **Serve the probe its own data where the repository's cannot discriminate.** `data/events.json` is 39 events of one
   heading, so "the chips come out sorted" was a one-element list. A `Page.addScriptToEvaluateOnNewDocument` replacing
-  `window.fetch` for the one remote URL answers a crafted feed before the module runs, and rejecting from the same patch
-  tests the failure banner without touching the network.
-- **`events.html`'s figure is not a baseline.** `src/events.ts` merges the live upstream ScrapedDuck feed with
-  `data/events.json`, so `#typeFilters` tracks upstream rather than the checkout: 17 one morning and 16 that afternoon,
-  nothing here changed. Derive the number from the two feeds, and treat anything else fetched over the network alike.
+  `window.fetch` for the one feed URL — `data/events-feed.json`, same-origin since the vend — answers a crafted feed
+  before the module runs, and rejecting from the same patch tests the failure banner without touching the network.
+- **`events.html` still fetches off-site, and vending the feed did not change that.** Every card's `image` is the
+  `cdn.leekduck.com` URL the feed itself carries, so a probe recording `Network.requestWillBeSent` saw thirteen of them
+  beside the three same-origin JSON files. "A visit makes no request off this site" had been written into three comments
+  before the probe was run and was false in all three. Assert what the change actually moved — that no _event data_
+  comes from `raw.githubusercontent.com` — and list the URLs rather than counting them.
+- **`events.html`'s figure was not a baseline, and `data/events-feed.json` is why it is one now.** `src/events.ts` had
+  merged the live upstream ScrapedDuck feed with `data/events.json`, so `#typeFilters` tracked upstream rather than the
+  checkout: 17 one morning and 16 that afternoon, nothing here changed. Both inputs are tracked files since the vend, so
+  the count is fixed for a given commit and a probe may assert it. The rule outlives the fix: derive a figure from its
+  inputs rather than pinning it, and treat anything still fetched over the network alike.
 - **`Network.setBlockedURLs` matches the URL as requested, which is percent-encoded.** `backup.ts` fetches through
   `encodeURI`, so `*Melbourne Zoo, Melbourne, Victoria.gpx*` matched nothing and a scenario meant to reach a `catch`
   reported a _successful_ build. A probe whose purpose is to break something has to be shown breaking it.

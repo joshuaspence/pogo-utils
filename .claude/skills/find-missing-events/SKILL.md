@@ -13,7 +13,8 @@ description: >-
 The Events page merges two sources, and this skill audits the gap between them and Niantic's own announcements.
 
 - **The ScrapedDuck feed** mirrors Leek Duck and covers the game's scheduled content thoroughly. It is the bulk of the
-  page and needs no help.
+  page and needs no help. The page reads it from `data/events-feed.json`, an hourly copy, where `compare_sources.py`
+  below reads the live mirror — which is the right source for an audit, the copy being at most an hour behind it.
 - **`data/events.json`** is the repository's own list, for events the feed does not carry. Every entry in it is a
   `regional-event` — a type ScrapedDuck never emits, registered locally in `src/events.ts` — because what Leek Duck
   systematically omits is the region-locked, in-person kind: City Safari, a campus festival, a mall tour, a national
@@ -180,6 +181,6 @@ Once the proposal is approved:
 4. **Commit `data/events.json` alone, straight to `master`.** This is a data change in the sense `CLAUDE.md` means, so
    it needs no branch and no pull request. Stage that one path.
 
-**Do not run `pnpm build:ics`.** The calendar feeds are generated from this file, but the Calendar workflow rebuilds and
-commits them every six hours, and the generator also pulls the live feed — so running it now sweeps unrelated feed drift
-into a commit that should carry one entry.
+**Do not run `pnpm vend:events`.** It rewrites `data/events-feed.json` from the live mirror, which the Vend workflow
+refreshes hourly anyway — so running it now sweeps unrelated feed drift into a commit that should carry one entry.
+`pnpm lint` is safe: it builds the calendar feed and the two indexes, and all three are generated rather than tracked.

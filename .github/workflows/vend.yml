@@ -1,0 +1,51 @@
+---
+name: 'Vend'
+
+on:
+  schedule:
+    - cron: '40 * * * *'
+
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/vend.yml'
+      - 'scripts/vend-feed.mts'
+      - 'src/event-feed.ts'
+
+  workflow_dispatch: {}
+
+permissions:
+  actions: 'write'
+  contents: 'write'
+
+concurrency:
+  group: 'vend'
+  cancel-in-progress: false
+
+jobs:
+  events:
+    name: 'Events'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: 'actions/checkout@v7'
+      - uses: 'pnpm/setup@v3'
+        with:
+          cache: true
+      - run: 'pnpm vend:events'
+
+      - name: 'Commit'
+        id: 'commit'
+        uses: 'stefanzweifel/git-auto-commit-action@v7'
+        with:
+          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
+          commit_message: 'Update the Leek Duck feed'
+          file_pattern: 'data/events-feed.json'
+
+      # GitHub raises no `push` event for a commit made with the default `GITHUB_TOKEN`, so `pages.yml` never fires for
+      # the one above and the site would stay at whatever a human push last built. Asking by `workflow_dispatch` is the
+      # documented way out.
+      - name: 'Deploy'
+        if: "steps.commit.outputs.changes_detected == 'true'"
+        run: 'gh workflow run pages.yml --ref "${GITHUB_REF_NAME}"'
+        env:
+          GH_TOKEN: '${{ github.token }}'

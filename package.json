@@ -3,8 +3,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "rm -rf dist .types && tsc -b --force tsconfig.json scripts/tsconfig.json && node scripts/validate-gpx.mts --write && node scripts/bundle.mts && node scripts/assemble.mts",
-    "build:ics": "node scripts/build-ics.mts",
+    "build": "rm -rf dist .types && tsc -b --force tsconfig.json scripts/tsconfig.json && node scripts/validate-gpx.mts --write && node scripts/bundle.mts && node scripts/build-ics.mts && node scripts/assemble.mts",
     "lint": "npm-run-all --continue-on-error --parallel --print-label lint:css lint:html lint:js lint:prettier lint:types lint:xml",
     "lint:css": "stylelint '**/*.css'",
     "lint:css:fix": "stylelint --fix '**/*.css'",
@@ -17,7 +16,8 @@
     "lint:types": "pnpm build",
     "lint:xml": "node scripts/validate-gpx.mts",
     "test": "vitest run --dir src",
-    "test:coverage": "pnpm test --coverage --coverage.include='src/**/*.ts' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text"
+    "test:coverage": "pnpm test --coverage --coverage.include='src/**/*.ts' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text",
+    "vend:events": "node scripts/vend-feed.mts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

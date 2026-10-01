@@ -5,16 +5,9 @@ on:
   push:
     branches: ['master']
 
-  # Roughly the refresh interval the feed itself advertises. A calendar app polls on its own schedule — Google's is
-  # usually slower than this — so there is nothing to gain from rebuilding more often. The whole site is rebuilt rather
-  # than the feed alone, the feed being the only part of it that tracks anything outside the repository, and a rebuild
-  # that finds the event data unmoved deploys bytes identical to the ones already being served.
-  #
-  # Nothing here commits, so nothing here counts as the repository activity GitHub wants to keep a schedule alive: 60
-  # quiet days disables this trigger, and the Actions tab is where it goes back on.
-  schedule:
-    - cron: '20 */6 * * *'
-
+  # The Vend workflow's commit cannot reach the trigger above: GitHub raises no `push` event for one made with the
+  # default `GITHUB_TOKEN`. So it asks for the deploy here instead, and this trigger is as much for that as for a run by
+  # hand. There is no schedule, nothing the artifact holds being derived from anything outside the repository.
   workflow_dispatch: {}
 
 permissions:
@@ -34,14 +27,6 @@ jobs:
         with:
           cache: true
       - run: 'pnpm build'
-
-      # After the build and into the artifact it just assembled, not as a step of it: the generator fetches the upstream
-      # feed and `lint:types` is `pnpm build`, so folding it in would put a third-party request in front of every lint.
-      # Through pnpm rather than a bare `node`, the `devEngines` floor governing only what pnpm invokes.
-      #
-      # `scripts/assemble.mts` holds both ends of the split — it asserts that a page names the feed and that the build
-      # did not write one — so neither a deleted subscription link nor a step dropped from here can pass quietly.
-      - run: 'pnpm build:ics'
 
       - uses: 'actions/upload-pages-artifact@v5'
         with:
