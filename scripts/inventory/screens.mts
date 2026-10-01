@@ -366,7 +366,8 @@ function rowColoured(band: Image, y: number): boolean {
  * level with the weight row, so they always reach the bottom of the gap where a chip row never does: on
  * `fixtures/lucky-shiny.png` the two chips occupy rows 44-110 of 220 and the icons rows 188-219, with 77 blank rows
  * between, and on the six fixtures carrying no chip at all the one coloured run is the icons alone. So the bottom-most
- * run of coloured rows is the icons, and everything above where it starts is the chips' own band.
+ * run of coloured rows is the icons, and everything above where it starts is the chips' own band — where that run
+ * reaches the bottom row, since a grey icon contributes no run at all.
  *
  * Deriving it is what makes it right rather than nearly right, because the two obvious fractions are both wrong and
  * neither says so. 0.45 of the gap clipped the chips to 55 rows against a true 67 — below the 56.1 a chip has to stand
@@ -377,12 +378,12 @@ function rowColoured(band: Image, y: number): boolean {
 function aboveTypes(gap: Image): number {
   let floor = gap.height;
 
-  for (let y = gap.height - 1; y >= 0; y--) {
-    if (rowColoured(gap, y)) {
-      floor = y;
-    } else if (floor < gap.height) {
-      return floor;
-    }
+  // Only a run that reaches the bottom row is the icons. A Normal type's icon is grey and colours nothing, so on
+  // `fixtures/snorlax-purified.png` the lowest coloured run is its `Perfect` chip at rows 33-99 of 208, and taking
+  // whatever run is lowest cut the chip away as though it were the icons. Over the 62 committed captures every icon run
+  // ends on the gap's last row exactly, and that chip is the only run anywhere that does not.
+  while (floor > 0 && rowColoured(gap, floor - 1)) {
+    floor--;
   }
 
   return floor;
