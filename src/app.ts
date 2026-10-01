@@ -14,7 +14,7 @@ import { said } from './errors.js';
 import { GPX_PATHS } from './generated.js';
 import { loadManifest, parseGpxDocument } from './gpx.js';
 import { byKey, fmtDist, gpxEntries, routeDistance, type Route, type Waypoint } from './routes.js';
-import { byId } from './dom.js';
+import { byId, el } from './dom.js';
 
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
@@ -220,15 +220,11 @@ function buildPopup(
   copyLabel: string,
   onCopy: (btn: HTMLButtonElement) => void,
 ): HTMLElement {
-  const popup = document.createElement('div');
-  const title = document.createElement('b');
-  title.textContent = name;
-  const info = document.createElement('div');
-  info.textContent = detail;
-  const btn = document.createElement('button');
-  btn.className = 'popup-copy';
+  const popup = el('div');
+  const title = el('b', null, name);
+  const info = el('div', null, detail);
+  const btn = el('button', 'popup-copy', copyLabel);
   btn.type = 'button';
-  btn.textContent = copyLabel;
   btn.addEventListener('click', () => onCopy(btn));
   popup.append(title, info, btn);
   return popup;
@@ -403,12 +399,9 @@ async function loadEventNames() {
  * its text; the click is stopped short of the row, which would otherwise select the entry as the page unloads.
  */
 function buildEventLine(event: string): HTMLElement {
-  const line = document.createElement('span');
-  line.className = 'eventline';
-  const link = document.createElement('a');
-  link.className = 'event';
+  const line = el('span', 'eventline');
+  const link = el('a', 'event', eventNames.get(event) || event);
   link.href = `events.html#event=${encodeURIComponent(event)}`;
-  link.textContent = eventNames.get(event) || event;
   link.title = 'Show this event on the Events page';
   link.addEventListener('click', (e) => e.stopPropagation());
   line.appendChild(link);
@@ -416,35 +409,27 @@ function buildEventLine(event: string): HTMLElement {
 }
 
 function buildRouteRow(entry: RouteEntry): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'route';
-  const label = document.createElement('span');
-  label.className = 'name';
-  label.textContent = entry.name;
-  const end = document.createElement('span');
-  end.className = 'end';
-  const meta = document.createElement('span');
-  meta.className = 'meta';
-  meta.textContent = fmtDist(entry.distance);
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'copy';
+  const row = el('div', 'route');
+  const label = el('span', 'name', entry.name);
+  const end = el('span', 'end');
+  const meta = el('span', 'meta', fmtDist(entry.distance));
+  const copyBtn = el('button', 'copy', 'Copy');
   copyBtn.type = 'button';
-  copyBtn.textContent = 'Copy';
   copyBtn.title = 'Copy GPX file contents to clipboard';
   copyBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     copyRoute(entry, copyBtn);
   });
   end.append(meta, copyBtn);
-  el.append(label, end);
+  row.append(label, end);
 
   if (entry.event) {
-    el.append(buildEventLine(entry.event));
+    row.append(buildEventLine(entry.event));
   }
 
-  el.addEventListener('click', () => selectRoute(entry));
-  entry.el = el;
-  return el;
+  row.addEventListener('click', () => selectRoute(entry));
+  entry.el = row;
+  return row;
 }
 
 /**
@@ -452,38 +437,30 @@ function buildRouteRow(entry: RouteEntry): HTMLElement {
  * caller keeps rather than by asking the header for it again.
  */
 function groupCount(): HTMLElement {
-  const el = document.createElement('span');
-  el.className = 'gcount';
-  return el;
+  return el('span', 'gcount');
 }
 
 function buildCityRow(c: CityEntry): HTMLElement {
-  const el = document.createElement('div');
-  el.className = 'route city';
-  const label = document.createElement('span');
-  label.className = 'name';
-  label.textContent = c.name;
-  const end = document.createElement('span');
-  end.className = 'end';
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'copy';
+  const row = el('div', 'route city');
+  const label = el('span', 'name', c.name);
+  const end = el('span', 'end');
+  const copyBtn = el('button', 'copy', 'Copy');
   copyBtn.type = 'button';
-  copyBtn.textContent = 'Copy';
   copyBtn.title = 'Copy coordinates to clipboard';
   copyBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     copyCoords(c, copyBtn);
   });
   end.append(copyBtn);
-  el.append(label, end);
+  row.append(label, end);
 
   if (c.event) {
-    el.append(buildEventLine(c.event));
+    row.append(buildEventLine(c.event));
   }
 
-  el.addEventListener('click', () => selectCity(c));
-  c.el = el;
-  return el;
+  row.addEventListener('click', () => selectCity(c));
+  c.el = row;
+  return row;
 }
 
 /**
@@ -532,41 +509,29 @@ function buildSidebar() {
   }
 
   for (const [continent, countries] of Object.entries(byContinent).sort(byKey)) {
-    const cg = document.createElement('div');
-    cg.className = 'continent-group collapsed';
-    const chead = document.createElement('div');
-    chead.className = 'continent';
-    const cchev = document.createElement('span');
-    cchev.className = 'chev';
-    cchev.textContent = '▾';
-    const clabel = document.createElement('span');
-    clabel.textContent = continent;
+    const cg = el('div', 'continent-group collapsed');
+    const chead = el('div', 'continent');
+    const cchev = el('span', 'chev', '▾');
+    const clabel = el('span', null, continent);
     const ccount = groupCount();
     chead.append(cchev, clabel, ccount);
     chead.addEventListener('click', () => cg.classList.toggle('collapsed'));
     cg.appendChild(chead);
     groups.push({ group: cg, count: ccount });
-    const citems = document.createElement('div');
-    citems.className = 'continent-items';
+    const citems = el('div', 'continent-items');
 
     for (const [country, rows] of countries.sort(byKey)) {
-      const group = document.createElement('div');
-      group.className = 'country-group collapsed';
-      const head = document.createElement('div');
-      head.className = 'country';
+      const group = el('div', 'country-group collapsed');
+      const head = el('div', 'country');
       head.dataset.country = country;
-      const chev = document.createElement('span');
-      chev.className = 'chev';
-      chev.textContent = '▾';
-      const label = document.createElement('span');
-      label.textContent = country;
+      const chev = el('span', 'chev', '▾');
+      const label = el('span', null, country);
       const count = groupCount();
       head.append(chev, label, count);
       head.addEventListener('click', () => group.classList.toggle('collapsed'));
       group.appendChild(head);
       groups.push({ group, count });
-      const items = document.createElement('div');
-      items.className = 'country-items';
+      const items = el('div', 'country-items');
 
       for (const row of rows.sort((a, b) => a.name.localeCompare(b.name) || a.dist - b.dist)) {
         items.appendChild(row.build());
@@ -627,15 +592,13 @@ function showBanner(html: string) {
  * show a placeholder for either.
  */
 function appendFailures(heading: string, failures: readonly { file: string; reason: string }[]) {
-  const head = document.createElement('b');
-  head.textContent = heading;
-  const list = document.createElement('ul');
+  const head = el('b', null, heading);
+  const list = el('ul');
 
   for (const { file, reason } of failures) {
     console.error(`${file}: ${reason}`);
-    const item = document.createElement('li');
-    const path = document.createElement('code');
-    path.textContent = file;
+    const item = el('li');
+    const path = el('code', null, file);
     item.append(path, document.createTextNode(` — ${reason}`));
     list.appendChild(item);
   }
