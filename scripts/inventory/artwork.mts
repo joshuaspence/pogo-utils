@@ -395,16 +395,25 @@ async function iconBytes(dir: string, name: string, refresh: boolean): Promise<B
     return readFileSync(path);
   }
 
-  const response = await fetch(ICONS + name);
+  let bytes: Buffer;
 
-  if (!response.ok) {
-    // An icon is an improvement rather than a prerequisite, so a missing one costs an abstention and not a scan.
-    console.error(`  ${name}: ${response.status} ${response.statusText}; forms sharing its numbers stay ambiguous`);
+  try {
+    const response = await fetch(ICONS + name);
+
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+
+    bytes = Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    // An icon is an improvement rather than a prerequisite, so a missing one costs an abstention and not a scan — and
+    // that holds as much for a network that is down, where `fetch` throws, as for a 404.
+    const reason = error instanceof Error ? error.message : String(error);
+    console.error(`  ${name}: ${reason}; forms sharing its numbers stay ambiguous`);
 
     return existsSync(path) ? readFileSync(path) : null;
   }
 
-  const bytes = Buffer.from(await response.arrayBuffer());
   mkdirSync(dir, { recursive: true });
   writeFileSync(path, bytes);
 
@@ -426,8 +435,16 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
   for (const form of forms) {
     const bytes = await iconBytes(join(dir, 'icons'), `pokemon_icon_${form.dex}_${form.icon}.png`, refresh);
 
-    if (bytes !== null) {
+    if (bytes === null) {
+      continue;
+    }
+
+    try {
       signatures.set(form, signatureOfIcon(decodePng(bytes)));
+    } catch (error) {
+      // A truncated download or a page served in place of the image is the same abstention as a 404.
+      const reason = error instanceof Error ? error.message : String(error);
+      console.error(`  pokemon_icon_${form.dex}_${form.icon}.png: ${reason}; forms sharing its numbers stay ambiguous`);
     }
   }
 
