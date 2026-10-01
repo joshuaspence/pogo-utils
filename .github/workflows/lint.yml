@@ -34,7 +34,7 @@ jobs:
           - 'xml'
     steps:
       - uses: 'actions/checkout@v7'
-      - uses: 'pnpm/setup@v2'
+      - uses: 'pnpm/setup@v3'
         with:
           cache: true
       - run: 'pnpm lint:${{ matrix.check }}'
