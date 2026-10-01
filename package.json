@@ -17,13 +17,15 @@
     "lint:types": "pnpm build",
     "lint:xml": "node scripts/validate-gpx.mts",
     "lint:xml:fix": "node scripts/validate-gpx.mts --write",
-    "test": "vitest run --dir src"
+    "test": "vitest run --dir src",
+    "test:coverage": "pnpm test --coverage --coverage.include='src/**/*.ts' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/leaflet": "^1.9.22",
     "@types/node": "^24.19.0",
     "@types/tz-lookup": "^6.1.2",
+    "@vitest/coverage-v8": "4.1.11",
     "@xmldom/xmldom": "^0.9.11",
     "esbuild": "^0.28.2",
     "eslint": "10.8.1",
