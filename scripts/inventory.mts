@@ -239,9 +239,9 @@ async function scan() {
   await device.check();
   const data = await loadGameData(CACHE, options.refresh);
   const flags = options.flags === undefined ? DEFAULT_FLAGS : parseFlags(options.flags);
-  // A tag is a search like any other, and the only reason it cannot be a flag is that the names are the user's own.
-  // Nothing on a Pokémon's own screen says which tags it carries — checked on one that had one — so a pass is the only
-  // way to know, and the game's own tag list under storage's TAGS tab is where the names come from.
+  // The chips under the HP say which tags a Pokémon carries, so this is a vocabulary rather than a list to search for:
+  // the names are the user's own, and only something to match against can say that `Shiny SJ` is the `Shiny` chip with
+  // its `✦` read as letters. Storage's own TAGS tab is where they come from.
   const tags = (options.tags ?? '')
     .split(',')
     .map((t) => t.trim())
