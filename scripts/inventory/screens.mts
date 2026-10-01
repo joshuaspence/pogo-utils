@@ -61,7 +61,8 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   // The small `CP` beside the number is often read with a stray letter after it (`cPe518`) or as `GP`.
   const cpPattern = /\b[cg]p\s?[a-z]?\s?(\d{2,5})\b/;
   const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
-  const cp = cpLine ? Number(cpPattern.exec(fold(cpLine.text))?.[1]) : null;
+  const read = cpLine ? (cpPattern.exec(fold(cpLine.text))?.[1] ?? null) : null;
+  const cp = cpLine && read !== null ? Number((await wholeCp(image, cpLine, read)) ?? read) : null;
 
   // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.
   const hpPattern = /(?:hp\s*)?(\d{1,4})\s*\/\s*(\d{1,4})(?:\s*hp)?/i;
@@ -117,6 +118,33 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     size: heightLine ? await sizeOf(image, heightLine) : null,
     tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
   };
+}
+
+/**
+ * The CP again, out of a band round the line the whole-screen pass found, where that pass lost a digit off the front of
+ * it. White over the artwork is the hardest text on the screen, and the loss is one-sided: `castform-snowy.png` reads
+ * `46` for 746, `shellos-east.png` `84` for 784, `unown-b.png` `48` for 487 and `deoxys-defense.png` `15` for 1569.
+ *
+ * Accepted only where the band's number **contains** the line's and is longer, which is what makes this a rescue rather
+ * than a second opinion: it says the band found more of the same number, not a different one, so a band that misreads
+ * outright is rejected for disagreeing. The line's own answer has to stand otherwise — `castform-sunny.png` reads `979`
+ * on the line and nothing at all out of any treatment of its band.
+ */
+async function wholeCp(image: Image, line: Line, read: string): Promise<string | null> {
+  const pad = Math.round(line.height * CP_PAD);
+  const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
+
+  for (const treat of [(b: Image) => b, (b: Image) => isolate(b, OVERLAY_LUMINANCE, OVERLAY_CHROMA)]) {
+    const text = (await ocrLine(scale(treat(band), 2), CP_ALPHABET))?.text ?? '';
+
+    for (const digits of text.match(/\d+/g) ?? []) {
+      if (digits.length > read.length && digits.includes(read)) {
+        return digits;
+      }
+    }
+  }
+
+  return null;
 }
 
 interface Patch {
@@ -641,6 +669,10 @@ export interface Overlay {
 }
 
 /** Only these survive the whitelist: the level's `L`, the digits and the slashes between the three IVs. */
+/** What the CP band is read with, and how far round the line to reach, in that line's own heights. */
+const CP_ALPHABET = 'CP0123456789 ';
+const CP_PAD = 0.4;
+
 const OVERLAY_ALPHABET = 'L0123456789/ ';
 
 /**
