@@ -10,6 +10,15 @@ permissions:
   contents: 'read'
 
 jobs:
+  all:
+    name: 'Lint'
+    needs: 'lint'
+    if: 'always()'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - if: "needs.lint.result != 'success'"
+        run: 'exit 1'
+
   lint:
     name: '${{ matrix.check }}'
     runs-on: 'ubuntu-latest'
@@ -29,14 +38,3 @@ jobs:
         with:
           cache: true
       - run: 'pnpm lint:${{ matrix.check }}'
-
-  # The one check `master`'s protection rule requires, so the matrix stays the only place the legs are named.
-  # `always()` is load-bearing: a required check that is skipped counts as passed.
-  complete:
-    name: 'Complete'
-    needs: 'lint'
-    if: 'always()'
-    runs-on: 'ubuntu-latest'
-    steps:
-      - if: "needs.lint.result != 'success'"
-        run: 'exit 1'
