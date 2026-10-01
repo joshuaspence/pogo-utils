@@ -67,6 +67,37 @@ test('a fragment reaching an underscored name under one reading alone is refused
   expect(optimise(state({ text: 'mime' })).state.text).toBe('mime');
 });
 
+test('a name the dex cannot spell keeps its name, however unambiguously it reaches one species', () => {
+  // Each reaches one species under both readings, so the check the two tests above exist for passes here and the
+  // spellable gate is the only thing left that can refuse them. That is what makes this case about that gate.
+  //
+  // Only that one species, too: of the 25 prefixes the three names have, not one reaches a spellable species as well,
+  // so the `every` in that gate reads like `some` until a fourth such name shares a prefix with a spellable one.
+  expect([reach('farfetchd'), reach('sirfetchd'), reach('flabebe')]).toEqual([
+    { contains: 1, begins: 1 },
+    { contains: 1, begins: 1 },
+    { contains: 1, begins: 1 },
+  ]);
+
+  // An underscore stands in for the punctuation it replaced, so `mime` reaches `MR_MIME` much as the game reads it. A
+  // dropped apostrophe or accent leaves no such mark: `Farfetch'd` is `FARFETCHD` here, and a reader who types that
+  // into the game finds nothing at all. So `83` would turn a search that matches nothing into one that matches a
+  // species, which is the one direction a reduction must never take — every other spelling it writes already worked.
+  expect([Number(POKEMON.FARFETCHD), Number(POKEMON.SIRFETCHD), Number(POKEMON.FLABEBE)]).toEqual([83, 865, 669]);
+
+  const kept = ['farfetchd', 'sirfetchd', 'flabebe'];
+
+  // Each would otherwise go to its number rather than to a fragment: `farf`, `sirf` and `flab` are the shortest leading
+  // fragments reaching one species each, and four characters is longer than all three of the numbers above.
+  expect(kept.map((name) => optimise(state({ text: name })).state.text)).toEqual(kept);
+
+  const { rewrites, lossy } = optimise(state({ text: 'farfetchd' }));
+
+  // A rewrite reported for a name that kept it would show the reader a substitution that did not happen, and the caveat
+  // belongs to the reduction rather than to the attempt: nothing here became a number, so nothing here is lossy.
+  expect([rewrites, lossy]).toEqual([[], false]);
+});
+
 test('a name that reaches one species is written as its dex number, and says it was', () => {
   expect(reach('charmander')).toEqual({ contains: 1, begins: 1 });
 
