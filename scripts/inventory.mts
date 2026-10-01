@@ -23,7 +23,7 @@
  *
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
- *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--no-launch] [--flags shiny,lucky,…]
+ *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--keep-screens DIR] [--config FILE]
  *                       [--serial SERIAL]
  *   pnpm inventory snap [NAME]      save a screenshot of whatever is showing and print what each reader makes of it
@@ -199,7 +199,6 @@ const { values: options, positionals } = parseArgs({
     'skip': { type: 'string' },
     'flags': { type: 'string' },
     'tags': { type: 'string' },
-    'no-launch': { type: 'boolean', default: false },
     'no-moves': { type: 'boolean', default: false },
     'keep-screens': { type: 'string' },
     'config': { type: 'string' },
@@ -296,7 +295,9 @@ async function scan() {
       await tap(at(config.taps.pokemonButton), config.waits.search);
     }
 
-    throw new Error('could not find Pokémon storage; open it by hand and run again with --no-launch');
+    // Opening it by hand is enough on its own now: storage showing means the game is in front, so the next run reads
+    // that off the phone and neither relaunches it nor waits for a cold start it is not doing.
+    throw new Error('could not find Pokémon storage; open it by hand and run again');
   };
 
   /** Types a search into storage's search box, replacing whatever was there, and answers the grid it leaves. */
@@ -489,7 +490,14 @@ async function scan() {
     await tap(at(config.taps.closeDetail));
   };
 
-  if (!options['no-launch']) {
+  // Launched only where it is not already in front, which is the phone's answer to give rather than the user's: a game
+  // running and a game showing are different states, and only the second is one `toStorage` can start from. A game in
+  // the background still needs the launch to bring it forward — skipping it there taps the launcher instead, three
+  // times over, and reports that storage cannot be found. The wait goes with the launch, since thirty seconds is what a
+  // cold start costs and a game already drawn is past it; measured, a resume takes the focus back in 676ms.
+  if ((await device.focused()) === config.package) {
+    console.error('Pokémon GO is already in front');
+  } else {
     console.error('Launching Pokémon GO');
     await device.launch(config.package);
     await sleep(config.waits.launch);

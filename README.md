@@ -251,7 +251,8 @@ scrolls down to the moves and opens the appraisal. Level and form are never show
 from the CP, HP and IVs against the base stats in [PokeMiners' game master](https://github.com/PokeMiners), which is
 also how a nicknamed Pokémon gets its species back. Shiny, lucky, costume and size come from the game's own searches
 (`shiny`, `lucky`, `costume`, `xxl`, `xxs`), one quick pass each before the full pass. Expect several seconds per
-Pokémon. `--limit`, `--skip` and `--no-launch` break a long run into pieces.
+Pokémon. `--limit` and `--skip` break a long run into pieces. Pokémon GO is launched only where it is not already the
+app in front, so a run started over an open storage screen picks up from there rather than waiting out a cold start.
 
 Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
