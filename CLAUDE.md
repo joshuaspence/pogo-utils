@@ -775,6 +775,48 @@ rank them, and the ranking was not what watching the scan suggested.
   digit percentage is a character wider than a two. Growing the cached box to cover both converges; swapping it would
   flip between the two Pokémon that disagree.
 
+### Telling two forms apart when the numbers cannot
+
+Some forms are identical in every field the detail screen states. HP is a function of `stamina` alone, so two forms
+sharing their types and all three base stats cannot be separated by anything `parseDetail` or the overlay reads — and
+`identify`'s fold then keeps whichever has the shorter form name, answering it with **no alternatives and no notes**.
+Measured against a real `loadGameData('.cache/inventory')`, 13 of the committed rows are in that position: Basculin's
+three are all `189/129/172 Water`, Burmy's three `53/83/120 Bug`, Deerling's four `115/100/155 Normal+Grass`, Genesect's
+five `252/199/174 Bug+Steel`, Cherrim's two `170/153/172 Grass`, Keldeo's two `260/192/209`, Shellos' two
+`103/105/183 Water`.
+
+The artwork is the only thing left, and the game master addresses it: every such form carries a distinct
+`assetBundleValue` under `formSettings`, 11 upwards, which is how PokeMiners' assets are named —
+`Images/Pokemon/pokemon_icon_585_11.png` is Spring Deerling, `_12` Summer, `_13` Autumn, `_14` Winter. They fetch at 6
+to 12 KB each. A prototype comparing a 12-bin hue histogram of the capture's artwork against those icons was measured
+over 17 captures from six families; the numbers below are its, and nothing is wired to it yet.
+
+- **The backdrop is the whole problem, not the colours.** A histogram over a fixed box scores **8 of 17**, because the
+  game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png` stands on an
+  orange bokeh event background against which a pink Deerling is some 15% of the frame, and the naive match called it
+  Winter. Worse than the misses are the confident misses — `shellos-west.png` came back East Sea with a 0.646 margin,
+  which is a reader being wrong and saying nothing about it.
+- **Bound the subject by the panel below it and by sharpness.** The game's own panel is flat rgb(224,224,224), so the
+  first row that is mostly panel is where the artwork stops; the model is rendered crisp over a blurred scene, so a
+  local-gradient mask grown by a few pixels covers it and not the backdrop. That takes the match to **12 of 17** and
+  fixes all four Deerling, the hardest family.
+- **Then keep only the largest connected component, because a backdrop is not always blurred.** `shellos-west.png` is a
+  pink Shellos on flat teal with crisp bubbles drawn over it, so dilating from those edges floods the mask with the one
+  colour that is also East Sea's. The Pokémon is one large component and the bubbles are small separate ones. This does
+  not raise the hit rate — still 12 of 17 — and it is the change that matters anyway, because it takes that capture's
+  margin from 0.407 down to 0.211 and so below any threshold worth using.
+- **Judge it on the margin, not the hit rate.** At a runner-up margin of 0.30 the prototype answers **8 of 17 and is
+  right on all 8**, abstaining on the other nine. That is the shape a reader here has to have: `defects` exists because
+  a wrong answer nothing flags is the expensive kind. Of the 13 rows the numbers cannot reach, it would settle five —
+  `deerling-summer`, `deerling-winter`, `burmy-sandy`, `burmy-trash` and `cherrim-overcast`.
+- **Genesect cannot be done this way and that is worth knowing before trying.** Its five forms are one robot with a
+  differently-coloured drive cassette a few pixels across, so all five distances sit between 1.54 and 1.67 with margins
+  of 0.015 to 0.020 — indecisive by construction rather than by a weak mask. Expect to abstain on it for ever, and read
+  a tiny margin there as the measurement rather than as something to tune away.
+- **`assetBundleValue` is not always there.** `BASCULIN_WHITE_STRIPED` carries none where Red and Blue carry 11 and 12,
+  so a form's icon is not addressable from the game master alone in every case, and `basculin-white.png` was left out of
+  the 17 for that reason.
+
 ### Pinning a reader with a committed capture
 
 `pnpm test` runs `scripts/inventory/screens.test.mts` over 64 real screenshots in `scripts/inventory/fixtures/`. Every
