@@ -322,18 +322,27 @@ async function cached(dir: string, file: string, url: string, refresh: boolean):
   }
 
   console.error(`Downloading ${url}`);
-  const response = await fetch(url);
+  let text: string;
 
-  if (!response.ok) {
+  try {
+    // `fetch` rejects rather than answering when there is no network at all, which is the case a stale copy is most
+    // wanted for, so the fallback has to cover a throw as well as a status.
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+
+    text = await response.text();
+  } catch (error) {
     if (existsSync(path)) {
-      console.error(`  ${response.status} ${response.statusText}; using the copy from before`);
+      console.error(`  ${error instanceof Error ? error.message : String(error)}; using the copy from before`);
       return readFileSync(path, 'utf8');
     }
 
-    throw new Error(`${url}: ${response.status} ${response.statusText}`);
+    throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 
-  const text = await response.text();
   mkdirSync(dir, { recursive: true });
   writeFileSync(path, text);
 
