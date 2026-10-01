@@ -9,20 +9,9 @@
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
-import { JavaSer } from '../java-serialization.js';
 import { CONTROL_RESETS } from './controls.js';
-import {
-  applyTimezones,
-  byName,
-  dedupeByName,
-  encodePoints,
-  encodeRoutes,
-  gpxFavourites,
-  POINTS_KEY,
-  ROUTES_KEY,
-  type Point,
-  type Route,
-} from './favourites.js';
+import { gpxFavourites, type Point, type Route } from './favourites.js';
+import { backupSummary, buildBackup } from './pgsdata.js';
 import { byId } from '../dom.js';
 
 /**
@@ -137,9 +126,9 @@ function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
 }
 
 /**
- * Synthesize a partial PGSData.dat from scratch — a HashMap holding only the keys we set (the favourites, plus
- * whichever controls and filters are ticked). Nothing is read from an existing backup; every other preference is
- * omitted, so importing this leaves the rest of the profile as PGSharp had it.
+ * Build the file and hand it over. Everything between the favourites and the bytes is `buildBackup`'s, so what is left
+ * here is the three things only a page can do: read which boxes are ticked, offer the result as a download, and say how
+ * it went.
  */
 backupRunEl.addEventListener('click', async () => {
   backupRunEl.disabled = true;
@@ -147,70 +136,11 @@ backupRunEl.addEventListener('click', async () => {
 
   try {
     const repo = await buildRepoFavourites();
-    const notes = [];
+    const ticked = new Set(Object.keys(CONTROL_RESETS).filter((id) => byId(id, HTMLInputElement).checked));
+    const backup = buildBackup(repo, ticked);
 
-    /**
-     * Names must be unique within a kind (PGSharp lists and deletes by name), so drop any repeat, then alphabetise
-     * within each kind like `reorder`.
-     */
-    const p = dedupeByName(repo.points);
-    const r = dedupeByName(repo.routes);
-    const points = p.out,
-      routes = r.out;
-
-    if (p.dropped) {
-      notes.push(`${p.dropped} duplicate waypoint name(s) skipped`);
-    }
-
-    if (r.dropped) {
-      notes.push(`${r.dropped} duplicate route name(s) skipped`);
-    }
-
-    points.sort(byName);
-    routes.sort(byName);
-
-    const noTz = applyTimezones(points);
-
-    if (noTz) {
-      notes.push(`${noTz} waypoint(s) without a timezone`);
-    }
-
-    const root = new Map();
-    root.set(POINTS_KEY, encodePoints(points));
-    root.set(ROUTES_KEY, encodeRoutes(routes));
-
-    /**
-     * Include whichever controls are ticked, set to fixed values. A number is written as a Java Float; a string (a
-     * filter, the radar's or the feed list's) as-is.
-     */
-    let controls = 0;
-
-    for (const [id, keys] of Object.entries(CONTROL_RESETS)) {
-      if (!byId(id, HTMLInputElement).checked) {
-        continue;
-      }
-
-      for (const [k, v] of Object.entries(keys)) {
-        root.set(k, typeof v === 'string' ? v : JavaSer.box('F', v));
-      }
-
-      controls++;
-    }
-
-    if (controls) {
-      notes.push(`${controls} control(s)`);
-    }
-
-    const outBytes = JavaSer.dumps(root);
-    JavaSer.loads(outBytes); // re-parse our own output before offering it
-
-    downloadBytes(outBytes, 'PGSData.dat');
-    const detail = notes.length ? ` (${notes.join('; ')})` : '';
-    backupStatus(
-      `Built a partial backup — ${points.length} waypoint(s) and ${routes.length} route(s)${detail}. ` +
-        'Import it into PGSharp.',
-      'ok',
-    );
+    downloadBytes(backup.bytes, 'PGSData.dat');
+    backupStatus(backupSummary(backup), 'ok');
   } catch (e) {
     backupStatus(`Failed to build backup: ${said(e)}`, 'err');
   } finally {
