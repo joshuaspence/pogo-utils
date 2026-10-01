@@ -269,6 +269,24 @@ Which route a change takes turns on whether it changes what the code _does_ or o
   any other value and sorts to the front of it, so the set assertion above it already fails. Where the answer is "only a
   coordinated edit", say which — `GENERATIONS` is checked for an inverted span, and reaching it takes two rows moved
   together, because moving one `last` moves the `first` the next row is weighed against.
+- **`pnpm test:coverage` names the files to count, because the default counts only the ones a test loaded.** Vitest 4
+  resolves `coverage.include` against what the run imported, so a module with no test is _absent_ from the figure rather
+  than 0% in it — 92.92% of statements over the twenty modules something imported, against 30.83% over all 29. Deleting
+  a test therefore _raises_ the default headline, taking its module out of the denominator with it. Naming `src/**/*.ts`
+  statically is the fix, and it reaches a module Node cannot import at all: `app.ts` dies at module scope on its
+  stylesheet and v8 still reports `0% 18-934` for it from static analysis rather than failing the run. Seven of the nine
+  0% rows are then the browser-probe list of [Differentials](#differentials) restated as a number, which is the one
+  thing a coverage figure is good for here. The other two are `generated.ts` and `recurring-types.ts`, and they should
+  stay there: each holds one list whose contract is that it is spelled once, which the consumers reading it already hold
+  and a test could only restate.
+- **A file missing from the coverage table means either nothing uncovered or nothing measured, and the two read alike.**
+  The text reporter printed 6 rows where `coverage-final.json` held 20, the other 14 being at 100% on all four metrics;
+  `--coverage.skipFull=false` does not bring them back, the flag being accepted and ignored. Ask the JSON reporter which
+  files were measured, since it is the only output that lists them rather than selecting among them.
+- **`coverage.exclude` merges with Vitest's own defaults rather than replacing them.** So `*.test.ts` wants no entry of
+  its own, the defaults dropping it either way, and adding one is a flag that rejects nothing — judged the way
+  [Annotating](#annotating) judges an annotation. What the defaults miss is `.d.ts`: `src/assets.d.ts` and
+  `src/types.d.ts` join the denominator uninvited, where a declaration file emits nothing there is any covering of.
 
 ## Checking the pages in a browser
 
