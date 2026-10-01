@@ -54,10 +54,13 @@ test('a string that is not a datetime at all reads as naive rather than as zoned
 test('a Date cannot say whether a zone was there, and the gap is the machine it was built on', () => {
   // Which is why the pattern reads the feed's string. Both parse, so neither the value nor a `NaN` reports the
   // difference; what separates them is the offset wherever this runs, so a calendar built on a CI runner is out by
-  // exactly that for every local event. The assertion holds on a UTC machine too, where both sides are zero.
+  // exactly that for every local event.
   expect([Number.isNaN(Date.parse(NAIVE)), Number.isNaN(Date.parse(ZONED))]).toEqual([false, false]);
 
-  expect(Date.parse(`${NAIVE}Z`) - Date.parse(NAIVE)).toBe(-new Date(NAIVE).getTimezoneOffset() * 60_000);
+  // Subtracted this way round rather than by negating the offset, which is what keeps the assertion true on a runner
+  // that is itself UTC: there the offset is `0` and `-0 * 60_000` is `-0`, a different number to `Object.is` from the
+  // `+0` the left-hand side gives.
+  expect(Date.parse(NAIVE) - Date.parse(`${NAIVE}Z`)).toBe(new Date(NAIVE).getTimezoneOffset() * 60_000);
 });
 
 test('each kind the event has is pluralised, and a kind it has none of is left out', () => {

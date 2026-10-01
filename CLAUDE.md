@@ -253,6 +253,12 @@ Which route a change takes turns on whether it changes what the code _does_ or o
 - **Count what a fragment reaches before writing down what it reduces to.** `char` reads as `4-6` and is refused:
   Charjabug and Charcadet begin with it as well, Chimchar and Pecharunt carry it in the middle, so the two sets are 5
   and 7 and disagree. One `grep -c` over `pokedex.ts` settles that where reasoning about the name does not.
+- **An expectation that reads a zone wants `TZ=UTC pnpm test` beside it, because the runner's own zone is UTC and a zero
+  offset is signed.** `event-feed.test.ts` passed here at UTC+10 and failed on CI with
+  `AssertionError: expected +0 to be -0`: `getTimezoneOffset()` answers `0` there, so a negated `-0 * 60_000` is `-0`,
+  which `toBe` tells apart from `+0` through `Object.is`. Subtract so the sign comes out of the data rather than out of
+  a unary minus, and run the two zones rather than the one — this is the [`events.html` figure](#designing-a-probe)
+  again with the machine standing in for the feed.
 
 ## Checking the pages in a browser
 
