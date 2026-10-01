@@ -777,13 +777,18 @@ rank them, and the ranking was not what watching the scan suggested.
 
 ### Pinning a reader with a committed capture
 
-`pnpm test` runs `scripts/inventory/screens.test.mts` over eight real screenshots in `scripts/inventory/fixtures/`.
-Every reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test
-needs — no phone, no network, and a hermetic `GameData` of eighteen type names for `parseDetail` plus, for `identify`,
-38 forms and the 101-entry CP multiplier table, each value read once out of a real `loadGameData` and recorded in the
-file. 166 tests in about 33 seconds, OCR being all of it: each attribute is a subtest under a parent per capture, so a
-failure names the reader that broke, and the reading is memoised per capture, which is why the assertions are free and
-only the eight OCR passes cost anything.
+`pnpm test` runs `scripts/inventory/screens.test.mts` over 64 real screenshots in `scripts/inventory/fixtures/`. Every
+reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test needs —
+no phone, no network, and a hermetic `GameData` of eighteen type names for `parseDetail` plus, for `identify`, 122 forms
+over 41 species and the 101-entry CP multiplier table, each value read once out of a real `loadGameData` and recorded in
+the file. 1,170 tests in about 2.8 minutes, OCR being all of it: each attribute is a subtest under a parent per capture,
+so a failure names the reader that broke, and the reading is memoised per capture, which is why the assertions are free
+and only the 64 OCR passes cost anything.
+
+61 of the captures are a `Fixture` row, 30 species between them. The other three are not detail screens with a readable
+Pokémon and so cannot be rows — `overworld.png` is the map, and `no-pgsharp.png` and `pgsharp-no-overlay.png` are one
+Squirtle captured with PGSharp absent and with its toolbar up — so they are asserted as negative cases instead, which is
+the half of a corpus that valid screens cannot state: no overlay found, no HP, nothing `identify` could narrow.
 
 - **A row says what the Pokémon is, not what the readers answered.** Every field is the game's own statement of it: the
   CP above the artwork, the name and the HP under it, PGSharp's level and IVs over the middle, all readable off the
@@ -791,41 +796,63 @@ only the eight OCR passes cost anything.
   of whatever they said first. What the orientation buys is measurable rather than tidy, and it is the CP: `cpOf`
   derives one from the form, the IVs and the level's multiplier where the screen states it outright, and the arithmetic
   cannot be wrong, so the two meeting means the form, the IVs and the level are every one of them right. A table
-  recording `cp` as whatever OCR made of it can only cross-check the captures OCR read a CP on, which is **two** of the
-  eight; a table recording what the screen shows cross-checks **seven**, all but the one whose overlay goes unread. It
-  also settles the Ho-Oh below to the digit, where a transcript could only record the wrong answer.
+  recording `cp` as whatever OCR made of it can only cross-check the captures OCR read a CP on, which is **20** of the
+  61 and four of those wrongly; a table recording what the screen shows reaches the **40** where `identify` settles on
+  exactly one level, agreeing on 32. The other eight are the check doing its other job rather than failing to run: each
+  derives a CP that disagrees with the screen, which is the pipeline saying the form or the level is wrong. It also
+  settles the Ho-Oh below to the digit, where a transcript could only record the wrong answer.
+- **Pin a figure the prose quotes in a test, because prose is the one part of a test file no test reads.** That docblock
+  claimed the cross-check landed on **39** of the 61 for as long as nobody measured it, where it is 32, through a green
+  1,169-test suite — a count is exactly the kind of claim that rots silently. `COVERAGE` in that file is now eleven such
+  figures asserted in one `deepStrictEqual`, counted off `FIXTURES` rather than transcribed, with the partitions (40 +
+  1 + 20 = 61, 32 + 8 = 40) asserted beside them so three counts cannot all be right and still sum wrong.
 - **Select a fixture with a search that pins every attribute at once, and commit the search beside it.** A capture
   chosen because a sprite looked small is only as good as the eye that chose it, where
   `xxs&female&!lucky&!shiny&!costume&!background&!shadow&!purified` is the game stating all eight and is falsifiable:
   re-run it and the first match is in the set the row claims. That is where a row's `size` and its six flags come from.
   Negation is the half that only the search can give, too, since nothing on the screen says a Pokémon is **not** lucky —
-  so the eight searches live in a table above `FIXTURES` rather than in the rows, the rows having become statements
+  so the seven searches live in a table above `FIXTURES` rather than in the rows, the rows having become statements
   about the Pokémon and a search being neither that nor a reading. A capture is named for its species for the same
-  reason, and the species is still a field, because two of the eight are Smolivs and one prints the nickname `96%` where
-  its species should be: a file name is not a column.
+  reason, and the species is still a field, because two of the 61 are Smolivs and two print the nickname `96%` where
+  their species should be: a file name is not a column. The other 54 rows have no search behind them, which is weaker
+  provenance and worth saying so — they arrived named for a form, a treatment or a missing overlay, and the name is a
+  claim the rendered screen then has to bear out.
 - **Re-encode a capture as colour-type-2 RGB before committing it.** The phone hands over RGBA with a fully opaque alpha
-  channel, so dropping it is lossless and worth about 22% — 716 KB to 559 KB on one. Verify it by decoding the output
-  back and comparing every non-alpha byte, since a re-encode that quietly changed a pixel would move the very readings
-  the fixture exists to pin. The eight come to 4.8 MB against a `.git` of 2.6 MB, which is the real cost of this and
-  worth stating rather than discovering.
+  channel, so dropping it is lossless. Verify it by decoding the output back and comparing every non-alpha byte, since a
+  re-encode that quietly changed a pixel would move the very readings the fixture exists to pin. The corpus comes to 53
+  MB against a `.git` of 56 MB, which is the real cost of this and worth stating rather than discovering — and **57 of
+  the 64 are still colour type 6**, every one of them with a uniformly opaque alpha channel. Re-encoding those 57 as RGB
+  takes 50.3 MB to 35.6 MB, so **14.1 MB, 29%, is recoverable and lossless**, verified byte for byte on two of them.
+- **`encodePng` cannot do that re-encode, and a filter-0 encode is the wrong way to measure it.** `png.mts` writes
+  `[8, 6, 0, 0, 0]` into every IHDR, so it only ever emits colour type 6 — whatever produced the seven committed RGB
+  captures was not this repository. Use adaptive row filtering when measuring, too: the phone's own files are adaptively
+  filtered, and a filter-0 re-encode makes those seven **larger** by 0.6%, which would read as the saving not being
+  there at all. No `optipng`, `pngcrush` or ImageMagick is installed on this machine, so the encoder is yours to write.
 - **Assert every field, and put the disagreement in a `defects` field rather than leaving the field out.** A field
   quietly dropped from an assertion is indistinguishable from one that passes, which is what the earlier shape cost:
   `heightM` was left out because the badge corrupts it, `name` because one fixture is nicknamed `96%`, and `cp` because
   `cpOf` derives it — three readers free to change their answers unremarked. So the row states the truth and an optional
   `defects` beside it states what the reader answers instead, which is the inverse of recording the reading and
-  softening the row: fixing a reader fails here and has to say so. Three of the eight carry one, and the corpus test
-  asserts that every `defects` key is still pinned by some capture _and_ that some capture carries none, since a reader
-  wrong everywhere would otherwise pass every row it had an entry in. Read the keys rather than testing them for truth —
-  two of them are `null`, and a truth test files those as absent.
-- **A reading the whole corpus agrees on compares equal for ever and reads exactly like agreement.** Seven of the eight
-  carry no chip, so a `tagsOn` returning `[]` unconditionally passes every row but one; three wear no badge, so a
-  `sizeOf` returning null passes three. So assert the corpus's own coverage in a test of its own — that both sides of
-  each flag appear, that the size column holds all four bands and none, that some fixture carries two chips — and check
-  that dropping a fixture makes **that** test fail, which it does.
-- **Assert a gap in the corpus as the gap it is, rather than leaving it to be discovered.** `shadow` and `purified` are
-  false on all eight, so nothing here says either column is ever filled in and the coverage test cannot ask for both
-  sides of them. Asserting that they are all false is what makes the hole legible: it names what the corpus is short of,
-  and a shadow capture arriving fails that line and gets read instead of silently joining a pair with one side.
+  softening the row: fixing a reader fails here and has to say so. **46 of the 61 carry one** and all fourteen `Defects`
+  keys are in use, and the corpus test asserts that every key is still pinned by some capture _and_ that some capture
+  carries none — fifteen do — since a reader wrong everywhere would otherwise pass every row it had an entry in. Read
+  the keys rather than testing them for truth: three of them can be `null`, and a truth test files those as absent.
+- **Two absences are two defects and a row has to say which.** `findOverlay` finding no box is `defects.box: null` where
+  PGSharp drawing no overlay at all is `overlay: null` on the row itself, and the corpus holds three of each — so a row
+  that conflated them could not say whether the reader was wrong or right. `readOverlay` reading nothing out of a box
+  that _was_ found is the third stage and `defects.iv: null`, on fourteen. That is the costliest defect here, since with
+  no level and no IVs `identify` stops at the species and the CP goes unchecked.
+- **A reading the whole corpus agrees on compares equal for ever and reads exactly like agreement.** 59 of the 61 carry
+  no chip, so a `tagsOn` returning `[]` unconditionally passes every row but two; 54 wear no badge, so a `sizeOf`
+  returning null passes 54. So assert the corpus's own coverage in a test of its own — that both sides of each flag
+  appear, that the size column holds all four bands and none, that some fixture carries two chips — and check that
+  dropping a fixture makes **that** test fail, which it does.
+- **Assert a gap in the corpus as the gap it is, rather than leaving it to be discovered — and then fill it.** `shadow`
+  and `purified` were false on all eight of the original captures, so nothing said either column was ever filled in and
+  the coverage test could not ask for both sides of them; asserting that they were all false is what made the hole
+  legible. `snorlax-purified.png` and `thundurus-shadow.png` are what the assertion was for: each failed that line on
+  arrival and got read into a row instead of silently joining a pair with one side, and the coverage test now asks for
+  both sides of all five flags.
 - **A regression fixture needs the trap asserted present, not just the reader asserted right.** The status-bar row's
   assertions would read identically on a capture whose status bar held nothing to trip over, so a separate test asserts
   that a line above the panel still OCRs as a loose measurement and that it is not the height. A capture is a file and
@@ -871,14 +898,26 @@ only the eight OCR passes cost anything.
   [the overlay section](#reading-pgsharps-overlay) now records — and a mutation that improves a reading is not a defect,
   so nothing can catch it. The ternary intersecting the overlay's shortlist with the levels the HP admits moves **1 of
   23**: it needs an HP that two adjacent half-levels both reproduce _and_ an overlay naming one of them, which
-  `pikachu-santa-hat.png` has at 76 HP for level 22.5 or 23 and no committed fixture has at all.
-- **A cut-down game master is honest only once it is measured against the real one.** The 38 forms recorded in the file
-  and a real `loadGameData('.cache/inventory')` carrying 1,449 answer `identify` identically on all eight captures,
-  field for field, down to one capture's five-way ambiguity and both of its notes. It works because `identify` narrows
-  before it chooses — by species where the name matched, by type and HP where it did not — and because the costume fold
-  collapses Pikachu's 69 forms and Unown's 28 to one each. Unown's 28 are all kept even so, since PGSharp's bracketed
-  form chooses between them _before_ the fold. Where the small table is weaker is `species`, eleven names against 1,024,
-  so the nickname row asserts the wiring rather than that `aals15` resembles no real species.
+  `pikachu-santa-hat.png` has at 76 HP for level 22.5 or 23 and no fixture committed at the time had at all.
+- **Re-run a survivor once the corpus grows, because "unreachable with this data" is a claim about the data.** That
+  ternary is now caught: `pikachu-santa-hat.png` and `cherrim-sunshine.png` are both committed rows, and dropping the
+  intersection moves exactly those two of the 64 — `[23]` to `[22.5, 23]` and `[31]` to `[31, 31.5]`. Measured off the
+  recorded readings rather than by running the suite, which is seconds instead of three minutes: import the real
+  `identify` and a copy of `screens.mts` with the one line changed, and diff their answers over every capture.
+- **A cut-down game master is honest only once it is measured against the real one.** The 122 forms recorded in the file
+  and a real `loadGameData('.cache/inventory')` carrying 1,449 over 1,024 species answer `identify` identically on **all
+  64** captures, field for field — form, CP, levels, nickname, alternatives and notes — down to one capture's five
+  alternatives and all three of its notes, and including the map, where both decline. It works because `identify`
+  narrows before it chooses — by species where the name matched, by type and HP where it did not — and because the
+  costume fold collapses Pikachu's 69 forms and Unown's 28 to one each. Unown's 28 and Spinda's 20 are all kept even so,
+  since PGSharp's bracketed form chooses between them _before_ the fold. `closest` was measured on the same footing, 41
+  species against 1,024: both answer null for each of `ate`, `ee JEN`, `aals15` and `Nickname`, and `Nidoran♀` for
+  `Nidorano`.
+- **Note that `loadGameData` is `async`, and type stripping will not catch you forgetting it.** Reading `.forms` off the
+  un-awaited Promise answers `undefined` at run time rather than erroring, because Node's own type stripping erases the
+  annotations without checking them — so a one-off probe run with `pnpm exec node` has none of the help
+  `pnpm lint:types` would have given. It surfaces as `Cannot read properties of undefined`, several lines after the real
+  mistake.
 - **Asserting a field the suite used to discard is what finds a defect; pin it rather than fixing it in the same
   change.** Five findings across three of the eight captures, each pinned in that row's `defects` and stated with its
   evidence in the suite's own docblock. The one to know about is not a reader at all: `fixtures/ho-oh.png` is **answered
@@ -999,8 +1038,16 @@ row was being matched against, and matching against the seven is the single larg
   captures on this machine, 5 characters buys nothing a single character does not — the form reads identically on every
   Unown — while costing one capture its whole overlay: `unown-m-shiny.png` yields no level and no IVs at reach 5 and
   yields both at reach 1, the `✨` falling inside the wider box and garbling the triple. So the two reaches are not one
-  constant with two ends. Expect a mutation narrowing this one to **survive the fixtures**, since the corpus holds a
-  single Unown and the narrower reach reads it the same, and read that survival as the measurement rather than as a gap.
+  constant with two ends. Expect a mutation narrowing this one to **survive the fixtures**, and read that survival as
+  the measurement rather than as a gap.
+- **That survival outlived the reason first given for it, which is why a prediction needs re-measuring and not just
+  repeating.** The explanation was that the corpus held a single Unown. It now holds five — `unown.png`, `unown-b.png`,
+  `unown-exclamation.png`, `unown-m-shiny.png` and `unown-question.png`, with `unown-m-shiny.png` among them — and the
+  mutation still survives, because **all five read byte-identically at reach 1 and reach 5**, levels, IVs and bracketed
+  form alike. `unown-m-shiny.png` in particular yields `null` at _both_ reaches against the box `findOverlay` finds for
+  it, so the committed capture does not reproduce the sparkle effect measured on the snaps; whatever rescued it there
+  was the box and not the reach. Its row carries `defects.iv: null` for that reason. Same verdict, different mechanism,
+  and only re-running it says so.
 - **The unit is the part of a measurement that goes.** A Cyndaquil's `5.42kg` came back `5.42k` and was thrown away for
   want of a `g`. Match the number: every weight and height the game shows carries a decimal point, and the stray digits
   a crop picks out of the artwork do not. The decimal point is load-bearing and the screen furniture is where it bites:
@@ -1080,14 +1127,24 @@ Three of the CSV's columns are pixels rather than text, and one that looks as th
   it, and the same captures answer 1.00 male, 1.51 female and no ink at all for genderless, with the panel at 224 in
   91–100% of every region measured. A threshold above the background it is meant to exclude fails in the direction that
   looks like success, so measure the background rather than assuming it is white.
-- **These three fractions separate zero from non-zero, not small from large, so the constants are headroom and not
-  discriminators.** Measured over all 78 captures: the star corner is **exactly 0** gold pixels on 77 and 19% on the one
-  favourite; the badge band is exactly 0 saturated pixels on 52 of the 57 with a readable height and 11–22% on the other
-  five; the gender region is exactly 0 ink pixels on 22 of the 32 with a readable HP and 2.4–7.0% on the other ten. Not
-  one capture of the 78 lands non-zero but below its threshold. So a mutation replacing the fraction by "any match at
-  all" is **unreachable with this data** rather than missed by the corpus, and no capture from these 78 could catch it —
-  the panel is flat and a screenshot is lossless, so the noise the thresholds exist for is not produced here. Expect it
-  on a device that scales or compresses, and do not read a surviving mutation on one of them as a gap in the fixtures.
+- **Two of these three fractions separate zero from non-zero, not small from large, so those two constants are headroom
+  and not discriminators.** Measured over all 64 committed captures: the badge band is **exactly 0** saturated pixels on
+  56 of the 63 with a readable height and 11.3–22.3% on the other seven; the gender region is exactly 0 ink pixels on 22
+  of the same 63 and 2.4–7.4% on the other 41. Neither has a single capture non-zero but below its threshold, so for
+  those two a mutation replacing the fraction by "any match at all" is **unreachable with this data** rather than missed
+  by the corpus — the panel is flat and a screenshot is lossless, so the noise the thresholds exist for is not produced
+  here. Expect it on a device that scales or compresses, and do not read a surviving mutation on one of them as a gap in
+  the fixtures.
+- **The star corner is the exception, and it was only ever an exception waiting for a capture to prove it.**
+  `FAVOURITE_GOLD` is a real discriminator and is currently **mis-set**. Over the same 64: exactly 0 gold on 51, and of
+  the thirteen that are not, three land non-zero and _below_ the 2% threshold — `pikachu-willows-assistant.png` at
+  1.34%, `growlithe-nickname.png` at 0.48%, `castform-normal.png` at 0.36%, all three correctly not favourites. So "any
+  gold at all" is reachable here and caught by three rows, where over the original eight captures it was not. Worse, the
+  nine genuine favourites run 18.18–26.49% and **`spinda-04.png` reaches 15.34% on a warm bokeh background with a white
+  outline star**, so `isFavourite` answers `true` for it: a false positive with only 2.84 points of margin to the lowest
+  real one. The old bullet's "19.4% on the one favourite and 0.00% on every other" was true of eighteen captures and did
+  not generalise — which is the lesson rather than the number. A threshold claimed to be headroom needs the whole
+  distribution, not its two ends.
 - **Do not take shiny from the `✨` PGSharp appends to its overlay, however much it looks like a free answer.** The box
   it sits in is translucent, so the artwork behind it shows through, and a Hisuian Lilligant's yellow flower gives
   **202** gold pixels inside that box against the sparkle's **121** — the false positive is the larger signal.
