@@ -23,6 +23,13 @@ const STRINGS =
   'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Texts/Latest%20APK/JSON/i18n_english.json';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Where the two files and the icons beside them are kept, exported because a scan is no longer the only caller: the
+ * vend writes the fixture the test reads out of the same cache, and a second copy of this path would have each of them
+ * filling a directory the other never looks in.
+ */
+export const CACHE = '.cache/inventory';
+
 /** Level 51 is a best buddy's; nothing is ever higher. */
 const MAX_LEVEL = 51;
 

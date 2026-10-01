@@ -2,9 +2,9 @@
  * What the detail screen's readers make of real screens, over a corpus of 64 captures committed beside this file.
  *
  * Every reader here is a pure function of a screenshot, so the only thing a test of them needs is the screenshot — no
- * phone and no network. The game master it needs is small and derived rather than downloaded: eighteen type names for
- * `parseDetail`, and for `identify` 122 forms over 41 species and the CP multiplier table, each read once out of a real
- * `loadGameData('.cache/inventory')` and recorded below with what it answered. Downloading it per run is 23 MB.
+ * phone and no network. The game master they are read against is vended beside them rather than downloaded, by
+ * `pnpm vend:game-master`: the whole of what `loadGameData` answers, 0.85 MB of it, where the two files upstream are 23
+ * MB and are cached for only a week — so even a committed cache would have the suite fetching again every eighth day.
  *
  * **A row says what the Pokémon is, not what the readers answered**, and the file is three layers because of that. A
  * `Fixture` is the screen: the CP above the artwork, the name and the HP under it, the weight, the height and the types
@@ -67,8 +67,8 @@
  * the type icons, the CP is no longer misread on any capture, and `readOverlay` reads every overlay but one.
  *
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
- * the fold on every one. What would make even a negative control over it mean anything is the full 328-move list, which
- * is the one part of the game master that cannot be cut down.
+ * the fold on every one. What it wants is a capture of a scrolled screen and nothing from the game master: the vended
+ * fixture already carries all 328 moves and the per-form pools a row is matched against.
  */
 
 import assert from 'node:assert/strict';
@@ -89,301 +89,24 @@ import {
 } from './screens.mts';
 
 /**
- * The eighteen type names, which is the whole of what `parseDetail` asks the game master for — it matches the two
- * coloured labels under the weight against this list and touches nothing else.
- */
-const TYPES = [
-  'Grass',
-  'Poison',
-  'Fire',
-  'Flying',
-  'Water',
-  'Bug',
-  'Normal',
-  'Dark',
-  'Electric',
-  'Psychic',
-  'Ice',
-  'Steel',
-  'Ground',
-  'Fairy',
-  'Fighting',
-  'Rock',
-  'Ghost',
-  'Dragon',
-];
-
-/**
- * One form, as `identify` reads it. `moves` is empty on every form below because `identify` reads `dex`, `species`,
- * `form`, `costume`, `types` and the three base stats and never a pool — so transcribing the pools would be a thousand
- * lines nothing consults. That is a statement about today's `identify`: fill them in if it ever asks, because nothing
- * here would otherwise notice. Nothing in this file calls `parseMoves`, which is the only other reader that would.
- */
-const form = (dex: number, species: string, types: string[], stats: [number, number, number], name = ''): Form => ({
-  dex,
-  species,
-  form: name,
-  costume: false,
-  // What the game addresses this form's artwork by. Null throughout, because nothing here fetches an icon: the
-  // signatures `ARTWORK` records below stand in for them, and `identify` is handed those rather than a URL.
-  icon: null,
-  types,
-  attack: stats[0],
-  defense: stats[1],
-  stamina: stats[2],
-  moves: [],
-});
-
-/**
- * Unown's 28 forms, built from the letters rather than written out, because what matters about them is that they are
- * identical in every field the game's own screen shows: the real game master answers 28 forms with exactly one
- * `136/91/134` between them, one `Psychic`, and one pool of `Hidden Power` and `Struggle`. The two non-letters are
- * named rather than punctuated there, which is why they are spelled out here.
+ * The game master, vended beside the captures rather than downloaded: `pnpm vend:game-master` writes what a real
+ * `loadGameData` answers into `fixtures/game-master.json`, so a test of a reader reaches no network — the same division
+ * the hue signatures below already have, where a scan fetches an icon and the test records what it read off one. 1,449
+ * forms over 1,024 species, 328 moves, eighteen type names and all 101 CP multipliers, which is every field
+ * `parseDetail`, `identify` and `parseMoves` ask the game master for.
  *
- * The real table interleaves them, `A, B, C, D, E, Exclamation Point, F, …, Q, Question Mark, R, …, Z`, and that
- * difference cannot matter: the fold keeps one of 28 identical forms and then sorts by the length of the form name, so
- * a one-character letter wins under either ordering, and the suffix filter PGSharp's bracket feeds is an exact match
- * rather than a search.
- */
-const UNOWN: Form[] = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'Exclamation Point', 'Question Mark'].map((name) =>
-  form(201, 'Unown', ['Psychic'], [136, 91, 134], name),
-);
-
-/**
- * Spinda's 20, which are Unown's situation exactly: every one `116/116/155` `Normal`, and named `00` to `19` in the
- * real table's own order, so the fold leaves `00` standing and only PGSharp's bracket can say which it is.
- */
-const SPINDA: Form[] = Array.from({ length: 20 }, (_, n) =>
-  form(327, 'Spinda', ['Normal'], [116, 116, 155], String(n).padStart(2, '0')),
-);
-
-/**
- * Every form the 61 detail screens can reach, in the dex order the real game master hands them over in — which is load
- * bearing twice over. `identify` reports the alternatives it did not choose and their order follows the table's, and
- * where several forms tie on the length of their name the table's order is what breaks the tie: `ho-oh.png`'s five-way
- * list comes back `Charizard, Moltres, Ho-Oh, Talonflame, Oricorio (Baile)` because four of the five are base forms
- * with a zero-length name.
+ * Vended whole rather than cut down to the forms these captures can reach, which is the decision worth stating because
+ * the arithmetic invites the other one: `identify` narrows by species, then by type and HP, so a closure of the
+ * reachable forms is sound and a hand-written one of 122 was measured answering every assertion here identically. What
+ * it cost was that each of those forms transcribed three base stats from the authority it was being checked against,
+ * with nothing failing when the two disagreed — and the prose carrying that measurement had already drifted. A fixture
+ * is the same claim with the copy taken out of it.
  *
- * What makes a 122-form table legitimate where the real one holds 1,449 is that `identify` narrows before it chooses:
- * by species where the name matched one, and by type and HP where it did not, so a form outside the set those filters
- * admit cannot change an answer. This is the closure of exactly that — every form reachable from some capture — and it
- * is measured rather than reasoned about: this table and a real `loadGameData('.cache/inventory')` carrying 1,449 forms
- * over 1,024 species answer `identify` identically on all 64 captures, field for field — form, CP, levels, nickname,
- * alternatives and notes — including `genesect-normal.png`'s five alternatives and all three of its notes,
- * `ho-oh.png`'s wrong answer, and `overworld.png`, which both decline. `closest` agrees on the species too, over a list
- * of 41 names against 1,024: null for each of `ate`, `ee JEN`, `aals15` and `Nickname`, and `Nidoran♀` for `Nidorano`.
- *
- * Two entries are here for reasons nothing in the list shows. `Nidoran♂` is unreachable by the closure, because
- * `nidoran-male.png`'s name OCRs as `Nidorano` and `closest` matches that to `Nidoran♀` — so it is added by hand, or
- * the table could not be compared against the real one at all. And the three costume forms, two `Copy 2019` and
- * `Ho-Oh (S)`, fold away provably: `identify` sorts non-costumes first and keeps one form per `(dex, stats, types)`.
- * They are kept because the closure holds them and dropping them would be an unmeasured simplification.
+ * `JSON.parse` answers `any`, so the cast is unchecked and is the one claim this file makes about the file it reads.
+ * What makes a truncated or swapped fixture loud rather than silent is the test below, since a form that has quietly
+ * stopped existing would otherwise surface as a reader that has stopped agreeing with a capture.
  */
-const FORMS: Form[] = [
-  form(6, 'Charizard', ['Fire', 'Flying'], [223, 173, 186], 'Copy 2019'),
-  form(6, 'Charizard', ['Fire', 'Flying'], [223, 173, 186]),
-  form(7, 'Squirtle', ['Water'], [94, 121, 127]),
-  form(25, 'Pikachu', ['Electric'], [112, 96, 111], 'Copy 2019'),
-  form(25, 'Pikachu', ['Electric'], [112, 96, 111]),
-  form(29, 'Nidoran♀', ['Poison'], [86, 89, 146]),
-  form(32, 'Nidoran♂', ['Poison'], [105, 76, 130]),
-  form(52, 'Meowth', ['Dark'], [99, 78, 120], 'Alola'),
-  form(52, 'Meowth', ['Steel'], [115, 92, 137], 'Galarian'),
-  form(52, 'Meowth', ['Normal'], [92, 78, 120]),
-  form(58, 'Growlithe', ['Fire', 'Rock'], [142, 92, 155], 'Hisuian'),
-  form(58, 'Growlithe', ['Fire'], [136, 93, 146]),
-  form(113, 'Chansey', ['Normal'], [60, 128, 487]),
-  form(133, 'Eevee', ['Normal'], [104, 114, 146]),
-  form(143, 'Snorlax', ['Normal'], [190, 169, 330]),
-  form(144, 'Articuno', ['Psychic', 'Flying'], [250, 197, 207], 'Galarian'),
-  form(144, 'Articuno', ['Ice', 'Flying'], [192, 236, 207]),
-  form(146, 'Moltres', ['Fire', 'Flying'], [251, 181, 207]),
-  ...UNOWN,
-  form(205, 'Forretress', ['Bug', 'Steel'], [161, 205, 181]),
-  form(212, 'Scizor', ['Bug', 'Steel'], [236, 181, 172]),
-  form(219, 'Magcargo', ['Fire', 'Rock'], [139, 191, 137]),
-  form(250, 'Ho-Oh', ['Fire', 'Flying'], [239, 244, 214]),
-  form(250, 'Ho-Oh', ['Fire', 'Flying'], [239, 244, 214], 'S'),
-  form(325, 'Spoink', ['Psychic'], [125, 122, 155]),
-  ...SPINDA,
-  form(351, 'Castform', ['Normal'], [139, 139, 172]),
-  form(351, 'Castform', ['Water'], [139, 139, 172], 'Rainy'),
-  form(351, 'Castform', ['Ice'], [139, 139, 172], 'Snowy'),
-  form(351, 'Castform', ['Fire'], [139, 139, 172], 'Sunny'),
-  form(386, 'Deoxys', ['Psychic'], [414, 46, 137], 'Attack'),
-  form(386, 'Deoxys', ['Psychic'], [144, 330, 137], 'Defense'),
-  form(386, 'Deoxys', ['Psychic'], [345, 115, 137]),
-  form(386, 'Deoxys', ['Psychic'], [230, 218, 137], 'Speed'),
-  form(412, 'Burmy', ['Bug'], [53, 83, 120], 'Plant'),
-  form(412, 'Burmy', ['Bug'], [53, 83, 120], 'Sandy'),
-  form(412, 'Burmy', ['Bug'], [53, 83, 120], 'Trash'),
-  form(413, 'Wormadam', ['Bug', 'Steel'], [127, 175, 155], 'Trash'),
-  form(421, 'Cherrim', ['Grass'], [170, 153, 172], 'Overcast'),
-  form(421, 'Cherrim', ['Grass'], [170, 153, 172], 'Sunny'),
-  form(422, 'Shellos', ['Water'], [103, 105, 183], 'East Sea'),
-  form(422, 'Shellos', ['Water'], [103, 105, 183], 'West Sea'),
-  form(479, 'Rotom', ['Electric', 'Flying'], [204, 219, 137], 'Fan'),
-  form(479, 'Rotom', ['Electric', 'Ice'], [204, 219, 137], 'Frost'),
-  form(479, 'Rotom', ['Electric', 'Fire'], [204, 219, 137], 'Heat'),
-  form(479, 'Rotom', ['Electric', 'Grass'], [204, 219, 137], 'Mow'),
-  form(479, 'Rotom', ['Electric', 'Ghost'], [185, 159, 137]),
-  form(479, 'Rotom', ['Electric', 'Water'], [204, 219, 137], 'Wash'),
-  form(483, 'Dialga', ['Steel', 'Dragon'], [275, 211, 205]),
-  form(483, 'Dialga', ['Steel', 'Dragon'], [270, 225, 205], 'Origin'),
-  form(550, 'Basculin', ['Water'], [189, 129, 172], 'Blue Striped'),
-  form(550, 'Basculin', ['Water'], [189, 129, 172], 'Red Striped'),
-  form(550, 'Basculin', ['Water'], [189, 129, 172], 'White Striped'),
-  form(585, 'Deerling', ['Normal', 'Grass'], [115, 100, 155], 'Autumn'),
-  form(585, 'Deerling', ['Normal', 'Grass'], [115, 100, 155], 'Spring'),
-  form(585, 'Deerling', ['Normal', 'Grass'], [115, 100, 155], 'Summer'),
-  form(585, 'Deerling', ['Normal', 'Grass'], [115, 100, 155], 'Winter'),
-  form(589, 'Escavalier', ['Bug', 'Steel'], [223, 187, 172]),
-  form(632, 'Durant', ['Bug', 'Steel'], [217, 188, 151]),
-  form(642, 'Thundurus', ['Electric', 'Flying'], [266, 164, 188], 'Incarnate'),
-  form(642, 'Thundurus', ['Electric', 'Flying'], [295, 161, 188], 'Therian'),
-  form(647, 'Keldeo', ['Water', 'Fighting'], [260, 192, 209], 'Ordinary'),
-  form(647, 'Keldeo', ['Water', 'Fighting'], [260, 192, 209], 'Resolute'),
-  form(648, 'Meloetta', ['Normal', 'Psychic'], [250, 225, 225], 'Aria'),
-  form(648, 'Meloetta', ['Normal', 'Fighting'], [269, 188, 225], 'Pirouette'),
-  form(649, 'Genesect', ['Bug', 'Steel'], [252, 199, 174], 'Burn'),
-  form(649, 'Genesect', ['Bug', 'Steel'], [252, 199, 174], 'Chill'),
-  form(649, 'Genesect', ['Bug', 'Steel'], [252, 199, 174], 'Douse'),
-  form(649, 'Genesect', ['Bug', 'Steel'], [252, 199, 174]),
-  form(649, 'Genesect', ['Bug', 'Steel'], [252, 199, 174], 'Shock'),
-  form(663, 'Talonflame', ['Fire', 'Flying'], [176, 155, 186]),
-  form(741, 'Oricorio', ['Fire', 'Flying'], [196, 145, 181], 'Baile'),
-  form(796, 'Xurkitree', ['Electric'], [330, 144, 195]),
-  form(838, 'Carkol', ['Rock', 'Fire'], [114, 157, 190]),
-  form(840, 'Applin', ['Grass', 'Dragon'], [71, 116, 120]),
-  form(928, 'Smoliv', ['Grass', 'Normal'], [100, 89, 121]),
-];
-
-/**
- * Every level from 1 to 51 in half steps against its CP multiplier, which is the game's own table and not derivable
- * from anything shorter — the half levels are interpolated values rather than a formula. All 101 entries are here
- * because the claim the `identify` test rests on needs them: that **16 is the only level** at which an Unown with 11
- * stamina IV shows 77 HP. Against three neighbouring entries that claim would still be true and would mean nothing.
- */
-const CPM: [number, number][] = [
-  [1, 0.094],
-  [1.5, 0.13513743215803847],
-  [2, 0.16639787],
-  [2.5, 0.19265091454861796],
-  [3, 0.21573247],
-  [3.5, 0.23657265541932715],
-  [4, 0.25572005],
-  [4.5, 0.27353037931097973],
-  [5, 0.29024988],
-  [5.5, 0.30605738000722543],
-  [6, 0.3210876],
-  [6.5, 0.3354450348019347],
-  [7, 0.34921268],
-  [7.5, 0.36245775711118555],
-  [8, 0.3752356],
-  [8.5, 0.3875924191428145],
-  [9, 0.39956728],
-  [9.5, 0.4111935439951595],
-  [10, 0.4225],
-  [10.5, 0.4329264087965774],
-  [11, 0.44310755],
-  [11.5, 0.4530599628689135],
-  [12, 0.4627984],
-  [12.5, 0.4723360827308573],
-  [13, 0.48168495],
-  [13.5, 0.49085580932476297],
-  [14, 0.49985844],
-  [14.5, 0.5087017591555174],
-  [15, 0.51739395],
-  [15.5, 0.5259424956328841],
-  [16, 0.5343543],
-  [16.5, 0.5426357508963908],
-  [17, 0.5507927],
-  [17.5, 0.5588305922386229],
-  [18, 0.5667545],
-  [18.5, 0.574569134506658],
-  [19, 0.5822789],
-  [19.5, 0.5898879034974399],
-  [20, 0.5974],
-  [20.5, 0.6048236602280411],
-  [21, 0.6121573],
-  [21.5, 0.6194041050661919],
-  [22, 0.6265671],
-  [22.5, 0.6336491667895227],
-  [23, 0.64065295],
-  [23.5, 0.6475809587060136],
-  [24, 0.65443563],
-  [24.5, 0.6612192609753201],
-  [25, 0.667934],
-  [25.5, 0.6745818887829742],
-  [26, 0.6811649],
-  [26.5, 0.6876848943474521],
-  [27, 0.69414365],
-  [27.5, 0.7005428891384746],
-  [28, 0.7068842],
-  [28.5, 0.713169102419072],
-  [29, 0.7193991],
-  [29.5, 0.7255756180718899],
-  [30, 0.7317],
-  [30.5, 0.7347410173422504],
-  [31, 0.7377695],
-  [31.5, 0.7407855800803546],
-  [32, 0.74378943],
-  [32.5, 0.7467812039953893],
-  [33, 0.74976104],
-  [33.5, 0.7527290986842915],
-  [34, 0.7556855],
-  [34.5, 0.7586303636507689],
-  [35, 0.76156384],
-  [35.5, 0.7644860688461087],
-  [36, 0.76739717],
-  [36.5, 0.7702972738840048],
-  [37, 0.7731865],
-  [37.5, 0.7760649434180147],
-  [38, 0.77893275],
-  [38.5, 0.7817900775756758],
-  [39, 0.784637],
-  [39.5, 0.7874735905949481],
-  [40, 0.7903],
-  [40.5, 0.7928039417157309],
-  [41, 0.7953],
-  [41.5, 0.7978039170121942],
-  [42, 0.8003],
-  [42.5, 0.8028038926163724],
-  [43, 0.8053],
-  [43.5, 0.8078038685225517],
-  [44, 0.8103],
-  [44.5, 0.8128038447251588],
-  [45, 0.8153],
-  [45.5, 0.8178038212187566],
-  [46, 0.8203],
-  [46.5, 0.8228037979980404],
-  [47, 0.8253],
-  [47.5, 0.8278037750578334],
-  [48, 0.8303],
-  [48.5, 0.8328037523930834],
-  [49, 0.8353],
-  [49.5, 0.8378037299988584],
-  [50, 0.8403],
-  [50.5, 0.842803707870344],
-  [51, 0.8453],
-];
-
-/**
- * The hermetic game master: the types `parseDetail` matches against, the forms `identify` chooses between, and the
- * multipliers `levelsOf` and `cpOf` work in. `moves` is empty because nothing here calls `parseMoves`.
- *
- * `species` is derived from `FORMS` rather than listed again, so a form added below is a species too and the two cannot
- * drift. It is the one place this table is weaker than the real one and worth saying so: eleven names is a short list
- * for `closest` to fail to match, where production offers it 1,024. What the nickname row below asserts is therefore
- * that `identify` files an unmatched name as a nickname — the wiring — and not that `aals15` resembles no real species.
- */
-const DATA: GameData = {
-  types: TYPES,
-  forms: FORMS,
-  species: [...new Set(FORMS.map((f) => f.species))],
-  moves: [],
-  cpm: CPM,
-};
+const DATA = JSON.parse(readFileSync(new URL('fixtures/game-master.json', import.meta.url), 'utf8')) as GameData;
 
 /**
  * The tag names under storage's own TAGS tab, which is the vocabulary a `--tags` run passes and the only thing that can
@@ -441,7 +164,7 @@ const ARTWORK = new Map<string, Signature>([
 
 /** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
 const ICONS: ReadonlyMap<Form, Signature> = new Map(
-  FORMS.flatMap((f): [Form, Signature][] => {
+  DATA.forms.flatMap((f): [Form, Signature][] => {
     const signature = ARTWORK.get(label(f));
 
     return signature ? [[f, signature]] : [];
@@ -1575,6 +1298,30 @@ test('the corpus is the shape the docblock says it is', () => {
 });
 
 /**
+ * The vended game master's own shape, pinned for the reason the corpus's is: the `DATA` docblock quotes these five
+ * figures and prose is the one part of a test file no test reads. Each is what `pnpm vend:game-master` printed as it
+ * wrote the file, so this is also the only thing standing between a fixture truncated or swapped and a reader that has
+ * merely stopped agreeing with a capture — the cast above it is unchecked, `JSON.parse` answering `any`.
+ *
+ * Expect it to move when upstream releases a species, and read that as the vend being reviewed rather than as the suite
+ * breaking: a form arriving that shares a dex, its types and its stamina with one of the captures really does change
+ * what `identify` answers about that Pokémon, and the diff is where that is visible.
+ */
+test('the vended game master is the shape the readers are asserted against', () => {
+  assert.deepStrictEqual(
+    {
+      forms: DATA.forms.length,
+      species: DATA.species.length,
+      moves: DATA.moves.length,
+      types: DATA.types.length,
+      cpm: DATA.cpm.length,
+    },
+    { forms: 1449, species: 1024, moves: 328, types: 18, cpm: 101 },
+    'the `DATA` docblock quotes these figures; re-vend and update both or neither',
+  );
+});
+
+/**
  * Which captures the CP is read off, and what it is read as — the one thing the rows cannot say, since each of them
  * states the number the game printed and a `cpOn` answering null for everything would pass all 61. It is 20 of the 61
  * because the CP is white text over the artwork and the hardest thing on the screen to make out.
@@ -1769,9 +1516,9 @@ test('the status-bar fixture carries a line a loose measurement would take', asy
  * `identify` declines it too, and for a reason worth knowing rather than by luck: with no name read there is no
  * species, so the first filter — `f.species === species` over a `species` of `null` — admits nothing, and the fallback
  * that searches every species is gated on an IV, an HP and a type the map has none of. So `fits` is never reached over
- * the whole table at all, and the answer is a property of the pipeline rather than of whichever form this table folds
- * first. Measured identical against a real `loadGameData('.cache/inventory')` of 1,449 forms, which is what says the
- * 122 here are not what makes it come out empty.
+ * the whole table at all, and the answer is a property of the pipeline rather than of whichever form the table folds
+ * first — which the vended 1,449 forms say outright, where a cut-down table had to have the claim measured against a
+ * real one before it could be believed at all.
  */
 test('overworld.png is the map, and every reader declines it', async () => {
   const { detail, box, overlay } = await readingOf('overworld.png');
@@ -1879,14 +1626,14 @@ test('the artwork settles eight forms the numbers cannot, and declines the eight
 
   for (const fixture of FIXTURES) {
     const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
-    const mine = FORMS.find((f) => label(f) === truth);
+    const mine = DATA.forms.find((f) => label(f) === truth);
 
     if (!mine) {
       continue;
     }
 
     // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
-    const family = FORMS.filter(
+    const family = DATA.forms.filter(
       (f) =>
         f.dex === mine.dex &&
         !f.costume &&

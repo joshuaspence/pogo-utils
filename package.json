@@ -20,7 +20,8 @@
     "test:coverage": "pnpm test --coverage --coverage.include='src/**/*.ts' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text",
     "test:inventory": "node --test 'scripts/**/*.test.mts'",
     "vend": "npm-run-all --continue-on-error --parallel --print-label 'vend:*'",
-    "vend:events": "node scripts/vend-feed.mts"
+    "vend:events": "node scripts/vend-feed.mts",
+    "vend:game-master": "node scripts/vend-game-master.mts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

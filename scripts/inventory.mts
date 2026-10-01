@@ -39,7 +39,7 @@
 
 import { Device, KEY, sleep } from './inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from './inventory/artwork.mts';
-import { closest, loadGameData, type Form, type GameData } from './inventory/game-master.mts';
+import { CACHE, closest, loadGameData, type Form, type GameData } from './inventory/game-master.mts';
 import { centre, findLine, fold, ocr, type Line } from './inventory/ocr.mts';
 import { decodePng, difference, encodePng, type Image } from './inventory/png.mts';
 import {
@@ -177,8 +177,6 @@ const COLUMNS = [
   'types',
   'notes',
 ] as const;
-
-const CACHE = '.cache/inventory';
 
 /** How many times one detail screen is read before its reading is taken as final. */
 const READ_ATTEMPTS = 3;
