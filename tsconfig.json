@@ -49,7 +49,14 @@
   // by name rather than by directory because they sit among the files that import them: they are shared by what reads
   // them, not by where they live.
   "include": ["src/**/*.ts"],
-  "exclude": ["src/countries.ts", "src/event-feed.ts", "src/generated.ts", "src/recurring-types.ts", "src/types.d.ts"],
+  "exclude": [
+    "src/countries.ts",
+    "src/event-feed.ts",
+    "src/generated.ts",
+    "src/gpx-dialect.ts",
+    "src/recurring-types.ts",
+    "src/types.d.ts"
+  ],
 
   "references": [{ "path": "tsconfig.shared.json" }]
 }
