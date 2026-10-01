@@ -1,7 +1,8 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
  * schema (resources/gpx.xsd), and that its `pgr` extension fields are the ones the viewer reads and its country is one
- * the viewer knows, with nothing in that table the files never name (src/countries.ts).
+ * the viewer knows, with nothing in that table the files never name (src/countries.ts). Then the two requirements the
+ * viewer adds on top of the schema: every entry names itself, and every track has points enough to draw.
  *
  * `--write` adds the two files that tell the pages what the repository holds, data/gpx-paths.json and
  * data/entries-by-event.json, each derived from the same pass that just checked the files rather than from a reading of
@@ -188,6 +189,20 @@ for (const { fileName, contents } of sources) {
 
     if (!counts.country) {
       report(fileName, entry, `<${entry.localName}> has no <pgr:country>`);
+    }
+
+    /**
+     * The other two things the viewer refuses an entry for, each valid GPX 1.1 and so invisible to the schema pass
+     * above: `placeName` wants a direct-child `<name>` with text in it, and `gpxEntries` wants a `<trk>` it can draw,
+     * which takes two points. Neither refusal is a skip — both throw, which rejects the whole file, so one nameless
+     * waypoint takes every route beside it off the map.
+     */
+    if (!elementChildren(entry).some((child) => child.localName === 'name' && child.textContent?.trim())) {
+      report(fileName, entry, `<${entry.localName}> has no <name>`);
+    }
+
+    if (entry.localName === 'trk' && entry.getElementsByTagName('trkpt').length < 2) {
+      report(fileName, entry, '<trk> has fewer than two <trkpt> — too few to draw');
     }
 
     /**
