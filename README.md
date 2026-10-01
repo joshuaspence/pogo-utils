@@ -33,13 +33,9 @@ links through to an event's routes, and the only record of which event an entry 
 GPX file — finding those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and
 waypoints it has.
 
-Both are written by the script that validates the files rather than kept by hand, so a stale index fails `pnpm lint`
-instead of quietly dropping a route from the map or mislabelling a card. Regenerate them after adding or removing a
-`.gpx`:
-
-```sh
-pnpm lint:xml:fix
-```
+Neither is in version control. `pnpm build` writes both, out of the very pass that validates the files, so adding or
+removing a `.gpx` is the whole of the change — there is no index to regenerate alongside it and no stale copy for a
+check to catch.
 
 ## File format
 

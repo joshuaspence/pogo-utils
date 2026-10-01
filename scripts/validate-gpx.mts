@@ -1,9 +1,14 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
- * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is one
- * the viewer knows, with nothing in that table the files never name (src/countries.ts); and that data/gpx-paths.json and
- * data/entries-by-event.json, the two files that tell the pages what the repository holds, still agree with it.
- * `--write` regenerates both, each derived from the same pass that checks it.
+ * schema (resources/gpx.xsd), and that its `pgr` extension fields are the ones the viewer reads and its country is one
+ * the viewer knows, with nothing in that table the files never name (src/countries.ts).
+ *
+ * `--write` adds the two files that tell the pages what the repository holds, data/gpx-paths.json and
+ * data/entries-by-event.json, each derived from the same pass that just checked the files rather than from a reading of
+ * its own. Neither is in version control, so there is nothing to compare one against and nothing to keep in step: the
+ * flag is which caller wants them rather than a mode. `pnpm build` is that caller, and `pnpm lint:xml` is the checks on
+ * their own — which is what keeps a parallel `pnpm lint` from putting two writers on one file, `lint:types` being the
+ * build.
  *
  * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
@@ -17,7 +22,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { validateXML } from 'xmllint-wasm';
 
-// `--write` regenerates the two indexes rather than checking them, the way `prettier --write` is to `prettier --check`.
+// `--write` generates the two indexes beside the checks rather than instead of them: what it writes is what passed.
 const writeIndex = process.argv.includes('--write');
 
 const files = execFileSync('git', ['ls-files', '-z', '*.gpx'], { encoding: 'utf8' }).split('\0').filter(Boolean);
@@ -217,65 +222,38 @@ if (unusedCountries.length === 0) {
 }
 
 /**
- * Static hosting cannot list a directory, so the viewer is handed its paths in GPX_PATHS. Nothing else notices when
- * that file falls out of step with the repository, and the failure is silent in the worst way: a route that is
- * perfectly good GPX, and that this script has just validated, simply never appears on the map.
+ * Static hosting cannot list a directory, so the viewer is handed its paths in GPX_PATHS. Derived from the same
+ * `git ls-files` this pass walked, which is the whole of why it cannot fall out of step: what the map is told the
+ * repository holds and what it was just checked for are one query, where a file kept by hand could drop a route that is
+ * perfectly good GPX and leave nothing to say so but its absence from the map.
  *
- * `git ls-files` sorts its own output, so what this writes is what the check below accepts and two runs over the same
- * repository produce the same bytes. Unlike ENTRIES_BY_EVENT the content comes from git rather than from inside the
- * files, so nothing above can make it wrong and the write is not gated on the validation passing.
+ * `git ls-files` sorts its own output, so two runs over the same repository produce the same bytes and a deploy that
+ * found nothing new serves a file a browser can keep. Unlike ENTRIES_BY_EVENT the content comes from git rather than
+ * from inside the files, so nothing above can make it wrong and the write is not gated on the validation passing.
  */
-const paths = `${JSON.stringify(files, null, 2)}\n`;
-
 if (writeIndex) {
-  writeFileSync(GPX_PATHS, paths);
+  writeFileSync(GPX_PATHS, `${JSON.stringify(files, null, 2)}\n`);
   console.log(`Wrote ${GPX_PATHS} — ${files.length} files.`);
-} else {
-  const current = readFileSync(GPX_PATHS, 'utf8');
-  const listed: string[] = JSON.parse(current);
-
-  for (const file of files.filter((file) => !listed.includes(file))) {
-    problems.push(`${file}: tracked but missing from ${GPX_PATHS} — the map will not show it`);
-  }
-
-  for (const file of listed.filter((file) => !files.includes(file))) {
-    problems.push(`${file}: listed in ${GPX_PATHS} but not tracked — the map will fail to fetch it`);
-  }
-
-  /**
-   * Compared as bytes rather than as sets, so an order the map does not care about but a diff does — the same two
-   * entries swapped — is reported too, with no per-file line above it to explain it, hence the message naming the file.
-   */
-  if (current === paths) {
-    console.log(`${GPX_PATHS} lists all ${listed.length} files.`);
-  } else {
-    problems.push(`${GPX_PATHS}: out of step with the tracked files — regenerate it with \`pnpm lint:xml:fix\`.`);
-  }
 }
 
 /**
  * The events page links through to an event's routes, and the only record of which event an entry belongs to is a
  * `<pgr:event>` inside a GPX file. Finding that would cost the page a fetch of every one of them to learn that a
  * handful carry an event at all, so the association is precomputed here into ENTRIES_BY_EVENT — the same bargain
- * GPX_PATHS strikes, and it falls out of step the same silent way, hence the same check.
+ * GPX_PATHS strikes, out of the tally the walk above kept rather than a reading of its own.
  *
- * Keys are sorted so that two runs over the same repository produce the same bytes, and the file is only written once
- * everything above has passed: an index naming an event that does not exist would be worse than a stale one.
+ * Keys are sorted so that two runs over the same repository produce the same bytes, and the file is written only once
+ * everything above has passed: an index naming an event that does not exist would be worse than none. The refusal is a
+ * problem rather than a silence because nothing downstream would notice the gap — `scripts/assemble.mts` copies `data/`
+ * whole, so a file that was never written is simply not in the artifact, and the Events page 404s for it.
  */
-const sorted = [...eventIndex].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-const expected = `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`;
-
 if (writeIndex && problems.length) {
   problems.push(`Refusing to write ${ENTRIES_BY_EVENT} from files that do not validate.`);
 } else if (writeIndex) {
-  writeFileSync(ENTRIES_BY_EVENT, expected);
+  const sorted = [...eventIndex].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
+  writeFileSync(ENTRIES_BY_EVENT, `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`);
   console.log(`Wrote ${ENTRIES_BY_EVENT} — ${eventIndex.size} event(s) with entries.`);
-} else if (readFileSync(ENTRIES_BY_EVENT, 'utf8') !== expected) {
-  problems.push(
-    `${ENTRIES_BY_EVENT}: out of step with the <pgr:event> fields — regenerate it with \`pnpm lint:xml:fix\`.`,
-  );
-} else {
-  console.log(`${ENTRIES_BY_EVENT} lists ${eventIndex.size} event(s) with entries.`);
 }
 
 if (problems.length === 0) {
