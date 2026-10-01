@@ -220,14 +220,54 @@ Which route a change takes turns on whether it changes what the code _does_ or o
 - **A change that is both is a logic change.** Adding a species to a filter is data; changing how that filter decides
   what to include, even in the same commit as an entry, is not.
 
+## Testing
+
+`pnpm test` runs Vitest over the modules whose output is a value, each test co-located beside what it tests as
+`src/**/*.test.ts`. There is no `vitest.config.mts`: everything below is either a default worth knowing or a flag on the
+`test` script, so the one place that says how tests run is the script that runs them.
+
+- **Vitest resolves `./x.js` onto `x.ts` with no configuration, so a test sits on the specifier convention without a
+  hook.** Check the transitive case rather than the first edge, which is not the one that breaks:
+  `search/optimise.test.ts` reaches `pokedex.js` through `optimise.js` and gets all 1,025 entries, with
+  `find src -name '*.js'` answering 0 — there is no `.js` file in the tree for any of it to have resolved to.
+- **Vitest is blind to types, and `pnpm lint:types` is what checks a test — only because tests sit under `src/`.**
+  esbuild strips an annotation without reading it, so `const wrong: number = optimise(state({})).lossy` is 13 tests
+  passed and `TS2322: Type 'boolean' is not assignable to type 'number'` over the same line. `tsconfig.json`'s `include`
+  is `src/**/*.ts`, so a co-located test is already in the browser project: a tests directory of its own would silently
+  stop checking them and want a fourth project to put it back.
+- **`types: []` does not block a named `vitest` import**, that setting governing automatic ambient `@types` inclusion
+  alone — `import {expect, test} from 'vitest'` resolves through the package's own `exports` and makes nothing ambient.
+  The control is `process.env`, still a `TS2591` in a test file carrying that import.
+- **Collection is confined to `src/`, because `.claude/worktrees/` is inside the repository.** Vitest excludes
+  `**/node_modules/**` and `**/.git/**` and nothing else, so a sibling worktree's tests join the run: 2 files and 14
+  tests against the 1 and 12 this checkout holds, a suite reporting on a tree nobody is editing. `--dir src` is what
+  bounds it, and a worktree per subtask being a rule here is what makes this systematic rather than an accident.
+- **Zero test files exits 1 and prints the globs it tried, so never reach for `--passWithNoTests`.** That flag turns a
+  glob matching nothing into a pass, which is this repository's worst failure mode — the same one
+  [a `files` glob](#building) has already cost it once. It is also why a harness cannot land ahead of its first test.
+- **A test over the real tables asserts the shape of the data its case needs.** `saur` reaching three species and
+  beginning none is the whole of what its refusal is about, so a dex that had moved would leave the assertion passing
+  for nothing — the [`dialog-variants`](#designing-a-probe) failure, two breaks each moving 0 of 74 snapshots. Pin
+  `{contains: 3, begins: 0}` beside the behaviour, and hand-derive the expectation rather than reading it out of the
+  same table the code reads, or the test agrees with a table that is wrong.
+- **Count what a fragment reaches before writing down what it reduces to.** `char` reads as `4-6` and is refused:
+  Charjabug and Charcadet begin with it as well, Chimchar and Pecharunt carry it in the middle, so the two sets are 5
+  and 7 and disagree. One `grep -c` over `pokedex.ts` settles that where reasoning about the name does not.
+- **An expectation that reads a zone wants `TZ=UTC pnpm test` beside it, because the runner's own zone is UTC and a zero
+  offset is signed.** `event-feed.test.ts` passed here at UTC+10 and failed on CI with
+  `AssertionError: expected +0 to be -0`: `getTimezoneOffset()` answers `0` there, so a negated `-0 * 60_000` is `-0`,
+  which `toBe` tells apart from `+0` through `Object.is`. Subtract so the sign comes out of the data rather than out of
+  a unary minus, and run the two zones rather than the one — this is the [`events.html` figure](#designing-a-probe)
+  again with the machine standing in for the feed.
+
 ## Checking the pages in a browser
 
-There is no test suite and `pnpm lint` says nothing about whether a page looks right. Run `pnpm build`, serve
-**`dist/`** with `python3 -m http.server`, and drive headless Chrome over the DevTools Protocol from Python `websockets`
-— no Playwright or Puppeteer package is installed, though Playwright's browser binaries are cached. Serving the
-repository root instead is a mistake that announces itself, which makes the root the cheapest **control**: no page loads
-at all, because `src/app.js` is not in the checkout. Rebuild before every run, since a stale `dist/` is the
-edit-not-served trap one level above the browser cache.
+`pnpm test` covers what a module computes and `pnpm lint` says nothing about whether a page looks right, so neither
+reaches a rendering. Run `pnpm build`, serve **`dist/`** with `python3 -m http.server`, and drive headless Chrome over
+the DevTools Protocol from Python `websockets` — no Playwright or Puppeteer package is installed, though Playwright's
+browser binaries are cached. Serving the repository root instead is a mistake that announces itself, which makes the
+root the cheapest **control**: no page loads at all, because `src/app.js` is not in the checkout. Rebuild before every
+run, since a stale `dist/` is the edit-not-served trap one level above the browser cache.
 
 ### Designing a probe
 
@@ -290,13 +330,13 @@ edit-not-served trap one level above the browser cache.
 
 ### Differentials
 
-- **Most of `src/` needs no browser: every module but the five entry points imports under `node`, given a resolve
-  hook.** The browser half's specifiers name `.js` and Node resolves them literally, so a ten-line `module.register`
-  hook retrying `./x.js` as `./x.ts` is what restores the strongest check available for anything whose output is a value
-  rather than a rendering. `register` takes a URL and a relative specifier resolves against the importing file, so reach
-  for `pathToFileURL` on both. The entry points fail at module scope rather than in their logic — `app.ts` on
-  `ERR_UNKNOWN_FILE_EXTENSION` for its stylesheet, the other four on an `HTMLElement` — so settle which is which by
-  importing rather than by grepping for `document`.
+- **Most of `src/` needs no browser: every module but the five entry points imports outside one.** The strongest check
+  available for anything whose output is a value rather than a rendering is therefore a test, and
+  [Vitest resolves the `.js` specifiers itself](#testing). Bare Node resolves them literally, so reaching one from a
+  script or a probe wants a ten-line `module.register` hook retrying `./x.js` as `./x.ts`; `register` takes a URL and a
+  relative specifier resolves against the importing file, so reach for `pathToFileURL` on both. The entry points fail at
+  module scope rather than in their logic — `app.ts` on `ERR_UNKNOWN_FILE_EXTENSION` for its stylesheet, the other four
+  on an `HTMLElement` — so settle which is which by importing rather than by grepping for `document`.
 - **An entry point cannot be differentialled under Node, so serve both trees and drive one corpus over each.**
   `git archive <base>` the old tree beside the worktree and `diff -rq` them, so the file under test is the only
   difference; serve each on its own port, so neither can serve the other's cache; snapshot after every step, naming
