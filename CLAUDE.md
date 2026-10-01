@@ -763,9 +763,11 @@ rank them, and the ranking was not what watching the scan suggested.
 
 `pnpm test` runs `scripts/inventory/screens.test.mts` over eight real screenshots in `scripts/inventory/fixtures/`.
 Every reader on the detail screen is a pure function of one screenshot, so the screenshot is the whole of what a test
-needs — no phone, no network, and a hermetic 18-element `GameData`, since `parseDetail` reaches the game master only
-through `typesOf` and that wants the type names and nothing else. The whole suite is about 17 seconds, OCR being all of
-it.
+needs — no phone, no network, and a hermetic `GameData` of eighteen type names for `parseDetail` plus, for `identify`,
+38 forms and the 101-entry CP multiplier table, each value read once out of a real `loadGameData` and recorded in the
+file. 173 tests in about 33 seconds, OCR being all of it: each attribute is a subtest under a parent per capture, so a
+failure names the reader that broke, and the reading is memoised per capture, which is why the assertions are free and
+only the eight OCR passes cost anything.
 
 - **Select a fixture with a search that pins every attribute at once, and commit the search beside it.** A capture
   chosen because a sprite looked small is only as good as the eye that chose it, where
@@ -799,6 +801,52 @@ it.
 - **Grep a mutation harness's own output at your peril.** One pass reported `pass=0 fail=1 caught=[]` for a break that
   was in fact caught — the figure came from a parse of the test runner's output, not from the runner. Print the failing
   test names the runner printed, and print a run that did not complete as a failure rather than as a number.
+- **`node --test` prints `spec` and not TAP, even into a pipe, so there is no `not ok` to grep for at all.** That is the
+  mechanism behind the bullet above, and it reads as a weak corpus rather than as a broken parse: every verdict comes
+  from the exit code and every break is recorded as having been caught by nothing. A failure is a `✖` line, and the
+  runner also prints its own `failing tests:` block — but that block lists leaves _without_ their parents, so where
+  eight captures each own a subtest called `identify levels` it cannot say which capture failed. Parse the indented live
+  log above it and rebuild the path from the `▶` lines. Then cross-check the parse against the exit code and print the
+  disagreement as `INCOHERENT`, which is what stops a verdict being banked for a run the harness could not read.
+- **A mutation pass over this suite need not edit the tree at all.** The test resolves its fixtures from
+  `new URL('fixtures/…', import.meta.url)` and `screens.mts` imports only three siblings, so a copy of the four modules
+  under `/tmp` beside a symlink to `fixtures/` runs the same suite — verified by a pristine control answering the same
+  173 pass off-tree. That retires the signal-handler hazard rather than managing it, and it is not merely tidier:
+  captures were being taken out of this checkout while a pass was running, so an in-place mutation would have handed a
+  live scan a deliberately broken reader.
+- **Run the whole pipeline on every capture, not on the one that looks hardest.** `identify` was asserted on the Unown
+  alone, and a break making `levelsOf` admit any HP at or above the one read survived it: the Unown's own shortlist is
+  `[1, 6, 16]`, whose largest member is already the true level, so nothing it could admit changes the answer. Asserting
+  `identify`'s form, levels, CP, nickname, alternatives and notes on all eight takes that break to **five captures
+  failing**, and costs no wall clock, the reading being memoised and the arithmetic free. Assert the property that makes
+  it catchable in the corpus test too — that some capture's shortlist offers a level above its true one — since a corpus
+  can quietly lose that again.
+- **Account for a survivor over every capture on the machine, not only over the committed eight.** Three of twelve
+  breaks in the second pass survived and the git-ignored snaps settle all three by derivation, which is cheaper than a
+  fixture and does not commit an account's data. Dropping the name reader's second filter, the one that removes a
+  CP-like line, moves **0 of 23** captures: `l !== cpLine` already takes the one CP each screen has, so the filter earns
+  its place only where OCR reads a CP twice, and no real screen here does. Narrowing `OVERLAY_SUFFIX_CHARACTERS` from 5
+  to 1 reads the bracketed form identically on every Unown here and reads one capture _better_, for the reason
+  [the overlay section](#reading-pgsharps-overlay) now records — and a mutation that improves a reading is not a defect,
+  so nothing can catch it. The ternary intersecting the overlay's shortlist with the levels the HP admits moves **1 of
+  23**: it needs an HP that two adjacent half-levels both reproduce _and_ an overlay naming one of them, which
+  `pikachu-santa-hat.png` has at 76 HP for level 22.5 or 23 and no committed fixture has at all.
+- **A cut-down game master is honest only once it is measured against the real one.** The 38 forms recorded in the file
+  and a real `loadGameData('.cache/inventory')` carrying 1,449 answer `identify` identically on all eight captures,
+  field for field, down to one capture's five-way ambiguity and both of its notes. It works because `identify` narrows
+  before it chooses — by species where the name matched, by type and HP where it did not — and because the costume fold
+  collapses Pikachu's 69 forms and Unown's 28 to one each. Unown's 28 are all kept even so, since PGSharp's bracketed
+  form chooses between them _before_ the fold. Where the small table is weaker is `species`, eleven names against 1,024,
+  so the nickname row asserts the wiring rather than that `aals15` resembles no real species.
+- **Asserting a field the suite used to discard is what finds a defect; pin it rather than fixing it in the same
+  change.** Five readings disagree with their screen, each row carries what the capture renders beside what the reader
+  answered, and the suite's own docblock states all five with the evidence. The one to know about is not a reader at
+  all: `fixtures/lucky-shiny.png` is **answered as a Charizard and is a Ho-Oh**. Its nickname hides the species, five
+  forms fit Fire/Flying at 152 HP after the fold, and `fits` asks whether _some_ level reproduces the HP and checks the
+  level the overlay states only afterwards, against a form it has already chosen — where of those five only Ho-Oh shows
+  152 HP at the `L25` the capture states, and its 246.49kg and 4.6m agree with a Ho-Oh's base 199kg and 3.8m against a
+  Charizard's 90.5 and 1.7. That is a one-clause change to `fits` and a change to what the code does, so it is a pull
+  request of its own and not part of writing the tests.
 
 ### What the detail screen will and will not tell you
 
@@ -903,6 +951,13 @@ row was being matched against, and matching against the seven is the single larg
   under-estimates it. A box tightened on one Pokémon then clipped the `L31` off the next while keeping its IVs, so the
   read succeeded, nothing widened the box, and only the level was gone. Widening on a failed read does not cover this;
   the answer is to reach further than the text can need — 19 characters reads 49 of 50 levels and 30 reads all of them.
+- **That holds leftward and not rightward, because what sits to the right of the overlay is the shiny sparkle.**
+  `OVERLAY_SUFFIX_CHARACTERS` reaches past the IVs for the bracketed form PGSharp appends, and measured over the 23
+  captures on this machine, 5 characters buys nothing a single character does not — the form reads identically on every
+  Unown — while costing one capture its whole overlay: `unown-m-shiny.png` yields no level and no IVs at reach 5 and
+  yields both at reach 1, the `✨` falling inside the wider box and garbling the triple. So the two reaches are not one
+  constant with two ends. Expect a mutation narrowing this one to **survive the fixtures**, since the corpus holds a
+  single Unown and the narrower reach reads it the same, and read that survival as the measurement rather than as a gap.
 - **The unit is the part of a measurement that goes.** A Cyndaquil's `5.42kg` came back `5.42k` and was thrown away for
   want of a `g`. Match the number: every weight and height the game shows carries a decimal point, and the stray digits
   a crop picks out of the artwork do not. The decimal point is load-bearing and the screen furniture is where it bites:
