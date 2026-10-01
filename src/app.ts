@@ -295,7 +295,7 @@ async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[
     });
   }
 
-  // A listed file holding neither is a defect too: something is in gpx-paths.json that has nothing to show.
+  // A listed file holding neither is a defect too: something is in data/gpx-paths.json that has nothing to show.
   if (routes.length === 0 && waypoints.length === 0) {
     throw new Error('has no <trk> or <wpt>');
   }

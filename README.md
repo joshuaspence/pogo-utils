@@ -24,14 +24,14 @@ python3 -m http.server --directory dist
 # then open http://localhost:8000/map.html
 ```
 
-Static hosting cannot list a directory, so the viewer is handed the paths in [`gpx-paths.json`](gpx-paths.json). Nothing
-but the paths comes from it. Each listed file is read for what it holds: a `<trk>` becomes a track and a `<wpt>` becomes
-a waypoint, so which directory a file sits in decides nothing.
+Static hosting cannot list a directory, so the viewer is handed the paths in
+[`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it
+holds: a `<trk>` becomes a track and a `<wpt>` becomes a waypoint, so which directory a file sits in decides nothing.
 
-[`entries-by-event.json`](entries-by-event.json) is generated for the same kind of reason. The Events page links through
-to an event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a GPX file —
-finding those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and waypoints
-it has.
+[`data/entries-by-event.json`](data/entries-by-event.json) is generated for the same kind of reason. The Events page
+links through to an event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a
+GPX file — finding those would cost the page a fetch of every one of them. It maps each `eventID` to how many routes and
+waypoints it has.
 
 Both are written by the script that validates the files rather than kept by hand, so a stale index fails `pnpm lint`
 instead of quietly dropping a route from the map or mislabelling a card. Regenerate them after adding or removing a
@@ -106,8 +106,8 @@ Through pnpm rather than `node` directly: the generator is TypeScript, and `devE
 new enough to strip it.
 
 The generator reads no clock — the output is a pure function of the feed, [`data/events.json`](data/events.json) and
-[`entries-by-event.json`](entries-by-event.json) — so an unchanged file after a run means the event data has not moved.
-That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
+[`data/entries-by-event.json`](data/entries-by-event.json) — so an unchanged file after a run means the event data has
+not moved. That is what makes the commit conditional rather than a fresh set of timestamps four times a day:
 [`git-auto-commit-action`](https://github.com/stefanzweifel/git-auto-commit-action) commits and pushes the feed only
 when it differs, and passes without a commit when it does not. Note that GitHub disables a scheduled workflow after 60
 days without a commit to the repository; re-enable it from the Actions tab if the feed ever goes stale.

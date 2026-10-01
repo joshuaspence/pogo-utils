@@ -11,7 +11,6 @@
  * the check at the end turns that into a failed build instead of something found by opening the site.
  */
 
-import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
 
@@ -31,9 +30,11 @@ const PUBLISHED = [
   'icons/*.png',
 
   'events.ics',
-  ENTRIES_BY_EVENT,
-  GPX_PATHS,
+
+  // `src/generated.ts`'s two indexes are in here, so neither is named above: `publish` throws rather than copying a
+  // path twice, and the directory is what the pages fetch them under.
   'data',
+
   'src/*.css',
 ];
 

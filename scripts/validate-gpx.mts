@@ -1,9 +1,9 @@
 /**
  * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
  * schema (resources/gpx.xsd); that its `pgr` extension fields are the ones the viewer reads and that its country is one
- * the viewer knows, with nothing in that table the files never name (src/countries.ts); and that gpx-paths.json and
- * entries-by-event.json, the two files that tell the pages what the repository holds, still agree with it. `--write`
- * regenerates both, each derived from the same pass that checks it.
+ * the viewer knows, with nothing in that table the files never name (src/countries.ts); and that data/gpx-paths.json and
+ * data/entries-by-event.json, the two files that tell the pages what the repository holds, still agree with it.
+ * `--write` regenerates both, each derived from the same pass that checks it.
  *
  * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
  * nothing to gain by making this check depend on a twenty-year-old site staying up.
@@ -83,8 +83,8 @@ let entryCount = 0;
 
 /**
  * How many routes and waypoints each event has, by `eventID`. Filled as the entries are walked below rather than by a
- * second pass, so what gets written to entries-by-event.json cannot describe a file differently from the checks that
- * just validated it.
+ * second pass, so what gets written to data/entries-by-event.json cannot describe a file differently from the checks
+ * that just validated it.
  */
 const eventIndex = new Map<string, RouteCounts>();
 

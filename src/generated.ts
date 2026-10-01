@@ -8,8 +8,12 @@
  * old name in a script `npm run lint` does not run: the build was dead for a commit and nothing said so.
  *
  * Neither name needs a second spelling for the two kinds of consumer that share it. A page resolves a relative URL
- * against its own, and the pages sit at the repository root — which is also where a script is run from.
+ * against its own, and the pages sit at the repository root — which is also where a script is run from, so one relative
+ * path serves both however deep it goes.
+ *
+ * Both sit in `data/` beside the events they describe, which is what `scripts/assemble.mts` publishes them under: that
+ * directory is already copied whole, so neither wants an entry of its own in the allowlist.
  */
 
-export const GPX_PATHS = 'gpx-paths.json';
-export const ENTRIES_BY_EVENT = 'entries-by-event.json';
+export const GPX_PATHS = 'data/gpx-paths.json';
+export const ENTRIES_BY_EVENT = 'data/entries-by-event.json';

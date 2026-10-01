@@ -15,7 +15,7 @@ on:
     paths:
       - '.github/workflows/calendar.yml'
       - 'data/events.json'
-      - 'entries-by-event.json'
+      - 'data/entries-by-event.json'
       - 'package.json'
       - 'scripts/build-ics.mts'
       - 'src/event-feed.ts'
