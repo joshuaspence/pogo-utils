@@ -57,23 +57,24 @@
  *   the game's own icons and declines the rest, which is why those carry `defects.label` and some a
  *   `defects.alternatives` beside it. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can
  *   never be settled that way. The last three families are the ones the printed CP can separate, which is why only the
- *   five of their seven rows that state no CP are left here. - **Two glyphs and one name the readers lose.**
+ *   five of their seven rows that state no CP are left here. - **Two glyphs the readers lose.**
  *   `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name
  *   coming back as a digit and a letter. Neither can be recovered by reading the glyph better, because `fold` maps both
  *   species to the same `nidoran` before `closest` ever sees them — so the name cannot choose between the two, and the
- *   male one is answered as a `Nidoran♀` on the strength of an HP its stamina also fits. `articuno-kanto.png` reads
- *   `ate` for `Articuno`. - **One bracket not read.** `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes
- *   a species' forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which
- *   are `[` and `\` — in the alphabet now, and the `[` still does not survive the crop.
+ *   male one is answered as a `Nidoran♀` on the strength of an HP its stamina also fits. - **One bracket not read.**
+ *   `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species' forms from `A`, so the game's 27th and
+ *   28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[` and `\` — in the alphabet now, and the
+ *   `[` still does not survive the crop.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
  * calls `spinda-04.png` a favourite, `tagsOn` no longer cuts away `snorlax-purified.png`'s `Perfect` chip as though it
  * were the type icons, `typesOf` no longer loses a type name Tesseract split across a space, the CP is no longer
- * misread on any capture, a height is no longer taken from under the size pill that corrupts it — `spoink.png` rendered
- * `1.1m` and read `1.4m` until that line was read on its own — and `readOverlay` now reads every IV triple on the
- * screen correctly, `basculin-blue.png` having been the last one wrong at `3/3/5` for an `8/3/5`, which a third
- * brightness floor reads and the percentage confirms.
+ * misread on any capture, a height is no longer taken from under the size pill that corrupts it, a name the pass misses
+ * outright is re-read off its own band rather than filed as a nickname — `articuno-kanto.png` answered `ate`, a
+ * fragment of the artwork 487 pixels above the HP, where no name line was detected at all — and `readOverlay` now reads
+ * every IV triple on the screen correctly, `basculin-blue.png` having been the last one wrong at `3/3/5` for an
+ * `8/3/5`, which a third brightness floor reads and the percentage confirms.
  *
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
  * the fold on every one. What it wants is a capture of a scrolled screen and nothing from the game master: the vended
@@ -333,7 +334,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1705,
-    defects: { name: 'ate', nickname: 'ate' },
     file: 'articuno-kanto.png',
     form: null,
     gender: null,
@@ -1304,7 +1304,7 @@ const COVERAGE = {
   crossCheckDisagrees: 4,
   severalLevels: 1,
   noLevel: 2,
-  noDefects: 40,
+  noDefects: 41,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1825,17 +1825,16 @@ test('the corpus reaches both sides of every attribute', () => {
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
   //
-  // `box`, `favourite`, `height`, `iv`, `tags` and `types` are deliberately absent, and that is the point of asserting
-  // the set: `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls
-  // `spinda-04.png` a favourite, the height is re-read off its own line wherever a size badge sits over it,
-  // `readOverlay` reads every triple on the screen correctly, `tagsOn` reads `snorlax-purified.png`'s chip, and
+  // `box`, `favourite`, `height`, `iv`, `nickname`, `tags` and `types` are deliberately absent, and that is the point
+  // of asserting the set: `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls
+  // `spinda-04.png` a favourite, a badged height is re-read off its own line, `readOverlay` reads every triple on the
+  // screen correctly, no name the pass misses is filed as a nickname, `tagsOn` reads `snorlax-purified.png`'s chip, and
   // `typesOf` reads the pair off both Nidoran. Each of those used to need a key here, so one coming back is a
-  // regression this line reports
-  // rather than absorbs.
+  // regression this line reports rather than absorbs.
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix']);
+  ).toStrictEqual(['alternatives', 'cp', 'label', 'levels', 'name', 'notes', 'suffix']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.

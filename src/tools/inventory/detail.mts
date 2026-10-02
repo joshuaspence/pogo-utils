@@ -8,7 +8,7 @@
  * thresholds, the CP being white text over artwork exactly as PGSharp's digits are.
  */
 
-import { type GameData } from './game-master.mts';
+import { closest, type GameData } from './game-master.mts';
 import { fold, ocr, ocrLine, type Line } from './ocr.mts';
 import { crop, isolate, scale, type Image } from './png.mts';
 import { genderOf, isFavourite, sizeOf, tagsOn, type Gender, type Size } from './badges.mts';
@@ -66,8 +66,20 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
         .filter((l) => !/\bcp\s?\d/.test(fold(l.text)))
         .at(-1)
     : undefined;
-  // `%` is here for the same reason: it is a character a nickname can be made of, and stripping it left `96` for `96%`.
-  const name = nameLine ? nameLine.text.replace(/[^\p{L}\p{N} .'%♀♂:-]/gu, '').trim() || null : null;
+  let name = nameLine ? sanitise(nameLine.text) : null;
+
+  // The name again, off its own band, where what the pass found is no species. A rescue in the sense `wholeCp` is one:
+  // taken only where the band itself names a species, so it can turn a missed name into the name and never one species
+  // into another. `articuno-kanto.png` is the whole of why — no name line is detected there at all, so the nearest
+  // three letters above the HP are a fragment of the artwork 487 pixels up, read as `ate` and filed as a nickname.
+  //
+  // Both halves of that guard are load-bearing, and `ho-oh.png` is what shows the second: its band reads `LUCKY
+  // POKEMON`, the green line the game draws under a lucky Pokémon's nickname, which `closest` rejects as no species.
+  // Without it the rescue would replace a real nickname with that. Measured over the corpus, 57 captures name a
+  // species and never reach this, four do, and of those one is rescued and three keep the nickname they had.
+  if (hpLine && (name === null || closest(name, data.species, (s) => s) === null)) {
+    name = (await named(image, hpLine, data.species)) ?? name;
+  }
 
   const number = (pattern: RegExp) => {
     const line = lines.find((l) => pattern.test(l.text));
@@ -145,6 +157,11 @@ async function wholeCp(image: Image, line: Line, read: string): Promise<string |
 
 /** Only what a weight or a height is written with; the `g` of `kg` is dropped often enough not to be relied on. */
 const MEASURE_ALPHABET = '0123456789.,kgm ';
+
+/** How far above the HP the name band reaches, in the HP line's own heights, and how much of the width it omits. */
+const NAME_RISE = 5;
+const NAME_INSET = 0.1;
+const NAME_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ♀♂.'-";
 const MEASURE_WIDTH = 0.38;
 
 /**
@@ -161,6 +178,31 @@ const WEIGHT = /(\d+[.,]\d+)\s*kg\b/i;
 const HEIGHT = /(\d+[.,]\d+)\s*m\b/i;
 
 export const measurement = (text: string) => WEIGHT.test(text) || HEIGHT.test(text);
+
+/**
+ * What a name may be made of after OCR. `%` is here because it is a character a nickname can be made of, and stripping
+ * it left `96` for `96%`; the gender signs because two species' own names carry one.
+ */
+const sanitise = (text: string) => text.replace(/[^\p{L}\p{N} .'%♀♂:-]/gu, '').trim() || null;
+
+/**
+ * The name read off the band between the artwork and the HP bar, and answered only where it is a species' name — which
+ * is what makes this safe to prefer over what the whole-screen pass found. The band is measured in the HP's own height
+ * rather than in a fraction of the screen, since that is what holds across phones: the name sits 117 to 173 pixels
+ * above the HP across the corpus, against an HP line Tesseract reports as 37 to 45 tall, so five of those covers it.
+ */
+async function named(image: Image, hp: Line, species: readonly string[]): Promise<string | null> {
+  const band = crop(
+    image,
+    image.width * NAME_INSET,
+    hp.top - hp.height * NAME_RISE,
+    image.width * (1 - NAME_INSET * 2),
+    hp.height * NAME_RISE,
+  );
+  const text = sanitise((await ocrLine(scale(band, 2), NAME_ALPHABET))?.text ?? '');
+
+  return text !== null && closest(text, species, (s) => s) !== null ? text : null;
+}
 
 /**
  * A height read off its own line, for when the whole-screen pass read one the size badge had corrupted rather than
