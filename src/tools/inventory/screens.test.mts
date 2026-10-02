@@ -1,5 +1,5 @@
 /**
- * What the detail screen's readers make of real screens, over a corpus of 64 captures committed beside this file.
+ * What the detail screen's readers make of real screens, over the corpus of captures committed beside this file.
  *
  * Every reader here is a pure function of a screenshot, so the only thing a test of them needs is the screenshot — no
  * phone and no network. The game master they are read against is vended beside them rather than downloaded, by
@@ -219,15 +219,15 @@ interface Defects {
  *
  * Ten of the attributes are optional and default to absent — no background, no costume, not a favourite, not lucky, not
  * purified, not shadow, not shiny, no size pill, no chips, and a `name` that is the species. Absence is a claim and not
- * a gap: it says the screen shows none of those, which for the 54 rows with no search behind them is what looking at
- * the screen can state. The alternative is all 21 fields written out on every one of the 61 rows, which nobody reads.
+ * a gap: it says the screen shows none of those, which for the rows with no search behind them is what looking at the
+ * screen can state. The alternative is every field written out on every row, which nobody reads.
  */
 interface Fixture {
   /** The scene behind the artwork, or absent for the game's own plain sky. Described, the game showing no label. */
   background?: string;
   /** What the artwork wears, or absent for nothing. Described rather than named, the game showing no label either. */
   costume?: string;
-  /** The CP above the artwork, which `cpOf` must derive and OCR reads on 20 of the 61. */
+  /** The CP above the artwork, which `cpOf` must derive and OCR reads on only the minority the test below names. */
   cp: number;
   defects?: Defects;
   /** Whether the game draws the Dynamax treatment behind the artwork. */
@@ -1154,7 +1154,8 @@ const overlayOf = (fixture: Fixture) => {
 for (const fixture of FIXTURES) {
   const defects = fixture.defects ?? {};
 
-  // What the Pokémon is, and what `identify` answers about it, which are the same string on 35 of the 61.
+  // What the Pokémon is, and what `identify` answers about it, which are the same string wherever no `defects.label`
+  // says otherwise — `COVERAGE.answeredAsThemselves` is how many that is.
   const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
   const answered = defects.label ?? truth;
 
@@ -1250,8 +1251,8 @@ test('every committed capture is either a row or a negative case', () => {
 /**
  * Every figure this file's own docblock quotes about the shape of the corpus, in one place that fails when one of them
  * stops being true. The case for it is not that a count is interesting: it is that the docblock claimed the CP
- * cross-check lands on **39** of the 61 for as long as nobody measured it, where it is 32, and nothing in a green suite
- * could have said so. Prose is the one part of a test file that no test reads.
+ * cross-check lands on **39** of the 61 for as long as nobody measured it, where it was 32, and nothing in a green
+ * suite could have said so. Prose is the one part of a test file that no test reads.
  *
  * So each key is a sentence in the docblock above, and changing the corpus is meant to fail here and send you back to
  * that paragraph. Counted off `FIXTURES` and `overlayOf`, so this is free and cannot disagree with the loop.
@@ -1323,15 +1324,15 @@ test('the vended game master is the shape the readers are asserted against', () 
 
 /**
  * Which captures the CP is read off, and what it is read as — the one thing the rows cannot say, since each of them
- * states the number the game printed and a `cpOn` answering null for everything would pass all 61. It is 20 of the 61
- * because the CP is white text over the artwork and the hardest thing on the screen to make out.
+ * states the number the game printed and a `cpOn` answering null for everything would pass every row. It is a minority
+ * of them because the CP is white text over the artwork and the hardest thing on the screen to make out.
  *
  * Asserted as the whole map rather than as a count, so a reader losing one capture and gaining another cannot come out
  * even, and the four misreads are then **derived** from it rather than transcribed a second time: a row already states
  * what the screen shows, so the disagreement is a filter and not a list to keep in step. Three of the four are an order
  * of magnitude out, the leading digit having been lost to the artwork behind it, and `unown-b.png` loses two.
  */
-test('the CP is read off 20 of the 59 captures, and no longer wrongly on any', async () => {
+test('the CP is read off 20 captures, and no longer wrongly on any', async () => {
   const states = new Map<string, number>();
 
   for (const fixture of FIXTURES) {
@@ -1508,7 +1509,7 @@ test('the status-bar fixture carries a line a loose measurement would take', asy
 
 /**
  * `fixtures/overworld.png` is the map, and this is what the detail readers answer on it: nothing, in every field. That
- * is the half a corpus of valid screens cannot state — 61 rows all assert that a reader found the right thing and not
+ * is the half a corpus of valid screens cannot state — every row asserts that a reader found the right thing and not
  * one of them asserts that a reader declines to find a thing that is not there, so a `hpOn` returning a constant would
  * pass every row it appears in. Written as one `deepStrictEqual` over the whole `Detail` rather than ten assertions,
  * because the claim is about the object and a field added to `Detail` should fail here until it is accounted for.
