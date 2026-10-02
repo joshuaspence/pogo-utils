@@ -481,17 +481,38 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
  */
 function levelsIn(text: string): number[] {
   const levels = new Set<number>();
+  const runs = [...text.matchAll(/\d+/g)].map(([digits]) => digits);
 
-  for (const [digits] of text.matchAll(/\d+/g)) {
+  const offer = (piece: string) => {
+    const level = Number(piece);
+
+    if (level >= 1 && level <= MAX_LEVEL) {
+      levels.add(level);
+    }
+  };
+
+  for (const digits of runs) {
     for (let at = 0; at < digits.length; at++) {
       for (const length of [1, 2]) {
         const piece = digits.slice(at, at + length);
-        const level = Number(piece);
 
-        if (piece.length === length && level >= 1 && level <= MAX_LEVEL) {
-          levels.add(level);
+        if (piece.length === length) {
+          offer(piece);
         }
       }
+    }
+  }
+
+  // And a pair spanning two neighbouring runs, because a space Tesseract put between digits is not a boundary the
+  // screen drew. `pikachu-witch-hat.png`'s overlay is `L27 ɪᴠ51`, read as runs of `2`, `7` and `51`, so `27` was
+  // offered by nothing at all and the HP was left choosing between the 26.5 and 27 it admits — the one capture whose
+  // level stayed ambiguous. The same generosity one step further, and the HP still arbitrates rather than this
+  // deciding anything.
+  for (const [i, run] of runs.entries()) {
+    const next = runs[i + 1];
+
+    if (next !== undefined) {
+      offer((run.at(-1) ?? '') + (next.at(0) ?? ''));
     }
   }
 

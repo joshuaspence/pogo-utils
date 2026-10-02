@@ -18,11 +18,12 @@
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
  * recording `cp` as whatever OCR made of it could check only the 20 OCR reads it on.
  *
- * It reaches the 56 rows where `identify` settles on exactly one level, and on 52 of those the derived CP is the CP the
+ * It reaches the 57 rows where `identify` settles on exactly one level, and on 53 of those the derived CP is the CP the
  * screen prints. The other four are the check doing its other job rather than failing to run: each derives a CP that
  * *disagrees* with the screen, which is the pipeline saying the form or the level is wrong, and is carried as
- * `defects.cp`. Of the remaining three, `pikachu-witch-hat.png` settles on two levels and so derives nothing, and two
- * carry no overlay for PGSharp to have stated a level on.
+ * `defects.cp`. The remaining two carry no overlay for PGSharp to have stated a level on, so there is nothing to derive
+ * from. No capture settles on two levels any more — `pikachu-witch-hat.png` was the last, its `L27` read as two runs of
+ * digits with nothing offering the pair.
  *
  * The cross-check also *narrows* now rather than only reporting: `identify` keeps the candidates whose derived CP is
  * the one printed, which is the only thing on the screen that separates forms differing in attack or defense alone. It
@@ -828,7 +829,7 @@ const FIXTURES: readonly Fixture[] = [
       label: 'Nidoran♀',
       levels: [16],
       cp: 373,
-      notes: ['the overlay reads as level 4 or 1 or 12 or 2 or 20 or 11 or 10, none of which this HP can be'],
+      notes: ['the overlay reads as level 4 or 1 or 12 or 2 or 20 or 11 or 10 or 41, none of which this HP can be'],
     },
     file: 'nidoran-male.png',
     form: null,
@@ -895,13 +896,6 @@ const FIXTURES: readonly Fixture[] = [
   {
     costume: 'a purple witch hat',
     cp: 625,
-    defects: {
-      levels: [26.5, 27],
-      notes: [
-        'the overlay reads as level 2 or 7 or 5 or 51 or 1, none of which this HP can be',
-        'level ambiguous: 26.5 or 27',
-      ],
-    },
     file: 'pikachu-witch-hat.png',
     form: null,
     gender: 'female',
@@ -1299,12 +1293,12 @@ test('every committed capture is either a row or a negative case', () => {
 const COVERAGE = {
   rows: 59,
   answeredAsThemselves: 45,
-  oneLevel: 56,
-  crossCheckAgrees: 52,
+  oneLevel: 57,
+  crossCheckAgrees: 53,
   crossCheckDisagrees: 4,
-  severalLevels: 1,
+  severalLevels: 0,
   noLevel: 2,
-  noDefects: 41,
+  noDefects: 42,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 0,
