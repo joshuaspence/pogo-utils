@@ -200,16 +200,6 @@
     "end": "2026-10-05T20:00:00.000"
   },
   {
-    "eventID": "lego-pokemon-go-2026",
-    "name": "LEGO Stores and Pokémon GO",
-    "eventType": "event",
-    "heading": "Event",
-    "link": "https://leekduck.com/events/lego-pokemon-go-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-08-03-lego-pokemon-go-2026/lego-stores-pokemon-go.jpg",
-    "start": null,
-    "end": null
-  },
-  {
     "eventID": "max-mondays-2026-10-05",
     "name": "Dynamax Sizzlipede during Max Monday",
     "eventType": "max-mondays",
@@ -458,6 +448,16 @@
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-11-06-pokemon-go-wild-area-2026-sendai-japan/key-art.jpg",
     "start": "2026-11-06T01:00:00.000Z",
     "end": "2026-11-08T09:00:00.000Z"
+  },
+  {
+    "eventID": "pokemon-night-out-2026-twitch-drops",
+    "name": "Twitch Drops for Pokémon Night Out 2026",
+    "eventType": "twitch-drops",
+    "heading": "Twitch Drops",
+    "link": "https://leekduck.com/events/pokemon-night-out-2026-twitch-drops/",
+    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-24-pokemon-night-out-2026-twitch-drops/pokemon-night-out.jpg",
+    "start": "2026-10-25T02:30:00.000Z",
+    "end": "2026-10-25T06:59:00.000Z"
   },
   {
     "eventID": "pokemon-tcg-30th-celebration",
