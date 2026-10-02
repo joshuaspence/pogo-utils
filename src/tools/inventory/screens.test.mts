@@ -18,11 +18,17 @@
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
  * recording `cp` as whatever OCR made of it could check only the 20 OCR reads it on.
  *
- * It reaches the 56 rows where `identify` settles on exactly one level, and on 51 of those the derived CP is the CP the
- * screen prints. The other five are the check doing its other job rather than failing to run: each derives a CP that
+ * It reaches the 56 rows where `identify` settles on exactly one level, and on 52 of those the derived CP is the CP the
+ * screen prints. The other four are the check doing its other job rather than failing to run: each derives a CP that
  * *disagrees* with the screen, which is the pipeline saying the form or the level is wrong, and is carried as
  * `defects.cp`. Of the remaining three, `pikachu-witch-hat.png` settles on two levels and so derives nothing, and two
  * carry no overlay for PGSharp to have stated a level on.
+ *
+ * The cross-check also *narrows* now rather than only reporting: `identify` keeps the candidates whose derived CP is
+ * the one printed, which is the only thing on the screen that separates forms differing in attack or defense alone. It
+ * settles `deoxys-defense.png` and `dialga-altered.png` outright. It reaches no further than those two because the CP
+ * is read on only 20 captures and five of the seven rows in that position state none — so this is a reader's limit
+ * rather than the pipeline's.
  *
  * `COVERAGE` below pins those counts, because a figure quoted in prose is a figure nothing checks: `39 of the 61` stood
  * in this paragraph until it was measured and turned out to be 32, through a green suite.
@@ -42,24 +48,25 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 21 of the 59 rows carry a `defects`, and the kinds group into four.
+ * code does and so a pull request of its own. 19 of the 59 rows carry a `defects`, and the kinds group into four.
  *
- * - **Forms the screen cannot separate at all, on thirteen rows.** HP is a function of `stamina` alone, so two forms
+ * - **Forms the screen cannot separate at all, on eleven rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
  *   whichever has the shorter name: Basculin's three, Deerling's four, Genesect's five, Keldeo's two, Shellos' two, and
  *   — sharing only `stamina` — Deoxys' four, Dialga's two and Thundurus' two. `artwork.mts` settles five of them off
  *   the game's own icons and declines the rest, which is why those carry `defects.label` and some a
  *   `defects.alternatives` beside it. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can
- *   never be settled that way. - **Two glyphs and one name the readers lose.** `nidoran-female.png` reads `Nidoran 2`
- *   and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name coming back as a digit and a letter.
- *   Neither can be recovered by reading the glyph better, because `fold` maps both species to the same `nidoran` before
- *   `closest` ever sees them — so the name cannot choose between the two, and the male one is answered as a `Nidoran♀`
- *   on the strength of an HP its stamina also fits. `articuno-kanto.png` reads `ate` for `Articuno`. -
- *   **One bracket not read.** `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species'
- *   forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[`
- *   and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One height.** `spoink.png` renders
- *   `1.1m` and reads `1.4m`, the size pill's tail pointing down into the digits — `xurkitree.png` wears the same badge
- *   and reads its height correctly, the tail landing in the gap above the `8`.
+ *   never be settled that way. The last three families are the ones the printed CP can separate, which is why only the
+ *   five of their seven rows that state no CP are left here. - **Two glyphs and one name the readers lose.**
+ *   `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name
+ *   coming back as a digit and a letter. Neither can be recovered by reading the glyph better, because `fold` maps both
+ *   species to the same `nidoran` before `closest` ever sees them — so the name cannot choose between the two, and the
+ *   male one is answered as a `Nidoran♀` on the strength of an HP its stamina also fits. `articuno-kanto.png` reads
+ *   `ate` for `Articuno`. - **One bracket not read.** `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes
+ *   a species' forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which
+ *   are `[` and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One height.** `spoink.png`
+ *   renders `1.1m` and reads `1.4m`, the size pill's tail pointing down into the digits — `xurkitree.png` wears the
+ *   same badge and reads its height correctly, the tail landing in the gap above the `8`.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
@@ -571,12 +578,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1569,
-    defects: {
-      label: 'Deoxys',
-      cp: 2190,
-      alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'],
-      notes: ['the screen reads CP 1569, where this form at this level is 2190'],
-    },
     file: 'deoxys-defense.png',
     form: 'Defense',
     gender: null,
@@ -615,7 +616,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2848,
-    defects: { alternatives: ['Dialga (Origin)'] },
     file: 'dialga-altered.png',
     form: null,
     gender: null,
@@ -1293,13 +1293,13 @@ test('every committed capture is either a row or a negative case', () => {
  */
 const COVERAGE = {
   rows: 59,
-  answeredAsThemselves: 44,
+  answeredAsThemselves: 45,
   oneLevel: 56,
-  crossCheckAgrees: 51,
-  crossCheckDisagrees: 5,
+  crossCheckAgrees: 52,
+  crossCheckDisagrees: 4,
   severalLevels: 1,
   noLevel: 2,
-  noDefects: 38,
+  noDefects: 40,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 0,

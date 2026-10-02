@@ -102,6 +102,34 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
     }
   }
 
+  // The printed CP, which is the only thing on the screen that separates forms differing in attack or defense alone. HP
+  // is a function of `stamina`, so every test above is blind to Deoxys' four, Dialga's two and Thundurus' two — each
+  // family one stamina across all its forms — where CP is a function of the whole triple and so says which.
+  //
+  // A narrowing rather than a filter inside `fits`, and only where it leaves something, for the reason the stated
+  // levels are: the CP is white text over the artwork and the hardest thing here to read, so a misread must not empty a
+  // list the numbers had narrowed correctly. Where no candidate reproduces it the disagreement is still reported below,
+  // which is the behaviour this had before and is what a wrong form or a wrong level looks like.
+  //
+  // Restricted to the levels the stated shortlist admits where there is one, so this asks the same question the levels
+  // narrowing did rather than a weaker one — a form reproducing the CP at a level the overlay rules out has not fitted.
+  if (detail.cp !== null && iv !== null && detail.hp !== null) {
+    const hp = detail.hp;
+    const showing = (f: Form) =>
+      levelsOf(data, f, iv, hp)
+        .filter((level) => stated.length === 0 || stated.includes(level))
+        .some((level) => {
+          const multiplier = multiplierOf(data, level);
+
+          return multiplier !== null && cpOf(f, iv, multiplier) === detail.cp;
+        });
+    const showingIt = candidates.filter(showing);
+
+    if (showingIt.length > 0) {
+      candidates = showingIt;
+    }
+  }
+
   // PGSharp's own label, which is the only thing that can separate Unown's 28 letters: they share one set of base
   // stats, one type and one move pool, so nothing the game's own screen shows tells them apart. Applied ahead of the
   // fold below, which is otherwise what collapses them to one — and only where it matches something, since a suffix
