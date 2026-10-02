@@ -48,7 +48,7 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 19 of the 59 rows carry a `defects`, and the kinds group into four.
+ * code does and so a pull request of its own. 19 of the 59 rows carry a `defects`, and the kinds group into three.
  *
  * - **Forms the screen cannot separate at all, on eleven rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
@@ -64,16 +64,16 @@
  *   male one is answered as a `Nidoran♀` on the strength of an HP its stamina also fits. `articuno-kanto.png` reads
  *   `ate` for `Articuno`. - **One bracket not read.** `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes
  *   a species' forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which
- *   are `[` and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One height.** `spoink.png`
- *   renders `1.1m` and reads `1.4m`, the size pill's tail pointing down into the digits — `xurkitree.png` wears the
- *   same badge and reads its height correctly, the tail landing in the gap above the `8`.
+ *   are `[` and `\` — in the alphabet now, and the `[` still does not survive the crop.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
  * calls `spinda-04.png` a favourite, `tagsOn` no longer cuts away `snorlax-purified.png`'s `Perfect` chip as though it
  * were the type icons, `typesOf` no longer loses a type name Tesseract split across a space, the CP is no longer
- * misread on any capture, and `readOverlay` now reads every IV triple on the screen correctly — `basculin-blue.png`
- * was the last one wrong, at `3/3/5` for an `8/3/5`, which a third brightness floor reads and the percentage confirms.
+ * misread on any capture, a height is no longer taken from under the size pill that corrupts it — `spoink.png` rendered
+ * `1.1m` and read `1.4m` until that line was read on its own — and `readOverlay` now reads every IV triple on the
+ * screen correctly, `basculin-blue.png` having been the last one wrong at `3/3/5` for an `8/3/5`, which a third
+ * brightness floor reads and the percentage confirms.
  *
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
  * the fold on every one. What it wants is a capture of a scrolled screen and nothing from the game master: the vended
@@ -199,6 +199,11 @@ interface Defects {
   box?: null;
   /** True where `isFavourite` reads gold in the star corner of a Pokémon whose star is a white outline. */
   favourite?: boolean;
+  /**
+   * What the height reads as where the size pill drawn over it corrupts the digits. No capture needs it now —
+   * `spoink.png` was the last, rendering `1.1m` and reading `1.4m` until a badged height was re-read off its own line —
+   * and it is kept rather than deleted for the same reason `iv` is.
+   */
   height?: number;
   /**
    * What `readOverlay` makes of the triple where it is not what PGSharp drew: `null` where it reads nothing out of a
@@ -986,7 +991,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 247,
-    defects: { height: 1.4, notes: ['the overlay reads as level 1, none of which this HP can be'] },
+    defects: { notes: ['the overlay reads as level 1, none of which this HP can be'] },
     file: 'spoink.png',
     form: null,
     gender: 'male',
@@ -1820,15 +1825,17 @@ test('the corpus reaches both sides of every attribute', () => {
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
   //
-  // `box`, `favourite`, `iv`, `tags` and `types` are deliberately absent, and that is the point of asserting the set:
-  // `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls `spinda-04.png` a
-  // favourite, `readOverlay` reads every triple on the screen correctly, `tagsOn` reads `snorlax-purified.png`'s chip,
-  // and `typesOf` reads the pair off both Nidoran. Each of those used to need a key here, so one coming back is a
-  // regression this line reports rather than absorbs.
+  // `box`, `favourite`, `height`, `iv`, `tags` and `types` are deliberately absent, and that is the point of asserting
+  // the set: `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls
+  // `spinda-04.png` a favourite, the height is re-read off its own line wherever a size badge sits over it,
+  // `readOverlay` reads every triple on the screen correctly, `tagsOn` reads `snorlax-purified.png`'s chip, and
+  // `typesOf` reads the pair off both Nidoran. Each of those used to need a key here, so one coming back is a
+  // regression this line reports
+  // rather than absorbs.
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'height', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix']);
+  ).toStrictEqual(['alternatives', 'cp', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.

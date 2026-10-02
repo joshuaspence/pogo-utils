@@ -87,6 +87,21 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     height ??= await measured(image, row, 1 - MEASURE_WIDTH);
   }
 
+  const size = heightLine ? await sizeOf(image, heightLine) : null;
+
+  // A badged height is suspect where an unbadged one is not, because the pill's tail descends into the digits it is
+  // drawn over: `spoink.png` renders `1.1m` and the whole-screen pass reads `1.4m`, the tail closing the second `1`
+  // into a `4`. Reading that line on its own answers `1.1m`, which is the same thing that rescues every other field
+  // here — a line read knows it is looking at a line, where the sparse pass is hunting small text among artwork.
+  //
+  // Gated on the badge rather than run on every capture, though the measurement says either would be safe: over the 59
+  // captures that state a height, the cropped read agrees with 58, fixes `spoink.png` and breaks none. Six wear a
+  // badge, so this is six more OCR passes rather than 59. `xurkitree.png` is the control, wearing the same gold `XXL`
+  // and reading correctly either way because there the tail lands in the gap above its `8`.
+  if (size !== null && heightLine) {
+    height = (await remeasured(image, heightLine)) ?? height;
+  }
+
   return {
     cp,
     name,
@@ -96,7 +111,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     types: await typesOf(lines, data, image),
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
-    size: heightLine ? await sizeOf(image, heightLine) : null,
+    size,
     tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
   };
 }
@@ -146,6 +161,29 @@ const WEIGHT = /(\d+[.,]\d+)\s*kg\b/i;
 const HEIGHT = /(\d+[.,]\d+)\s*m\b/i;
 
 export const measurement = (text: string) => WEIGHT.test(text) || HEIGHT.test(text);
+
+/**
+ * A height read off its own line, for when the whole-screen pass read one the size badge had corrupted rather than
+ * missing it. Anchored on the line Tesseract already found rather than on a fraction of the screen, and reaching a
+ * character's height either side of it so that a leading digit cannot be clipped — the failure
+ * `OVERLAY_SUFFIX_CHARACTERS` is there to prevent, one reader along.
+ *
+ * `m` is required here where `measured` takes a bare decimal, because this is only ever asked about a height and the
+ * crop is wide enough to catch the weight's own digits at the other end of the row.
+ */
+async function remeasured(image: Image, line: Line): Promise<number | null> {
+  const band = crop(
+    image,
+    line.left - line.height,
+    line.top - line.height * 0.4,
+    line.width + line.height * 2,
+    line.height * 1.8,
+  );
+  const text = (await ocrLine(scale(band, 2), MEASURE_ALPHABET))?.text ?? '';
+  const value = HEIGHT.exec(text)?.[1];
+
+  return value === undefined ? null : Number(value.replace(',', '.'));
+}
 
 /**
  * The weight or the height read off its own end of the row they share, for when the whole-screen pass missed it. The
