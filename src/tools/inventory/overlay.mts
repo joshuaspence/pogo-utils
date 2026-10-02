@@ -182,6 +182,15 @@ const OVERLAY_SUFFIX_CHARACTERS = 5;
  */
 const OVERLAY_SUFFIX_REACH = 0.5;
 
+/**
+ * What the bracketed suffix is isolated against, which is not what the triple is. A `[` is a thin upright with two
+ * short serifs and the near-white floor the digits want clips it away entirely: `unown-exclamation.png` reads an empty
+ * `()` at 150/55 and reads `[` at 120/40, while `unown-b.png` and `unown-question.png` answer `B` and `\\` under
+ * either.
+ */
+const SUFFIX_LUMINANCE = 120;
+const SUFFIX_CHROMA = 40;
+
 /** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
 const MAX_LEVEL = 51;
 
@@ -451,8 +460,16 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   // the same narrowing clips it off: `unown-m.png` and `unown-exclamation.png` both lose their bracket to a box the
   // triple needs. Half the box's width to the right is enough to reach it on both, and `crop` clamps what runs off the
   // screen.
+  //
+  // And under its own thresholds, which is the same argument once more: a lower floor and a tighter chroma than the
+  // triple's keeps the thin upright of a `[`. `unown-exclamation.png`'s bracket reads empty at 150/55 and reads `[` at
+  // 120/40, where `unown-b.png` and `unown-question.png` answer `B` and `\` under either.
+  //
+  // Thresholds rather than a vote, because a vote cannot work here. Swept over 72 treatments and scales, that
+  // capture's bracket reads `N` eighteen times, `T` seven, `[` six and `I` four — and `N` and `I` are both real Unown
+  // forms, so the plurality answer is confidently wrong. There is no majority to take; there is only a treatment that
+  // is right.
   const shaped = (suffix: string | null) => (suffix !== null && SUFFIX_SHAPE.test(suffix) ? suffix : null);
-  const first = OVERLAY_PASSES[0];
   const wide = crop(
     image,
     box.x * image.width,
@@ -460,7 +477,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     box.width * image.width * (1 + OVERLAY_SUFFIX_REACH),
     box.height * image.height,
   );
-  const bracket = first ? scale(first.treat(wide), first.factor) : wide;
+  const bracket = scale(isolate(wide, SUFFIX_LUMINANCE, SUFFIX_CHROMA), OVERLAY_SCALES[0] ?? 2);
   const lettered = shaped(await suffixIn(bracket, OVERLAY_FORM_ALPHABET));
   const numeric = shaped(await suffixIn(bracket, OVERLAY_NUMERIC_ALPHABET));
 

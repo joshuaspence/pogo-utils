@@ -49,7 +49,7 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 19 of the 59 rows carry a `defects`, and the kinds group into three.
+ * code does and so a pull request of its own. 16 of the 59 rows carry a `defects`, and the kinds group into two.
  *
  * - **Forms the screen cannot separate at all, on eleven rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
@@ -58,14 +58,11 @@
  *   the game's own icons and declines the rest, which is why those carry `defects.label` and some a
  *   `defects.alternatives` beside it. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can
  *   never be settled that way. The last three families are the ones the printed CP can separate, which is why only the
- *   five of their seven rows that state no CP are left here. - **Two glyphs the readers lose.**
- *   `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name
- *   coming back as a digit and a letter. Neither can be recovered by reading the glyph better, because `fold` maps both
- *   species to the same `nidoran` before `closest` ever sees them — so the name cannot choose between the two, and the
- *   male one is answered as a `Nidoran♀` on the strength of an HP its stamina also fits. - **One bracket not read.**
- *   `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species' forms from `A`, so the game's 27th and
- *   28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[` and `\` — in the alphabet now, and the
- *   `[` still does not survive the crop.
+ *   five of their seven rows that state no CP are left here. - **Two glyphs the readers lose.** `nidoran-female.png`
+ *   reads `Nidoran 2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name coming back as a
+ *   digit and a letter. Neither can be recovered by reading the glyph better, because `fold` maps both species to the
+ *   same `nidoran` before `closest` ever sees them — so the name cannot choose between the two, and the male one is
+ *   answered as a `Nidoran♀` on the strength of an HP its stamina also fits.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
@@ -1026,7 +1023,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 517,
-    defects: { suffix: null, label: 'Unown (A)' },
     file: 'unown-exclamation.png',
     form: 'Exclamation Point',
     gender: null,
@@ -1292,13 +1288,13 @@ test('every committed capture is either a row or a negative case', () => {
  */
 const COVERAGE = {
   rows: 59,
-  answeredAsThemselves: 45,
+  answeredAsThemselves: 46,
   oneLevel: 57,
   crossCheckAgrees: 53,
   crossCheckDisagrees: 4,
   severalLevels: 0,
   noLevel: 2,
-  noDefects: 42,
+  noDefects: 43,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1819,16 +1815,16 @@ test('the corpus reaches both sides of every attribute', () => {
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
   //
-  // `box`, `favourite`, `height`, `iv`, `nickname`, `tags` and `types` are deliberately absent, and that is the point
-  // of asserting the set: `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls
-  // `spinda-04.png` a favourite, a badged height is re-read off its own line, `readOverlay` reads every triple on the
-  // screen correctly, no name the pass misses is filed as a nickname, `tagsOn` reads `snorlax-purified.png`'s chip, and
-  // `typesOf` reads the pair off both Nidoran. Each of those used to need a key here, so one coming back is a
-  // regression this line reports rather than absorbs.
+  // `box`, `favourite`, `height`, `iv`, `nickname`, `suffix`, `tags` and `types` are deliberately absent, and that is
+  // the point of asserting the set: `findOverlay` now finds a box on every screen that carries one, `isFavourite` no
+  // longer calls `spinda-04.png` a favourite, a badged height is re-read off its own line, `readOverlay` reads every
+  // triple and every bracketed form on the screen, no name the pass misses is filed as a nickname, `tagsOn` reads
+  // `snorlax-purified.png`'s chip, and `typesOf` reads the pair off both Nidoran. Each of those used to need a key
+  // here, so one coming back is a regression this line reports rather than absorbs.
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'label', 'levels', 'name', 'notes', 'suffix']);
+  ).toStrictEqual(['alternatives', 'cp', 'label', 'levels', 'name', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
