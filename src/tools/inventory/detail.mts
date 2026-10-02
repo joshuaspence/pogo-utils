@@ -16,6 +16,14 @@ import { OVERLAY_CHROMA, OVERLAY_LUMINANCE } from './overlay.mts';
 export interface Detail {
   /** What OCR made of the CP, which is usually nothing; `Identity.cp` is the one to believe. */
   cp: number | null;
+  /**
+   * What the CP region reads where no line carrying the label was recognised at all, which is where `cp` is null and
+   * something is on the screen regardless. Not a reading to be trusted — measured over the captures that reach it, it
+   * is right 19 times and wrong 3 — so it is never `cp` and never reaches the CSV. `identify` may use it to narrow, and
+   * only where its own arithmetic reproduces one of these exactly, which is a test the three wrong reads fail: `19464`,
+   * `540` and `5141` are no form's CP at any level.
+   */
+  cps: number[];
   name: string | null;
   hp: number | null;
   weight: number | null;
@@ -124,6 +132,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
 
   return {
     cp,
+    cps: cpLine ? [] : await cpsIn(image),
     name,
     hp,
     weight,
@@ -134,6 +143,31 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     size,
     tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
   };
+}
+
+/**
+ * Every number the CP region reads where no line carrying the label was found to anchor on, which `wholeCp` needs and
+ * these captures cannot give it. `deoxys-normal.png`, `deoxys-speed.png` and `dialga-origin.png` are the reason: each
+ * states a CP that separates its form from the others sharing its stamina, and each reads nothing the pattern accepts —
+ * `cpe1//2`, nothing at all, and `cp2`.
+ *
+ * Unanchored, so unreliable, and it is handed over as candidates rather than as an answer for exactly that reason:
+ * over the 27 captures that reach it this read is right 19 times, wrong 3 and silent 5. What makes the wrong three
+ * harmless is that `identify` keeps a candidate only where the arithmetic reproduces one of these numbers, and
+ * `19464`, `540` and `5141` are no form's CP at any level — where a plurality vote over 102 treatments, which was
+ * measured first, picks the wrong number on 6 of 20 and loses `keldeo-resolute.png`'s own CP 19 votes to 13.
+ */
+async function cpsIn(image: Image): Promise<number[]> {
+  const band = crop(
+    image,
+    image.width * CP_SWEEP.x,
+    image.height * CP_SWEEP.y,
+    image.width * CP_SWEEP.width,
+    image.height * CP_SWEEP.height,
+  );
+  const text = (await ocrLine(scale(band, 2), CP_ALPHABET))?.text ?? '';
+
+  return [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits));
 }
 
 /**
@@ -323,6 +357,15 @@ async function typesOf(lines: readonly Line[], data: GameData, image: Image): Pr
 }
 
 const CP_ALPHABET = 'CP0123456789 ';
+
+/**
+ * Where the CP sits when no line carrying its label was recognised, as fractions of the screen — the one place here
+ * that has no anchor to measure from, because what would anchor it is the label the pass failed to read. It is inside
+ * the top fifth `readLines` already inverts for this text, so it is the region that pass covers rather than a new claim
+ * about a phone, and the numbers come from where the label-bearing lines on the captures that do read one are found:
+ * top 123 and 127 of 2244, against a band spanning 0.055 to 0.09.
+ */
+const CP_SWEEP = { x: 0.3, y: 0.055, width: 0.4, height: 0.035 };
 
 /**
  * How far round the line the CP band reaches, in that line's own heights, in the order to try. Two rather than one

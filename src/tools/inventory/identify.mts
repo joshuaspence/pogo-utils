@@ -113,7 +113,14 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
   //
   // Restricted to the levels the stated shortlist admits where there is one, so this asks the same question the levels
   // narrowing did rather than a weaker one — a form reproducing the CP at a level the overlay rules out has not fitted.
-  if (detail.cp !== null && iv !== null && detail.hp !== null) {
+  //
+  // `detail.cps` is here on the same footing as the single read and is why this reaches the captures whose label went
+  // unrecognised: an unanchored band read of the CP region, right 19 times of 27 and wrong 3, handed over as candidates
+  // rather than as an answer. Requiring the arithmetic to reproduce one exactly is what makes the wrong ones inert —
+  // `19464`, `540` and `5141` are no form's CP at any level, so they narrow nothing and leave the row as it was.
+  const printed = [detail.cp, ...detail.cps].filter((n): n is number => n !== null);
+
+  if (printed.length > 0 && iv !== null && detail.hp !== null) {
     const hp = detail.hp;
     const showing = (f: Form) =>
       levelsOf(data, f, iv, hp)
@@ -121,7 +128,7 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
         .some((level) => {
           const multiplier = multiplierOf(data, level);
 
-          return multiplier !== null && cpOf(f, iv, multiplier) === detail.cp;
+          return multiplier !== null && printed.includes(cpOf(f, iv, multiplier));
         });
     const showingIt = candidates.filter(showing);
 

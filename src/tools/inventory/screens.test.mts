@@ -18,19 +18,18 @@
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
  * recording `cp` as whatever OCR made of it could check only the 32 OCR reads it on.
  *
- * It reaches the 57 rows where `identify` settles on exactly one level, and on 54 of those the derived CP is the CP the
- * screen prints. The other three are the check doing its other job rather than failing to run: each derives a CP that
- * *disagrees* with the screen, which is the pipeline saying the form or the level is wrong, and is carried as
- * `defects.cp`. The remaining two carry no overlay for PGSharp to have stated a level on, so there is nothing to derive
- * from. No capture settles on two levels any more — `pikachu-witch-hat.png` was the last, its `L27` read as two runs of
- * digits with nothing offering the pair.
+ * It reaches the 57 rows where `identify` settles on exactly one level, and on 56 of those the derived CP is the CP the
+ * screen prints. The one that is left is the check doing its other job rather than failing to run: `nidoran-male.png`
+ * derives a CP that *disagrees* with the screen, which is the pipeline saying the form it was given is wrong, and is
+ * carried as `defects.cp`. The remaining two carry no overlay for PGSharp to have stated a level on, so there is
+ * nothing to derive from. No capture settles on two levels any more — `pikachu-witch-hat.png` was the last, its `L27`
+ * read as two runs of digits with nothing offering the pair.
  *
- * The cross-check also *narrows* now rather than only reporting: `identify` keeps the candidates whose derived CP is
- * the one printed, which is the only thing on the screen that separates forms differing in attack or defense alone. It
- * settles `deoxys-attack.png`, `deoxys-defense.png` and `dialga-altered.png` outright. The four rows it does not reach
- * are the ones whose CP the reader still does not find — `deoxys-normal.png`, `deoxys-speed.png`, `dialga-origin.png`
- * and `thundurus-shadow.png`, the last of which states one the narrowing cannot use, its two forms differing where this
- * capture is already answered correctly.
+ * The cross-check also *narrows* rather than only reporting: `identify` keeps the candidates whose derived CP is one
+ * the screen states, which is the only thing on it that separates forms differing in attack or defense alone. That
+ * settles all six Deoxys and Dialga rows. `thundurus-shadow.png` is the one of that kind left, and not for want of a CP
+ * — PGSharp drew no overlay on it at all, so there are no IVs and `cpOf` can derive nothing for any candidate to be
+ * compared against.
  *
  * `COVERAGE` below pins those counts, because a figure quoted in prose is a figure nothing checks: `39 of the 61` stood
  * in this paragraph until it was measured and turned out to be 32, through a green suite.
@@ -50,21 +49,24 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 15 of the 59 rows carry a `defects`, and the kinds group into two.
+ * code does and so a pull request of its own. 12 of the 59 rows carry a `defects`, and the kinds group into four.
  *
- * - **Forms the screen cannot separate at all, on eleven rows.** HP is a function of `stamina` alone, so two forms
+ * - * - **Forms the screen cannot separate at all, on eight rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
- *   whichever has the shorter name: Basculin's three, Deerling's four, Genesect's five, Keldeo's two, Shellos' two, and
- *   — sharing only `stamina` — Deoxys' four, Dialga's two and Thundurus' two. `artwork.mts` settles five of them off
- *   the game's own icons and declines the rest, which is why those carry `defects.label` and some a
- *   `defects.alternatives` beside it. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can
- *   never be settled that way. The last three families are the ones the printed CP can separate, and it settles three
- *   of their seven rows, so four are left here. - **Two glyphs the readers lose.** `nidoran-female.png` reads `Nidoran
- *   2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name coming back as a digit and a letter.
- *   Neither can be recovered by reading the glyph better, because `fold` maps both species to the same `nidoran` before
- *   `closest` ever sees them — so the name cannot choose between the two, and the male one is answered as a `Nidoran♀`
- *   on the strength of an HP its stamina also fits. Its CP is read correctly at 491 and derives 373 for the form it was
- *   given, which is the cross-check reporting that mis-identification rather than a reader being wrong.
+ *   whichever has the shorter name: Basculin's two here, Deerling's Spring, Genesect's three and one each of Keldeo's
+ *   and Shellos'. `artwork.mts` settles five such captures off the game's own icons and declines the rest, which is why
+ *   these carry `defects.label`. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can never be
+ *   settled that way, and Genesect never can either, its five forms differing by a drive cassette a few pixels across.
+ *   - **One with no overlay to derive from.** `thundurus-shadow.png`'s two forms differ in attack and defense, which
+ *   the CP it prints would separate — but PGSharp drew nothing over it, so there are no IVs and no CP can be derived
+ *   for any candidate. - **Two glyphs the readers lose.** `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png`
+ *   `Nidorano`, the `♀` and `♂` of the species' own name coming back as a digit and a letter. Neither can be recovered
+ *   by reading the glyph better, because `fold` maps both species to the same `nidoran` before `closest` ever sees them
+ *   — so the name cannot choose between the two, and the male one is answered as a `Nidoran♀` on the strength of an HP
+ *   its stamina also fits. Its CP is read correctly at 491 and derives 373 for the form it was given, which is the
+ *   cross-check reporting that mis-identification rather than a reader being wrong. - **One level shortlist.**
+ *   `spoink.png`'s overlay offers only `1`, which its HP cannot be, so the shortlist is discarded and the HP settles
+ *   the level alone — right, and reported as a disagreement because the overlay and the HP genuinely differ.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
@@ -594,7 +596,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1772,
-    defects: { alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-normal.png',
     form: '',
     gender: null,
@@ -607,7 +608,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2009,
-    defects: { label: 'Deoxys', cp: 2195, alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-speed.png',
     form: 'Speed',
     gender: null,
@@ -633,7 +633,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2845,
-    defects: { label: 'Dialga', cp: 2809, alternatives: ['Dialga (Origin)'] },
     file: 'dialga-origin.png',
     form: 'Origin',
     gender: null,
@@ -1292,13 +1291,13 @@ test('every committed capture is either a row or a negative case', () => {
  */
 const COVERAGE = {
   rows: 59,
-  answeredAsThemselves: 47,
+  answeredAsThemselves: 49,
   oneLevel: 57,
-  crossCheckAgrees: 54,
-  crossCheckDisagrees: 3,
+  crossCheckAgrees: 56,
+  crossCheckDisagrees: 1,
   severalLevels: 0,
   noLevel: 2,
-  noDefects: 44,
+  noDefects: 47,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1569,6 +1568,7 @@ test('overworld.png is the map, and every reader declines it', async () => {
   expect(box, 'a band of the map read as an overlay').toBe(null);
   expect({ ...detail }).toStrictEqual({
     cp: null,
+    cps: [],
     favourite: false,
     gender: null,
     height: null,
