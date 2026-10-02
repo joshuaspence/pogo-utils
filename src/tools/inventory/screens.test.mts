@@ -79,16 +79,10 @@ import { test } from 'node:test';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
 import { distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
-import {
-  findOverlay,
-  identify,
-  label,
-  parseDetail,
-  readLines,
-  readOverlay,
-  type Gender,
-  type Size,
-} from './screens.mts';
+import { type Gender, type Size } from './badges.mts';
+import { parseDetail, readLines } from './detail.mts';
+import { identify, label } from './identify.mts';
+import { findOverlay, readOverlay } from './overlay.mts';
 
 /**
  * The game master, vended beside the captures rather than downloaded: `pnpm vend:game-master` writes what a real

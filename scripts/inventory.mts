@@ -39,23 +39,13 @@
 
 import { Device, KEY, sleep } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
+import { parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
+import { identify, type Identity } from '../src/tools/inventory/identify.mts';
+import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
+import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
-import {
-  findOverlay,
-  identify,
-  parseDetail,
-  parseMoves,
-  readLines,
-  readOverlay,
-  widen,
-  type Detail,
-  type Identity,
-  type Moves,
-  type Overlay,
-  type OverlayBox,
-} from '../src/tools/inventory/screens.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
