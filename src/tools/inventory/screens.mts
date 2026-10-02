@@ -504,11 +504,24 @@ const TYPE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ/ ';
  */
 async function typesOf(lines: readonly Line[], data: GameData, image: Image): Promise<string[]> {
   const names = new Map(data.types.map((t) => [fold(t), t]));
-  const found = (text: string) =>
-    fold(text)
-      .split(' ')
-      .filter((w) => names.has(w))
-      .map((w) => names.get(w) ?? w);
+
+  // A type name matched across whatever spaces Tesseract put inside it, but only where it begins at a word boundary.
+  // An exact word match loses a name the reader split: the type band of both Nidoran captures reads `IT POISO N`, where
+  // neither `poiso` nor `n` is a type and the pair plainly is — and those two were the only captures in the corpus with
+  // no type read at all, so `identify` had nothing to narrow by. The word boundary is what keeps this from being a free
+  // substring search, since `WEIGH TICE` would otherwise invent an `ice` out of the label beside them. No type name
+  // prefixes another, so the first that fits a given start is the only one that can.
+  const found = (text: string) => {
+    const words = fold(text).split(' ').filter(Boolean);
+
+    return words.flatMap((_, i) => {
+      const rest = words.slice(i).join('');
+      const key = [...names.keys()].find((k) => rest.startsWith(k));
+
+      return key === undefined ? [] : [names.get(key) as string];
+    });
+  };
+
   // Either of the pair will do, since the weight and the height sit on one row and the labels on the row beneath it —
   // and taking only the weight lost a Cyndaquil whose `0.44m` read perfectly and whose `kg` did not.
   const beside = lines.find((l) => measurement(l.text));
