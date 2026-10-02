@@ -16,10 +16,10 @@
  * **What that orientation buys is the CP cross-check.** `cpOf` derives a CP from the form, the IVs and the level's
  * multiplier, where a row's own `cp` is the number the game itself printed, so the two meeting means the form, the IVs
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
- * recording `cp` as whatever OCR made of it could check only the 20 OCR reads it on.
+ * recording `cp` as whatever OCR made of it could check only the 32 OCR reads it on.
  *
- * It reaches the 57 rows where `identify` settles on exactly one level, and on 53 of those the derived CP is the CP the
- * screen prints. The other four are the check doing its other job rather than failing to run: each derives a CP that
+ * It reaches the 57 rows where `identify` settles on exactly one level, and on 54 of those the derived CP is the CP the
+ * screen prints. The other three are the check doing its other job rather than failing to run: each derives a CP that
  * *disagrees* with the screen, which is the pipeline saying the form or the level is wrong, and is carried as
  * `defects.cp`. The remaining two carry no overlay for PGSharp to have stated a level on, so there is nothing to derive
  * from. No capture settles on two levels any more — `pikachu-witch-hat.png` was the last, its `L27` read as two runs of
@@ -27,9 +27,10 @@
  *
  * The cross-check also *narrows* now rather than only reporting: `identify` keeps the candidates whose derived CP is
  * the one printed, which is the only thing on the screen that separates forms differing in attack or defense alone. It
- * settles `deoxys-defense.png` and `dialga-altered.png` outright. It reaches no further than those two because the CP
- * is read on only 20 captures and five of the seven rows in that position state none — so this is a reader's limit
- * rather than the pipeline's.
+ * settles `deoxys-attack.png`, `deoxys-defense.png` and `dialga-altered.png` outright. The four rows it does not reach
+ * are the ones whose CP the reader still does not find — `deoxys-normal.png`, `deoxys-speed.png`, `dialga-origin.png`
+ * and `thundurus-shadow.png`, the last of which states one the narrowing cannot use, its two forms differing where this
+ * capture is already answered correctly.
  *
  * `COVERAGE` below pins those counts, because a figure quoted in prose is a figure nothing checks: `39 of the 61` stood
  * in this paragraph until it was measured and turned out to be 32, through a green suite.
@@ -49,7 +50,7 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 16 of the 59 rows carry a `defects`, and the kinds group into two.
+ * code does and so a pull request of its own. 15 of the 59 rows carry a `defects`, and the kinds group into two.
  *
  * - **Forms the screen cannot separate at all, on eleven rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
@@ -57,12 +58,13 @@
  *   — sharing only `stamina` — Deoxys' four, Dialga's two and Thundurus' two. `artwork.mts` settles five of them off
  *   the game's own icons and declines the rest, which is why those carry `defects.label` and some a
  *   `defects.alternatives` beside it. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can
- *   never be settled that way. The last three families are the ones the printed CP can separate, which is why only the
- *   five of their seven rows that state no CP are left here. - **Two glyphs the readers lose.** `nidoran-female.png`
- *   reads `Nidoran 2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name coming back as a
- *   digit and a letter. Neither can be recovered by reading the glyph better, because `fold` maps both species to the
- *   same `nidoran` before `closest` ever sees them — so the name cannot choose between the two, and the male one is
- *   answered as a `Nidoran♀` on the strength of an HP its stamina also fits.
+ *   never be settled that way. The last three families are the ones the printed CP can separate, and it settles three
+ *   of their seven rows, so four are left here. - **Two glyphs the readers lose.** `nidoran-female.png` reads `Nidoran
+ *   2` and `nidoran-male.png` `Nidorano`, the `♀` and `♂` of the species' own name coming back as a digit and a letter.
+ *   Neither can be recovered by reading the glyph better, because `fold` maps both species to the same `nidoran` before
+ *   `closest` ever sees them — so the name cannot choose between the two, and the male one is answered as a `Nidoran♀`
+ *   on the strength of an HP its stamina also fits. Its CP is read correctly at 491 and derives 373 for the form it was
+ *   given, which is the cross-check reporting that mis-identification rather than a reader being wrong.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
@@ -568,7 +570,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1441,
-    defects: { label: 'Deoxys', cp: 1781, alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-attack.png',
     form: 'Attack',
     gender: null,
@@ -826,7 +827,10 @@ const FIXTURES: readonly Fixture[] = [
       label: 'Nidoran♀',
       levels: [16],
       cp: 373,
-      notes: ['the overlay reads as level 4 or 1 or 12 or 2 or 20 or 11 or 10 or 41, none of which this HP can be'],
+      notes: [
+        'the overlay reads as level 4 or 1 or 12 or 2 or 20 or 11 or 10 or 41, none of which this HP can be',
+        'the screen reads CP 491, where this form at this level is 373',
+      ],
     },
     file: 'nidoran-male.png',
     form: null,
@@ -1288,13 +1292,13 @@ test('every committed capture is either a row or a negative case', () => {
  */
 const COVERAGE = {
   rows: 59,
-  answeredAsThemselves: 46,
+  answeredAsThemselves: 47,
   oneLevel: 57,
-  crossCheckAgrees: 53,
-  crossCheckDisagrees: 4,
+  crossCheckAgrees: 54,
+  crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 2,
-  noDefects: 43,
+  noDefects: 44,
   noOverlayDrawn: 2,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1360,7 +1364,7 @@ test('the vended game master is the shape the readers are asserted against', () 
  * of magnitude out, the leading digit having been lost to the artwork behind it, and `unown-b.png` loses two.
  */
 test(
-  'the CP is read off 20 captures, and no longer wrongly on any',
+  'the CP is read off 32 captures, and no longer wrongly on any',
   async () => {
     const states = new Map<string, number>();
 
@@ -1373,22 +1377,34 @@ test(
     }
 
     expect(Object.fromEntries(states), 'which captures state a CP, or what they state, has changed').toStrictEqual({
+      'articuno-kanto.png': 1705,
       'basculin-blue.png': 253,
       'basculin-red.png': 393,
+      'basculin-white.png': 1173,
       'burmy-plant.png': 206,
       'burmy-sandy.png': 196,
+      'castform-rainy.png': 909,
       'castform-snowy.png': 746,
       'castform-sunny.png': 979,
       'charizard-gigantamax.png': 1605,
       'cherrim-sunshine.png': 1658,
+      'deoxys-attack.png': 1441,
       'deoxys-defense.png': 1569,
       'dialga-altered.png': 2848,
+      'genesect-burn.png': 1891,
       'genesect-douse.png': 1872,
       'genesect-normal.png': 1904,
+      'growlithe-nickname.png': 738,
       'meowth-alola.png': 446,
       'nidoran-female.png': 200,
+      'nidoran-male.png': 491,
+      'pikachu-willows-assistant.png': 385,
       'pikachu-witch-hat.png': 625,
+      'pikachu.png': 325,
+      'rotom-wash.png': 813,
       'shellos-east.png': 784,
+      'smoliv.png': 340,
+      'thundurus-shadow.png': 1876,
       'unown-b.png': 487,
       'unown-m.png': 839,
       'unown-question.png': 486,

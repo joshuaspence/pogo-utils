@@ -39,8 +39,16 @@ export async function readLines(image: Image): Promise<Line[]> {
 }
 
 export async function parseDetail(lines: readonly Line[], data: GameData, image: Image): Promise<Detail> {
-  // The small `CP` beside the number is often read with a stray letter after it (`cPe518`) or as `GP`.
-  const cpPattern = /\b[cg]p\s?[a-z]?\s?(\d{2,5})\b/;
+  // The small `CP` beside the number is often read with a stray letter after it (`cPe518`), as `GP`, or — the one that
+  // cost a capture its whole form — as `ce`. `deoxys-attack.png`'s line reads `ce1441`, with the digits perfectly
+  // right and the label's `P` taken for an `e`, so the pattern rejected the one line on the screen that had the CP in
+  // it. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
+  //
+  // What it admits is 14 captures, 11 of them reading the CP exactly — and the other three mattered, so widening this
+  // alone is not the change. `articuno-kanto.png` read `170` for 1705, `genesect-burn.png` `189` for 1891 and
+  // `growlithe-nickname.png` `38` for 738, each a digit short, and `wholeCp` recovers all three only once it is given
+  // more than one pad to crop at. The two go together: the label says which line, and the band says the whole number.
+  const cpPattern = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
   const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
   const read = cpLine ? (cpPattern.exec(fold(cpLine.text))?.[1] ?? null) : null;
   const cp = cpLine && read !== null ? Number((await wholeCp(image, cpLine, read)) ?? read) : null;
@@ -139,15 +147,17 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
  * on the line and nothing at all out of any treatment of its band.
  */
 async function wholeCp(image: Image, line: Line, read: string): Promise<string | null> {
-  const pad = Math.round(line.height * CP_PAD);
-  const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
+  for (const reach of CP_PADS) {
+    const pad = Math.round(line.height * reach);
+    const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
 
-  for (const treat of [(b: Image) => b, (b: Image) => isolate(b, OVERLAY_LUMINANCE, OVERLAY_CHROMA)]) {
-    const text = (await ocrLine(scale(treat(band), 2), CP_ALPHABET))?.text ?? '';
+    for (const treat of [(b: Image) => b, (b: Image) => isolate(b, OVERLAY_LUMINANCE, OVERLAY_CHROMA)]) {
+      const text = (await ocrLine(scale(treat(band), 2), CP_ALPHABET))?.text ?? '';
 
-    for (const digits of text.match(/\d+/g) ?? []) {
-      if (digits.length > read.length && digits.includes(read)) {
-        return digits;
+      for (const digits of text.match(/\d+/g) ?? []) {
+        if (digits.length > read.length && digits.includes(read)) {
+          return digits;
+        }
       }
     }
   }
@@ -312,6 +322,17 @@ async function typesOf(lines: readonly Line[], data: GameData, image: Image): Pr
   return line ? found(line.text) : [];
 }
 
-/** What the CP band is read with, and how far round the line to reach, in that line's own heights. */
 const CP_ALPHABET = 'CP0123456789 ';
-const CP_PAD = 0.4;
+
+/**
+ * How far round the line the CP band reaches, in that line's own heights, in the order to try. Two rather than one
+ * because neither suits every capture and the acceptance rule below makes trying both safe.
+ *
+ * 0.4 is what the four rescues in `wholeCp`'s docblock were measured at, and 0.6 is what reaches a digit lost off the
+ * *back*: swept over 26 treatments and scales, `articuno-kanto.png` reads `170` for 1705 at every pad to 0.35 and
+ * `1705` only at 0.6, and `genesect-burn.png` reads `189` for 1891 the same way, the treatment making no difference to
+ * either. Widening the single pad instead was tried and regresses `deoxys-defense.png`, whose own rescue needs the
+ * tighter crop — so this is a list, like the treatments it multiplies, and the first reading that contains the line's
+ * own wins.
+ */
+const CP_PADS = [0.35, 0.4, 0.6];
