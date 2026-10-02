@@ -58,18 +58,36 @@ const OVERLAY_SCALES = [2, 3];
 const OVERLAY_BRIGHTNESS = 120;
 
 /**
- * The two ways to turn an overlay band into black on white, in the order to try. Neither wins outright, which is why
- * both are here and why the percentage below arbitrates between them.
+ * A second brightness floor, for a band this one leaves blank. `basculin-blue.png` reads nothing whatever at 120 — at
+ * any scale — so its near-white pass went unchallenged and its `8` stood as the `3` that treatment makes of it. At 180
+ * the same band reads `5135 8/3/5`, and the percentage behind it settles the matter without anything having to guess:
+ * `8/3/5` is 35%, which is the `35` inside that `135`.
+ *
+ * A third floor rather than a replacement, measured the same way the second one was: 120 is what reads
+ * `genesect-normal.png` and the Nidoran pair, and raising it loses them. Nothing here is a free parameter — a floor is
+ * only worth adding where some band is legible at it and blank at every floor already tried.
+ */
+const OVERLAY_BRIGHTNESS_HIGH = 180;
+
+/**
+ * The three ways to turn an overlay band into black on white, in the order to try. None wins outright, which is why all
+ * three are here and why the percentage below arbitrates between them.
  *
  * Near-white first, because that is what every reading was measured against. What it costs is the thin strokes: the
  * chroma ceiling clips the anti-aliased edge of a leading `1`, so `articuno-galar.png` reads `2/4/13` for `12/4/13`,
  * `xurkitree.png` loses its attack entirely at `/2/14`, and `cherrim-overcast.png` yields nothing at any band at all.
  * Brightness alone reads all three correctly — and misses `genesect-normal.png`, `nidoran-female.png` and
  * `nidoran-male.png`, which near-white reads. So it is a second opinion rather than a replacement.
+ *
+ * Order is what makes adding one safe. The loop keeps the first reading the percentage confirms and falls back on the
+ * first that read a possible triple at all, so a pass appended here cannot displace a confirmed answer and cannot
+ * change which reading is the fallback. It can only turn an unconfirmed fallback into a confirmed reading, which is the
+ * one direction this arbitration was built to move in.
  */
 const OVERLAY_TREATMENTS = [
   (band: Image) => isolate(band, OVERLAY_LUMINANCE, OVERLAY_CHROMA),
   (band: Image) => brighten(band, OVERLAY_BRIGHTNESS),
+  (band: Image) => brighten(band, OVERLAY_BRIGHTNESS_HIGH),
 ];
 
 /**

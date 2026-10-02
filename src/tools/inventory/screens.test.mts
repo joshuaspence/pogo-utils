@@ -18,8 +18,8 @@
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
  * recording `cp` as whatever OCR made of it could check only the 20 OCR reads it on.
  *
- * It reaches the 56 rows where `identify` settles on exactly one level, and on 50 of those the derived CP is the CP the
- * screen prints. The other six are the check doing its other job rather than failing to run: each derives a CP that
+ * It reaches the 56 rows where `identify` settles on exactly one level, and on 51 of those the derived CP is the CP the
+ * screen prints. The other five are the check doing its other job rather than failing to run: each derives a CP that
  * *disagrees* with the screen, which is the pipeline saying the form or the level is wrong, and is carried as
  * `defects.cp`. Of the remaining three, `pikachu-witch-hat.png` settles on two levels and so derives nothing, and two
  * carry no overlay for PGSharp to have stated a level on.
@@ -42,7 +42,7 @@
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
- * code does and so a pull request of its own. 22 of the 59 rows carry a `defects`, and the kinds group into four.
+ * code does and so a pull request of its own. 21 of the 59 rows carry a `defects`, and the kinds group into four.
  *
  * - **Forms the screen cannot separate at all, on thirteen rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
@@ -55,8 +55,7 @@
  *   Neither can be recovered by reading the glyph better, because `fold` maps both species to the same `nidoran` before
  *   `closest` ever sees them — so the name cannot choose between the two, and the male one is answered as a `Nidoran♀`
  *   on the strength of an HP its stamina also fits. `articuno-kanto.png` reads `ate` for `Articuno`. -
- *   **One triple read wrongly and one bracket not read.** `basculin-blue.png` comes back `3/3/5` for an `8/3/5`, the
- *   only row left whose IVs are wrong. And `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species'
+ *   **One bracket not read.** `unown-exclamation.png`'s `([)` reads as nothing: PGSharp indexes a species'
  *   forms from `A`, so the game's 27th and 28th Unown come out as `'A'.charCodeAt(0) + 26` and `+ 27`, which are `[`
  *   and `\` — in the alphabet now, and the `[` still does not survive the crop. - **One height.** `spoink.png` renders
  *   `1.1m` and reads `1.4m`, the size pill's tail pointing down into the digits — `xurkitree.png` wears the same badge
@@ -66,7 +65,8 @@
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
  * calls `spinda-04.png` a favourite, `tagsOn` no longer cuts away `snorlax-purified.png`'s `Perfect` chip as though it
  * were the type icons, `typesOf` no longer loses a type name Tesseract split across a space, the CP is no longer
- * misread on any capture, and `readOverlay` reads every overlay but one.
+ * misread on any capture, and `readOverlay` now reads every IV triple on the screen correctly — `basculin-blue.png`
+ * was the last one wrong, at `3/3/5` for an `8/3/5`, which a third brightness floor reads and the percentage confirms.
  *
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
  * the fold on every one. What it wants is a capture of a scrolled screen and nothing from the game master: the vended
@@ -195,8 +195,9 @@ interface Defects {
   height?: number;
   /**
    * What `readOverlay` makes of the triple where it is not what PGSharp drew: `null` where it reads nothing out of a
-   * box `findOverlay` did find, and the triple itself where it reads one that is wrong. `basculin-blue.png` is the
-   * second kind, at `3/3/5` for an `8/3/5` — which no amount of "the reader found nothing" could describe.
+   * box `findOverlay` did find, and the triple itself where it reads one that is wrong. No capture needs it now —
+   * `basculin-blue.png` was the last, at `3/3/5` for an `8/3/5` — and it is kept rather than deleted for the reason the
+   * corpus test asserts the key set exactly: a reading that goes wrong again has somewhere to say so.
    */
   iv?: IVs | null;
   /** The name under the artwork, which is the nickname where one is set and so carries no species to fall back on. */
@@ -333,13 +334,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 253,
-    defects: {
-      iv: { attack: 3, defense: 3, stamina: 5 },
-      label: 'Basculin (Red Striped)',
-      levels: [5],
-      cp: 247,
-      notes: ['the screen reads CP 253, where this form at this level is 247'],
-    },
+    defects: { label: 'Basculin (Red Striped)' },
     file: 'basculin-blue.png',
     form: 'Blue Striped',
     gender: 'male',
@@ -352,7 +347,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 393,
-    defects: { notes: ['the overlay reads as level 6, none of which this HP can be'] },
     file: 'basculin-red.png',
     form: 'Red Striped',
     gender: 'male',
@@ -1301,14 +1295,14 @@ const COVERAGE = {
   rows: 59,
   answeredAsThemselves: 44,
   oneLevel: 56,
-  crossCheckAgrees: 50,
-  crossCheckDisagrees: 6,
+  crossCheckAgrees: 51,
+  crossCheckDisagrees: 5,
   severalLevels: 1,
   noLevel: 2,
-  noDefects: 37,
+  noDefects: 38,
   noOverlayDrawn: 2,
   boxNotFound: 0,
-  overlayNotRead: 1,
+  overlayNotRead: 0,
 };
 
 test('the corpus is the shape the docblock says it is', () => {
@@ -1494,7 +1488,7 @@ test(
     }
 
     const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
-    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(56);
+    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(57);
     assert.ok(
       offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
       'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
@@ -1826,14 +1820,15 @@ test('the corpus reaches both sides of every attribute', () => {
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
   //
-  // `box`, `favourite`, `tags` and `types` are deliberately absent, and that is the point of asserting the set:
+  // `box`, `favourite`, `iv`, `tags` and `types` are deliberately absent, and that is the point of asserting the set:
   // `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls `spinda-04.png` a
-  // favourite, `tagsOn` reads `snorlax-purified.png`'s chip, and `typesOf` reads the pair off both Nidoran. Each of
-  // those used to need a key here, so one coming back is a regression this line reports rather than absorbs.
+  // favourite, `readOverlay` reads every triple on the screen correctly, `tagsOn` reads `snorlax-purified.png`'s chip,
+  // and `typesOf` reads the pair off both Nidoran. Each of those used to need a key here, so one coming back is a
+  // regression this line reports rather than absorbs.
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'height', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix']);
+  ).toStrictEqual(['alternatives', 'cp', 'height', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
