@@ -289,12 +289,14 @@ Which route a change takes turns on whether it changes what the code _does_ or o
 - **Count what a fragment reaches before writing down what it reduces to.** `char` reads as `4-6` and is refused:
   Charjabug and Charcadet begin with it as well, Chimchar and Pecharunt carry it in the middle, so the two sets are 5
   and 7 and disagree. One `grep -c` over `pokedex.ts` settles that where reasoning about the name does not.
-- **An expectation that reads a zone wants `TZ=UTC pnpm test` beside it, because the runner's own zone is UTC and a zero
-  offset is signed.** `event-feed.test.ts` passed here at UTC+10 and failed on CI with
-  `AssertionError: expected +0 to be -0`: `getTimezoneOffset()` answers `0` there, so a negated `-0 * 60_000` is `-0`,
-  which `toBe` tells apart from `+0` through `Object.is`. Subtract so the sign comes out of the data rather than out of
-  a unary minus, and run the two zones rather than the one — this is the [`events.html` figure](#designing-a-probe)
-  again with the machine standing in for the feed.
+- **An expectation that reads a zone wants `testEveryZone` around it, because a zero offset is signed.**
+  `event-feed.test.ts` passed here at UTC+10 and failed on CI with `AssertionError: expected +0 to be -0`:
+  `getTimezoneOffset()` answers `0` there, so a negated `-0 * 60_000` is `-0`, which `toBe` tells apart from `+0`
+  through `Object.is`. Subtract so the sign comes out of the data rather than out of a unary minus — and sweep rather
+  than naming a zone on the command line, since `TZ=UTC pnpm test` only chooses which single reading you get. Swept, the
+  negated form is 1 failed on this machine, at the `UTC` case; un-swept it is 335 passed here and needs CI to say
+  anything at all. This is the [`events.html` figure](#designing-a-probe) again with the machine standing in for the
+  feed.
 - **A `toEqual` against the object the value was built from compares a round trip of itself.**
   `expect(JSON.parse(CONTROL_RESETS.resetScan.hlscan)).toEqual(SCAN_CONFIG)` holds however `scan-config.ts` reads, so
   `onlyShiny: true → false` is a mutation it cannot see. It still earns its place — it is what says `hlscan` carries
@@ -342,13 +344,23 @@ Which route a change takes turns on whether it changes what the code _does_ or o
   is usually one reaching a shared fixture instead of the behaviour. Both survivors were findings: `childText`'s blank
   test cannot be singled out, every reader above it treating `''` and `null` alike; and `addDays` written as
   `t + 86_400_000 * n` is **provably identical** to the calendar form in a zone that never changes its clocks, so the
-  test that walks a year catches it at `America/New_York` and not at AEST or at CI's UTC. Check a mutation is not a
-  no-op before believing a miss — `new Set(readSet(k) ?? DEFAULT)` against `readSet(k) ?? new Set(DEFAULT)` is the same
-  function.
-- **Run the zone sweep, not just `TZ=UTC`.** Four zones — the machine's own, UTC, one with DST and `Asia/Kathmandu` for
-  a 45-minute offset — because each catches something the others cannot, and the DST one is load-bearing rather than
-  belt-and-braces. Build every date fixture from local parts rather than parsing a string, and assert a length, a
+  test that walks a year catches it at `America/New_York` and at AEST and misses it at `UTC` and at `Asia/Kathmandu`.
+  Check a mutation is not a no-op before believing a miss — `new Set(readSet(k) ?? DEFAULT)` against
+  `readSet(k) ?? new Set(DEFAULT)` is the same function.
+- **The zone sweep is a test, not a way of invoking the suite.** `testEveryZone` in `src/testing/zones.ts` runs one body
+  in each of `America/New_York`, `Asia/Kathmandu`, `Australia/Sydney` and `UTC` — a DST zone per hemisphere, a zero
+  offset and a 45-minute one, each catching something the others cannot. What that buys over a `TZ` matrix in `test.yml`
+  is that the answer stops depending on where the suite ran: the fixed-span `addDays` break is the same 2 failed at
+  every one of the four, where taking the sweep off leaves it 327 passed clean under `TZ=UTC`. Build every date fixture
+  inside the swept body, since a module-scope one is built at import in the machine's own zone, and assert a length, a
   boundary or an order rather than an instant.
+- **`vi.stubEnv('TZ', …)` is how a test reaches the zone, because `process` is not a name `src/` has.** `types: []`
+  makes a bare `process` a `TS2591` in the browser project, where vitest's own API is typed through its package's
+  `exports` and sets the same variable. Restore it in a `finally`: a stub outlives its test without `unstubEnvs`, and
+  the leak surfaces nowhere near the sweep — 2 failed `weekColumns` cases in `event-schedule.test.ts`, each weighing a
+  module-scope `WEEK_START` against columns counted in the zone that leaked. Prove the zone took by its **offset** and
+  never by `Intl.DateTimeFormat().resolvedOptions().timeZone`, which answers ICU's own `Asia/Katmandu` for the
+  `Asia/Kathmandu` the list names and so fails on the one entry that is there for its odd offset.
 - **Derive an expectation independently, and when it comes out wrong ask which of the two was.** Three did here and all
   three were the expectation, each worth writing down: `Math.round` breaks a tie towards positive infinity, so an event
   90 minutes off reads "in 2 hours" ahead of now and "1 hour ago" behind it; `1005 / 1000` is 1.0049999999999998934, so

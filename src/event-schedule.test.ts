@@ -16,6 +16,7 @@ import {
   type ParsedEvent,
   type TrackItem,
 } from './event-schedule.js';
+import { testEveryZone } from './testing/zones.js';
 
 import type { FeedEvent } from './types.js';
 
@@ -86,11 +87,11 @@ test('addDays steps calendar days across a month and year boundary', () => {
  * fixed span across one lands at 23:00 or 01:00 and drags every later column with it.
  *
  * Walking a whole year is what reaches that, since the two readings agree on every other day — so in a zone with no DST
- * at all they cannot be told apart, and this passes for a reason rather than catching anything. That is why the zone
- * sweep is part of the check: the fixed-span reading survives here at AEST and on CI at UTC, and fails under a zone
- * that changes its clocks.
+ * at all they cannot be told apart, and this passes for a reason rather than catching anything. `testEveryZone` is what
+ * puts it in a zone that does change its clocks whatever zone the machine is in: the fixed-span reading passes at
+ * `Asia/Kathmandu` and at `UTC`, and fails at both `America/New_York` and `Australia/Sydney`.
  */
-test('addDays keeps the wall clock across every day of a year', () => {
+testEveryZone('addDays keeps the wall clock across every day of a year', () => {
   let day = at(2026, 1, 1);
 
   for (let i = 0; i < 365; i += 1) {
