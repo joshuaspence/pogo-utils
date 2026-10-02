@@ -14,6 +14,7 @@
 import { expect, test } from 'vitest';
 
 import { HAS_ZONE, routeSummary, vendable } from './event-feed.js';
+import { testEveryZone } from './testing/zones.js';
 
 import type { FeedEvent } from './types.js';
 
@@ -55,15 +56,16 @@ test('a string that is not a datetime at all reads as naive rather than as zoned
   expect(HAS_ZONE.test('')).toBe(false);
 });
 
-test('a Date cannot say whether a zone was there, and the gap is the machine it was built on', () => {
+testEveryZone('a Date cannot say whether a zone was there, and the gap is the machine it was built on', () => {
   // Which is why the pattern reads the feed's string. Both parse, so neither the value nor a `NaN` reports the
   // difference; what separates them is the offset wherever this runs, so a calendar built on a CI runner is out by
   // exactly that for every local event.
   expect([Number.isNaN(Date.parse(NAIVE)), Number.isNaN(Date.parse(ZONED))]).toEqual([false, false]);
 
-  // Subtracted this way round rather than by negating the offset, which is what keeps the assertion true on a runner
-  // that is itself UTC: there the offset is `0` and `-0 * 60_000` is `-0`, a different number to `Object.is` from the
-  // `+0` the left-hand side gives.
+  // Subtracted this way round rather than by negating the offset, which is what keeps the assertion true where the zone
+  // is itself UTC: there the offset is `0` and `-0 * 60_000` is `-0`, a different number to `Object.is` from the `+0`
+  // the left-hand side gives. `testEveryZone` is what reaches that reading from any machine — of the four zones it
+  // sweeps, `UTC` is the only one the negated form fails at.
   expect(Date.parse(NAIVE) - Date.parse(`${NAIVE}Z`)).toBe(new Date(NAIVE).getTimezoneOffset() * 60_000);
 });
 
