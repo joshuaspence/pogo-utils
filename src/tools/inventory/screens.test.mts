@@ -71,11 +71,18 @@
  * One reader is not asserted at all: **`parseMoves`**, because these are top-of-screen captures and the moves are below
  * the fold on every one. What it wants is a capture of a scrolled screen and nothing from the game master: the vended
  * fixture already carries all 328 moves and the per-form pools a row is matched against.
+ *
+ * **Two of Vitest's assertion forms are used here, and the division is a type one rather than a preference.** `expect`
+ * states what a reader answered, as every other suite in this repository does. `assert.ok` states a precondition — that
+ * a capture is still in the corpus, that a line was found — because it is declared `asserts value` and so narrows,
+ * where `expect(…).toBeTruthy()` does not: measured, and the nine guards below that go on to read a field off what they
+ * guarded are `'possibly undefined'` under `expect`. `toStrictEqual` rather than `toEqual` throughout for a second
+ * measured reason — `toEqual` reads a missing property and an `undefined` one as equal, which would quietly cost the
+ * whole-object assertions the very thing they exist for.
  */
 
-import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { test } from 'node:test';
+import { assert, describe, expect, test } from 'vitest';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
 import { distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
@@ -1078,8 +1085,9 @@ const FIXTURES: readonly Fixture[] = [
 ];
 
 /**
- * Everything the readers answer about one capture. Each attribute is then asserted as a subtest of it, so a failure
- * names the reader that broke where one `deepStrictEqual` over the lot says only that the object differs.
+ * Everything the readers answer about one capture. Each attribute is then a test of its own under that capture's
+ * `describe`, so a failure names the reader that broke where one `toStrictEqual` over the lot says only that the
+ * object differs.
  *
  * Memoised by file, which is what keeps that affordable: OCR is the whole cost of this suite at about four seconds a
  * capture, and six of the tests below read a capture the loop has already read. Caching the promise rather than the
@@ -1098,13 +1106,21 @@ const read = async (file: string) => {
   // to be free.
   const signature = signatureOf(image, box ? box.y + box.height : undefined);
 
+  const overlay = box ? await readOverlay(image, box) : null;
+  const artwork = signature ? { signature, icons: ICONS } : undefined;
+
   return {
     image,
     lines,
     detail,
     box,
-    overlay: box ? await readOverlay(image, box) : null,
-    artwork: signature ? { signature, icons: ICONS } : undefined,
+    overlay,
+    artwork,
+    // The end of the pipeline, memoised with the readings it is derived from because each of a capture's attributes is
+    // now a test of its own rather than a subtest sharing one function body, so eighteen of them ask for this where the
+    // loop used to compute it once. It is pure and cheap, but caching it says outright that the eighteen are asserting
+    // one answer rather than eighteen separately-derived ones.
+    identity: identify(DATA, detail, overlay, artwork),
   };
 };
 
@@ -1165,60 +1181,77 @@ for (const fixture of FIXTURES) {
     ...(defects.notes ?? []),
   ];
 
-  test(`${fixture.file} reads as the ${truth} on the screen`, async (t) => {
-    const { detail, box, overlay, artwork } = await readingOf(fixture.file);
+  // A `describe` rather than one test with eighteen subtests inside it, because Vitest collects a file's tests
+  // synchronously and so cannot be handed a test registered after an `await`. Each attribute therefore reads the
+  // memoised capture for itself, which costs nothing — the first of the eighteen pays for the OCR and the rest get the
+  // settled promise — and buys a failure that names the reader, which is what the subtests were for.
+  describe(`${fixture.file} reads as the ${truth} on the screen`, () => {
+    test('size', async () => expect((await readingOf(fixture.file)).detail.size).toBe(fixture.size ?? null));
+    test('gender', async () => expect((await readingOf(fixture.file)).detail.gender).toBe(fixture.gender));
+    test('hp', async () => expect((await readingOf(fixture.file)).detail.hp).toBe(fixture.hp));
+    test('name', async () => expect((await readingOf(fixture.file)).detail.name).toBe(defects.name ?? name));
+    test('weight', async () => expect((await readingOf(fixture.file)).detail.weight).toBe(fixture.weight));
 
-    await t.test('size', () => assert.strictEqual(detail.size, fixture.size ?? null));
-    await t.test('gender', () => assert.strictEqual(detail.gender, fixture.gender));
-    await t.test('hp', () => assert.strictEqual(detail.hp, fixture.hp));
-    await t.test('name', () => assert.strictEqual(detail.name, defects.name ?? name));
-    await t.test('weight', () => assert.strictEqual(detail.weight, fixture.weight));
-    await t.test('height', () => assert.strictEqual(detail.height, defects.height ?? fixture.height));
-    await t.test('types', () => assert.deepStrictEqual(detail.types, defects.types ?? fixture.types));
+    test('height', async () =>
+      expect((await readingOf(fixture.file)).detail.height).toBe(defects.height ?? fixture.height));
 
-    await t.test('favourite', () =>
-      assert.strictEqual(detail.favourite, defects.favourite ?? fixture.favourite ?? false),
-    );
+    test('types', async () =>
+      expect((await readingOf(fixture.file)).detail.types).toStrictEqual(defects.types ?? fixture.types));
 
-    await t.test('tags', () =>
-      assert.deepStrictEqual(
-        detail.tags.map((chip) => closest(chip, TAGS, (tag) => tag, TAG_SLACK)),
+    test('favourite', async () =>
+      expect((await readingOf(fixture.file)).detail.favourite).toBe(defects.favourite ?? fixture.favourite ?? false));
+
+    test('tags', async () => {
+      const { detail } = await readingOf(fixture.file);
+
+      expect(detail.tags.map((chip) => closest(chip, TAGS, (tag) => tag, TAG_SLACK))).toStrictEqual(
         defects.tags ?? fixture.tags ?? [],
-      ),
-    );
+      );
+    });
 
     // Whether a box was found is asserted apart from what was read out of it, because the two are different defects and
     // a reader fixed at either stage has to fail here. Nine captures carry no overlay at all, and on three of those
     // nine PGSharp really drew one.
-    await t.test('overlay found', () => assert.strictEqual(box !== null, boxed));
-    await t.test('overlay ivs', () =>
-      assert.deepStrictEqual(overlay?.iv ?? null, ('iv' in defects ? defects.iv : legible?.iv) ?? null),
-    );
+    test('overlay found', async () => expect((await readingOf(fixture.file)).box !== null).toBe(boxed));
 
-    await t.test('overlay form', () =>
-      assert.strictEqual(overlay?.form ?? null, ('suffix' in defects ? defects.suffix : legible?.suffix) ?? null),
-    );
+    test('overlay ivs', async () =>
+      expect((await readingOf(fixture.file)).overlay?.iv ?? null).toStrictEqual(
+        ('iv' in defects ? defects.iv : legible?.iv) ?? null,
+      ));
 
-    // The end of the pipeline, run on every capture rather than on one, which is what catches `levelsOf` admitting any
-    // HP at or above the one read: against a shortlist whose largest member is already the true level, as
+    test('overlay form', async () =>
+      expect((await readingOf(fixture.file)).overlay?.form ?? null).toBe(
+        ('suffix' in defects ? defects.suffix : legible?.suffix) ?? null,
+      ));
+
+    // The end of the pipeline, asserted on every capture rather than on one, which is what catches `levelsOf` admitting
+    // any HP at or above the one read: against a shortlist whose largest member is already the true level, as
     // `fixtures/unown.png`'s `[1, 6, 16]` is, that break cannot move an answer.
-    const identity = identify(DATA, detail, overlay, artwork);
+    test('identify form', async () => {
+      const { identity } = await readingOf(fixture.file);
 
-    await t.test('identify form', () => assert.strictEqual(identity.form && label(identity.form), answered));
-    await t.test('identify levels', () => assert.deepStrictEqual(identity.levels, levels));
-    await t.test('identify alternatives', () => assert.deepStrictEqual(identity.alternatives.map(label), alternatives));
-    await t.test('identify notes', () => assert.deepStrictEqual(identity.notes, notes));
+      expect(identity.form && label(identity.form)).toBe(answered);
+    });
+
+    test('identify levels', async () => expect((await readingOf(fixture.file)).identity.levels).toStrictEqual(levels));
+
+    test('identify alternatives', async () =>
+      expect((await readingOf(fixture.file)).identity.alternatives.map(label)).toStrictEqual(alternatives));
+
+    test('identify notes', async () => expect((await readingOf(fixture.file)).identity.notes).toStrictEqual(notes));
 
     // The cross-check the whole orientation of this table exists for, and the reason a settled level is derived rather
     // than stated: `cpOf` cannot answer without one, so a capture whose overlay goes unread and a capture whose HP two
     // half-levels both fit are both a null here, and neither needs a `defects` entry to say so.
-    await t.test('identify cp', () =>
-      assert.strictEqual(identity.cp, defects.cp ?? (levels.length === 1 ? fixture.cp : null)),
-    );
+    test('identify cp', async () =>
+      expect((await readingOf(fixture.file)).identity.cp).toBe(
+        defects.cp ?? (levels.length === 1 ? fixture.cp : null),
+      ));
 
-    await t.test('identify nickname', () =>
-      assert.strictEqual(identity.nickname, defects.nickname ?? (name === fixture.species ? null : name)),
-    );
+    test('identify nickname', async () =>
+      expect((await readingOf(fixture.file)).identity.nickname).toBe(
+        defects.nickname ?? (name === fixture.species ? null : name),
+      ));
   });
 }
 
@@ -1229,18 +1262,30 @@ for (const fixture of FIXTURES) {
 const NEGATIVE = ['no-pgsharp.png', 'overworld.png', 'pgsharp-no-overlay.png'];
 
 /**
+ * What the three tests that read the whole corpus in one body are given, where `--testTimeout` leaves everything else
+ * the 60s a single capture needs fifteen times over.
+ *
+ * They need it because a test is only as warm as whatever ran before it. All three pass on the full suite without this,
+ * since Vitest takes a file in declaration order and the `describe` blocks above have filled the memo by then — but
+ * that is a coupling rather than a guarantee, and it is one `node --test` hid by having no default timeout at all.
+ * Measured rather than reasoned about: `-t 'the CP is read off'` on its own fails at exactly 60s, because nothing has
+ * warmed it and the corpus is about four seconds a capture.
+ */
+const WHOLE_CORPUS_TIMEOUT = 600_000;
+
+/**
  * That every committed capture is accounted for, which is the one thing about this corpus no row can say. A PNG added
  * to `fixtures/` and left out of `FIXTURES` costs nothing and reports nothing — the suite goes on passing at whatever
  * size it was, and the capture sits in the tree looking exactly like a capture that is pinned. So the directory is the
  * authority and the table is checked against it, in both directions: a row naming a file that is gone fails here too,
- * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's subtest.
+ * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
   const committed = readdirSync(new URL('fixtures', import.meta.url))
     .filter((file) => file.endsWith('.png'))
     .sort();
 
-  assert.deepStrictEqual(committed, [...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
+  expect(committed).toStrictEqual([...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
 });
 
 /**
@@ -1269,7 +1314,7 @@ const COVERAGE = {
 test('the corpus is the shape the docblock says it is', () => {
   const settled = FIXTURES.filter((f) => overlayOf(f).levels.length === 1);
 
-  assert.deepStrictEqual(
+  expect(
     {
       rows: FIXTURES.length,
       answeredAsThemselves: FIXTURES.filter((f) => f.defects?.label === undefined).length,
@@ -1283,14 +1328,13 @@ test('the corpus is the shape the docblock says it is', () => {
       boxNotFound: FIXTURES.filter((f) => f.defects && 'box' in f.defects).length,
       overlayNotRead: FIXTURES.filter((f) => f.defects && 'iv' in f.defects).length,
     },
-    COVERAGE,
     'the docblock above quotes these figures; update both or neither',
-  );
+  ).toStrictEqual(COVERAGE);
 
   // The three ways a row can account for its level have to partition the corpus, or one of the counts above is reaching
   // rows another has already claimed and the three could all be right while summing to the wrong thing.
-  assert.strictEqual(COVERAGE.oneLevel + COVERAGE.severalLevels + COVERAGE.noLevel, COVERAGE.rows);
-  assert.strictEqual(COVERAGE.crossCheckAgrees + COVERAGE.crossCheckDisagrees, COVERAGE.oneLevel);
+  expect(COVERAGE.oneLevel + COVERAGE.severalLevels + COVERAGE.noLevel).toBe(COVERAGE.rows);
+  expect(COVERAGE.crossCheckAgrees + COVERAGE.crossCheckDisagrees).toBe(COVERAGE.oneLevel);
 });
 
 /**
@@ -1304,7 +1348,7 @@ test('the corpus is the shape the docblock says it is', () => {
  * what `identify` answers about that Pokémon, and the diff is where that is visible.
  */
 test('the vended game master is the shape the readers are asserted against', () => {
-  assert.deepStrictEqual(
+  expect(
     {
       forms: DATA.forms.length,
       species: DATA.species.length,
@@ -1312,9 +1356,8 @@ test('the vended game master is the shape the readers are asserted against', () 
       types: DATA.types.length,
       cpm: DATA.cpm.length,
     },
-    { forms: 1449, species: 1024, moves: 328, types: 18, cpm: 101 },
     'the `DATA` docblock quotes these figures; re-vend and update both or neither',
-  );
+  ).toStrictEqual({ forms: 1449, species: 1024, moves: 328, types: 18, cpm: 101 });
 });
 
 /**
@@ -1327,20 +1370,20 @@ test('the vended game master is the shape the readers are asserted against', () 
  * what the screen shows, so the disagreement is a filter and not a list to keep in step. Three of the four are an order
  * of magnitude out, the leading digit having been lost to the artwork behind it, and `unown-b.png` loses two.
  */
-test('the CP is read off 20 captures, and no longer wrongly on any', async () => {
-  const states = new Map<string, number>();
+test(
+  'the CP is read off 20 captures, and no longer wrongly on any',
+  async () => {
+    const states = new Map<string, number>();
 
-  for (const fixture of FIXTURES) {
-    const { detail } = await readingOf(fixture.file);
+    for (const fixture of FIXTURES) {
+      const { detail } = await readingOf(fixture.file);
 
-    if (detail.cp !== null) {
-      states.set(fixture.file, detail.cp);
+      if (detail.cp !== null) {
+        states.set(fixture.file, detail.cp);
+      }
     }
-  }
 
-  assert.deepStrictEqual(
-    Object.fromEntries(states),
-    {
+    expect(Object.fromEntries(states), 'which captures state a CP, or what they state, has changed').toStrictEqual({
       'basculin-blue.png': 253,
       'basculin-red.png': 393,
       'burmy-plant.png': 206,
@@ -1361,21 +1404,20 @@ test('the CP is read off 20 captures, and no longer wrongly on any', async () =>
       'unown-m.png': 839,
       'unown-question.png': 486,
       'xurkitree.png': 2197,
-    },
-    'which captures state a CP, or what they state, has changed',
-  );
+    });
 
-  // And which of them it reads *wrongly*, derived from the map rather than listed again — a row already states what the
-  // screen shows, so a disagreement is a filter and not a second list to keep in step. It is empty, which is the whole
-  // measurement: `castform-snowy.png` read 46 for 746, `shellos-east.png` 84 for 784, `unown-b.png` 48 for 487 and
-  // `deoxys-defense.png` 15 for 1569, and the band rescue reads all four. Asserted as empty rather than deleted, since
-  // a misread coming back is exactly what this existed to catch.
-  assert.deepStrictEqual(
-    FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
-    [],
-    'a capture has started misreading its CP again',
-  );
-});
+    // And which of them it reads *wrongly*, derived from the map rather than listed again — a row already states what
+    // the screen shows, so a disagreement is a filter and not a second list to keep in step. It is empty, which is the
+    // whole measurement: `castform-snowy.png` read 46 for 746, `shellos-east.png` 84 for 784, `unown-b.png` 48 for 487
+    // and `deoxys-defense.png` 15 for 1569, and the band rescue reads all four. Asserted as empty rather than deleted,
+    // since a misread coming back is exactly what this existed to catch.
+    expect(
+      FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
+      'a capture has started misreading its CP again',
+    ).toStrictEqual([]);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 /**
  * What the overlay `fixtures/xurkitree.png` loses is worth exactly one number, and this is it. The capture plainly
@@ -1396,10 +1438,10 @@ test('the overlay fixtures/xurkitree.png does not read would have cross-checked 
   const { detail } = await readingOf(fixture.file);
   const identity = identify(DATA, detail, { levels: [overlay.level], iv: overlay.iv, form: null });
 
-  assert.strictEqual(detail.cp, fixture.cp, 'the capture has lost the CP this is cross-checked against');
-  assert.deepStrictEqual(identity.levels, [overlay.level], 'the HP no longer agrees with the level the overlay states');
-  assert.strictEqual(identity.cp, detail.cp);
-  assert.deepStrictEqual(identity.notes, [], 'the readers disagree with each other');
+  expect(detail.cp, 'the capture has lost the CP this is cross-checked against').toBe(fixture.cp);
+  expect(identity.levels, 'the HP no longer agrees with the level the overlay states').toStrictEqual([overlay.level]);
+  expect(identity.cp).toBe(detail.cp);
+  expect(identity.notes, 'the readers disagree with each other').toStrictEqual([]);
 });
 
 /**
@@ -1423,11 +1465,11 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
   const blind = identify(DATA, detail, { ...stated, form: null });
   const named = identify(DATA, detail, { ...stated, form: overlay.suffix });
 
-  assert.strictEqual(blind.form && label(blind.form), 'Spinda (00)');
-  assert.deepStrictEqual(blind.alternatives, [], 'the fold no longer collapses the 20, so this test is obsolete');
-  assert.strictEqual(named.form && label(named.form), `Spinda (${overlay.suffix})`);
-  assert.strictEqual(named.cp, fixture.cp, 'the CP the bracket buys no longer agrees with the screen');
-  assert.deepStrictEqual(named.notes, [], 'the readers disagree with each other');
+  expect(blind.form && label(blind.form)).toBe('Spinda (00)');
+  expect(blind.alternatives, 'the fold no longer collapses the 20, so this test is obsolete').toStrictEqual([]);
+  expect(named.form && label(named.form)).toBe(`Spinda (${overlay.suffix})`);
+  expect(named.cp, 'the CP the bracket buys no longer agrees with the screen').toBe(fixture.cp);
+  expect(named.notes, 'the readers disagree with each other').toStrictEqual([]);
 });
 
 /**
@@ -1441,25 +1483,29 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  * is that some capture's shortlist does **not** contain its true level, which is what says the HP is the arbiter rather
  * than a tie-breaker: `fixtures/spoink.png` offers `1` alone for a Pokémon at level 7.
  */
-test('the shortlists the overlay states both overshoot a true level and miss one', async () => {
-  const stated = new Map<string, readonly number[]>();
+test(
+  'the shortlists the overlay states both overshoot a true level and miss one',
+  async () => {
+    const stated = new Map<string, readonly number[]>();
 
-  for (const fixture of FIXTURES) {
-    const { overlay } = await readingOf(fixture.file);
-    stated.set(fixture.file, overlay?.levels ?? []);
-  }
+    for (const fixture of FIXTURES) {
+      const { overlay } = await readingOf(fixture.file);
+      stated.set(fixture.file, overlay?.levels ?? []);
+    }
 
-  const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
-  assert.strictEqual(offered.length, 56, 'how many overlays are read has changed, so these two properties say less');
-  assert.ok(
-    offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
-    'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
-  );
-  assert.ok(
-    offered.some((f) => !stated.get(f.file)?.includes(f.overlay?.level ?? 0)),
-    'every shortlist contains its own level, so nothing says the HP is what settles it',
-  );
-});
+    const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
+    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(56);
+    assert.ok(
+      offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
+      'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
+    );
+    assert.ok(
+      offered.some((f) => !stated.get(f.file)?.includes(f.overlay?.level ?? 0)),
+      'every shortlist contains its own level, so nothing says the HP is what settles it',
+    );
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 /**
  * What the bracketed form buys, measured by taking it away — and the answer is not an ambiguity but a **confident wrong
@@ -1474,14 +1520,10 @@ test('without the form PGSharp appends, Unown is answered confidently and wrongl
 
   const identity = identify(DATA, detail, { ...overlay, form: null });
 
-  assert.strictEqual(identity.form?.species, 'Unown');
-  assert.notStrictEqual(identity.form?.form, 'B');
-  assert.deepStrictEqual(identity.alternatives, [], 'the fold no longer collapses the 28, so this test is obsolete');
-  assert.deepStrictEqual(
-    identity.levels,
-    [16],
-    'the numbers still settle the level; only the letter was ever in doubt',
-  );
+  expect(identity.form?.species).toBe('Unown');
+  expect(identity.form?.form).not.toBe('B');
+  expect(identity.alternatives, 'the fold no longer collapses the 28, so this test is obsolete').toStrictEqual([]);
+  expect(identity.levels, 'the numbers still settle the level; only the letter was ever in doubt').toStrictEqual([16]);
 });
 
 /**
@@ -1498,7 +1540,7 @@ test('the status-bar fixture carries a line a loose measurement would take', asy
 
   assert.ok(decoy, 'nothing on the screen reads as a measurement at all');
   assert.ok(height, 'the capture has lost its height');
-  assert.notStrictEqual(decoy, height, `nothing above ${JSON.stringify(height.text)} reads as a loose measurement`);
+  expect(decoy, `nothing above ${JSON.stringify(height.text)} reads as a loose measurement`).not.toBe(height);
   assert.ok(decoy.top < image.height * 0.1, `the decoy ${JSON.stringify(decoy.text)} is not in the status bar`);
 });
 
@@ -1506,7 +1548,7 @@ test('the status-bar fixture carries a line a loose measurement would take', asy
  * `fixtures/overworld.png` is the map, and this is what the detail readers answer on it: nothing, in every field. That
  * is the half a corpus of valid screens cannot state — every row asserts that a reader found the right thing and not
  * one of them asserts that a reader declines to find a thing that is not there, so a `hpOn` returning a constant would
- * pass every row it appears in. Written as one `deepStrictEqual` over the whole `Detail` rather than ten assertions,
+ * pass every row it appears in. Written as one `toStrictEqual` over the whole `Detail` rather than ten assertions,
  * because the claim is about the object and a field added to `Detail` should fail here until it is accounted for.
  *
  * `identify` declines it too, and for a reason worth knowing rather than by luck: with no name read there is no
@@ -1519,31 +1561,28 @@ test('the status-bar fixture carries a line a loose measurement would take', asy
 test('overworld.png is the map, and every reader declines it', async () => {
   const { detail, box, overlay } = await readingOf('overworld.png');
 
-  assert.strictEqual(box, null, 'a band of the map read as an overlay');
-  assert.deepStrictEqual(
-    { ...detail },
-    {
-      cp: null,
-      favourite: false,
-      gender: null,
-      height: null,
-      hp: null,
-      name: null,
-      size: null,
-      tags: [],
-      types: [],
-      weight: null,
-    },
-  );
+  expect(box, 'a band of the map read as an overlay').toBe(null);
+  expect({ ...detail }).toStrictEqual({
+    cp: null,
+    favourite: false,
+    gender: null,
+    height: null,
+    hp: null,
+    name: null,
+    size: null,
+    tags: [],
+    types: [],
+    weight: null,
+  });
 
   const identity = identify(DATA, detail, overlay);
 
-  assert.strictEqual(identity.form, null, 'a form was chosen for a screen with no Pokémon on it');
-  assert.deepStrictEqual(identity.alternatives, []);
-  assert.deepStrictEqual(identity.levels, []);
-  assert.strictEqual(identity.cp, null);
-  assert.strictEqual(identity.nickname, null);
-  assert.deepStrictEqual(identity.notes, [], 'a screen with nothing on it is declined without comment');
+  expect(identity.form, 'a form was chosen for a screen with no Pokémon on it').toBe(null);
+  expect(identity.alternatives).toStrictEqual([]);
+  expect(identity.levels).toStrictEqual([]);
+  expect(identity.cp).toBe(null);
+  expect(identity.nickname).toBe(null);
+  expect(identity.notes, 'a screen with nothing on it is declined without comment').toStrictEqual([]);
 });
 
 /**
@@ -1563,22 +1602,18 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
   const bare = await readingOf('no-pgsharp.png');
   const toolbar = await readingOf('pgsharp-no-overlay.png');
 
-  assert.deepStrictEqual({ ...bare.detail, cp: null }, { ...toolbar.detail, cp: null });
-  assert.strictEqual(bare.detail.cp, 330, 'the capture PGSharp is absent from no longer misreads its CP');
-  assert.strictEqual(
-    toolbar.detail.cp,
-    390,
-    'the capture with the toolbar up no longer reads the CP the screen prints',
-  );
+  expect({ ...bare.detail, cp: null }).toStrictEqual({ ...toolbar.detail, cp: null });
+  expect(bare.detail.cp, 'the capture PGSharp is absent from no longer misreads its CP').toBe(330);
+  expect(toolbar.detail.cp, 'the capture with the toolbar up no longer reads the CP the screen prints').toBe(390);
 
   for (const reading of [bare, toolbar]) {
     const identity = identify(DATA, reading.detail, reading.overlay);
 
-    assert.strictEqual(reading.box, null, 'a band of a screen with no overlay on it read as one');
-    assert.strictEqual(identity.form && label(identity.form), 'Squirtle');
-    assert.deepStrictEqual(identity.levels, [], 'a level was settled on a screen that states none');
-    assert.strictEqual(identity.cp, null);
-    assert.deepStrictEqual(identity.notes, [], 'an absent overlay is the ordinary case and not worth a note');
+    expect(reading.box, 'a band of a screen with no overlay on it read as one').toBe(null);
+    expect(identity.form && label(identity.form)).toBe('Squirtle');
+    expect(identity.levels, 'a level was settled on a screen that states none').toStrictEqual([]);
+    expect(identity.cp).toBe(null);
+    expect(identity.notes, 'an absent overlay is the ordinary case and not worth a note').toStrictEqual([]);
   }
 });
 
@@ -1616,90 +1651,99 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * to Chill, and `keldeo-resolute.png` is nearest to Ordinary. A match that took the nearest regardless would be
  * confidently wrong on all five, which is the one failure mode this corpus exists to make impossible.
  */
-test('the artwork settles eight forms the numbers cannot, and declines the eight it cannot see', async () => {
-  const answers = new Map<string, string>();
-  const nearests = new Map<string, string>();
+test(
+  'the artwork settles eight forms the numbers cannot, and declines the eight it cannot see',
+  async () => {
+    const answers = new Map<string, string>();
+    const nearests = new Map<string, string>();
 
-  for (const fixture of FIXTURES) {
-    const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
-    const mine = DATA.forms.find((f) => label(f) === truth);
+    for (const fixture of FIXTURES) {
+      const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
+      const mine = DATA.forms.find((f) => label(f) === truth);
 
-    if (!mine) {
-      continue;
+      if (!mine) {
+        continue;
+      }
+
+      // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
+      const family = DATA.forms.filter(
+        (f) =>
+          f.dex === mine.dex &&
+          !f.costume &&
+          f.attack === mine.attack &&
+          f.defense === mine.defense &&
+          f.stamina === mine.stamina &&
+          [...f.types].sort().join() === [...mine.types].sort().join(),
+      );
+
+      if (family.length < 2 || !family.every((f) => ARTWORK.has(label(f)))) {
+        continue;
+      }
+
+      const { artwork } = await readingOf(fixture.file);
+      assert.ok(artwork, `${fixture.file} yields no artwork signature at all`);
+
+      const icons = new Map(
+        family.flatMap((f): [string, Signature][] => {
+          const signature = ARTWORK.get(label(f));
+
+          return signature ? [[label(f), signature]] : [];
+        }),
+      );
+      const ranked = [...icons].sort((a, b) => distance(artwork.signature, a[1]) - distance(artwork.signature, b[1]));
+      const closest = ranked[0];
+      assert.ok(closest, `${fixture.file} has no icon to compare against`);
+
+      answers.set(fixture.file, nearest(artwork.signature, icons) ?? 'declined');
+      nearests.set(fixture.file, closest[0]);
     }
 
-    // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
-    const family = DATA.forms.filter(
-      (f) =>
-        f.dex === mine.dex &&
-        !f.costume &&
-        f.attack === mine.attack &&
-        f.defense === mine.defense &&
-        f.stamina === mine.stamina &&
-        [...f.types].sort().join() === [...mine.types].sort().join(),
-    );
+    expect(Object.fromEntries(answers)).toStrictEqual({
+      'burmy-plant.png': 'Burmy (Plant)',
+      'burmy-sandy.png': 'Burmy (Sandy)',
+      'burmy-trash.png': 'Burmy (Trash)',
+      'cherrim-overcast.png': 'Cherrim (Overcast)',
+      'cherrim-sunshine.png': 'Cherrim (Sunny)',
+      'deerling-autumn.png': 'declined',
+      'deerling-spring.png': 'declined',
+      'deerling-summer.png': 'Deerling (Summer)',
+      'deerling-winter.png': 'Deerling (Winter)',
+      'genesect-burn.png': 'declined',
+      'genesect-chill.png': 'declined',
+      'genesect-douse.png': 'declined',
+      'genesect-normal.png': 'declined',
+      'keldeo-resolute.png': 'declined',
+      'shellos-east.png': 'Shellos (East Sea)',
+      'shellos-west.png': 'declined',
+    });
 
-    if (family.length < 2 || !family.every((f) => ARTWORK.has(label(f)))) {
-      continue;
-    }
+    const truthOf = (file: string) => {
+      const row = FIXTURES.find((f) => f.file === file);
+      assert.ok(row, `${file} has left the corpus`);
 
-    const { artwork } = await readingOf(fixture.file);
-    assert.ok(artwork, `${fixture.file} yields no artwork signature at all`);
+      return row.form ? `${row.species} (${row.form})` : row.species;
+    };
 
-    const icons = new Map(
-      family.flatMap((f): [string, Signature][] => {
-        const signature = ARTWORK.get(label(f));
+    const wrong = [...answers].filter(([file, answer]) => answer !== 'declined' && answer !== truthOf(file));
+    expect(wrong, 'the artwork answered a form that is not the one on the screen').toStrictEqual([]);
 
-        return signature ? [[label(f), signature]] : [];
-      }),
-    );
-    const ranked = [...icons].sort((a, b) => distance(artwork.signature, a[1]) - distance(artwork.signature, b[1]));
-    const closest = ranked[0];
-    assert.ok(closest, `${fixture.file} has no icon to compare against`);
+    const rescued = [...answers]
+      .filter(([file, answer]) => answer === 'declined' && nearests.get(file) !== truthOf(file))
+      .map(([file]) => file);
 
-    answers.set(fixture.file, nearest(artwork.signature, icons) ?? 'declined');
-    nearests.set(fixture.file, closest[0]);
-  }
-
-  assert.deepStrictEqual(Object.fromEntries(answers), {
-    'burmy-plant.png': 'Burmy (Plant)',
-    'burmy-sandy.png': 'Burmy (Sandy)',
-    'burmy-trash.png': 'Burmy (Trash)',
-    'cherrim-overcast.png': 'Cherrim (Overcast)',
-    'cherrim-sunshine.png': 'Cherrim (Sunny)',
-    'deerling-autumn.png': 'declined',
-    'deerling-spring.png': 'declined',
-    'deerling-summer.png': 'Deerling (Summer)',
-    'deerling-winter.png': 'Deerling (Winter)',
-    'genesect-burn.png': 'declined',
-    'genesect-chill.png': 'declined',
-    'genesect-douse.png': 'declined',
-    'genesect-normal.png': 'declined',
-    'keldeo-resolute.png': 'declined',
-    'shellos-east.png': 'Shellos (East Sea)',
-    'shellos-west.png': 'declined',
-  });
-
-  const truthOf = (file: string) => {
-    const row = FIXTURES.find((f) => f.file === file);
-    assert.ok(row, `${file} has left the corpus`);
-
-    return row.form ? `${row.species} (${row.form})` : row.species;
-  };
-
-  const wrong = [...answers].filter(([file, answer]) => answer !== 'declined' && answer !== truthOf(file));
-  assert.deepStrictEqual(wrong, [], 'the artwork answered a form that is not the one on the screen');
-
-  const rescued = [...answers]
-    .filter(([file, answer]) => answer === 'declined' && nearests.get(file) !== truthOf(file))
-    .map(([file]) => file);
-
-  assert.deepStrictEqual(
-    rescued,
-    ['genesect-burn.png', 'genesect-douse.png', 'genesect-normal.png', 'keldeo-resolute.png', 'shellos-west.png'],
-    `the ${MARGIN} margin no longer rescues the captures whose nearest icon is the wrong one`,
-  );
-});
+    expect(
+      rescued,
+      `the ${MARGIN} margin no longer rescues the captures whose nearest icon is the wrong one`,
+    ).toStrictEqual([
+      'genesect-burn.png',
+      'genesect-douse.png',
+      'genesect-normal.png',
+      'keldeo-resolute.png',
+      'shellos-west.png',
+    ]);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 test('the corpus reaches both sides of every attribute', () => {
   for (const flag of ['favourite', 'lucky', 'purified', 'shadow', 'shiny'] as const) {
@@ -1716,15 +1760,11 @@ test('the corpus reaches both sides of every attribute', () => {
     );
   }
 
-  assert.deepStrictEqual(
+  expect(
     distinct(FIXTURES, (f) => f.size),
-    ['XL', 'XXL', 'XXS', 'undefined'],
     'three of the four bands and none; no capture wears an `XS`, which is a gap and not a licence to drop the band',
-  );
-  assert.deepStrictEqual(
-    distinct(FIXTURES, (f) => f.gender),
-    ['female', 'male', 'null'],
-  );
+  ).toStrictEqual(['XL', 'XXL', 'XXS', 'undefined']);
+  expect(distinct(FIXTURES, (f) => f.gender)).toStrictEqual(['female', 'male', 'null']);
   assert.ok(
     FIXTURES.some((f) => f.form === '') && FIXTURES.some((f) => f.form !== ''),
     'every capture is a named form or none is, so nothing separates a form name from a base one',
@@ -1750,21 +1790,19 @@ test('the corpus reaches both sides of every attribute', () => {
     FIXTURES.some((f) => f.overlay === null),
     'no capture is left where PGSharp drew no overlay at all, which is one of the two ways to have no box',
   );
-  assert.deepStrictEqual(
+  expect(
     FIXTURES.filter((f) => f.defects && 'box' in f.defects).map((f) => f.file),
-    [],
     'a capture needs `defects.box` again, so `findOverlay` has started missing a box that is on the screen',
-  );
+  ).toStrictEqual([]);
 
   // The same shape for the types, and the same reason. `typesOf` used to read `[]` for both Nidoran, whose type band
   // comes back `IT POISO N` — a name Tesseract split, which an exact word match takes neither half of. Those two were
   // the only captures with no type read at all, so this is the whole of what says the reader has not begun losing a
   // pair again, and it names the files rather than counting them because the two it covers are the only two it could.
-  assert.deepStrictEqual(
+  expect(
     FIXTURES.filter((f) => f.defects && 'types' in f.defects).map((f) => f.file),
-    [],
     'a capture needs `defects.types` again, so `typesOf` has started reading no type off a screen that states one',
-  );
+  ).toStrictEqual([]);
 
   // And both kinds of bracketed form, which is what says `identify` matches a suffix against a form name exactly: four
   // captures carry a suffix that names a form of their species and two carry one that names no form at all, those
@@ -1792,11 +1830,10 @@ test('the corpus reaches both sides of every attribute', () => {
   // `findOverlay` now finds a box on every screen that carries one, `isFavourite` no longer calls `spinda-04.png` a
   // favourite, `tagsOn` reads `snorlax-purified.png`'s chip, and `typesOf` reads the pair off both Nidoran. Each of
   // those used to need a key here, so one coming back is a regression this line reports rather than absorbs.
-  assert.deepStrictEqual(
+  expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
-    ['alternatives', 'cp', 'height', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix'],
     'a reader has started or stopped disagreeing with the screen about something',
-  );
+  ).toStrictEqual(['alternatives', 'cp', 'height', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'suffix']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
