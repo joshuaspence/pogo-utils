@@ -29,7 +29,12 @@
     // since it is erased before Node sees it — and `src/types.d.ts` could not be named any other way.
     "allowImportingTsExtensions": true
   },
-  "include": ["*.mts", "inventory/*.mts"],
+  // The entry points here, and the inventory library they drive, which lives under `src/` with the rest of the source
+  // and is claimed by this project rather than the browser one next door: it reaches `node:child_process` for `adb` and
+  // the Tesseract CLI, so it needs Node's lib and must not have the DOM's. Nothing holds it here but this line — the
+  // browser project's `src/**/*.ts` does not match an `.mts` file, so a module added there under a `.ts` name would be
+  // checked against the wrong lib set instead of against none.
+  "include": ["*.mts", "../src/tools/inventory/*.mts"],
 
   // These scripts import the files `tsconfig.shared.json` lists — `src/countries.ts`, `src/event-feed.ts`,
   // `src/generated.ts`, `src/recurring-types.ts` and `src/types.d.ts`. Build mode wants every file a project reads

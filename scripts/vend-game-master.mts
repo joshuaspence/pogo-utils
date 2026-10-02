@@ -1,6 +1,6 @@
 /**
- * Writes `scripts/inventory/fixtures/game-master.json`, the game master `screens.test.mts` reads the forms, moves, type
- * names and CP multipliers out of.
+ * Writes `src/tools/inventory/fixtures/game-master.json`, the game master `screens.test.mts` reads the forms, moves,
+ * type names and CP multipliers out of.
  *
  * It exists because a test of a reader must not reach the network, and the two files upstream are 23 MB for the 0.85 MB
  * of them anything here consults — the same division the hue signatures in that file already have, where a scan
@@ -21,11 +21,11 @@
  * `identify` answers. That is the pipeline reporting rather than the suite breaking, and the diff is where you see it.
  */
 
-import { CACHE, loadGameData } from './inventory/game-master.mts';
+import { CACHE, loadGameData } from '../src/tools/inventory/game-master.mts';
 import { writeFileSync } from 'node:fs';
 import prettier from 'prettier';
 
-const OUTPUT = 'scripts/inventory/fixtures/game-master.json';
+const OUTPUT = 'src/tools/inventory/fixtures/game-master.json';
 
 const data = await loadGameData(CACHE, process.argv.includes('--refresh'));
 

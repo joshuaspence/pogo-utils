@@ -37,11 +37,11 @@
  * the account is the user's to weigh.
  */
 
-import { Device, KEY, sleep } from './inventory/adb.mts';
-import { iconsFor, signatureOf, type Signature } from './inventory/artwork.mts';
-import { CACHE, closest, loadGameData, type Form, type GameData } from './inventory/game-master.mts';
-import { centre, findLine, fold, ocr, type Line } from './inventory/ocr.mts';
-import { decodePng, difference, encodePng, type Image } from './inventory/png.mts';
+import { Device, KEY, sleep } from '../src/tools/inventory/adb.mts';
+import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
+import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
+import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
+import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import {
   findOverlay,
   identify,
@@ -55,7 +55,7 @@ import {
   type Moves,
   type Overlay,
   type OverlayBox,
-} from './inventory/screens.mts';
+} from '../src/tools/inventory/screens.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { parseArgs } from 'node:util';
