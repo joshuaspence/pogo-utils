@@ -21,6 +21,15 @@ import { join } from 'node:path';
 const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
 const STRINGS =
   'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Texts/Latest%20APK/JSON/i18n_english.json';
+
+/**
+ * What `pogo_assets` holds under `Images/Pokemon/Addressable Assets`, which is 3,522 names in 146 KB and the only
+ * thing that says whether a form has artwork at all. The contents endpoint caps at 1,000 entries and would truncate
+ * silently, where this one answers `truncated: false`.
+ */
+const ICON_INDEX =
+  'https://api.github.com/repos/PokeMiners/pogo_assets/git/trees/master:Images%2FPokemon%2FAddressable%20Assets';
+
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
 /**
@@ -44,12 +53,16 @@ export interface Form {
   defense: number;
   stamina: number;
   /**
-   * The game master's own `assetBundleValue`, which is how its artwork is named — `pokemon_icon_585_13.png` is the
-   * Autumn Deerling. Null where the form carries none, which happens: `BASCULIN_WHITE_STRIPED` has no value where Red
-   * and Blue have 11 and 12. It is the only thing that separates the forms whose stats and types are identical, so
+   * The file `pogo_assets` holds this form's artwork under — `pm585.fAUTUMN.icon.png` is the Autumn Deerling — or null
+   * where it holds none. It is the only thing that separates the forms whose stats and types are identical, so
    * `artwork.mts` reads it and nothing else here does.
+   *
+   * A null is a statement about the game rather than a gap in the data: the game master lists every form Niantic's
+   * data knows, where the directory holds the ones the game draws. Nine of Spinda's twenty patterns are released and
+   * nine have an icon; Scatterbug and Spewpa have none, only Vivillon showing the pattern. So a form with no icon is
+   * one no artwork could ever have narrowed.
    */
-  icon: number | null;
+  icon: string | null;
   /**
    * Every move this form can hold: the ordinary pools, the elite ones a legacy Pokémon may still carry, Rayquaza's
    * untradeable Dragon Ascent, and the Frustration and Return a shadow or purified one has. Reading a move against
@@ -96,15 +109,64 @@ interface Template {
     };
     formSettings?: {
       pokemon: string;
-      forms?: { form: string; isCostume?: boolean; assetBundleValue?: number }[];
+      forms?: { form: string; isCostume?: boolean }[];
     };
     moveSettings?: object;
     playerLevel?: { cpMultiplier: number[] };
   };
 }
 
+/** What a form has to be called to be the species' ordinary one, which decides its display name and its icon alike. */
+const ORDINARY = /(^|_)NORMAL$/;
+
+/**
+ * Which file holds a form's artwork, or null where the directory holds none.
+ *
+ * The name is the form's own rather than a number: `assetBundleValue` is not how these assets are named and is not
+ * even unique, Zygarde's 50% and Complete 50% forms both carrying `1`. Two candidates for a named form, because the
+ * species prefix is kept for some and dropped for others — `pm585.fSPRING.icon.png` for `DEERLING_SPRING` against
+ * `pm412.fBURMY_PLANT.icon.png` for `BURMY_PLANT` — and nothing in the game master says which. Measured over 1,351
+ * non-costume forms, 252 resolve trimmed and 34 full, Burmy, Unown and Wormadam being the whole of the second set, and
+ * **none resolve both ways**, so asking the index settles it with no order to defend.
+ *
+ * The bare `pm{dex}.icon.png` is a third candidate and **only** for the ordinary form, which is 14 families' worth:
+ * no `fNORMAL` exists for Frillish, so its male would be the one member of its pair with no icon and the artwork
+ * would decline a blue against a pink for want of a file that is there. Only for the ordinary one, because the bare
+ * name is that form's own artwork — offered to `RAIKOU_S` as a fallback it would hand two forms one icon and so one
+ * signature, which is the indecision `assetBundleValue` caused, silently. And a fallback rather than a replacement,
+ * since `GENESECT_NORMAL` has an `fNORMAL` and no bare name at all.
+ */
+function iconName(index: ReadonlySet<string>, dex: number, suffix: string, form: string | undefined): string | null {
+  const named = form === undefined ? [] : [`pm${dex}.f${suffix}.icon.png`, `pm${dex}.f${form}.icon.png`];
+  const ordinary = form === undefined || ORDINARY.test(suffix);
+  const names = ordinary ? [...named, `pm${dex}.icon.png`] : named;
+
+  return names.find((name) => index.has(name)) ?? null;
+}
+
+/**
+ * The directory listing, which is what makes a form's artwork addressable without probing for it. Fetching the 153
+ * files that exist beats probing all 237 to find them, and it is also what lets a family short of one icon be reported
+ * once, ahead of the download, rather than discovered as a 404 per form on every scan.
+ *
+ * An index is an improvement rather than a prerequisite, exactly as an icon is, so failing to read one costs the
+ * artwork narrowing and not the scan.
+ */
+async function iconIndex(dir: string, refresh: boolean): Promise<ReadonlySet<string>> {
+  try {
+    const listing = JSON.parse(await cached(dir, 'icons.json', ICON_INDEX, refresh)) as { tree?: { path: string }[] };
+
+    return new Set((listing.tree ?? []).map((entry) => entry.path));
+  } catch (error) {
+    console.error(`  ${error instanceof Error ? error.message : String(error)}; no form is narrowed by its artwork`);
+
+    return new Set();
+  }
+}
+
 export async function loadGameData(cacheDir: string, refresh = false): Promise<GameData> {
   const templates = JSON.parse(await cached(cacheDir, 'game-master.json', GAME_MASTER, refresh)) as Template[];
+  const index = await iconIndex(cacheDir, refresh);
   const flat = (JSON.parse(await cached(cacheDir, 'english.json', STRINGS, refresh)) as { data: string[] }).data;
   const strings = new Map<string, string>();
 
@@ -118,16 +180,11 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
   };
 
   const costumes = new Set<string>();
-  const icons = new Map<string, number>();
 
   for (const { data } of templates) {
     for (const f of data.formSettings?.forms ?? []) {
       if (f.isCostume) {
         costumes.add(f.form);
-      }
-
-      if (f.assetBundleValue !== undefined) {
-        icons.set(f.form, f.assetBundleValue);
       }
     }
   }
@@ -169,9 +226,9 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
       dex,
       species: strings.get(`pokemon_name_${match[1]}`) ?? titleise(settings.pokemonId),
       // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it.
-      form: /(^|_)NORMAL$/.test(suffix) ? '' : titleise(suffix),
+      form: ORDINARY.test(suffix) ? '' : titleise(suffix),
       costume: settings.form !== undefined && costumes.has(settings.form),
-      icon: settings.form === undefined ? null : (icons.get(settings.form) ?? null),
+      icon: iconName(index, dex, suffix, settings.form),
       types: [settings.type, settings.type2].filter((t) => t !== undefined).map(typeName),
       attack: baseAttack,
       defense: baseDefense,

@@ -786,12 +786,12 @@ three are all `189/129/172 Water`, Burmy's three `53/83/120 Bug`, Deerling's fou
 five `252/199/174 Bug+Steel`, Cherrim's two `170/153/172 Grass`, Keldeo's two `260/192/209`, Shellos' two
 `103/105/183 Water`.
 
-The artwork is the only thing left, and the game master addresses it: every such form carries a distinct
-`assetBundleValue` under `formSettings`, 11 upwards, which is how PokeMiners' assets are named —
-`Images/Pokemon/pokemon_icon_585_11.png` is Spring Deerling, `_12` Summer, `_13` Autumn, `_14` Winter. They fetch at 6
-to 12 KB each, `Form.icon` carries the value, and `scripts/inventory/artwork.mts` compares a 12-bin hue histogram of the
-capture's artwork against those icons. `identify` takes the answer as a narrowing ahead of the fold, where PGSharp's
-bracketed suffix already goes. The figures below are measured over 17 captures from six families.
+The artwork is the only thing left, and the game draws each such form its own, named by **form** under
+`Images/Pokemon/Addressable Assets/` — `pm585.fSPRING.icon.png` is Spring Deerling, `fSUMMER`, `fAUTUMN`, `fWINTER` the
+rest. They fetch at 6 to 12 KB each, `Form.icon` carries the file name, and `scripts/inventory/artwork.mts` compares a
+12-bin hue histogram of the capture's artwork against those icons. `identify` takes the answer as a narrowing ahead of
+the fold, where PGSharp's bracketed suffix already goes. The figures below are measured over 17 captures from six
+families.
 
 - **The backdrop is the whole problem, not the colours.** A histogram over a fixed box scores **8 of 17**, because the
   game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png` stands on an
@@ -817,20 +817,61 @@ bracketed suffix already goes. The figures below are measured over 17 captures f
   rivals rather than demoting them, so a declined call still comes back as one form with no alternatives and no note —
   `shellos-west.png` is answered as East Sea whether the artwork is consulted or not. Closing that means `identify`
   reporting the fold it performed, which changes every row of the CSV.
-- **Require a signature for every candidate, not for two of them.** Otherwise a form the game master gives no
-  `assetBundleValue` is dropped for having no icon rather than for losing on its colours. That is why Basculin is never
-  narrowed, and it is checked rather than assumed: the suite's `ARTWORK` table deliberately holds no Basculin.
+- **Require a signature for every candidate, not for two of them.** Otherwise a form the game draws no icon for is
+  dropped for having no artwork rather than for losing on its colours. That is why **Spinda** is never narrowed — nine
+  of its twenty patterns are released and nine have an icon — and it is checked rather than assumed: `ambiguous`
+  partitions the families and the suite's `ARTWORK` table deliberately holds no Spinda.
 - **The test records the signatures and a scan downloads them.** The same division the game master already has, and for
-  the same reason — a test of a reader must not reach the network. A scan fetches 86 icons once, under a megabyte, into
-  the git-ignored `.cache/`. A missing one is an abstention and not a failure: `pokemon_icon_718_1.png` is a 404,
-  Zygarde's value not following the 11-upwards pattern, and the scan reports it and carries on.
+  the same reason — a test of a reader must not reach the network. A scan fetches 125 icons once, about a megabyte, into
+  the git-ignored `.cache/`. A missing one is an abstention and not a failure, and the scan reports it and carries on.
 - **Genesect cannot be done this way and that is worth knowing before trying.** Its five forms are one robot with a
   differently-coloured drive cassette a few pixels across, so all five distances sit between 1.54 and 1.67 with margins
   of 0.015 to 0.020 — indecisive by construction rather than by a weak mask. Expect to abstain on it for ever, and read
   a tiny margin there as the measurement rather than as something to tune away.
-- **`assetBundleValue` is not always there.** `BASCULIN_WHITE_STRIPED` carries none where Red and Blue carry 11 and 12,
-  so a form's icon is not addressable from the game master alone in every case, and `basculin-white.png` was left out of
-  the 17 for that reason.
+- **`assetBundleValue` is the wrong key, and it reads as missing artwork rather than as wrong addressing.** It was what
+  `Form.icon` carried, and it fails three ways at once. It is **absent** — `BASCULIN_WHITE_STRIPED` carries none where
+  Red and Blue carry 11 and 12, which is why Basculin went unnarrowed and `basculin-white.png` was left out of the 17.
+  It is **not unique** — Zygarde's `FIFTY_PERCENT` and `COMPLETE_FIFTY_PERCENT` both carry `1`, so one file was
+  requested twice and both forms would have scored identically whatever it held. And it is **not the name**: not one
+  `pokemon_icon_676_*.png` exists at any value, so all ten Furfrou trims 404'd. Address by form instead and
+  `ambiguous()` goes from **13 families over 86 forms to 41 over 153** — gaining Vivillon's 20 patterns,
+  Flabébé/Floette/Florges' five colours each, Basculin, Toxtricity, Sinistea, Polteageist, Morpeko, Maushold, Tatsugiri,
+  Dudunsparce, Poltchageist, Sinistcha, Zygarde and the gender pairs below. Verify a re-keying by its answers and not by
+  its coverage: the two schemes' signatures are 0.01 to 0.19 apart, well inside the 0.3 margin, and all **16** artwork
+  answers over the committed captures are identical under both.
+- **Ask the directory what it holds rather than probing for it, because a derivable name is not an existing file.** A
+  form's asset name follows from the game master, so nothing local says whether the game draws that form — which is the
+  check `assetBundleValue`'s absence was accidentally doing. Dropping it without a replacement would probe all 237 forms
+  and 404 on **84**, worse noise than the 23 it set out to fix. One subtree call answers it instead:
+  `git/trees/master:Images%2FPokemon%2FAddressable%20Assets` is 3,522 names in 146 KB with `truncated: false`, cached
+  beside the game master under the same week. Zero 404s, zero wasted requests, and the 11 families short of an icon are
+  named once ahead of the download instead of discovered per form per scan. Use the **subtree** endpoint: `contents`
+  caps at 1,000 entries and truncates without saying so.
+- **The ordinary form's icon is the bare `pm{dex}.icon.png`, and it is a fallback rather than a replacement.** No
+  `fNORMAL` exists for 14 of these families, so without the bare name Frillish's male is the one member of its pair with
+  no icon and the artwork declines a blue against a pink for want of a file that is there — 14 families and 28 forms,
+  the gender pairs and the `Copy 2019` ones among them. `GENESECT_NORMAL` is why it is a fallback: it has an `fNORMAL`
+  and **no** bare name, so taking the bare name for every ordinary form loses Genesect. And offer it to the ordinary
+  form only, since `RAIKOU_S` given it as a fallback would hand two forms one icon and so one signature.
+- **Assert that no two forms of a family share an icon, because that is the property the old key broke silently.**
+  Zygarde's `FIFTY_PERCENT` and `COMPLETE_FIFTY_PERCENT` both carried `1`, so one file was fetched twice, the two scored
+  identically and the abstention read as the artwork being indecisive rather than as the key being wrong. It is one test
+  over the **vended** game master, so it needs no network: 41 families, 153 forms, 0 clashes. Assert both halves of the
+  partition non-empty beside it — a resolver answering null for everything leaves `drawn` empty and one answering a name
+  for everything leaves `short` empty, and each passes a clash check that has nothing to compare. All three mutations
+  fail the test and the pristine fixture passes.
+- **The game master lists what the data knows; the directory holds what the game draws.** That is why "no icon" is a
+  sound gate rather than a gap to work around: Spinda's game master carries 20 patterns against 9 released and 9 icons,
+  and Scatterbug and Spewpa have none at all, only Vivillon ever showing the pattern.
+- **Re-recording a signature can move which declines are saves without moving a single answer.** Re-reading `ARTWORK`
+  off the new icons left all 19 answers identical and still flipped two rows of the suite's `rescued` list —
+  `keldeo-resolute.png`'s nearest became right and `genesect-chill.png`'s became wrong. Both sit in clusters whose
+  margins are 0.02 and 0.146, so a 0.01 shift reorders them; it is the margin, not the ranking, that is load-bearing,
+  and a test asserting the ranking has to expect it to move.
+- **Basculin is reachable now and still declines, which is worth keeping as the second negative control.** Its three
+  icons are 0.221 apart at their closest and sit almost entirely in one hue bin, so all three captures abstain — and the
+  nearest icon is Blue Striped for every one of them, **wrong for two**. Taking the nearest regardless would be
+  confidently wrong twice, which is the margin earning its place on a family that was previously unreachable.
 
 ### Pinning a reader with a committed capture
 

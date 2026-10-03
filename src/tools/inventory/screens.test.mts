@@ -55,8 +55,8 @@
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
  *   whichever has the shorter name: Basculin's two here, Deerling's Spring, Genesect's three and one each of Keldeo's
  *   and Shellos'. `artwork.mts` settles five such captures off the game's own icons and declines the rest, which is why
- *   these carry `defects.label`. `Basculin (White Striped)` has no `assetBundleValue` at all, so Basculin can never be
- *   settled that way, and Genesect never can either, its five forms differing by a drive cassette a few pixels across.
+ *   these carry `defects.label`. Two families can never be settled that way: Genesect's five forms differ by a drive
+ *   cassette a few pixels across, and Basculin's three sit almost entirely in one hue bin.
  *   - **One with no overlay to derive from.** `thundurus-shadow.png`'s two forms differ in attack and defense, which
  *   the CP it prints would separate — but PGSharp drew nothing over it, so there are no IVs and no CP can be derived
  *   for any candidate. - **Two glyphs the readers lose.** `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png`
@@ -94,7 +94,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { assert, describe, expect, test } from 'vitest';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
-import { distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
+import { ambiguous, distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
 import { type Gender, type Size } from './badges.mts';
 import { parseDetail, readLines } from './detail.mts';
@@ -145,34 +145,37 @@ const TAG_SLACK = 0.3;
 
 /**
  * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
- * `pokemon_icon_{dex}_{assetBundleValue}.png` and recorded here for the same reason the forms and the CP multipliers
- * are: a test of a reader must not reach the network. Four decimal places, where the margin that decides an answer is
- * 0.3.
+ * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
+ * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
  *
- * Six families only, which are the ones this corpus reaches. Basculin is deliberately absent: `White Striped` carries
- * no `assetBundleValue` at all, and `identify` declines to choose between candidates it cannot all see, so its three
- * stay ambiguous and the rows say so. Genesect is present and never decides anything — its five forms differ by a drive
- * cassette a few pixels across, so every margin lands around 0.02 — which is worth having as the negative control.
+ * Seven families, which are the ones this corpus reaches. Two are negative controls rather than readings expected to
+ * land. Genesect's five forms differ by a drive cassette a few pixels across, so every margin lands around 0.02.
+ * Basculin's three are 0.22 apart at their closest and sit nearly all in one hue bin, so all three captures decline —
+ * and that is the point of having them: the nearest icon is Blue Striped for all three, which is **wrong for two**, so
+ * the margin is what stands between the artwork and two confidently wrong answers.
  */
 const ARTWORK = new Map<string, Signature>([
-  ['Burmy (Plant)', [0, 0.0501, 0.0387, 0.9072, 0, 0, 0, 0, 0.0037, 0.0004, 0, 0]],
-  ['Burmy (Sandy)', [0, 0.9487, 0.0396, 0, 0, 0, 0.0037, 0.0081, 0, 0, 0, 0]],
-  ['Burmy (Trash)', [0.4348, 0.0062, 0.0105, 0, 0, 0, 0.0062, 0, 0, 0, 0, 0.5423]],
-  ['Cherrim (Overcast)', [0.0243, 0, 0.0003, 0.0517, 0.179, 0, 0, 0, 0.2273, 0.3674, 0.0034, 0.1466]],
-  ['Cherrim (Sunny)', [0.111, 0.6545, 0.0107, 0.0022, 0.0056, 0, 0, 0, 0, 0, 0, 0.2159]],
-  ['Deerling (Autumn)', [0.6577, 0.3348, 0.0076, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-  ['Deerling (Spring)', [0.1511, 0.325, 0.0108, 0, 0, 0, 0, 0, 0, 0, 0.0043, 0.5089]],
-  ['Deerling (Summer)', [0.007, 0.2719, 0.0395, 0.5231, 0.1585, 0, 0, 0, 0, 0, 0, 0]],
-  ['Deerling (Winter)', [0.3671, 0.6076, 0.02, 0, 0, 0, 0, 0, 0, 0, 0.0007, 0.0047]],
-  ['Genesect (Burn)', [0.0003, 0, 0, 0, 0, 0, 0.0006, 0.0025, 0.0916, 0.679, 0.0093, 0.2166]],
-  ['Genesect (Chill)', [0.0003, 0, 0, 0, 0, 0, 0.0007, 0.0028, 0.1021, 0.7566, 0.0087, 0.1288]],
-  ['Genesect (Douse)', [0.0003, 0, 0, 0, 0, 0, 0.099, 0.0044, 0.0918, 0.6803, 0.0084, 0.1158]],
-  ['Genesect (Shock)', [0.0003, 0.079, 0.0169, 0, 0, 0, 0.0006, 0.0025, 0.0921, 0.6844, 0.0078, 0.1163]],
-  ['Genesect', [0.0034, 0.0975, 0, 0, 0, 0, 0.0006, 0.0025, 0.086, 0.6928, 0.008, 0.1092]],
-  ['Keldeo (Ordinary)', [0.3549, 0.121, 0.009, 0, 0, 0.0004, 0.5072, 0.0075, 0, 0, 0, 0]],
-  ['Keldeo (Resolute)', [0.3786, 0.0879, 0.0088, 0.0017, 0, 0.0005, 0.5138, 0.0086, 0, 0, 0, 0]],
-  ['Shellos (East Sea)', [0.0004, 0.0415, 0.4131, 0.0708, 0.0024, 0.0065, 0.4652, 0, 0, 0, 0, 0]],
-  ['Shellos (West Sea)', [0.0317, 0.2153, 0.0108, 0, 0, 0, 0, 0, 0, 0, 0.11, 0.6322]],
+  ['Basculin (Blue Striped)', [0, 0.0024, 0.001, 0, 0.8907, 0.0078, 0.098, 0, 0, 0, 0, 0]],
+  ['Basculin (Red Striped)', [0.1022, 0.0037, 0.0005, 0.0068, 0.8778, 0.0058, 0.0032, 0, 0, 0, 0, 0]],
+  ['Basculin (White Striped)', [0.0861, 0.0036, 0.0005, 0.1113, 0.7733, 0.005, 0, 0, 0, 0, 0, 0.0203]],
+  ['Burmy (Plant)', [0, 0.0527, 0.0288, 0.9173, 0.0012, 0, 0, 0, 0, 0, 0, 0]],
+  ['Burmy (Sandy)', [0, 0.9677, 0.0245, 0, 0, 0, 0, 0.0078, 0, 0, 0, 0]],
+  ['Burmy (Trash)', [0.6469, 0.0088, 0.0064, 0, 0, 0, 0.0064, 0, 0, 0, 0, 0.3315]],
+  ['Cherrim (Overcast)', [0.0235, 0, 0, 0.0294, 0.1917, 0.0002, 0, 0, 0.2918, 0.2974, 0.0092, 0.1568]],
+  ['Cherrim (Sunny)', [0.1492, 0.5625, 0.0217, 0.001, 0.0097, 0, 0, 0, 0, 0, 0, 0.2559]],
+  ['Deerling (Autumn)', [0.6526, 0.3388, 0.0086, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+  ['Deerling (Spring)', [0.1604, 0.3167, 0.0051, 0, 0, 0, 0, 0, 0, 0, 0.002, 0.5158]],
+  ['Deerling (Summer)', [0.0018, 0.2786, 0.034, 0.5805, 0.1051, 0, 0, 0, 0, 0, 0, 0]],
+  ['Deerling (Winter)', [0.4064, 0.5876, 0.0035, 0, 0, 0, 0, 0, 0, 0, 0.0009, 0.0017]],
+  ['Genesect', [0.0024, 0.0356, 0, 0, 0, 0, 0, 0.0029, 0.624, 0.2792, 0.0029, 0.053]],
+  ['Genesect (Burn)', [0.002, 0, 0, 0, 0, 0, 0, 0.0029, 0.6239, 0.2789, 0.0031, 0.0892]],
+  ['Genesect (Chill)', [0.0002, 0, 0, 0, 0, 0, 0, 0.003, 0.6509, 0.2882, 0.003, 0.0547]],
+  ['Genesect (Douse)', [0.0002, 0, 0, 0, 0, 0, 0.0042, 0.0355, 0.6243, 0.2798, 0.0029, 0.0531]],
+  ['Genesect (Shock)', [0.0002, 0.0028, 0, 0, 0, 0, 0, 0.003, 0.6464, 0.2896, 0.003, 0.055]],
+  ['Keldeo (Ordinary)', [0.297, 0.2322, 0.0037, 0, 0, 0.0005, 0.442, 0.0241, 0, 0, 0, 0.0005]],
+  ['Keldeo (Resolute)', [0.3316, 0.161, 0.0073, 0.0143, 0, 0.0003, 0.4625, 0.0229, 0, 0, 0, 0.0002]],
+  ['Shellos (East Sea)', [0, 0.0274, 0.497, 0.016, 0.0007, 0.005, 0.4539, 0, 0, 0, 0, 0]],
+  ['Shellos (West Sea)', [0.0258, 0.1991, 0.0158, 0, 0, 0, 0, 0, 0, 0, 0.0943, 0.6651]],
 ]);
 
 /** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
@@ -1704,6 +1707,9 @@ test(
     }
 
     expect(Object.fromEntries(answers)).toStrictEqual({
+      'basculin-blue.png': 'declined',
+      'basculin-red.png': 'declined',
+      'basculin-white.png': 'declined',
       'burmy-plant.png': 'Burmy (Plant)',
       'burmy-sandy.png': 'Burmy (Sandy)',
       'burmy-trash.png': 'Burmy (Trash)',
@@ -1740,15 +1746,47 @@ test(
       rescued,
       `the ${MARGIN} margin no longer rescues the captures whose nearest icon is the wrong one`,
     ).toStrictEqual([
+      'basculin-red.png',
+      'basculin-white.png',
       'genesect-burn.png',
+      'genesect-chill.png',
       'genesect-douse.png',
       'genesect-normal.png',
-      'keldeo-resolute.png',
       'shellos-west.png',
     ]);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
+
+/**
+ * The property `assetBundleValue` quietly broke and the whole artwork narrowing rests on: within a family the numbers
+ * cannot separate, no two forms may be handed the same icon. Zygarde's `FIFTY_PERCENT` and `COMPLETE_FIFTY_PERCENT`
+ * both carried `1`, so one file was fetched twice and the two scored identically — a guaranteed abstention that read
+ * as the artwork being indecisive rather than as the key being wrong. Asserted off the vended game master, so it needs
+ * no network and moves only when a re-vend moves it.
+ *
+ * Both halves of the partition are asserted non-empty, since a resolver answering null for everything would leave
+ * `drawn` empty and every family short, and one answering a name for everything would leave `short` empty — and each
+ * of those passes a clash test that has nothing to compare.
+ */
+test('no family the artwork narrows has two forms sharing an icon', () => {
+  const { drawn, short } = ambiguous(DATA);
+  const families = new Map<string, Form[]>();
+
+  for (const form of drawn) {
+    const key = `${form.dex}|${[...form.types].sort().join('+')}|${form.attack}/${form.defense}/${form.stamina}`;
+    families.set(key, [...(families.get(key) ?? []), form]);
+  }
+
+  const clashes = [...families.values()]
+    .filter((family) => new Set(family.map((f) => f.icon)).size !== family.length)
+    .map((family) => family.map((f) => `${label(f)}=${f.icon}`).join(' '));
+
+  expect(clashes, 'two forms a family is narrowed within are being compared against one icon').toStrictEqual([]);
+
+  assert.ok(families.size > 0, 'no family has an icon for every form, so the clash check compares nothing');
+  assert.ok(short.length > 0, 'every family has an icon for every form, so nothing exercises the gap it reports');
+});
 
 test('the corpus reaches both sides of every attribute', () => {
   for (const flag of ['favourite', 'lucky', 'purified', 'shadow', 'shiny'] as const) {

@@ -155,9 +155,9 @@ export function identify(data: GameData, detail: Detail, overlay: Overlay | null
   // `115/100/155 Normal+Grass` exactly, so nothing read off the panel can separate them and the fold below would keep
   // whichever has the shorter name. Ahead of that fold for the same reason PGSharp's label is.
   //
-  // Every candidate has to carry a signature, not just two of them, or a form the game master gives no
-  // `assetBundleValue` would be dropped for having no icon rather than for losing on its colours — which is `Basculin
-  // (White Striped)`, and is why Basculin is never narrowed here.
+  // Every candidate has to carry a signature, not just two of them, or a form the game draws no icon for would be
+  // dropped for having no artwork rather than for losing on its colours — which is Spinda, nine of whose twenty
+  // patterns the game has released, and is why Spinda is never narrowed here.
   //
   // An abstention costs nothing and fixes nothing: the fold below removes the rivals rather than demoting them, so a
   // declined call still comes back as one form with no alternatives and no note — `shellos-west.png` is answered as

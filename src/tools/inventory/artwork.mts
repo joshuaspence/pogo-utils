@@ -6,10 +6,10 @@
  * Burmy's three, Basculin's three, Genesect's five, Cherrim's two, Keldeo's two and Shellos' two. `identify` folds them
  * to one and answers it with no alternatives and no notes, which is a wrong answer that flags nothing.
  *
- * The artwork is the only thing left, and the game master addresses it: each such form carries its own
- * `assetBundleValue`, which is how the game's own icons are named. So the question is whether a capture's artwork can
- * be matched against those icons, and the answer is a qualified yes — qualified by abstention rather than by accuracy,
- * because a reader that is wrong and says nothing is the expensive kind.
+ * The artwork is the only thing left, and the game draws each such form its own: `game-master.mts` resolves a form to
+ * the file `pogo_assets` holds it under, by name and against that directory's own listing. So the question is whether
+ * a capture's artwork can be matched against those icons, and the answer is a qualified yes — qualified by abstention
+ * rather than by accuracy, because a reader that is wrong and says nothing is the expensive kind.
  *
  * **The backdrop is the whole problem, not the colours.** A hue histogram over a fixed box scores 8 of 17 captures,
  * because the game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png`
@@ -35,8 +35,8 @@ import { join } from 'node:path';
 import { type Form, type GameData } from './game-master.mts';
 import { decodePng, rgb, type Image } from './png.mts';
 
-/** Where the game's own form icons live, named by dex and the form's `assetBundleValue`. */
-const ICONS = 'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Pokemon/';
+/** Where the game's own form icons live, named by dex and form as `game-master.mts` resolves them against its index. */
+const ICONS = 'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Pokemon/Addressable%20Assets/';
 
 /** How long a cached icon is good for. Artwork changes with a game update, not with a session. */
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -363,15 +363,20 @@ export function nearest<T>(signature: Signature, references: ReadonlyMap<T, Sign
   return runner === undefined || runner.gap - best.gap >= margin ? best.key : null;
 }
 
+/** A form the index found artwork for, which is what `iconsFor` needs and what `ambiguous` has already checked. */
+export type Drawn = Form & { icon: string };
+
 /**
- * The forms worth fetching an icon for: those a group of two or more share every number with, where **every** member of
- * the group has an icon. A group with a gap in it can never be narrowed — `identify` declines to choose between forms
- * it cannot all see — so downloading the rest would be work for nothing.
+ * What the numbers leave ambiguous, split by whether the artwork can reach it: the groups of two or more forms
+ * identical in dex, types and all three stats, partitioned on whether **every** member has an icon. A group short of
+ * one can never be narrowed — `identify` declines to choose between forms it cannot all see — so its icons would be
+ * downloaded for nothing, and naming it once is the whole of what can be said about it.
  *
- * Measured over a real game master: 52 groups are identical in dex, types and all three stats, holding 237 forms, and
- * only 13 of those groups have an icon for every member. Scatterbug, Spewpa, Vivillon and Minior have none at all.
+ * Measured over a real game master: 52 groups hold 237 forms, and 41 of those groups have an icon for every member.
+ * The other 11 are short of 72 icons between them, Scatterbug, Spewpa and Minior having none at all and Spinda nine of
+ * twenty — nine being what the game has released.
  */
-export function ambiguous(data: GameData): Form[] {
+export function ambiguous(data: GameData): { drawn: Drawn[]; short: Form[][] } {
   const groups = new Map<string, Form[]>();
 
   for (const form of data.forms) {
@@ -385,7 +390,26 @@ export function ambiguous(data: GameData): Form[] {
     groups.set(key, group);
   }
 
-  return [...groups.values()].filter((g) => g.length > 1 && g.every((f) => f.icon !== null)).flat();
+  const drawn: Drawn[] = [];
+  const short: Form[][] = [];
+
+  for (const family of groups.values()) {
+    if (family.length < 2) {
+      continue;
+    }
+
+    // The narrowing is what carries the icon's name into `iconsFor`, so the gate is a length rather than an `every`:
+    // the same walk cannot both prove a family complete and hand back forms the type says are drawn.
+    const complete = family.filter((f): f is Drawn => f.icon !== null);
+
+    if (complete.length === family.length) {
+      drawn.push(...complete);
+    } else {
+      short.push(family);
+    }
+  }
+
+  return { drawn, short };
 }
 
 async function iconBytes(dir: string, name: string, refresh: boolean): Promise<Buffer | null> {
@@ -422,18 +446,25 @@ async function iconBytes(dir: string, name: string, refresh: boolean): Promise<B
 
 /**
  * A signature per form for every form the artwork could settle, downloading the icons once and caching them beside the
- * game master. Roughly 90 files of some 8 KB on a real game master, so this is a one-off of under a megabyte.
+ * game master. 153 files of some 8 KB on a real game master, so this is a one-off of about a megabyte.
  */
 export async function iconsFor(dir: string, data: GameData, refresh = false): Promise<Map<Form, Signature>> {
-  const forms = ambiguous(data);
+  const { drawn, short } = ambiguous(data);
   const signatures = new Map<Form, Signature>();
 
-  if (forms.length > 0) {
-    console.error(`Reading ${forms.length} form icons`);
+  if (drawn.length > 0) {
+    console.error(`Reading ${drawn.length} form icons`);
   }
 
-  for (const form of forms) {
-    const bytes = await iconBytes(join(dir, 'icons'), `pokemon_icon_${form.dex}_${form.icon}.png`, refresh);
+  // Per family and ahead of the download, since the index already said so: a family short of one icon is one the game
+  // draws no artwork for, and reporting it per missing form would be the same sentence 72 times a scan.
+  if (short.length > 0) {
+    const named = short.map((family) => `${family[0]?.species ?? '?'} (${family.length})`);
+    console.error(`  no icon for every form of ${short.length} families, which stay ambiguous: ${named.join(', ')}`);
+  }
+
+  for (const form of drawn) {
+    const bytes = await iconBytes(join(dir, 'icons'), form.icon, refresh);
 
     if (bytes === null) {
       continue;
@@ -444,7 +475,7 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
     } catch (error) {
       // A truncated download or a page served in place of the image is the same abstention as a 404.
       const reason = error instanceof Error ? error.message : String(error);
-      console.error(`  pokemon_icon_${form.dex}_${form.icon}.png: ${reason}; forms sharing its numbers stay ambiguous`);
+      console.error(`  ${form.icon}: ${reason}; forms sharing its numbers stay ambiguous`);
     }
   }
 
