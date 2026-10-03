@@ -1045,13 +1045,26 @@ the half of a corpus that valid screens cannot state: no overlay found, no HP, n
   does not simply fix it is worth knowing: no line carrying the CP label was recognised on that capture, so `detail.cp`
   is null, and the unanchored band read answers `192` for the 1792 — a number no Thundurus form reaches at any level,
   which is `cps` being handed over as candidates working exactly as intended and narrowing nothing.
-- **A Pokédex entry is the negative case the map cannot be.** `overworld.png` declines because nothing on it reads at
-  all, so it says only that the readers do not invent. The three Pokédex captures are a screen the readers partly _can_
-  read — `typesOf` gets `Normal`, `Grass` off Deerling's icons and `Poison` off both Nidoran, and every other field is
-  absent, the name included, though the game prints `0585 DEERLING` exactly where the detail screen's name sits. So they
-  say that reading **something** is not enough, which is the case a walk actually meets: the Pokédex is one tap from
-  storage. They are provenance as well — `nidoran-male-pokedex.png` prints the `♂` the detail screen loses to
-  `Nidorano`, and `deerling-pokedex.png` names all four seasons under the artwork.
+- **The Pokédex entry is a species fallback the pipeline does not have yet, and the dex number is what makes it work.**
+  The detail screen hides a species two ways the corpus pins — a nickname printed where the name goes, and a `♀` or `♂`
+  OCR loses — and a Pokémon's Pokédex entry is a few taps away. Measured over the three captures: `0585`, `0032` and
+  `0029` read **exactly right** off the ordinary whole-screen pass, no crop and no treatment. The names do not —
+  `DEERLING`, `NIDORAN` and `NIDORAN ?`, the two Nidoran losing their glyph here just as they do on the detail screen
+  and folding to the same `nidoran`. So key a fallback off the **number**: four digits on a flat background are not
+  ambiguous in the way the name is. It would reach `ho-oh.png`, `growlithe-nickname.png`, the two Smolivs printing `96%`
+  and both Nidoran, and it reaches no row whose `defects.label` comes of `identify` folding two forms together, 642
+  being Thundurus either way.
+- **Whether a Pokédex entry preselects the form it was opened from is the open question, and it is worth settling.** If
+  it does, the page settles form as well as species, and its artwork stands on a flat uniform background — the condition
+  `artwork.mts`'s panel bound, sharpness mask and largest-component pass all exist to work around. The selection itself
+  is legible: on `deerling-pokedex.png` the Spring tile's border is luminance **241** against 183 to 185 for the other
+  three, and a >200 threshold across that row finds exactly one run, x 163–304. What one capture cannot say is whether
+  the game chose that tile or the player did.
+- **Until it exists, assert the decline as the baseline rather than as the point.** The readers do decline all three, a
+  walk must not take a Pokédex entry for a detail screen, and `typesOf` does read the icons — `Normal`, `Grass` off
+  Deerling and `Poison` off both Nidoran — which makes this the negative case `overworld.png` cannot be, a screen the
+  readers partly _can_ read. But a capture committed as the input to a fallback and filed as proof the pipeline
+  correctly refuses it is a record that reads backwards: state what it is for beside what it currently does.
 - **Read a ghosted downscale as a bug in the viewer, not as a capture taken mid-swipe.** Inspecting a committed capture
   by eye wants a downscale, `png.mts` has `scale` for whole multiples only, and a nearest-neighbour one at 2.5× needs
   `Math.floor` on **both** coordinates before the 4-byte pixel stride. Without it the byte offset lands mid-pixel, which

@@ -1644,25 +1644,34 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
 });
 
 /**
- * The three Pokédex entry screens, which are the negative case the map cannot be: a screen that carries real type icons
- * and a real species name and is still not a Pokémon. `overworld.png` declines because nothing on it reads at all, so
- * it says only that the readers do not invent; these say that reading *something* is not enough, which is the case a
- * walk actually meets — the Pokédex is one tap from storage and a scan that mistook it for a detail screen would file a
- * species with every number missing.
+ * The three Pokédex entry screens, which are here as the input to a species fallback the pipeline does not yet have.
+ * The detail screen hides a species in two ways this corpus already pins — a nickname printed where the name goes, and
+ * a `♀` or `♂` that OCR loses — and that Pokémon's Pokédex entry is a few taps away and states the species in large
+ * flat text. So what these captures are for is whether that read is good enough to route around the name, and the
+ * answer below is that it is.
  *
- * `typesOf` reads the icons under the name, correctly: `Normal`, `Grass` for Deerling and `Poison` for both Nidoran.
- * Everything else is absent, the name included — the Pokédex prints `0585 DEERLING` under the artwork, where the
- * detail screen's name sits, and `nameOf` declines it. `identify` then declines for the reason `overworld.png`'s
- * docblock gives, which is worth restating because the input is not the same: with no name there is no species, and
- * the fallback that searches every species is gated on an IV and an HP as well as a type, so one of the three is not
- * enough on its own.
+ * **The dex number is what settles it, and the name is not.** `0585`, `0032` and `0029` read exactly right off the
+ * ordinary whole-screen pass with no crop or treatment, where the names come back `DEERLING`, `NIDORAN` and
+ * `NIDORAN ?` — the two Nidoran losing their glyph here exactly as they do on the detail screen, and `fold` mapping
+ * both to the same `nidoran`. Four digits on a flat background are not ambiguous in the way that leaves, which is why
+ * the assertion below is on the number and the name is asserted only as the thing that cannot be relied on.
  *
- * They are also the provenance for three rows. `nidoran-male-pokedex.png` prints `0032 NIDORAN♂` with the glyph the
- * detail screen loses to `Nidorano`, and `deerling-pokedex.png` names all four seasons under the artwork, which is
- * what says `deerling-spring.png` is the Spring one.
+ * **What it would and would not reach.** The species, so `ho-oh.png`, `growlithe-nickname.png`, the two Smolivs
+ * printing `96%` and both Nidoran. Not the form: 642 is Thundurus either way, so nothing here reaches a row carrying a
+ * `defects.label` because `identify` folded two forms into one. Whether an entry opened *from* a Pokémon preselects
+ * that Pokémon's form would change that, and one capture cannot say — Spring is the selected tile on
+ * `deerling-pokedex.png` and its border is luminance 241 against 183 to 185 for the other three, so the selection is
+ * legible; whether the game chose it or the player did is not in the pixels.
+ *
+ * Until that fallback exists the readers decline all three, which is asserted rather than left implied: a walk must
+ * not take a Pokédex entry for a detail screen and file a species with every number missing. `typesOf` does read the
+ * icons under the name — `Normal`, `Grass` for Deerling and `Poison` for both Nidoran — which makes this the negative
+ * case `overworld.png` cannot be, a screen the readers partly *can* read. `identify` declines for the reason that
+ * docblock gives, restated because the input is not the same: with no name there is no species, and the fallback that
+ * searches every species is gated on an IV and an HP as well as a type.
  */
 test(
-  'a Pokédex entry reads its types and is still not a Pokémon',
+  'a Pokédex entry states a dex number, and is not yet read as a Pokémon',
   async () => {
     const types: Record<string, string[]> = {
       'deerling-pokedex.png': ['Normal', 'Grass'],
@@ -1696,6 +1705,34 @@ test(
       expect(identity.cp).toBe(null);
       expect(identity.nickname).toBe(null);
       expect(identity.notes, 'a screen with no Pokémon on it is declined without comment').toStrictEqual([]);
+    }
+
+    // The half a fallback would be built on, asserted now so that it is a measurement rather than a hope. Paired with
+    // the name each screen prints beside it, because the pair is the whole argument: `NIDORAN` and `NIDORAN ?` fold to
+    // one string where `0032` and `0029` do not, so a reader keying off the name would be back where the detail screen
+    // left it. The number is resolved through `DATA.forms` rather than by indexing `species`, which is a deduped list
+    // in dex order and only the same thing while every dex is present exactly once.
+    const stated: Record<string, [number, string, string]> = {
+      'deerling-pokedex.png': [585, 'DEERLING', 'Deerling'],
+      'nidoran-female-pokedex.png': [29, 'NIDORAN ?', 'Nidoran♀'],
+      'nidoran-male-pokedex.png': [32, 'NIDORAN', 'Nidoran♂'],
+    };
+
+    for (const [file, [dex, printed, species]] of Object.entries(stated)) {
+      const { lines } = await readingOf(file);
+      const title = lines.find((line) => /\b\d{4}\b/.test(line.text));
+
+      assert.ok(title, `${file} no longer reads a four-digit number anywhere, so no fallback could key off one`);
+      expect(Number(/\b(\d{4})\b/.exec(title.text)?.[1]), `${file} reads a dex number that is not its own`).toBe(dex);
+
+      expect(title.text.replace(/^\W+\s*/, '').replace(/\d{4}\s*/, ''), `${file} prints a different name`).toBe(
+        printed,
+      );
+
+      expect(
+        DATA.forms.find((f) => f.dex === dex)?.species,
+        `${file}'s number does not reach its species in the vended game master`,
+      ).toBe(species);
     }
   },
   WHOLE_CORPUS_TIMEOUT,
