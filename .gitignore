@@ -19,3 +19,7 @@
 # Every subtask gets its own worktree and the harness puts them here, so this holds another branch's checkout rather
 # than anything of this one's. `.prettierignore` and `eslint.config.mjs` exclude it for the same reason.
 /.claude/worktrees/
+
+# `loadGameData` caches the game master and the English string table here, 23 MB of them, for a week. Neither belongs
+# in the repository: the fixture the tests read is vended into `src/tools/inventory/fixtures/` instead.
+/.cache/
