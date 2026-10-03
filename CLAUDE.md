@@ -1030,6 +1030,33 @@ the half of a corpus that valid screens cannot state: no overlay found, no HP, n
   answered at level 34.5 derives 2640. Its 246.49kg and 4.6m agree too, against a Ho-Oh's base 199kg and 3.8m and a
   Charizard's 90.5 and 1.7. That is a one-clause change to `fits` and a change to what the code does, so it is a pull
   request of its own and not part of writing the tests.
+- **Replacing a capture under its own name is the one edit the corpus cannot see coming, so re-read it.** A commit
+  swapped `thundurus-shadow.png`, `nidoran-male.png` and `nidoran-female.png` and added three more, touching no test: 11
+  failures, and only the three _added_ ones were caught by anything structural — the census test, which compares
+  `fixtures/` against `FIXTURES` and `NEGATIVE`. The three _replaced_ ones failed as eight scattered reader
+  disagreements, which reads as the readers having regressed rather than as the rows describing a screen that is gone. A
+  capture is a file and cannot change; which file wears a name can. So re-read a replaced capture off the image and
+  rewrite its row, and treat a cluster of reader failures confined to one capture as a question about the capture.
+- **The CP cross-check found a second mis-identification, which is what says the first was not a one-off.**
+  `thundurus-shadow.png` is **answered as a Therian and is an Incarnate** — the two differ in attack and defense and
+  share a stamina, so the HP cannot separate them and the fold keeps the shorter name. Incarnate at the `L20` and
+  `7/7/10` PGSharp states derives exactly the `CP 1792` the screen prints, where Therian derives 1965. It is the
+  [Ho-Oh](#pinning-a-reader-with-a-committed-capture) finding with a different cause, and the reason the CP _narrowing_
+  does not simply fix it is worth knowing: no line carrying the CP label was recognised on that capture, so `detail.cp`
+  is null, and the unanchored band read answers `192` for the 1792 — a number no Thundurus form reaches at any level,
+  which is `cps` being handed over as candidates working exactly as intended and narrowing nothing.
+- **A Pokédex entry is the negative case the map cannot be.** `overworld.png` declines because nothing on it reads at
+  all, so it says only that the readers do not invent. The three Pokédex captures are a screen the readers partly _can_
+  read — `typesOf` gets `Normal`, `Grass` off Deerling's icons and `Poison` off both Nidoran, and every other field is
+  absent, the name included, though the game prints `0585 DEERLING` exactly where the detail screen's name sits. So they
+  say that reading **something** is not enough, which is the case a walk actually meets: the Pokédex is one tap from
+  storage. They are provenance as well — `nidoran-male-pokedex.png` prints the `♂` the detail screen loses to
+  `Nidorano`, and `deerling-pokedex.png` names all four seasons under the artwork.
+- **Read a ghosted downscale as a bug in the viewer, not as a capture taken mid-swipe.** Inspecting a committed capture
+  by eye wants a downscale, `png.mts` has `scale` for whole multiples only, and a nearest-neighbour one at 2.5× needs
+  `Math.floor` on **both** coordinates before the 4-byte pixel stride. Without it the byte offset lands mid-pixel, which
+  rotates the channels and shears each row — and the result looks precisely like a screenshot caught during a horizontal
+  page transition, which is a thing these screens really do.
 
 ### What the detail screen will and will not tell you
 

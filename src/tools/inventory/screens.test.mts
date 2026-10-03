@@ -18,18 +18,23 @@
  * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. A table
  * recording `cp` as whatever OCR made of it could check only the 32 OCR reads it on.
  *
- * It reaches the 57 rows where `identify` settles on exactly one level, and on 56 of those the derived CP is the CP the
- * screen prints. The one that is left is the check doing its other job rather than failing to run: `nidoran-male.png`
- * derives a CP that *disagrees* with the screen, which is the pipeline saying the form it was given is wrong, and is
- * carried as `defects.cp`. The remaining two carry no overlay for PGSharp to have stated a level on, so there is
- * nothing to derive from. No capture settles on two levels any more — `pikachu-witch-hat.png` was the last, its `L27`
- * read as two runs of digits with nothing offering the pair.
+ * It reaches the 58 rows where `identify` settles on exactly one level, and on 56 of those the derived CP is the CP the
+ * screen prints. The two that are left are the check doing its other job rather than failing to run: `nidoran-male.png`
+ * and `thundurus-shadow.png` each derive a CP that *disagrees* with the screen, which is the pipeline saying the form
+ * it was given is wrong, and each is carried as `defects.cp`. The remaining one, `snorlax-purified.png`, carries no
+ * overlay for PGSharp to have stated a level on, so there is nothing to derive from. No capture settles on two levels
+ * any more — `pikachu-witch-hat.png` was the last, its `L27` read as two runs of digits with nothing offering the
+ * pair.
  *
  * The cross-check also *narrows* rather than only reporting: `identify` keeps the candidates whose derived CP is one
  * the screen states, which is the only thing on it that separates forms differing in attack or defense alone. That
- * settles all six Deoxys and Dialga rows. `thundurus-shadow.png` is the one of that kind left, and not for want of a CP
- * — PGSharp drew no overlay on it at all, so there are no IVs and `cpOf` can derive nothing for any candidate to be
- * compared against.
+ * settles all six Deoxys and Dialga rows. `thundurus-shadow.png` is the one of that kind left, and not for want of an
+ * overlay: PGSharp states `L20 IV53 7/7/10` on it, and Incarnate at that level with those IVs derives exactly the
+ * `CP 1792` the screen prints. What it lacks is a CP to compare against — no line carrying the label was recognised, so
+ * `cp` is null, and the unanchored band read answers `192` for the 1792, a number no Thundurus form reaches at any
+ * level. That is a wrong candidate being inert rather than harmful, which is what `cps` is handed over as candidates
+ * for; but inert narrows nothing, so the fold keeps the shorter name and answers Therian, whose derived 1965 the row
+ * pins.
  *
  * `COVERAGE` below pins those counts, because a figure quoted in prose is a figure nothing checks: `39 of the 61` stood
  * in this paragraph until it was measured and turned out to be 32, through a green suite.
@@ -37,36 +42,42 @@
  * **Provenance is not the same for all of them, and the difference is worth stating rather than glossing.** Seven
  * captures were selected by one of the game's own searches, recorded above `FIXTURES`: a search is falsifiable, and it
  * is the only thing that can state a negative, since nothing on the screen says a Pokémon is **not** lucky. The other
- * 55 arrived as a named file, so their provenance is the name plus what the screen renders — PGSharp appends a `✨` for
+ * 58 arrived as a named file, so their provenance is the name plus what the screen renders — PGSharp appends a `✨` for
  * a shiny and a `🖼` for a background, the game draws `LUCKY POKÉMON` under the nickname in green, and a shadow or a
  * purified Pokémon wears its own treatment. That is weaker, and it is why `background`, `costume`, `lucky`, `purified`,
  * `shadow` and `shiny` default to absent: a row claims one only where the capture shows it.
  *
- * **Three captures are not detail screens at all and so cannot be rows.** They are the negative cases, in `NEGATIVE`
+ * **Six captures are not detail screens at all and so cannot be rows.** They are the negative cases, in `NEGATIVE`
  * below, and they assert what the readers answer on a screen none of them was written for. `overworld.png` is the map:
- * no name, no HP, no types, no overlay. `no-pgsharp.png` and `pgsharp-no-overlay.png` are one Squirtle captured twice,
- * once with PGSharp not running and once with its toolbar up and no overlay drawn — which makes them a control on each
+ * no name, no HP, no types, no overlay, so it says only that the readers do not invent. `deerling-pokedex.png` and the
+ * two Nidoran Pokédex entries are the stronger half of that, because a Pokédex entry is a screen the readers partly
+ * *can* read — the type icons come back correctly and every other field is absent — so they say that reading something
+ * is not enough to be a Pokémon. `no-pgsharp.png` and `pgsharp-no-overlay.png` are one Squirtle captured twice, once
+ * with PGSharp not running and once with its toolbar up and no overlay drawn — which makes them a control on each
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
  * **Every reader that disagrees with a screen is pinned here rather than fixed here**, a fix being a change to what the
  * code does and so a pull request of its own. 12 of the 59 rows carry a `defects`, and the kinds group into four.
  *
- * - * - **Forms the screen cannot separate at all, on eight rows.** HP is a function of `stamina` alone, so two forms
+ * - **Forms the screen cannot separate at all, on eight rows.** HP is a function of `stamina` alone, so two forms
  *   sharing their types and that one stat are identical in every field the panel states, and `identify` folds them to
  *   whichever has the shorter name: Basculin's two here, Deerling's Spring, Genesect's three and one each of Keldeo's
  *   and Shellos'. `artwork.mts` settles five such captures off the game's own icons and declines the rest, which is why
  *   these carry `defects.label`. Two families can never be settled that way: Genesect's five forms differ by a drive
  *   cassette a few pixels across, and Basculin's three sit almost entirely in one hue bin.
- *   - **One with no overlay to derive from.** `thundurus-shadow.png`'s two forms differ in attack and defense, which
- *   the CP it prints would separate — but PGSharp drew nothing over it, so there are no IVs and no CP can be derived
- *   for any candidate. - **Two glyphs the readers lose.** `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png`
- *   `Nidorano`, the `♀` and `♂` of the species' own name coming back as a digit and a letter. Neither can be recovered
- *   by reading the glyph better, because `fold` maps both species to the same `nidoran` before `closest` ever sees them
- *   — so the name cannot choose between the two, and the male one is answered as a `Nidoran♀` on the strength of an HP
- *   its stamina also fits. Its CP is read correctly at 491 and derives 373 for the form it was given, which is the
- *   cross-check reporting that mis-identification rather than a reader being wrong. - **One level shortlist.**
- *   `spoink.png`'s overlay offers only `1`, which its HP cannot be, so the shortlist is discarded and the HP settles
- *   the level alone — right, and reported as a disagreement because the overlay and the HP genuinely differ.
+ * - **One whose CP went unread.** `thundurus-shadow.png`'s two forms differ in attack and defense, which the `CP 1792`
+ *   it prints separates outright — Incarnate derives exactly that at the `L20` and `7/7/10` PGSharp states, where
+ *   Therian derives 1965. But no line carrying the CP label was recognised on it, and the unanchored band read answers
+ *   `192`, so there is nothing for the arithmetic to meet and the fold keeps the shorter name.
+ * - **Two glyphs the readers lose.** `nidoran-female.png` reads `Nidoran 2` and `nidoran-male.png` `Nidorano`, the `♀`
+ *   and `♂` of the species' own name coming back as a digit and a letter. Neither can be recovered by reading the glyph
+ *   better, because `fold` maps both species to the same `nidoran` before `closest` ever sees them — so the name cannot
+ *   choose between the two, and the male one is answered as a `Nidoran♀` on the strength of an HP its stamina also
+ *   fits. Its CP is read correctly at 491 and derives 373 for the form it was given, which is the cross-check reporting
+ *   that mis-identification rather than a reader being wrong.
+ * - **One level shortlist.** `spoink.png`'s overlay offers only `1`, which its HP cannot be, so the shortlist is
+ *   discarded and the HP settles the level alone — right, and reported as a disagreement because the overlay and the HP
+ *   genuinely differ.
  *
  * Several kinds have gone, and `COVERAGE` and the corpus test assert their absence rather than dropping the keys, so
  * one coming back is reported: `findOverlay` no longer misses a box that is on the screen, `isFavourite` no longer
@@ -830,7 +841,7 @@ const FIXTURES: readonly Fixture[] = [
       levels: [16],
       cp: 373,
       notes: [
-        'the overlay reads as level 4 or 1 or 12 or 2 or 20 or 11 or 10 or 41, none of which this HP can be',
+        'the overlay reads as level 1 or 12 or 2 or 20 or 11 or 10, none of which this HP can be',
         'the screen reads CP 491, where this form at this level is 373',
       ],
     },
@@ -1001,19 +1012,18 @@ const FIXTURES: readonly Fixture[] = [
     weight: 43.83,
   },
   {
-    cp: 1876,
-    defects: { label: 'Thundurus (Therian)', alternatives: ['Thundurus (Incarnate)'] },
+    cp: 1792,
+    defects: { label: 'Thundurus (Therian)', alternatives: ['Thundurus (Incarnate)'], cp: 1965 },
     file: 'thundurus-shadow.png',
     form: 'Incarnate',
     gender: 'male',
-    height: 2.14,
-    hp: 117,
-    overlay: null,
+    height: 1.33,
+    hp: 118,
+    overlay: { iv: { attack: 7, defense: 7, stamina: 10 }, level: 20 },
     shadow: true,
-    size: 'XL',
     species: 'Thundurus',
     types: ['Electric', 'Flying'],
-    weight: 123.7,
+    weight: 45.41,
   },
   {
     cp: 487,
@@ -1251,10 +1261,17 @@ for (const fixture of FIXTURES) {
 }
 
 /**
- * The three captures that are not detail screens, which is why they are not rows: there is no Pokémon on them to state.
+ * The six captures that are not detail screens, which is why they are not rows: there is no Pokémon on them to state.
  * They are asserted below instead, as what the readers answer on a screen none of them was written for.
  */
-const NEGATIVE = ['no-pgsharp.png', 'overworld.png', 'pgsharp-no-overlay.png'];
+const NEGATIVE = [
+  'deerling-pokedex.png',
+  'nidoran-female-pokedex.png',
+  'nidoran-male-pokedex.png',
+  'no-pgsharp.png',
+  'overworld.png',
+  'pgsharp-no-overlay.png',
+];
 
 /**
  * What the three tests that read the whole corpus in one body are given, where `--testTimeout` leaves everything else
@@ -1294,14 +1311,15 @@ test('every committed capture is either a row or a negative case', () => {
  */
 const COVERAGE = {
   rows: 59,
+  negatives: 6,
   answeredAsThemselves: 49,
-  oneLevel: 57,
+  oneLevel: 58,
   crossCheckAgrees: 56,
-  crossCheckDisagrees: 1,
+  crossCheckDisagrees: 2,
   severalLevels: 0,
-  noLevel: 2,
+  noLevel: 1,
   noDefects: 47,
-  noOverlayDrawn: 2,
+  noOverlayDrawn: 1,
   boxNotFound: 0,
   overlayNotRead: 0,
 };
@@ -1312,6 +1330,7 @@ test('the corpus is the shape the docblock says it is', () => {
   expect(
     {
       rows: FIXTURES.length,
+      negatives: NEGATIVE.length,
       answeredAsThemselves: FIXTURES.filter((f) => f.defects?.label === undefined).length,
       oneLevel: settled.length,
       crossCheckAgrees: settled.filter((f) => f.defects?.cp === undefined).length,
@@ -1406,7 +1425,6 @@ test(
       'rotom-wash.png': 813,
       'shellos-east.png': 784,
       'smoliv.png': 340,
-      'thundurus-shadow.png': 1876,
       'unown-b.png': 487,
       'unown-m.png': 839,
       'unown-question.png': 486,
@@ -1501,7 +1519,7 @@ test(
     }
 
     const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
-    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(57);
+    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(58);
     assert.ok(
       offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
       'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
@@ -1624,6 +1642,64 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
     expect(identity.notes, 'an absent overlay is the ordinary case and not worth a note').toStrictEqual([]);
   }
 });
+
+/**
+ * The three Pokédex entry screens, which are the negative case the map cannot be: a screen that carries real type icons
+ * and a real species name and is still not a Pokémon. `overworld.png` declines because nothing on it reads at all, so
+ * it says only that the readers do not invent; these say that reading *something* is not enough, which is the case a
+ * walk actually meets — the Pokédex is one tap from storage and a scan that mistook it for a detail screen would file a
+ * species with every number missing.
+ *
+ * `typesOf` reads the icons under the name, correctly: `Normal`, `Grass` for Deerling and `Poison` for both Nidoran.
+ * Everything else is absent, the name included — the Pokédex prints `0585 DEERLING` under the artwork, where the
+ * detail screen's name sits, and `nameOf` declines it. `identify` then declines for the reason `overworld.png`'s
+ * docblock gives, which is worth restating because the input is not the same: with no name there is no species, and
+ * the fallback that searches every species is gated on an IV and an HP as well as a type, so one of the three is not
+ * enough on its own.
+ *
+ * They are also the provenance for three rows. `nidoran-male-pokedex.png` prints `0032 NIDORAN♂` with the glyph the
+ * detail screen loses to `Nidorano`, and `deerling-pokedex.png` names all four seasons under the artwork, which is
+ * what says `deerling-spring.png` is the Spring one.
+ */
+test(
+  'a Pokédex entry reads its types and is still not a Pokémon',
+  async () => {
+    const types: Record<string, string[]> = {
+      'deerling-pokedex.png': ['Normal', 'Grass'],
+      'nidoran-female-pokedex.png': ['Poison'],
+      'nidoran-male-pokedex.png': ['Poison'],
+    };
+
+    for (const [file, expected] of Object.entries(types)) {
+      const { detail, box, overlay } = await readingOf(file);
+
+      expect(box, `a band of ${file} read as an overlay`).toBe(null);
+      expect({ ...detail }).toStrictEqual({
+        cp: null,
+        cps: [],
+        favourite: false,
+        gender: null,
+        height: null,
+        hp: null,
+        name: null,
+        size: null,
+        tags: [],
+        types: expected,
+        weight: null,
+      });
+
+      const identity = identify(DATA, detail, overlay);
+
+      expect(identity.form, `a form was chosen for the Pokédex entry ${file}`).toBe(null);
+      expect(identity.alternatives).toStrictEqual([]);
+      expect(identity.levels).toStrictEqual([]);
+      expect(identity.cp).toBe(null);
+      expect(identity.nickname).toBe(null);
+      expect(identity.notes, 'a screen with no Pokémon on it is declined without comment').toStrictEqual([]);
+    }
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 /**
  * The distinct values a column of the table holds, as words. Written out rather than left to `Array#sort`, which
