@@ -64,12 +64,36 @@ export interface Identity {
  * the species the numbers cannot separate: Unown's 28 letters are one set of base stats, one type and one move pool, so
  * HP, IVs and types narrow them to 28 and stop. Where the overlay carries no suffix the numbers were enough — an Alolan
  * Geodude's reads `L20 ɪᴠ91 13/13/15` with nothing appended, because its stats and types already say Alola.
+ *
+ * `dex` is a species the walk went and read off that Pokémon's Pokédex entry, from `dexOn`, for the two cases where the
+ * detail screen's own name cannot give one: a nickname printed where the species goes, and the `♀` or `♂` OCR loses.
+ * It outranks the name rather than joining it, the entry stating the species outright where the name is the reading
+ * that already failed — but the name is still what decides whether there is a **nickname**, so a Ho-Oh called `96%`
+ * comes back as a Ho-Oh with its nickname intact. It says nothing about the form: an entry opened from a Pokémon does
+ * not preselect that Pokémon's form.
  */
-export function identify(data: GameData, detail: Detail, overlay: Overlay | null, artwork?: Artwork): Identity {
+export function identify(
+  data: GameData,
+  detail: Detail,
+  overlay: Overlay | null,
+  artwork?: Artwork,
+  dex: number | null = null,
+): Identity {
   const notes: string[] = [];
   const iv = overlay?.iv ?? null;
-  const species = detail.name ? closest(detail.name, data.species, (s) => s) : null;
-  const nickname = detail.name && !species ? detail.name : null;
+
+  // What the name read as, kept apart from what the species is, because the two answer different questions once a
+  // Pokédex entry is in play: the species narrows the candidates and the name is what says whether this Pokémon is
+  // nicknamed. With no `dex` they are the same value and this is the expression it has always been.
+  const matched = detail.name ? closest(detail.name, data.species, (s) => s) : null;
+  const entry = dex === null ? null : (data.forms.find((f) => f.dex === dex)?.species ?? null);
+  const species = entry ?? matched;
+  const nickname = detail.name && !matched ? detail.name : null;
+
+  if (entry !== null && matched !== null && entry !== matched) {
+    notes.push(`the Pokédex says ${entry}, where the name on the screen reads as ${matched}`);
+  }
+
   const fits = (f: Form) =>
     (detail.types.length === 0 || sameTypes(f.types, detail.types)) &&
     (iv === null || detail.hp === null || levelsOf(data, f, iv, detail.hp).length > 0);

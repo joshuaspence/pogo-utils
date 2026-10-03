@@ -110,6 +110,7 @@ import { decodePng } from './png.mts';
 import { type Gender, type Size } from './badges.mts';
 import { parseDetail, readLines } from './detail.mts';
 import { identify, label } from './identify.mts';
+import { dexOn } from './pokedex.mts';
 import { findOverlay, readOverlay } from './overlay.mts';
 
 /**
@@ -1644,43 +1645,47 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
 });
 
 /**
- * The three Pokédex entry screens, which are here as the input to a species fallback the pipeline does not yet have.
- * The detail screen hides a species in two ways this corpus already pins — a nickname printed where the name goes, and
- * a `♀` or `♂` that OCR loses — and that Pokémon's Pokédex entry is a few taps away and states the species in large
- * flat text. So what these captures are for is whether that read is good enough to route around the name, and the
- * answer below is that it is.
+ * The three Pokédex entry screens and the species reader they are the input to. The detail screen hides a species in
+ * two ways this corpus pins — a nickname printed where the name goes, and a `♀` or `♂` that OCR loses — and that
+ * Pokémon's Pokédex entry is a few taps away and states the species in large flat text.
  *
- * **The dex number is what settles it, and the name is not.** `0585`, `0032` and `0029` read exactly right off the
- * ordinary whole-screen pass with no crop or treatment, where the names come back `DEERLING`, `NIDORAN` and
- * `NIDORAN ?` — the two Nidoran losing their glyph here exactly as they do on the detail screen, and `fold` mapping
- * both to the same `nidoran`. Four digits on a flat background are not ambiguous in the way that leaves, which is why
- * the assertion below is on the number and the name is asserted only as the thing that cannot be relied on.
+ * **Both halves are asserted, and the second is the one that makes `dexOn` worth having.** It reads the three, and it
+ * answers null on the other 62: every detail screen, the map, and the two PGSharp controls. A reader that answered a
+ * dex off a detail screen would be worse than one that answered nothing, since the walk calls it exactly when the name
+ * could not be trusted — so the 62 are the assertion and the 3 are the easy half.
  *
- * **What it would and would not reach.** The species, so `ho-oh.png`, `growlithe-nickname.png`, the two Smolivs
- * printing `96%` and both Nidoran. Not the form: 642 is Thundurus either way, so nothing here reaches a row carrying a
- * `defects.label` because `identify` folded two forms into one. Whether an entry opened *from* a Pokémon preselects
- * that Pokémon's form would change that, and one capture cannot say — Spring is the selected tile on
- * `deerling-pokedex.png` and its border is luminance 241 against 183 to 185 for the other three, so the selection is
- * legible; whether the game chose it or the player did is not in the pixels.
+ * **What makes the 62 decline is the cross-check rather than the screen being bare.** A Pokédex entry carries other
+ * four-digit numbers — `SEEN 2763` and `CAUGHT 1499` on `nidoran-male-pokedex.png` alone — so the number is believed
+ * only where it resolves to a species and the name printed beside it folds to that same species. `0032` reaches
+ * `Nidoran♂`, the line reads `NIDORAN`, and both fold to `nidoran`; `2763` reaches no species at all.
  *
- * Until that fallback exists the readers decline all three, which is asserted rather than left implied: a walk must
- * not take a Pokédex entry for a detail screen and file a species with every number missing. `typesOf` does read the
- * icons under the name — `Normal`, `Grass` for Deerling and `Poison` for both Nidoran — which makes this the negative
- * case `overworld.png` cannot be, a screen the readers partly *can* read. `identify` declines for the reason that
- * docblock gives, restated because the input is not the same: with no name there is no species, and the fallback that
- * searches every species is gated on an IV and an HP as well as a type.
+ * **The name cannot do this job, which is why the number does it.** `NIDORAN` and `NIDORAN ?` fold to one string where
+ * `0032` and `0029` do not, so the two Nidoran lose their glyph on this screen exactly as they do on the detail screen
+ * and the number is the only thing that tells them apart.
+ *
+ * Until a walk calls it the readers decline all three as detail screens, which is asserted too: a walk must not take a
+ * Pokédex entry for a Pokémon and file a species with every number missing. `typesOf` does read the icons under the
+ * name, which makes this the negative case `overworld.png` cannot be — a screen the readers partly *can* read.
+ * `identify` declines for the reason that docblock gives, restated because the input is not the same: with no name
+ * there is no species, and the fallback that searches every species is gated on an IV and an HP as well as a type.
  */
 test(
-  'a Pokédex entry states a dex number, and is not yet read as a Pokémon',
+  'the Pokédex entry names its species, and no other capture names one',
   async () => {
-    const types: Record<string, string[]> = {
-      'deerling-pokedex.png': ['Normal', 'Grass'],
-      'nidoran-female-pokedex.png': ['Poison'],
-      'nidoran-male-pokedex.png': ['Poison'],
+    const entries: Record<string, [number, string]> = {
+      'deerling-pokedex.png': [585, 'Deerling'],
+      'nidoran-female-pokedex.png': [29, 'Nidoran♀'],
+      'nidoran-male-pokedex.png': [32, 'Nidoran♂'],
     };
 
-    for (const [file, expected] of Object.entries(types)) {
-      const { detail, box, overlay } = await readingOf(file);
+    for (const [file, [dex, species]] of Object.entries(entries)) {
+      const { lines, detail, overlay, box } = await readingOf(file);
+
+      expect(dexOn(lines, DATA), `${file} no longer reads its own dex number`).toBe(dex);
+      expect(
+        DATA.forms.find((f) => f.dex === dex)?.species,
+        `${file}'s number no longer reaches its species in the vended game master`,
+      ).toBe(species);
 
       expect(box, `a band of ${file} read as an overlay`).toBe(null);
       expect({ ...detail }).toStrictEqual({
@@ -1693,7 +1698,7 @@ test(
         name: null,
         size: null,
         tags: [],
-        types: expected,
+        types: file.startsWith('deerling') ? ['Normal', 'Grass'] : ['Poison'],
         weight: null,
       });
 
@@ -1707,36 +1712,80 @@ test(
       expect(identity.notes, 'a screen with no Pokémon on it is declined without comment').toStrictEqual([]);
     }
 
-    // The half a fallback would be built on, asserted now so that it is a measurement rather than a hope. Paired with
-    // the name each screen prints beside it, because the pair is the whole argument: `NIDORAN` and `NIDORAN ?` fold to
-    // one string where `0032` and `0029` do not, so a reader keying off the name would be back where the detail screen
-    // left it. The number is resolved through `DATA.forms` rather than by indexing `species`, which is a deduped list
-    // in dex order and only the same thing while every dex is present exactly once.
-    const stated: Record<string, [number, string, string]> = {
-      'deerling-pokedex.png': [585, 'DEERLING', 'Deerling'],
-      'nidoran-female-pokedex.png': [29, 'NIDORAN ?', 'Nidoran♀'],
-      'nidoran-male-pokedex.png': [32, 'NIDORAN', 'Nidoran♂'],
-    };
+    const elsewhere: string[] = [];
+    let asked = 0;
 
-    for (const [file, [dex, printed, species]] of Object.entries(stated)) {
+    for (const file of [...FIXTURES.map((f) => f.file), ...NEGATIVE]) {
+      if (file in entries) {
+        continue;
+      }
+
       const { lines } = await readingOf(file);
-      const title = lines.find((line) => /\b\d{4}\b/.test(line.text));
+      asked++;
 
-      assert.ok(title, `${file} no longer reads a four-digit number anywhere, so no fallback could key off one`);
-      expect(Number(/\b(\d{4})\b/.exec(title.text)?.[1]), `${file} reads a dex number that is not its own`).toBe(dex);
-
-      expect(title.text.replace(/^\W+\s*/, '').replace(/\d{4}\s*/, ''), `${file} prints a different name`).toBe(
-        printed,
-      );
-
-      expect(
-        DATA.forms.find((f) => f.dex === dex)?.species,
-        `${file}'s number does not reach its species in the vended game master`,
-      ).toBe(species);
+      if (dexOn(lines, DATA) !== null) {
+        elsewhere.push(file);
+      }
     }
+
+    expect(elsewhere, 'a capture that is not a Pokédex entry answered a dex number').toStrictEqual([]);
+
+    // The count, because an empty list of offenders is also what a loop that asked nothing produces — which is the
+    // failure this whole test exists to rule out, one level up.
+    expect(asked, 'how many captures the reader was asked to decline has changed').toBe(62);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
+
+/**
+ * What the fallback buys, on the one row it reaches. `nidoran-male.png` is answered as a `Nidoran♀` and is a
+ * `Nidoran♂`: `fold` maps both species to the same `nidoran` before `closest` ever sees them, so the name cannot
+ * choose, and the HP its stamina also fits picks the wrong one. Handed the `32` its Pokédex entry states, `identify`
+ * answers the right species.
+ *
+ * **The CP is what says so, and it is the whole argument for this test rather than a second opinion.** `cpOf` derives
+ * a CP from the form, the IVs and the level, and the screen prints one: as a `Nidoran♀` the row derives 373 against
+ * the `CP 491` printed, which is the cross-check reporting a mis-identification, and as a `Nidoran♂` it derives 491
+ * exactly. So the fallback does not merely change the answer, it changes a disagreement into an agreement — and
+ * nothing weaker than the whole pipeline could have said that.
+ *
+ * This is the only committed row it reaches, which is worth stating plainly rather than leaving to be discovered. The
+ * other nine `defects.label` rows are forms `identify` folded together, and a Pokédex entry says nothing about a form:
+ * 642 is Thundurus either way, and opening an entry from a Pokémon does **not** preselect that Pokémon's form — the
+ * entry opens on whichever form it was last left on, so the selected tile is legible and means nothing.
+ */
+test('the Pokédex settles the species the name cannot, and the CP then agrees', async () => {
+  const fixture = FIXTURES.find((f) => f.file === 'nidoran-male.png');
+  assert.ok(fixture, 'nidoran-male.png has left the corpus');
+
+  const { detail, overlay } = await readingOf(fixture.file);
+  const without = identify(DATA, detail, overlay);
+  const with_ = identify(DATA, detail, overlay, undefined, 32);
+
+  expect(without.form && label(without.form), 'the defect this fallback exists for has gone').toBe('Nidoran♀');
+  expect(without.cp, 'the wrong species no longer derives a CP that disagrees with the screen').toBe(373);
+
+  expect(with_.form && label(with_.form)).toBe('Nidoran♂');
+  expect(with_.cp, 'the right species no longer derives the CP the screen prints').toBe(fixture.cp);
+  expect(with_.notes).toStrictEqual(['the Pokédex says Nidoran♂, where the name on the screen reads as Nidoran♀']);
+});
+
+/**
+ * That a species read off the Pokédex does not cost the nickname, which is the half of `identify` the override could
+ * most easily have broken: the species and the nickname came off one expression, `the name matched nothing` being both
+ * `there is no species` and `this is a nickname`. Splitting them is what keeps `ho-oh.png` a Ho-Oh called `96%`.
+ *
+ * It is also the case where the fallback changes nothing, and that is worth asserting rather than assuming: the CP
+ * narrowing already settles this capture, so the dex has to agree with an answer that was right without it.
+ */
+test('a species read off the Pokédex leaves the nickname alone', async () => {
+  const { detail, overlay } = await readingOf('ho-oh.png');
+  const identity = identify(DATA, detail, overlay, undefined, 250);
+
+  expect(identity.form && label(identity.form)).toBe('Ho-Oh');
+  expect(identity.nickname, 'the dex override swallowed the nickname the screen prints').toBe('96%');
+  expect(identity.notes, 'the Pokédex and the numbers agree, so there is nothing to report').toStrictEqual([]);
+});
 
 /**
  * The distinct values a column of the table holds, as words. Written out rather than left to `Array#sort`, which

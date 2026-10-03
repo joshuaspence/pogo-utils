@@ -1051,20 +1051,49 @@ the half of a corpus that valid screens cannot state: no overlay found, no HP, n
   `0029` read **exactly right** off the ordinary whole-screen pass, no crop and no treatment. The names do not —
   `DEERLING`, `NIDORAN` and `NIDORAN ?`, the two Nidoran losing their glyph here just as they do on the detail screen
   and folding to the same `nidoran`. So key a fallback off the **number**: four digits on a flat background are not
-  ambiguous in the way the name is. It would reach `ho-oh.png`, `growlithe-nickname.png`, the two Smolivs printing `96%`
-  and both Nidoran, and it reaches no row whose `defects.label` comes of `identify` folding two forms together, 642
-  being Thundurus either way.
-- **Whether a Pokédex entry preselects the form it was opened from is the open question, and it is worth settling.** If
-  it does, the page settles form as well as species, and its artwork stands on a flat uniform background — the condition
-  `artwork.mts`'s panel bound, sharpness mask and largest-component pass all exist to work around. The selection itself
-  is legible: on `deerling-pokedex.png` the Spring tile's border is luminance **241** against 183 to 185 for the other
-  three, and a >200 threshold across that row finds exactly one run, x 163–304. What one capture cannot say is whether
-  the game chose that tile or the player did.
-- **Until it exists, assert the decline as the baseline rather than as the point.** The readers do decline all three, a
-  walk must not take a Pokédex entry for a detail screen, and `typesOf` does read the icons — `Normal`, `Grass` off
-  Deerling and `Poison` off both Nidoran — which makes this the negative case `overworld.png` cannot be, a screen the
-  readers partly _can_ read. But a capture committed as the input to a fallback and filed as proof the pipeline
-  correctly refuses it is a record that reads backwards: state what it is for beside what it currently does.
+  ambiguous in the way the name is. It reaches `ho-oh.png`, `growlithe-nickname.png`, the two Smolivs printing `96%` and
+  both Nidoran — but of those only `nidoran-male.png` is **answered wrongly today**, the CP narrowing having since
+  settled the other three, so the measured win is one row and the rest is robustness. It reaches no row whose
+  `defects.label` comes of `identify` folding two forms together, 642 being Thundurus either way.
+- **A Pokédex entry does not preselect the form it was opened from, so this reaches the species and never the form.**
+  Settled by opening one rather than by reasoning about a capture, and it is the answer that bounds the whole idea: the
+  entry opens on whichever form it was last left on, so the selected tile says nothing about the Pokémon the walk came
+  from however legible it is — on `deerling-pokedex.png` the Spring tile's border reads luminance **241** against 183 to
+  185 for the other three, and a >200 threshold across that row finds exactly one run, x 163–304. Legible and
+  meaningless, which is the worst combination a reader can be offered: read it and the rows it would answer are
+  Deerling's seasons, Genesect's five and Thundurus' two, every one of them wrong three times in four.
+- **Assert the decline as the baseline rather than as the point.** The readers do decline all three as detail screens, a
+  walk must not take a Pokédex entry for a Pokémon, and `typesOf` does read the icons — `Normal`, `Grass` off Deerling
+  and `Poison` off both Nidoran — which makes this the negative case `overworld.png` cannot be, a screen the readers
+  partly _can_ read. But a capture committed as the input to a fallback and filed as proof the pipeline correctly
+  refuses it is a record that reads backwards: state what it is for beside what it currently does.
+- **A reader whose job is to be called when nothing else worked has to decline loudly, so assert the 62 and not the 3.**
+  `dexOn` answers null on every detail screen, the map and both PGSharp controls, and that half is the test: it is
+  called exactly when the name could not be trusted, so a dex answered off a detail screen would be believed. What makes
+  the 62 decline is the cross-check rather than the screens being bare — a number is taken only where it resolves to a
+  species **and** the name beside it folds to that same species. Dropping that check is caught, and by a real capture
+  rather than a contrived one: `xurkitree.png` answers a dex off the `0900 M © Os` status-bar clock
+  [the unit rule](#two-ways-a-reader-fails-without-reporting-anything) already records as a trap. The entry screens
+  carry their own decoys too, `SEEN 2763` and `CAUGHT 1499` being four digits apiece.
+- **The cross-check is the only thing catching anything, which the survivors say as clearly as the catches.** Seven
+  mutations over `pokedex.mts` and `identify`'s override: five caught, and the two that survive both do so because the
+  check subsumes them. `TITLE` loosened to `/(\d{3,4})\s*([a-z][a-z ]*)?/` still answers null on all 62 — a `372`
+  reaches Shelgon and the line beside it folds to nothing like `shelgon` — so the pattern is a description of the screen
+  rather than what keeps the reader honest. `found.size === 1` survives as **unreachable with this corpus**: two entries
+  would have to pass the check on one screen, which takes a capture caught mid-swipe between them, and a `Set` collapses
+  two readings of the same number.
+- **Compare the name by exact folded equality here, not through `closest`.** Slack rescues a reading that is the only
+  evidence there is; this reading is a **check** on a number that has already answered, so slack only widens what the
+  check lets past. Both Nidoran fold to `nidoran` and pass it, which is the point — the check says the line agrees and
+  the number says which of the two.
+- **Split the species from the name in `identify` before overriding either.** The two came off one expression, "the name
+  matched nothing" being both _there is no species_ and _this is a nickname_, so a dex override written over `species`
+  silently costs `ho-oh.png` the `96%` it is called. Keep the nickname keyed on what the **name** matched and the
+  candidates keyed on the species; with no dex the two are the same value and the expression is what it always was.
+- **Measure the fallback by the CP rather than by the label it changes.** `nidoran-male.png` as a `Nidoran♀` derives 373
+  against the `CP 491` the screen prints, and as a `Nidoran♂` derives **491** exactly — so the dex does not merely
+  change the answer, it turns a cross-check disagreement into an agreement, which nothing shorter than the whole
+  pipeline could have said.
 - **Read a ghosted downscale as a bug in the viewer, not as a capture taken mid-swipe.** Inspecting a committed capture
   by eye wants a downscale, `png.mts` has `scale` for whole multiples only, and a nearest-neighbour one at 2.5× needs
   `Math.floor` on **both** coordinates before the 4-byte pixel stride. Without it the byte offset lands mid-pixel, which
