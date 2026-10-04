@@ -8,6 +8,7 @@
  * captures that do that arrive with the readers rather than here.
  */
 
+import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { brighten, crop, decodePng, difference, encodePng, isolate, rgb, scale, type Image } from './png.mts';
 
@@ -32,9 +33,56 @@ test('an image survives being encoded and decoded byte for byte', () => {
   expect([...back.data]).toStrictEqual([...image.data]);
 });
 
-test('a zero-byte image is not a PNG, and nor is a truncated one', () => {
+test('a zero-byte image is not a PNG, and nor is one whose signature is broken', () => {
   expect(() => decodePng(Buffer.alloc(0))).toThrow(/not a PNG/);
   expect(() => decodePng(encodePng(ramp(2, 2)).subarray(1))).toThrow(/not a PNG/);
+});
+
+/**
+ * Cut through a chunk header, through the IHDR, through the IDAT and at a chunk boundary just short of IEND — the last
+ * being the one only the missing IEND gives away, since every chunk before it is whole.
+ */
+test('a PNG cut off anywhere after its signature is refused as truncated', () => {
+  const valid = encodePng(ramp(3, 3));
+
+  for (const length of [10, 20, 40, valid.length - 13, valid.length - 12, valid.length - 1]) {
+    expect(() => decodePng(valid.subarray(0, length)), `cut at ${length}`).toThrow(/truncated PNG/);
+  }
+});
+
+test('a PNG with no IHDR chunk is refused rather than read as an empty image', () => {
+  // The IHDR is the 25 bytes after the signature: length, type, 13 bytes of header and a CRC.
+  const valid = encodePng(ramp(2, 2));
+
+  expect(() => decodePng(Buffer.concat([valid.subarray(0, 8), valid.subarray(33)]))).toThrow(/no IHDR/);
+});
+
+test('a byte damaged inside a chunk is caught by its CRC', () => {
+  const bytes = Buffer.from(encodePng(ramp(2, 2)));
+  bytes[45] = (bytes[45] ?? 0) ^ 0xff;
+
+  expect(() => decodePng(bytes)).toThrow(/IDAT chunk fails its CRC/);
+});
+
+/** A PNG around `raw` as its inflated pixel stream, with honest CRCs, so only the stream itself is wrong. */
+const withPixels = (raw: number[]): Buffer => {
+  const valid = encodePng(ramp(2, 2));
+  const body = deflateSync(Buffer.from(raw));
+  const idat = Buffer.alloc(12 + body.length);
+  idat.writeUInt32BE(body.length, 0);
+  idat.write('IDAT', 4, 'latin1');
+  body.copy(idat, 8);
+  idat.writeUInt32BE(crc32(idat.subarray(4, 8 + body.length)), 8 + body.length);
+
+  return Buffer.concat([valid.subarray(0, 33), idat, valid.subarray(-12)]);
+};
+
+test('a pixel stream that is short or names an unknown filter is refused rather than filled in', () => {
+  const row = (filter: number) => [filter, ...new Array<number>(8).fill(128)];
+
+  expect(decodePng(withPixels([...row(0), ...row(4)])).data, 'the helper builds a readable PNG').toHaveLength(16);
+  expect(() => decodePng(withPixels(row(0)))).toThrow(/9 bytes of pixels where 2×2 needs 18/);
+  expect(() => decodePng(withPixels([...row(0), ...row(5)]))).toThrow(/row 1 has filter 5/);
 });
 
 /**
@@ -51,6 +99,7 @@ test('a bit depth or an interlace this does not read is refused by name', () => 
   ] as [number, number, string][]) {
     const bytes = Buffer.from(valid);
     bytes[offset] = value;
+    bytes.writeUInt32BE(crc32(bytes.subarray(12, 29)), 29);
 
     expect(() => decodePng(bytes), `${what} is read rather than refused`).toThrow(/unsupported PNG/);
   }

@@ -18,20 +18,38 @@ const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 /** Bytes per pixel for each colour type this reads: greyscale, RGB, greyscale with alpha and RGBA. */
 const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 4: 2, 6: 4 };
 
+/** Why a screenshot cannot be read, with where to look, since a damaged one is far likelier than a damaged codec. */
+const refuse = (why: string): Error =>
+  new Error(`${why} (did the screenshot fail? run \`adb exec-out screencap -p\` by hand to see)`);
+
+/**
+ * Refuses rather than guesses: a cut-off or damaged `screencap` stream would otherwise decode to an image of the right
+ * size with garbage rows in it, and a scan reading those would record nonsense rather than stop.
+ */
 export function decodePng(bytes: Buffer): Image {
   if (!bytes.subarray(0, 8).equals(SIGNATURE)) {
-    throw new Error('not a PNG (did the screenshot fail? run `adb exec-out screencap -p` by hand to see)');
+    throw refuse('not a PNG');
   }
 
   let width = 0;
   let height = 0;
   let channels = 0;
+  let ended = false;
   const idat: Buffer[] = [];
 
-  for (let at = 8; at < bytes.length;) {
+  for (let at = 8; at < bytes.length && !ended;) {
+    if (at + 12 > bytes.length || at + 12 + bytes.readUInt32BE(at) > bytes.length) {
+      throw refuse('truncated PNG');
+    }
+
     const length = bytes.readUInt32BE(at);
     const type = bytes.toString('latin1', at + 4, at + 8);
     const body = bytes.subarray(at + 8, at + 8 + length);
+
+    if (bytes.readUInt32BE(at + 8 + length) !== crc32(bytes.subarray(at + 4, at + 8 + length))) {
+      throw refuse(`corrupt PNG: the ${type} chunk fails its CRC`);
+    }
+
     at += 12 + length;
 
     if (type === 'IHDR') {
@@ -46,18 +64,32 @@ export function decodePng(bytes: Buffer): Image {
     } else if (type === 'IDAT') {
       idat.push(body);
     } else if (type === 'IEND') {
-      break;
+      ended = true;
     }
+  }
+
+  if (channels === 0) {
+    throw refuse('not a PNG: there is no IHDR chunk');
+  } else if (!ended) {
+    throw refuse('truncated PNG');
   }
 
   const raw = inflateSync(Buffer.concat(idat));
   const stride = width * channels;
   const pixels = new Uint8Array(stride * height);
 
+  if (raw.length < (stride + 1) * height) {
+    throw refuse(`corrupt PNG: ${raw.length} bytes of pixels where ${width}×${height} needs ${(stride + 1) * height}`);
+  }
+
   for (let y = 0; y < height; y++) {
-    const filter = raw[y * (stride + 1)];
+    const filter = raw[y * (stride + 1)] ?? 0;
     const line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1));
     const row = y * stride;
+
+    if (filter > 4) {
+      throw refuse(`corrupt PNG: row ${y} has filter ${filter}`);
+    }
 
     for (let x = 0; x < stride; x++) {
       const a = x >= channels ? (pixels[row + x - channels] ?? 0) : 0;
