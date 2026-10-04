@@ -1,0 +1,358 @@
+/**
+ * What the detail screen states in pixels rather than in words: the size pill over the height, the favourite's star,
+ * the gender symbol beside the HP and the account's own tag chips. `CLAUDE.md` already draws this line, under "What the
+ * detail screen tells you without OCR", and it is the seam because the method differs rather than the subject — each of
+ * these is found by colour or by shape, and only then cropped and handed to OCR, where `detail.mts` reads text the game
+ * wrote as text. Three of the four need no OCR at all.
+ *
+ * Nothing here imports a sibling. The readers are called by `parseDetail`, which fills one `Detail` from both halves.
+ */
+
+import { fold, ocrLine, type Line } from './ocr.mts';
+import { crop, isolate, scale, type Image } from './png.mts';
+export type Gender = 'male' | 'female';
+
+/** The four bands the game records, which `src/search/terms.js` has had a search for each of since it was written. */
+export type Size = 'XXL' | 'XL' | 'XS' | 'XXS';
+
+interface Patch {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  fraction: number;
+}
+
+/** Where the pixels a predicate accepts are in a region, and how much of it they cover. */
+function patchIn(image: Image, matches: (r: number, g: number, b: number) => boolean): Patch {
+  let left = image.width;
+  let top = image.height;
+  let right = -1;
+  let bottom = -1;
+  let found = 0;
+
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const i = (y * image.width + x) * 4;
+
+      if (matches(image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0)) {
+        found++;
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+
+  return {
+    left,
+    top,
+    width: right - left + 1,
+    height: bottom - top + 1,
+    fraction: found / (image.width * image.height),
+  };
+}
+
+/** The warm gold the game fills a favourite's star with. */
+const gold = (r: number, g: number, b: number) => r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90;
+
+/** Any hue at all, against a panel that is neutral grey. What the size badge's pill needs, since its hue varies. */
+const coloured = (r: number, g: number, b: number) => Math.max(r, g, b) - Math.min(r, g, b) >= SIZE_CHROMA;
+
+/**
+ * One of the four size badges, or null for the two ordinary bands in the middle, which wear none. It is white on a
+ * coloured pill drawn directly over the height, and two things about finding it are worth stating, because the obvious
+ * answer to each is what was there and does not work.
+ *
+ * **Anchor it on the height, not on the row the height shares with the weight.** The pill sits above the height alone,
+ * and a band taken from a fraction of the screen's width instead reaches past the right edge of the panel into the page
+ * behind it, which is saturated navy and swamps anything the pill contributes. The height's own line bounds it.
+ *
+ * **Find it by saturation, not by hue.** The pill is gold where the measurement beside it is also a personal record and
+ * teal where it is not: `fixtures/xs-unown.png` has rgb(192,160,64) under a `SHORTEST`, and `fixtures/xxs-female.png`
+ * rgb(96,192,192) under a plain `HEIGHT`, with its gold `LIGHTEST` over on the weight. So a gold test answers only for
+ * a Pokémon that happens to be the tallest or shortest of its species, which is why this read 0 of 78 real captures.
+ *
+ * Cropping to the pill is what makes the text legible at all: isolating the white text over the whole band turns the
+ * panel around it black too, since the panel is white as well, and hands Tesseract a black page with one white island
+ * in it. Cropping first makes the pill the whole page, where the text really is dark on light.
+ *
+ * The saturation is the cheap test as well, since most Pokémon wear no badge and can be answered with no OCR at all. It
+ * is not sufficient alone — a tall narrow patch of gold in one capture's artwork passed the older gold test — so the
+ * text still has to spell one of the four.
+ */
+export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
+  const band = crop(
+    image,
+    height.left - height.height,
+    height.top - height.height * SIZE_RISE,
+    height.width * SIZE_SPAN + height.height,
+    height.height * SIZE_RISE,
+  );
+  const pill = patchIn(band, coloured);
+
+  if (pill.fraction < SIZE_FILL) {
+    return null;
+  }
+
+  const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
+  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3), SIZE_ALPHABET)) ?? '');
+
+  return SIZES.find((size) => text.includes(size.toLowerCase())) ?? null;
+}
+
+/**
+ * Whether the star at the top right is filled. A favourite's star is solid gold and an ordinary one is a white outline
+ * with the artwork showing through it, so this is the one flag on the screen that colour alone settles: measured over
+ * eighteen captures from two phones, 19.4% of that corner was gold on the one favourite and 0.00% on every other.
+ *
+ * The star is the game's own furniture rather than PGSharp's, so it scales with the screen and a fraction holds where
+ * one for the overlay did not — 0.900, 0.074 of one phone against 0.903, 0.080 of the other.
+ */
+export function isFavourite(image: Image): boolean {
+  const star = crop(image, image.width * 0.86, image.height * 0.05, image.width * 0.1, image.height * 0.06);
+
+  return patchIn(star, gold).fraction >= FAVOURITE_GOLD;
+}
+
+/**
+ * Male, female, or null for a species that has no gender. The symbol sits to the right of the HP bar and is the only
+ * ink in that corner of the panel, so it is found by where the HP is rather than by a fraction of the screen.
+ *
+ * Colour cannot tell the two apart — both are drawn in the same pale blue-grey — so the shape does it. A male's arrow
+ * leaves the circle up and to the right and a female's stem hangs below it, which makes the female's ink taller than
+ * it is wide and the male's square. Measured on two phones at different resolutions, the ratio is 1.51 against 0.99
+ * and 1.51 against 1.00, so the same threshold serves both; every one of the seven Xerneas captures reports no symbol
+ * at all, which is right, since Xerneas has no gender.
+ *
+ * What the ink is darker *than* is the panel itself, read off the region rather than written down here. Nine tenths of
+ * the region is panel by construction, so its commonest luminance is the panel's, and the symbol is a clear 49 below it
+ * — 175 against 224 on every capture that has one. A level named outright is how this stopped working: at 235 the panel
+ * was itself ink, which made the region its own silhouette and the answer the shape of the crop. Since the crop is
+ * sized from `hp.height`, and Tesseract reports that as anything from 20 to 37 for the same text, the gender was being
+ * decided by how tall OCR thought the HP was — 32 of 78 real captures named a gender for a Pokémon that has none.
+ */
+export function genderOf(image: Image, hp: Line): Gender | null {
+  const region = crop(image, image.width * 0.78, hp.top - hp.height * 4, image.width * 0.15, hp.height * 6);
+  const histogram = new Map<number, number>();
+
+  for (let i = 0; i < region.data.length; i += 4) {
+    const level = Math.round(
+      0.2126 * (region.data[i] ?? 0) + 0.7152 * (region.data[i + 1] ?? 0) + 0.0722 * (region.data[i + 2] ?? 0),
+    );
+    histogram.set(level, (histogram.get(level) ?? 0) + 1);
+  }
+
+  const panel = [...histogram].reduce((most, level) => (level[1] > most[1] ? level : most), [0, 0])[0];
+  const symbol = patchIn(
+    region,
+    (r, g, b) =>
+      0.2126 * r + 0.7152 * g + 0.0722 * b < panel - GENDER_INK_BELOW &&
+      Math.max(r, g, b) - Math.min(r, g, b) < GENDER_INK_CHROMA,
+  );
+
+  if (symbol.fraction < GENDER_INK_MIN) {
+    return null;
+  }
+
+  return symbol.height / Math.max(1, symbol.width) >= GENDER_TALL ? 'female' : 'male';
+}
+
+/** A tag chip is the only coloured thing on the panel, and it is drawn between the HP and the weight. */
+const TAG_CHROMA = 45;
+const TAG_PANEL = { from: 0.12, width: 0.76 };
+
+/**
+ * A chip is a solid pill, so most of its own box is coloured, and it stands about a thirtieth of the screen tall.
+ * Measured against a real one at 97 pixels on a 3040 screen, and against the strays that are not chips at 26 to 28.
+ */
+const TAG_FILL = 0.5;
+const TAG_HEIGHT = 0.025;
+
+/**
+ * The tags a Pokémon carries, read off the chips the game draws under its HP. They are white on a coloured pill, so
+ * the colour is what finds them — the panel around is white and so is the text — and each chip is cropped on its own
+ * by the columns it occupies, since a Pokémon can carry several and reading the row whole would run their names
+ * together.
+ *
+ * It answers what it read rather than what the tag is called: a caller that knows the names can match against them,
+ * which is worth doing, since `Trade to 0xNULL` comes back as `Trade toOxNULL` and only agrees once folded.
+ */
+export async function tagsOn(image: Image, hp: Line, row: Line): Promise<string[]> {
+  const top = hp.top + hp.height;
+
+  if (row.top <= top) {
+    return [];
+  }
+
+  const gap = crop(image, image.width * TAG_PANEL.from, top, image.width * TAG_PANEL.width, row.top - top);
+  const floor = aboveTypes(gap);
+
+  if (floor < 1) {
+    return [];
+  }
+
+  const band = crop(gap, 0, 0, gap.width, floor);
+  const found: string[] = [];
+
+  for (const chip of chipsIn(band, image.height * TAG_HEIGHT)) {
+    const text = await ocrLine(scale(isolate(crop(band, chip.left, chip.top, chip.width, chip.height), 200, 70), 2));
+
+    if (text) {
+      found.push(
+        text
+          .replace(/[^\p{L}\p{N} .'-]/gu, ' ')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      );
+    }
+  }
+
+  return found.filter(Boolean);
+}
+
+/** Whether any pixel of a row carries a hue, against a panel that is neutral grey. */
+function rowColoured(band: Image, y: number): boolean {
+  for (let x = 0; x < band.width; x++) {
+    const i = (y * band.width + x) * 4;
+    const r = band.data[i] ?? 0;
+    const g = band.data[i + 1] ?? 0;
+    const b = band.data[i + 2] ?? 0;
+
+    if (Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * How much of the gap between the HP and the weight the chips can be in, which the gap itself says. The type icons sit
+ * level with the weight row, so they always reach the bottom of the gap where a chip row never does: on
+ * `fixtures/lucky-shiny.png` the two chips occupy rows 44-110 of 220 and the icons rows 188-219, with 77 blank rows
+ * between, and on the six fixtures carrying no chip at all the one coloured run is the icons alone. So the bottom-most
+ * run of coloured rows is the icons, and everything above where it starts is the chips' own band — where that run
+ * reaches the bottom row, since a grey icon contributes no run at all.
+ *
+ * Deriving it is what makes it right rather than nearly right, because the two obvious fractions are both wrong and
+ * neither says so. 0.45 of the gap clipped the chips to 55 rows against a true 67 — below the 56.1 a chip has to stand
+ * to be counted one — so both chips of the only tagged capture in the corpus were discarded by 1.1 pixels, and the
+ * screen reported no tags with two plainly on it. The whole gap is no answer either: it merges each chip with the icons
+ * beneath it into a single run of columns and drops its fill from 0.86 to 0.31, which reads as no chip just the same.
+ */
+function aboveTypes(gap: Image): number {
+  let floor = gap.height;
+
+  // Only a run that reaches the bottom row is the icons. A Normal type's icon is grey and colours nothing, so on
+  // `fixtures/snorlax-purified.png` the lowest coloured run is its `Perfect` chip at rows 33-99 of 208, and taking
+  // whatever run is lowest cut the chip away as though it were the icons. Over the 62 committed captures every icon run
+  // ends on the gap's last row exactly, and that chip is the only run anywhere that does not.
+  while (floor > 0 && rowColoured(gap, floor - 1)) {
+    floor--;
+  }
+
+  return floor;
+}
+
+/** The coloured runs of columns in a band, one per chip, with the rows each of them actually occupies. */
+function chipsIn(band: Image, tallest: number): { left: number; top: number; width: number; height: number }[] {
+  const coloured = (x: number, y: number) => {
+    const i = (y * band.width + x) * 4;
+    const r = band.data[i] ?? 0;
+    const g = band.data[i + 1] ?? 0;
+    const b = band.data[i + 2] ?? 0;
+
+    return Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA;
+  };
+
+  const filled: boolean[] = [];
+
+  for (let x = 0; x < band.width; x++) {
+    filled[x] = false;
+
+    for (let y = 0; y < band.height && !filled[x]; y++) {
+      filled[x] = coloured(x, y);
+    }
+  }
+
+  const chips: { left: number; top: number; width: number; height: number }[] = [];
+  let start = -1;
+
+  for (let x = 0; x <= band.width; x++) {
+    if (filled[x]) {
+      start = start < 0 ? x : start;
+      continue;
+    }
+
+    if (start < 0) {
+      continue;
+    }
+
+    let top = band.height;
+    let bottom = -1;
+    let n = 0;
+
+    for (let y = 0; y < band.height; y++) {
+      for (let cx = start; cx < x; cx++) {
+        if (coloured(cx, y)) {
+          n++;
+          top = Math.min(top, y);
+          bottom = Math.max(bottom, y);
+        }
+      }
+    }
+
+    const height = bottom - top + 1;
+    const width = x - start;
+
+    if (height >= tallest && n >= width * height * TAG_FILL) {
+      chips.push({ left: start, top, width, height });
+    }
+
+    start = -1;
+  }
+
+  return chips;
+}
+
+/**
+ * Measured over the 62 committed captures: 51 are exactly 0, the nine real favourites run 18.18% to 26.49%, and three
+ * land between 0.36% and 1.34% with no filled star. `spinda-04.png` is why this is not 0.02 — a warm bokeh background
+ * puts **15.34%** in that corner behind a white-outline star, which is a false positive at any threshold below it. So
+ * this is a discriminator rather than headroom, and the margin is thin on both sides: 1.2 points under the lowest real
+ * favourite and 1.7 over the worst non-favourite.
+ */
+const FAVOURITE_GOLD = 0.17;
+
+/**
+ * The size badge's pill, as a band over the height: how far above the height's own top to reach and how far past its
+ * right, both in the height's own height. The pill is a little under two line-heights tall and the text beside it runs
+ * half again as wide as `0.15m` does, which is where 1.9 and 1.6 come from.
+ *
+ * `SIZE_CHROMA` is what separates the pill from the panel it sits on: the panel is neutral rgb(224,224,224) and both
+ * hues the pill takes are far from it — gold rgb(192,160,64) at 128 and teal rgb(96,192,192) at 96 — so anything over
+ * 60 catches either without catching the panel's own antialiasing. `SIZE_FILL` only has to beat the stray coloured
+ * pixel; a real pill is several per cent of the band.
+ */
+const SIZE_RISE = 1.9;
+const SIZE_SPAN = 1.6;
+const SIZE_CHROMA = 60;
+const SIZE_FILL = 0.01;
+
+/**
+ * The only three letters a badge can spell, and the four words it spells with them. Longest first, so an `XXL` is not
+ * answered by the `XL` inside it.
+ */
+const SIZE_ALPHABET = 'XSL';
+const SIZES = ['XXL', 'XXS', 'XL', 'XS'] as const satisfies readonly Size[];
+
+/**
+ * The gender symbol against the white panel behind it: how far below the panel's own level its ink has to fall, how
+ * neutral it has to stay, how much of the region it has to cover and how tall it has to be to be a female's.
+ */
+const GENDER_INK_BELOW = 20;
+const GENDER_INK_CHROMA = 45;
+const GENDER_INK_MIN = 0.01;
+const GENDER_TALL = 1.25;
