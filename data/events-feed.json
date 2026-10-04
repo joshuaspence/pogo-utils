@@ -126,8 +126,8 @@
     "heading": "Max Battles",
     "link": "https://leekduck.com/events/gigantamax-cinderace-max-battle-day-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-03-gigantamax-cinderace-max-battle-day-2026/gigantamax-cinderace-max-battle-day.jpg",
-    "start": "2026-10-03T14:00:00.000",
-    "end": "2026-10-03T17:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "giratina-origin-forme-in-5-star-raid-battles-october-2026",
@@ -378,16 +378,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/palkiaraid.jpg",
     "start": "2026-10-21T06:00:00.000",
     "end": "2026-10-27T22:00:00.000"
-  },
-  {
-    "eventID": "patterns-of-the-wild-2026",
-    "name": "Patterns of the Wild",
-    "eventType": "event",
-    "heading": "Event",
-    "link": "https://leekduck.com/events/patterns-of-the-wild-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-02-patterns-of-the-wild-2026/patterns-of-the-wild-2026.jpg",
-    "start": null,
-    "end": null
   },
   {
     "eventID": "pokemon-go-tour-alola-global-2027",
