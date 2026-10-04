@@ -109,7 +109,6 @@
     <extensions>
       <pgr:city>Dortmund, North Rhine-Westphalia</pgr:city>
       <pgr:country>Germany</pgr:country>
-      <pgr:variant>long</pgr:variant>
     </extensions>
     <trkseg>
       <trkpt lat="51.496644" lon="7.469652"/>
@@ -207,69 +206,6 @@
       <trkpt lat="51.495622" lon="7.471202"/>
       <trkpt lat="51.495806" lon="7.469448"/>
       <trkpt lat="51.496621" lon="7.469636"/>
-    </trkseg>
-  </trk>
-
-  <trk>
-    <name>Westfalenpark</name>
-    <extensions>
-      <pgr:city>Dortmund, North Rhine-Westphalia</pgr:city>
-      <pgr:country>Germany</pgr:country>
-      <pgr:variant>short</pgr:variant>
-    </extensions>
-    <trkseg>
-      <trkpt lat="51.496666" lon="7.469666"/>
-      <trkpt lat="51.496976" lon="7.475556"/>
-      <trkpt lat="51.498565" lon="7.477519"/>
-      <trkpt lat="51.498743" lon="7.478622"/>
-      <trkpt lat="51.497499" lon="7.478515"/>
-      <trkpt lat="51.497453" lon="7.477767"/>
-      <trkpt lat="51.496947" lon="7.477435"/>
-      <trkpt lat="51.496192" lon="7.478282"/>
-      <trkpt lat="51.496182" lon="7.479001"/>
-      <trkpt lat="51.496824" lon="7.478938"/>
-      <trkpt lat="51.497075" lon="7.479361"/>
-      <trkpt lat="51.497474" lon="7.480834"/>
-      <trkpt lat="51.496869" lon="7.480125"/>
-      <trkpt lat="51.496730" lon="7.481031"/>
-      <trkpt lat="51.496128" lon="7.480035"/>
-      <trkpt lat="51.495698" lon="7.480616"/>
-      <trkpt lat="51.495804" lon="7.481346"/>
-      <trkpt lat="51.495447" lon="7.481770"/>
-      <trkpt lat="51.494616" lon="7.482242"/>
-      <trkpt lat="51.493886" lon="7.485131"/>
-      <trkpt lat="51.493040" lon="7.482446"/>
-      <trkpt lat="51.492667" lon="7.480810"/>
-      <trkpt lat="51.492054" lon="7.479916"/>
-      <trkpt lat="51.491501" lon="7.478976"/>
-      <trkpt lat="51.493912" lon="7.480273"/>
-      <trkpt lat="51.493414" lon="7.478967"/>
-      <trkpt lat="51.494386" lon="7.477758"/>
-      <trkpt lat="51.494226" lon="7.476372"/>
-      <trkpt lat="51.494049" lon="7.475798"/>
-      <trkpt lat="51.493848" lon="7.476062"/>
-      <trkpt lat="51.494623" lon="7.475891"/>
-      <trkpt lat="51.494226" lon="7.474873"/>
-      <trkpt lat="51.494885" lon="7.474723"/>
-      <trkpt lat="51.492754" lon="7.474097"/>
-      <trkpt lat="51.492203" lon="7.473699"/>
-      <trkpt lat="51.492350" lon="7.473183"/>
-      <trkpt lat="51.493581" lon="7.473153"/>
-      <trkpt lat="51.493966" lon="7.471756"/>
-      <trkpt lat="51.494645" lon="7.471451"/>
-      <trkpt lat="51.494883" lon="7.472710"/>
-      <trkpt lat="51.495744" lon="7.473771"/>
-      <trkpt lat="51.496306" lon="7.474718"/>
-      <trkpt lat="51.496193" lon="7.474121"/>
-      <trkpt lat="51.496153" lon="7.473027"/>
-      <trkpt lat="51.496070" lon="7.471730"/>
-      <trkpt lat="51.495629" lon="7.471205"/>
-      <trkpt lat="51.496457" lon="7.470405"/>
-      <trkpt lat="51.496888" lon="7.471644"/>
-      <trkpt lat="51.496952" lon="7.474264"/>
-      <trkpt lat="51.497274" lon="7.476171"/>
-      <trkpt lat="51.497613" lon="7.476734"/>
-      <trkpt lat="51.493711" lon="7.479988"/>
     </trkseg>
   </trk>
 </gpx>

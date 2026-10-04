@@ -36,21 +36,17 @@ export interface Country {
  * nowhere on one to write the annotation that makes the table `Record<string, Country>` rather than its own 25 keys.
  */
 const COUNTRIES: Record<string, Country> = {
-  'Argentina': { code: 'AR', continent: 'South America' },
   'Australia': { code: 'AU', continent: 'Oceania' },
   'Brazil': { code: 'BR', continent: 'South America' },
-  'Canada': { code: 'CA', continent: 'North America' },
   'England': { code: 'GB-ENG', continent: 'Europe' },
   'France': { code: 'FR', continent: 'Europe' },
   'Germany': { code: 'DE', continent: 'Europe' },
   'India': { code: 'IN', continent: 'Asia' },
   'Indonesia': { code: 'ID', continent: 'Asia' },
-  'Italy': { code: 'IT', continent: 'Europe' },
   'Japan': { code: 'JP', continent: 'Asia' },
   'Kiribati': { code: 'KI', continent: 'Oceania' },
   'Malaysia': { code: 'MY', continent: 'Asia' },
   'Mexico': { code: 'MX', continent: 'North America' },
-  'Netherlands': { code: 'NL', continent: 'Europe' },
   'New Zealand': { code: 'NZ', continent: 'Oceania' },
   'Philippines': { code: 'PH', continent: 'Asia' },
   'Portugal': { code: 'PT', continent: 'Europe' },
