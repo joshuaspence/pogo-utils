@@ -227,23 +227,11 @@ export function scale(image: Image, factor: number): Image {
  * its colour is what made it the one field that would not threshold.
  */
 export function isolate(image: Image, minLuminance: number, maxChroma: number): Image {
-  const data = new Uint8Array(image.data.length);
-
-  for (let i = 0; i < image.data.length; i += 4) {
-    const r = image.data[i] ?? 0;
-    const g = image.data[i + 1] ?? 0;
-    const b = image.data[i + 2] ?? 0;
-    const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-    const value = luminance >= minLuminance && chroma <= maxChroma ? 0 : 255;
-
-    data[i] = value;
-    data[i + 1] = value;
-    data[i + 2] = value;
-    data[i + 3] = 255;
-  }
-
-  return { width: image.width, height: image.height, data };
+  return threshold(
+    image,
+    (r, g, b) =>
+      0.2126 * r + 0.7152 * g + 0.0722 * b >= minLuminance && Math.max(r, g, b) - Math.min(r, g, b) <= maxChroma,
+  );
 }
 
 /**
@@ -262,10 +250,15 @@ export function isolate(image: Image, minLuminance: number, maxChroma: number): 
  * captures, the near-white treatment reads `2/4/13` where this reads `12/4/13`.
  */
 export function brighten(image: Image, min: number): Image {
+  return threshold(image, (r, g, b) => Math.max(r, g, b) >= min);
+}
+
+/** Black where `keep` holds for a pixel's three channels and white elsewhere, opaque throughout. */
+function threshold(image: Image, keep: (r: number, g: number, b: number) => boolean): Image {
   const data = new Uint8Array(image.data.length);
 
   for (let i = 0; i < image.data.length; i += 4) {
-    const value = Math.max(image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0) >= min ? 0 : 255;
+    const value = keep(image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0) ? 0 : 255;
 
     data[i] = value;
     data[i + 1] = value;
