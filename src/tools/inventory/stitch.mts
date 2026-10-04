@@ -1,0 +1,260 @@
+/**
+ * One tall image out of several screenshots taken while scrolling, which is the only way to see a screen that is
+ * longer than the phone. The detail screen is one: the moves sit below the fold on every capture this repository
+ * holds, which is why `parseMoves` has no fixture to be asserted against.
+ *
+ * **Not everything on the screen scrolls, and that is the whole problem.** The status bar ticks with the clock at the
+ * top, PGSharp draws its overlay *over* the app rather than in it so it stays exactly where it is, and the game's own
+ * round buttons float above the panel at the bottom. Correlating two frames over the whole screen therefore finds the
+ * shift that keeps the furniture still — which is zero — rather than the one that lines the content up. So the caller
+ * names the band that does scroll, and everything here works inside it.
+ *
+ * **What it answers with is the content once and the furniture once.** Rows above the band come from the first frame,
+ * rows below it from the last, and the band itself is the first frame's worth plus whatever each later frame revealed.
+ * A naive concatenation would repeat both the overlay and the buttons once per frame.
+ *
+ * **It refuses rather than guesses.** `offsetBetween` scores every candidate shift and takes the best only where it is
+ * clearly better than the field; two frames that overlap by too little to be sure, or not at all, answer null and
+ * `stitch` stops there with what it has. A capture that is short is obvious to whoever looks at it, where a capture
+ * silently assembled at the wrong offset is a screenshot of something that was never on the screen.
+ */
+
+import { crop, rgb, type Image } from './png.mts';
+
+/** The fractions of a frame's height that scroll, which is the region the game draws its own content in. */
+export interface Band {
+  from: number;
+  to: number;
+}
+
+/**
+ * How much of the band two frames have to share before a shift is believed. A quarter, because a scroll that moved
+ * more than three-quarters of a screen has no overlap worth correlating and the answer would be the least-bad of a
+ * field of equally bad ones.
+ */
+const MIN_OVERLAP = 0.25;
+
+/**
+ * How much better than the field the best shift has to score. The same shape as the artwork match's margin and for the
+ * same reason: this is a comparison and not a threshold, so what matters is whether one candidate stands out rather
+ * than whether it is good in the absolute — a frame of a dark screen scores well everywhere.
+ */
+const MARGIN = 1.4;
+
+/** Every nth column and row, which is what the per-row summaries and the confirmation below are built from. */
+const COLUMN_STEP = 8;
+const ROW_STEP = 4;
+
+/** How much two frames of one scroll may still differ where they overlap. Measured: a true scroll is 0.00 and the
+ * closest two different screens come is 19.12, so this sits in the gap rather than near either end. */
+const MATCH_CEILING = 8;
+
+/**
+ * What two frames actually cost each other at one shift, pixel against pixel rather than summary against summary.
+ * Sampled, because this runs ten times and not a thousand.
+ */
+function pixelCost(a: Image, b: Image, band: Band, shift: number): number {
+  const { top, bottom } = rows(a, band);
+  const overlap = bottom - top - shift;
+
+  if (overlap <= 0) {
+    return Infinity;
+  }
+
+  let total = 0;
+  let counted = 0;
+
+  for (let y = 0; y < overlap; y += ROW_STEP) {
+    for (let x = 0; x < a.width; x += COLUMN_STEP) {
+      total += Math.abs(rgb(a, x, top + shift + y)[0] - rgb(b, x, top + y)[0]);
+      counted++;
+    }
+  }
+
+  return counted === 0 ? Infinity : total / counted;
+}
+
+const rows = (image: Image, band: Band) => ({
+  top: Math.max(0, Math.round(image.height * band.from)),
+  bottom: Math.min(image.height, Math.round(image.height * band.to)),
+});
+
+/**
+ * Two numbers per row of the band: how bright it is on average, and how much it changes along its own length. The
+ * second is what tells a row of text from a row of gap between two lines that happen to average the same.
+ *
+ * Summarising first is what makes searching every shift affordable, and searching every shift is not optional. A
+ * coarse pass at every eighth pixel and a fine pass around its answer is the obvious economy and it does not work
+ * here: rows of a screen are distinct, so the cost of a shift is a spike at the right answer and flat either side of
+ * it, and a stride of eight steps over that spike seven times in eight. Measured — a scroll of exactly one pixel came
+ * back as null, because the coarse pass landed nowhere near it. Against summaries the whole range is about a million
+ * operations rather than the forty-odd million a full two-dimensional search would be.
+ */
+function profile(image: Image, band: Band): { mean: Float64Array; rough: Float64Array } {
+  const { top, bottom } = rows(image, band);
+  const mean = new Float64Array(bottom - top);
+  const rough = new Float64Array(bottom - top);
+
+  for (let y = top; y < bottom; y++) {
+    let total = 0;
+    let change = 0;
+    let counted = 0;
+    let last: number | null = null;
+
+    for (let x = 0; x < image.width; x += COLUMN_STEP) {
+      const value = rgb(image, x, y)[0];
+      total += value;
+      change += last === null ? 0 : Math.abs(value - last);
+      last = value;
+      counted++;
+    }
+
+    mean[y - top] = total / Math.max(1, counted);
+    rough[y - top] = change / Math.max(1, counted);
+  }
+
+  return { mean, rough };
+}
+
+/**
+ * How far `b` has scrolled past `a`, in pixels, or null where no shift stands out. Positive, because the content moves
+ * **up** as a finger drags the screen down: what sat at row `y + shift` in `a` sits at row `y` in `b`.
+ */
+export function offsetBetween(a: Image, b: Image, band: Band): number | null {
+  if (a.width !== b.width || a.height !== b.height) {
+    return null;
+  }
+
+  const first = profile(a, band);
+  const second = profile(b, band);
+  const height = first.mean.length;
+  const furthest = Math.floor(height * (1 - MIN_OVERLAP));
+
+  if (furthest < 1) {
+    return null;
+  }
+
+  const scores: number[] = [];
+  let best = 0;
+
+  for (let shift = 0; shift <= furthest; shift++) {
+    const overlap = height - shift;
+    let total = 0;
+
+    for (let y = 0; y < overlap; y++) {
+      total +=
+        Math.abs((first.mean[y + shift] ?? 0) - (second.mean[y] ?? 0)) +
+        Math.abs((first.rough[y + shift] ?? 0) - (second.rough[y] ?? 0));
+    }
+
+    const value = total / overlap;
+    scores.push(value);
+
+    if (value < (scores[best] ?? Infinity)) {
+      best = shift;
+    }
+  }
+
+  // The field this has to stand out from, taken as the median of every shift scored rather than as the runner-up: on
+  // a real screen the shifts either side of the right answer are nearly as good as it is, so a runner-up margin would
+  // reject every correct answer.
+  //
+  // A band of flat colour is what this refuses: every shift matches it equally well, so the best is the median and
+  // nothing stands out. A screen that has not moved at all is the opposite case and answers zero, which is a
+  // measurement rather than a refusal — `stitch` stops on both, but only one of them is a fact about the screen.
+  const sorted = [...scores].sort((x, y) => x - y);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? Infinity;
+
+  if ((scores[best] ?? Infinity) * MARGIN >= median) {
+    return null;
+  }
+
+  // And then the pixels, because the summaries above are not evidence enough on their own. Two **different** detail
+  // screens share a layout — the same panel, the same rows of labels, the same buttons — so one's row summaries line
+  // up against the other's at some shift and nothing in the search above can tell that from a scroll.
+  //
+  // What separates them is not how far the winner stands out but how **close** it is, and this is the one place here
+  // an absolute figure is the right tool: two frames of a scroll are two screenshots of the same pixels, so where they
+  // correspond they are identical rather than merely similar. Measured over a real 1008x2244 capture, with the band
+  // 70% flat panel grey: a true scroll costs **0.00** at its shift and about 30 at any other, where `pikachu.png`
+  // against `smoliv.png` costs **19.12** at its best — confidently answering 114 under a margin test, and nowhere near
+  // zero. The ceiling sits in that gap, far below the 19 and well above the 0.
+  //
+  // What would move it is a screenshot that is not lossless or an animation reaching inside the band, and the symptom
+  // would be a scroll that refuses rather than one that assembles the wrong rows. That is the direction to fail in.
+  return pixelCost(a, b, band, best) <= MATCH_CEILING ? best : null;
+}
+
+/** What `stitch` managed, which is the image and how far through the frames it got before one would not line up. */
+export interface Stitched {
+  image: Image;
+  /** How many frames contributed. Fewer than it was given means two of them could not be lined up. */
+  used: number;
+  /** The shift found between each pair, so a caller can report a scroll that was not moving. */
+  offsets: number[];
+}
+
+/**
+ * The frames joined into one tall image. The first frame contributes everything above the band and its whole band; the
+ * ones after it contribute only the rows they revealed; the last contributes everything below.
+ *
+ * Stops at the first pair that cannot be lined up and says so, rather than leaving a seam nobody asked for.
+ */
+export function stitch(frames: readonly Image[], band: Band): Stitched {
+  const [first] = frames;
+
+  if (!first) {
+    throw new Error('stitch was given no frames');
+  }
+
+  const { top, bottom } = rows(first, band);
+  const offsets: number[] = [];
+
+  for (let i = 1; i < frames.length; i++) {
+    const shift = offsetBetween(frames[i - 1] as Image, frames[i] as Image, band);
+
+    // A zero is the scroll having reached the end, and a null is two frames that share too little to be sure. Both
+    // mean the same thing here: there is nothing further to add, so stop with what is already assembled.
+    if (shift === null || shift === 0) {
+      break;
+    }
+
+    offsets.push(shift);
+  }
+
+  const used = offsets.length + 1;
+  const last = frames[used - 1] as Image;
+  const height = first.height + offsets.reduce((a, b) => a + b, 0);
+  const data = new Uint8Array(first.width * height * 4);
+  const image: Image = { width: first.width, height, data };
+
+  const place = (source: Image, from: number, rowCount: number, at: number) => {
+    const stride = source.width * 4;
+    data.set(source.data.subarray(from * stride, (from + rowCount) * stride), at * stride);
+  };
+
+  // Everything above the band, which is the status bar and whatever is drawn over the app rather than in it, taken
+  // from the first frame alone.
+  place(first, 0, top, 0);
+  place(first, top, bottom - top, top);
+
+  let at = bottom;
+
+  for (const [i, shift] of offsets.entries()) {
+    place(frames[i + 1] as Image, bottom - shift, shift, at);
+    at += shift;
+  }
+
+  // And everything below the band, from the last frame that contributed — the game's floating buttons, which would
+  // otherwise be repeated once per frame.
+  place(last, bottom, first.height - bottom, at);
+
+  return { image, used, offsets };
+}
+
+/** A frame's band on its own, which is what a caller wants to look at when a stitch refuses to line two of them up. */
+export function bandOf(image: Image, band: Band): Image {
+  const { top, bottom } = rows(image, band);
+
+  return crop(image, 0, top, image.width, bottom - top);
+}

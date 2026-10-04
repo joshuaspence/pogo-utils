@@ -24,10 +24,19 @@
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
- *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--keep-screens DIR] [--config FILE]
- *                       [--serial SERIAL]
- *   pnpm inventory snap [NAME]      save a screenshot of whatever is showing and print what each reader makes of it
- *   pnpm inventory parse FILE.png…  the same for screenshots already saved, with no phone needed
+ *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
+ *                       [--config FILE] [--serial SERIAL]
+ *   pnpm inventory snap [--scroll] [NAME]  save a screenshot of whatever is showing and print what each reader makes
+ *                                          of it
+ *   pnpm inventory parse FILE.png…         the same for screenshots already saved, with no phone needed
+ *
+ * `--scroll` keeps swiping down and taking a screenshot until the screen stops moving, then stitches the frames into
+ * one tall image. It is what sees a screen longer than the phone: the moves sit below the fold on every capture, so a
+ * scan reads them from the stitched image rather than from a single screenshot taken part way down, and `snap
+ * --scroll` is how a capture of a whole detail screen gets made. The stitched image is **not** given to the other
+ * readers, and that is a limit rather than an oversight — the star corner, the overlay sweep, the tag band and the
+ * artwork are each anchored on a fraction of the image's height, so a frame three times taller moves every one of
+ * them. `parseMoves` is the one reader that is not, being anchored on the `GYMS & RAIDS` line.
  *
  * `snap` and `parse` are the tools for fixing a misread: every tap position, swipe and delay the scan uses is in
  * `DEFAULTS` below and can be overridden from a JSON file passed as `--config`, with positions as fractions of the
@@ -46,6 +55,7 @@ import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
+import { offsetBetween, stitch } from '../src/tools/inventory/stitch.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -172,6 +182,20 @@ const READ_ATTEMPTS = 3;
  * with the clock. Measured through one swipe: 31%, then 6.2%, then 0.54% and steady, so anything between settles it.
  */
 const SETTLE_BAND = { from: 0.34, to: 0.95 };
+
+/**
+ * The band `--scroll` lines consecutive frames up inside, which is the same region as the one above and for the same
+ * reason: it is the game's own panel, so it is what moves when a finger drags it. Everything outside it is furniture
+ * that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and correlating over those finds
+ * the shift that keeps *them* still, which is none.
+ *
+ * Taken from the settle band rather than written out again, and in `DEFAULTS` rather than here if a phone disagrees:
+ * where the panel's top edge sits during a scroll is the one part of this not measured against a real one.
+ */
+const SCROLL_BAND = SETTLE_BAND;
+
+/** How many frames one `--scroll` may take before it is a loop rather than a screen. */
+const SCROLL_FRAMES = 12;
 const SETTLE_CHANGE = 0.02;
 const SETTLE_ATTEMPTS = 4;
 
@@ -184,6 +208,7 @@ const { values: options, positionals } = parseArgs({
     'flags': { type: 'string' },
     'tags': { type: 'string' },
     'no-moves': { type: 'boolean', default: false },
+    'scroll': { type: 'boolean', default: false },
     'keep-screens': { type: 'string' },
     'config': { type: 'string' },
     'serial': { type: 'string' },
@@ -363,6 +388,30 @@ async function scan() {
     }
 
     return previous;
+  };
+
+  /**
+   * Every frame of the screen from here to its bottom, by swiping down and waiting for each to settle. Stops when the
+   * last two line up at nothing — which is what reaching the end looks like — or at `SCROLL_FRAMES`, so that a screen
+   * which never stops moving is a short capture rather than a scan that does not come back.
+   *
+   * It does not scroll back up. The caller does that, because what it has to get back to differs.
+   */
+  const scrollFrames = async (): Promise<Image[]> => {
+    const frames = [await settled()];
+
+    for (let i = 1; i < SCROLL_FRAMES; i++) {
+      await swipe(config.swipes.scrollDown, config.waits.scroll);
+      const next = await settled();
+      const moved = offsetBetween(frames[frames.length - 1] as Image, next, SCROLL_BAND);
+      frames.push(next);
+
+      if (moved === null || moved === 0) {
+        break;
+      }
+    }
+
+    return frames;
   };
 
   /**
@@ -573,13 +622,31 @@ async function scan() {
       let reading: Promise<Moves> | null = null;
 
       if (!options['no-moves']) {
-        await swipe(config.swipes.scrollDown, config.waits.scroll);
-        const scrolled = await device.screenshot();
-        keep(`${name}-moves`, scrolled);
-        // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipe,
-        // so that a read failing before the phone is back is a rejection here rather than an unhandled one.
+        let scrolled: Image;
+
+        if (options.scroll) {
+          const frames = await scrollFrames();
+          const joined = stitch(frames, SCROLL_BAND);
+          scrolled = joined.image;
+          keep(`${name}-scrolled`, scrolled);
+
+          if (joined.used < frames.length) {
+            notes.push(`only ${joined.used} of ${frames.length} frames would line up`);
+          }
+
+          // Back to the top, which took as many swipes to leave as it takes to return.
+          for (let i = 1; i < joined.used; i++) {
+            await swipe(config.swipes.scrollUp, config.waits.scroll);
+          }
+        } else {
+          await swipe(config.swipes.scrollDown, config.waits.scroll);
+          scrolled = await device.screenshot();
+          keep(`${name}-moves`, scrolled);
+          await swipe(config.swipes.scrollUp, config.waits.scroll);
+        }
+
+        // Read after the phone is back where it was, since the stitch above already needed every frame in hand.
         reading = ocr(scrolled).then((lines) => parseMoves(lines, data, id.form, scrolled));
-        await Promise.all([reading, swipe(config.swipes.scrollUp, config.waits.scroll)]);
       }
 
       if (reading) {
@@ -780,11 +847,45 @@ if (command === 'scan') {
 } else if (command === 'snap') {
   const device = new Device(options.serial);
   await device.check();
+
+  // One screenshot, or the whole screen stitched out of as many as it takes. The report below is run on the single
+  // frame either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
+  // something to look at and to commit as a fixture rather than something to hand them.
   const image = await device.screenshot();
+  const frames: Image[] = [image];
+
+  // The configured swipe is in fractions of the screen, which `scan` converts with a helper of its own; here the one
+  // screenshot already in hand is what gives it a size.
+  const at = (point: Point): Point => [point[0] * image.width, point[1] * image.height];
+
+  if (options.scroll) {
+    for (let i = 1; i < SCROLL_FRAMES; i++) {
+      await device.swipe(at(config.swipes.scrollDown[0]), at(config.swipes.scrollDown[1]));
+      await sleep(config.waits.scroll);
+      const next = await device.screenshot();
+      const moved = offsetBetween(frames[frames.length - 1] as Image, next, SCROLL_BAND);
+      frames.push(next);
+
+      if (moved === null || moved === 0) {
+        break;
+      }
+    }
+  }
+
+  const joined = options.scroll ? stitch(frames, SCROLL_BAND) : null;
+  const saved = joined?.image ?? image;
   const path = join(CACHE, 'snaps', `${rest[0] ?? new Date().toISOString().replaceAll(':', '-')}.png`);
   mkdirSync(join(CACHE, 'snaps'), { recursive: true });
-  writeFileSync(path, encodePng(image));
-  console.log(`Saved ${path} (${image.width}×${image.height})`);
+  writeFileSync(path, encodePng(saved));
+  console.log(`Saved ${path} (${saved.width}×${saved.height})`);
+
+  if (joined) {
+    console.log(
+      `Stitched ${joined.used} of ${frames.length} frames, scrolling ${joined.offsets.join(' + ')} = ` +
+        `${joined.offsets.reduce((a, b) => a + b, 0)} pixels past the first.`,
+    );
+  }
+
   const data = await loadGameData(CACHE, options.refresh);
   await report(image, data, await iconsFor(CACHE, data, options.refresh));
 } else if (command === 'parse' && rest.length > 0) {
