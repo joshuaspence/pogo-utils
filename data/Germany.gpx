@@ -9,12 +9,14 @@
       <pgr:country>Germany</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="48.136378" lon="11.578512">
     <name>Munich</name>
     <extensions>
       <pgr:country>Germany</pgr:country>
     </extensions>
   </wpt>
+
   <trk>
     <name>City Centre</name>
     <extensions>
@@ -101,6 +103,7 @@
       <trkpt lat="51.513690" lon="7.455983"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Westfalenpark</name>
     <extensions>
@@ -206,6 +209,7 @@
       <trkpt lat="51.496621" lon="7.469636"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Westfalenpark</name>
     <extensions>

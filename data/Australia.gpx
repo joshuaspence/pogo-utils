@@ -9,18 +9,21 @@
       <pgr:country>Australia</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="-37.815114" lon="144.966514">
     <name>Melbourne</name>
     <extensions>
       <pgr:country>Australia</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="-33.861898" lon="151.210024">
     <name>Sydney</name>
     <extensions>
       <pgr:country>Australia</pgr:country>
     </extensions>
   </wpt>
+
   <trk>
     <name>Melbourne Zoo</name>
     <extensions>
@@ -70,6 +73,7 @@
       <trkpt lat="-37.783969" lon="144.951890"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Royal Botanic Gardens</name>
     <extensions>
@@ -173,6 +177,7 @@
       <trkpt lat="-33.858375" lon="151.214833"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Royal Botanic Gardens</name>
     <extensions>
@@ -230,6 +235,7 @@
       <trkpt lat="-33.866319" lon="151.216784"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Town Hall</name>
     <extensions>
@@ -249,6 +255,7 @@
       <trkpt lat="-33.868732" lon="151.206891"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Wynyard</name>
     <extensions>

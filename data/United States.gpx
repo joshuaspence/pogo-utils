@@ -9,12 +9,14 @@
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="41.876136" lon="-87.629140">
     <name>Chicago, IL</name>
     <extensions>
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="41.866214" lon="-87.617001">
     <name>Field Museum</name>
     <extensions>
@@ -23,18 +25,21 @@
       <pgr:event>pokemon-fossil-museum-chicago-2026</pgr:event>
     </extensions>
   </wpt>
+
   <wpt lat="34.053331" lon="-118.242341">
     <name>Los Angeles, CA</name>
     <extensions>
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="40.755931" lon="-73.984606">
     <name>New York City, NY</name>
     <extensions>
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="37.808864" lon="-122.409786">
     <name>Pier 39</name>
     <extensions>
@@ -42,12 +47,14 @@
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="37.785583" lon="-122.415337">
     <name>San Francisco, CA</name>
     <extensions>
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="34.008976" lon="-118.497452">
     <name>Santa Monica Pier</name>
     <extensions>
@@ -55,6 +62,7 @@
       <pgr:country>United States</pgr:country>
     </extensions>
   </wpt>
+
   <trk>
     <name>Central Park</name>
     <extensions>
@@ -502,6 +510,7 @@
       <trkpt lat="40.799221" lon="-73.955133"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Field Museum</name>
     <extensions>
@@ -535,6 +544,7 @@
       <trkpt lat="41.866539" lon="-87.618206"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Golden Gate Bridge</name>
     <extensions>
@@ -586,6 +596,7 @@
       <trkpt lat="37.804885" lon="-122.459932"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Honolulu Downtown</name>
     <extensions>
@@ -696,6 +707,7 @@
       <trkpt lat="21.305709" lon="-157.859649"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Memorial Park</name>
     <extensions>
@@ -749,6 +761,7 @@
       <trkpt lat="29.764804" lon="-95.445758"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Navy Pier</name>
     <extensions>
@@ -788,6 +801,7 @@
       <trkpt lat="41.890170" lon="-87.609582"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Pier 39</name>
     <extensions>
@@ -924,6 +938,7 @@
       <trkpt lat="37.801379" lon="-122.417709"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>River Park</name>
     <extensions>

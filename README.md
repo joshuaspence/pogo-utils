@@ -56,9 +56,11 @@ of a label:
 </trk>
 ```
 
-A country's file holds every entry in it, waypoints first and then tracks, which is the order
-[the schema](resources/gpx.xsd) puts them in (`wpt*`, `rte*`, `trk*`) — a track written above a waypoint fails
-`pnpm lint:xml`. Within each kind they are sorted by name, so a new entry has one place to go and a diff stays small.
+A country's file holds every entry in it, waypoints first and then tracks. That grouping is the format's rather than a
+preference: `gpxType` in [the schema](resources/gpx.xsd) is an `xsd:sequence` of `metadata?`, `wpt*`, `rte*`, `trk*`,
+`extensions?`, so a validator that has read a `<trk>` is already past the `wpt` particle and a waypoint below one
+matches nothing left — `pnpm lint:xml` rejects the file. Within each kind entries are sorted by `<name>`, and
+neighbouring entries are separated by a blank line, so a new entry has one place to go and a diff stays small.
 
 GPX 1.1 has no element for a locality, a country, a short/long variant or an event, so those four live in the `pgr`
 namespace declared on `<gpx>`. `<pgr:city>` is the locality the place sits in, including its region — it is absent when

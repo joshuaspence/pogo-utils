@@ -9,12 +9,14 @@
       <pgr:country>Brazil</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="-23.585955" lon="-46.661010">
     <name>São Paulo</name>
     <extensions>
       <pgr:country>Brazil</pgr:country>
     </extensions>
   </wpt>
+
   <trk>
     <name>Ibirapuera Park</name>
     <extensions>
@@ -87,6 +89,7 @@
       <trkpt lat="-23.585853" lon="-46.655580"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Ibirapuera Park</name>
     <extensions>

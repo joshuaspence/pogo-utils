@@ -9,18 +9,21 @@
       <pgr:country>Spain</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="40.423504" lon="-3.700581">
     <name>Madrid</name>
     <extensions>
       <pgr:country>Spain</pgr:country>
     </extensions>
   </wpt>
+
   <wpt lat="41.661130" lon="-0.893750">
     <name>Zaragoza</name>
     <extensions>
       <pgr:country>Spain</pgr:country>
     </extensions>
   </wpt>
+
   <trk>
     <name>Parque San Pablo</name>
     <extensions>

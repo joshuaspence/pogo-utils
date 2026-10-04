@@ -9,6 +9,7 @@
       <pgr:country>England</pgr:country>
     </extensions>
   </wpt>
+
   <trk>
     <name>Chester Zoo</name>
     <extensions>
@@ -63,6 +64,7 @@
       <trkpt lat="53.224695" lon="-2.890763"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>City of London</name>
     <extensions>
@@ -599,6 +601,7 @@
       <trkpt lat="51.520180" lon="-0.097590"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>West End</name>
     <extensions>
