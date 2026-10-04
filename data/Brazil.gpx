@@ -3,6 +3,20 @@
      xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
      version="1.1"
      creator="https://github.com/joshuaspence/pogo-utils">
+  <wpt lat="-22.912900" lon="-43.177271">
+    <name>Rio de Janeiro</name>
+    <extensions>
+      <pgr:country>Brazil</pgr:country>
+    </extensions>
+  </wpt>
+
+  <wpt lat="-23.585955" lon="-46.661010">
+    <name>São Paulo</name>
+    <extensions>
+      <pgr:country>Brazil</pgr:country>
+    </extensions>
+  </wpt>
+
   <trk>
     <name>Ibirapuera Park</name>
     <extensions>
@@ -75,6 +89,7 @@
       <trkpt lat="-23.585853" lon="-46.655580"/>
     </trkseg>
   </trk>
+
   <trk>
     <name>Ibirapuera Park</name>
     <extensions>

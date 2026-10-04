@@ -3,6 +3,13 @@
      xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
      version="1.1"
      creator="https://github.com/joshuaspence/pogo-utils">
+  <wpt lat="-36.844555" lon="174.767568">
+    <name>Auckland</name>
+    <extensions>
+      <pgr:country>New Zealand</pgr:country>
+    </extensions>
+  </wpt>
+
   <trk>
     <name>Botanic Garden</name>
     <extensions>

@@ -3,10 +3,17 @@
      xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
      version="1.1"
      creator="https://github.com/joshuaspence/pogo-utils">
-  <wpt lat="51.512369" lon="-0.119003">
-    <name>London</name>
+  <wpt lat="43.776737" lon="11.257311">
+    <name>Florence</name>
     <extensions>
-      <pgr:country>England</pgr:country>
+      <pgr:country>Italy</pgr:country>
+    </extensions>
+  </wpt>
+
+  <wpt lat="41.914208" lon="12.484971">
+    <name>Rome</name>
+    <extensions>
+      <pgr:country>Italy</pgr:country>
     </extensions>
   </wpt>
 </gpx>

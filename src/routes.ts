@@ -1,19 +1,25 @@
 /**
  * What a GPX file says to the Routes page, and how far a track goes.
  *
- * `src/app.ts` holds the Leaflet map and the sidebar and so cannot be reached outside a browser; none of this needs
- * one. The shapes are the viewer's rather than the format's — a `<trk>` becomes something with a `latlngs` Leaflet will
- * draw, where the backup builder's `gpxFavourites` turns the same element into a list of triples PGSharp stores — which
- * is why the two readers are separate and both sit on the primitives in `gpx.ts`.
+ * `src/app.ts` holds the Leaflet map and the sidebar and so cannot be reached outside a browser; nothing here wants
+ * more of one than an XML tree and the `XMLSerializer` `entryGpx` writes one back out with, both of which
+ * `@xmldom/xmldom` answers for under Node (src/testing/xml.ts). The shapes are the viewer's rather than the format's —
+ * a `<trk>` becomes something with a `latlngs` Leaflet will draw, where the backup builder's `gpxFavourites` turns the
+ * same element into a list of triples PGSharp stores — which is why the two readers are separate and both sit on the
+ * primitives in `gpx.ts`.
  */
 
 import { MIN_TRKPTS } from './gpx-dialect.js';
-import { eachTrack, entryCoords, entryCountry, extText, placeName } from './gpx.js';
+import { eachTrack, entryCoords, entryCountry, entryGpx, extText, placeName } from './gpx.js';
 
 /**
  * A drawable track as the file gives it. `latlngs` is a list of *pairs* rather than a list of lists, because that is
  * what Leaflet means by a `LatLngExpression`: an unannotated `[lat, lon]` literal infers `number[]`, which `L.polyline`
  * rejects, where a `[number, number]` tuple is accepted.
+ *
+ * `gpx` is this one track written back out as a file of its own, for the Copy button to hand over. It is carried here
+ * rather than taken off the page's own copy of the fetched text because a stored file holds a whole country: what was
+ * read is every route in it, and what was asked for is this one.
  */
 export interface Route {
   latlngs: [number, number][];
@@ -21,6 +27,7 @@ export interface Route {
   country: string;
   variant: string;
   event: string;
+  gpx: string;
 }
 
 /**
@@ -91,6 +98,9 @@ export function byKey(a: readonly [string, unknown], b: readonly [string, unknow
  * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant
  * and event stay optional — empty for a route with no short/long counterpart and for a place that stands on its own.
  *
+ * A route also carries itself back out as GPX, which a waypoint does not: the one hands the clipboard a file and the
+ * other a coordinate pair, so only the first has a document to write.
+ *
  * It takes the parsed tree rather than the file's text for the reason `gpxFavourites` does: `DOMParser` and the
  * `parsererror` it answers a malformed file with are the one part a browser is genuinely needed for, so `loadGpxFile`
  * fetches and parses and this reads.
@@ -111,6 +121,7 @@ export function gpxEntries(doc: Document): { routes: Route[]; waypoints: Waypoin
       country: entryCountry(trk),
       variant: extText(trk, 'variant') || '',
       event: extText(trk, 'event') || '',
+      gpx: entryGpx(trk),
     });
   }
 

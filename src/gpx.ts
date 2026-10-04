@@ -3,10 +3,22 @@
  * `parseGpxDocument` and `eachTrack` turn a file into elements to walk; the rest pull an entry's name, locality,
  * country and coordinates out of a parsed <trk> or <wpt>. Kept in one place so the map and the PGSharp backup agree on
  * what a file says rather than each parsing it their own way.
+ *
+ * `entryGpx` is the one writer, and the only thing here that puts XML back out: a stored file holds a whole country, so
+ * handing one entry to the clipboard means writing a file for it rather than passing the one it was read from along.
  */
 
 import { GPX_PATHS } from './generated.js';
-import type { PgrField } from './gpx-dialect.js';
+import { GPX_NS, PGR_NS, type PgrField } from './gpx-dialect.js';
+
+/** What a file of ours names as its writer, which is now also what `entryGpx` writes. */
+const CREATOR = 'https://github.com/joshuaspence/pogo-utils';
+
+/**
+ * Where an `xmlns:` declaration lives, so that `setAttributeNS` writes a declaration the serializer reads as one rather
+ * than an attribute that merely looks like it.
+ */
+const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
 
 /**
  * The file list, checked to be one. `Response#json` answers `any`, and the guard below is the whole of what says
@@ -138,4 +150,31 @@ export function entryCoords(el: Element): { coords: [number, number]; coordStr: 
   }
 
   return { coords: [lat, lon], coordStr: `${latStr},${lonStr}` };
+}
+
+/**
+ * One `<trk>` or `<wpt>` as a GPX file of its own — what the Copy button hands over.
+ *
+ * The stored files hold a whole country each, and copying one meant copying all of it — every entry in
+ * `data/United States.gpx` for the one row that was clicked, under a toast naming only that row. So the element is
+ * lifted into a `<gpx>` of its own instead. Its own text nodes come with it, which is why the result is indented like
+ * the file it came from rather than run together on one line.
+ *
+ * Built from the entry's own `ownerDocument` rather than from `document`, and the entry is cloned rather than moved, so
+ * this neither needs a page nor disturbs the tree the viewer is drawing from. The two namespaces are declared on the
+ * `<gpx>` so that the serializer finds both in scope and does not repeat them down the subtree — `pgr` explicitly, GPX
+ * itself by the element being in that namespace.
+ */
+export function entryGpx(el: Element): string {
+  const doc = el.ownerDocument;
+  const gpx = doc.createElementNS(GPX_NS, 'gpx');
+
+  gpx.setAttributeNS(XMLNS_NS, 'xmlns:pgr', PGR_NS);
+  gpx.setAttribute('version', '1.1');
+  gpx.setAttribute('creator', CREATOR);
+  gpx.appendChild(doc.createTextNode('\n  '));
+  gpx.appendChild(el.cloneNode(true));
+  gpx.appendChild(doc.createTextNode('\n'));
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(gpx)}\n`;
 }

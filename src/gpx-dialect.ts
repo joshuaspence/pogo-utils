@@ -27,3 +27,13 @@ export type PgrField = (typeof PGR_FIELDS)[number];
  * rather than against a 2 of their own.
  */
 export const MIN_TRKPTS = 2;
+
+/**
+ * The two namespaces a file of ours is written in: GPX 1.1 itself, and the `pgr` extension fields above. Shared rather
+ * than spelled on each side because both halves of the tree now need the strings themselves and not just the local
+ * names — `scripts/validate-gpx.mts` to tell a misspelled `pgr` field from a foreign tool's extension, and `entryGpx`
+ * to declare both on the `<gpx>` it writes. Which prefix a file binds `PGR_NS` to stays the file's own affair: every
+ * reader here matches on namespace and local name, so a file using a different prefix reads the same.
+ */
+export const GPX_NS = 'http://www.topografix.com/GPX/1/1';
+export const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';

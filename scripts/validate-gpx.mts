@@ -17,7 +17,7 @@
 
 import COUNTRIES from '../src/countries.ts';
 import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
-import { MIN_TRKPTS, PGR_FIELDS } from '../src/gpx-dialect.ts';
+import { MIN_TRKPTS, PGR_FIELDS, PGR_NS } from '../src/gpx-dialect.ts';
 import type { FeedEvent, RouteCounts } from '../src/types.js';
 import { DOMParser, Node, type Document, type Element } from '@xmldom/xmldom';
 import { execFileSync } from 'node:child_process';
@@ -52,14 +52,6 @@ if (valid) {
     problems.push(loc ? `${loc.fileName}:${loc.lineNumber}: ${message}` : message);
   }
 }
-
-/**
- * An element in the `pgr` namespace that is not one of the fields `src/gpx-dialect.ts` names is a misspelling the
- * viewer would silently ignore, leaving a countryless entry the banner then complains about — the very failure this
- * pass moves forward to here. The namespace itself is this pass's own business: the viewer matches on local name alone,
- * leaving the prefix a file's affair, so there is nothing to share.
- */
-const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';
 
 /**
  * A `Set` over the shared tuple rather than a second list beside it. `has` takes a `string`, where the tuple's own

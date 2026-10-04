@@ -35,15 +35,14 @@ const bannerEl = byId('banner');
 const toastEl = byId('toast');
 
 /**
- * A route once the page has it: the file it came from, the layer drawn for it, the row built for it and the distance
- * measured off it. `markers` is the start and end dots, which exist only while the entry is selected.
+ * A route once the page has it: the layer drawn for it, the row built for it and the distance measured off it.
+ * `markers` is the start and end dots, which exist only while the entry is selected. Its `gpx` comes from `Route`,
+ * written for the one track rather than taken off the country file it was read from.
  *
  * `el` is optional because it is not there when the entry is made — `buildSidebar` runs after every file has been read,
  * and `buildRouteRow` is what assigns it. Read it through `rowOf`, which says so.
  */
 type RouteEntry = Route & {
-  file: string;
-  gpx: string;
   line: L.Polyline;
   markers: L.CircleMarker[] | null;
   distance: number;
@@ -181,10 +180,10 @@ async function copyRoute(entry: RouteEntry, btn: HTMLButtonElement) {
 class FetchError extends Error {}
 
 /**
- * Read one file: fetch it, parse it, and let `gpxEntries` split it by element. The whole file text is returned
- * alongside, for the copy button to hand over.
+ * Read one file: fetch it, parse it, and let `gpxEntries` split it by element. The text is not kept — a file holds a
+ * whole country, and each route carries its own GPX for the copy button (see `Route#gpx`).
  */
-async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[]; waypoints: Waypoint[] }> {
+async function loadGpxFile(file: string): Promise<{ routes: Route[]; waypoints: Waypoint[] }> {
   let res;
 
   try {
@@ -199,8 +198,7 @@ async function loadGpxFile(file: string): Promise<{ text: string; routes: Route[
     throw new FetchError(`${res.status} ${res.statusText}`.trim());
   }
 
-  const text = await res.text();
-  return { text, ...gpxEntries(parseGpxDocument(text)) };
+  return gpxEntries(parseGpxDocument(await res.text()));
 }
 
 function clearMarkers(entry: RouteEntry) {
@@ -415,7 +413,7 @@ function buildRouteRow(entry: RouteEntry): HTMLElement {
   const meta = el('span', 'meta', fmtDist(entry.distance));
   const copyBtn = el('button', 'copy', 'Copy');
   copyBtn.type = 'button';
-  copyBtn.title = 'Copy GPX file contents to clipboard';
+  copyBtn.title = 'Copy this route as a GPX file';
   copyBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     copyRoute(entry, copyBtn);
@@ -732,14 +730,12 @@ async function init() {
       continue;
     }
 
-    const { text, routes, waypoints } = read;
+    const { routes, waypoints } = read;
 
     for (const route of routes) {
       const line = L.polyline(route.latlngs, routeStyle(route)).addTo(map);
       const entry = {
         ...route,
-        file,
-        gpx: text,
         line,
         markers: null,
         distance: routeDistance(route.latlngs),

@@ -134,6 +134,10 @@ test('byKey orders two keyed pairs by their keys', () => {
  * A `<trk>` is a path and a `<wpt>` is one place, and a file may hold either or both — split by element rather than by
  * which file it came out of. Variant and event are empty where the file names neither: a route with no short/long
  * counterpart and a place that stands on its own.
+ *
+ * Whole objects rather than field by field, so a field added to either shape and left unfilled fails here. `gpx` is the
+ * one matched loosely: what `entryGpx` writes is its own test's business (src/gpx.test.ts), and the attribute order a
+ * serializer chooses is nobody's contract.
  */
 test('gpxEntries splits a file into routes and waypoints', () => {
   const { routes, waypoints } = gpxEntries(
@@ -157,6 +161,7 @@ test('gpxEntries splits a file into routes and waypoints', () => {
       country: 'Australia',
       variant: 'long',
       event: 'Community Day',
+      gpx: expect.stringContaining('<name>Tan Track</name>'),
     },
   ]);
 

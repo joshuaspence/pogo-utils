@@ -3,16 +3,18 @@
      xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
      version="1.1"
      creator="https://github.com/joshuaspence/pogo-utils">
-  <wpt lat="28.632935" lon="77.219467">
-    <name>Delhi</name>
+  <wpt lat="25.026700" lon="121.535000">
+    <name>Daan Forest Park</name>
     <extensions>
-      <pgr:country>India</pgr:country>
+      <pgr:city>Taipei</pgr:city>
+      <pgr:country>Taiwan</pgr:country>
     </extensions>
   </wpt>
-  <wpt lat="18.938771" lon="72.835336">
-    <name>Mumbai</name>
+
+  <wpt lat="25.033612" lon="121.553963">
+    <name>Taipei City</name>
     <extensions>
-      <pgr:country>India</pgr:country>
+      <pgr:country>Taiwan</pgr:country>
     </extensions>
   </wpt>
 </gpx>
