@@ -19,3 +19,35 @@ jobs:
         with:
           cache: true
       - run: 'pnpm test'
+
+  # Several minutes of OCR against 40 MB of committed screenshots, where `pnpm test` is half a second against none. It
+  # runs on every pull request regardless, because `on:` and its path filters are per workflow rather than per job.
+  inventory-test:
+    name: 'Inventory Test'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 30
+    steps:
+      - uses: 'actions/checkout@v7'
+
+      # Checked out as pointer files and pulled below, rather than `lfs: true` here, so that the objects can be cached
+      # in between. The corpus is 40 MB a run, and a cache keyed on the pointers turns that into one download per
+      # change to the captures — which is both the faster option and the cheaper one against whatever this account's
+      # LFS bandwidth allowance happens to be, without this comment having to name a figure that will move.
+      # `hashFiles` reads the pointers because the pull below is what replaces them with the real images.
+      - uses: 'actions/cache@v4'
+        with:
+          path: '.git/lfs/objects'
+          key: "lfs-${{ hashFiles('src/tools/inventory/fixtures/*.png') }}"
+      - run: 'git lfs pull'
+
+      # `ocr.mts` shells out to the Tesseract CLI, which the runner image does not carry. Without this the suite fails
+      # on the first capture with `could not run tesseract`, which is the readable half of the failure; the half worth
+      # stating is that the version matters. Every reading the fixtures pin was produced against Ubuntu 24.04's
+      # `tesseract-ocr 5.3.4-1build5` and `tesseract-ocr-eng 1:4.1.0-2`, which is what `ubuntu-latest` installs, so a
+      # runner image moving to a new Ubuntu is a thing to expect readings to shift under rather than a flake.
+      - run: 'sudo apt-get update && sudo apt-get install --no-install-recommends --yes tesseract-ocr tesseract-ocr-eng'
+
+      - uses: 'pnpm/setup@v3'
+        with:
+          cache: true
+      - run: 'pnpm test:inventory'
