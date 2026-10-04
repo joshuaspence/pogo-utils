@@ -52,7 +52,8 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { assert, describe, expect, test } from 'vitest';
-import { closest, type GameData, type IVs } from './game-master.mts';
+import { closest, type Form, type GameData, type IVs } from './game-master.mts';
+import { ambiguous, distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
 import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
@@ -95,6 +96,40 @@ const TAGS = [
   'Shiny',
 ];
 const TAG_SLACK = 0.3;
+
+/**
+ * A form as the CSV spells it, which is what the signatures below are keyed by. A local copy for now: `identify.mts`
+ * exports the same thing and this file will import it the moment that module exists, the artwork being the half of
+ * `identify` that can be measured on its own.
+ */
+const label = (form: Form) => (form.form ? `${form.species} (${form.form})` : form.species);
+
+/**
+ * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
+ * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
+ * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
+ *
+ * Two families, which are the ones this corpus reaches, and both of them land: Burmy's three icons are 1.85 apart at
+ * their closest and Cherrim's two 1.62, against a margin of 0.3. Five more were here and went with their captures —
+ * Basculin, Deerling, Genesect, Keldeo and Shellos — and they were the half that declined, so what is left is the
+ * reader answering and nothing at all of the reader refusing.
+ */
+const ARTWORK = new Map<string, Signature>([
+  ['Burmy (Plant)', [0, 0.0527, 0.0288, 0.9173, 0.0012, 0, 0, 0, 0, 0, 0, 0]],
+  ['Burmy (Sandy)', [0, 0.9677, 0.0245, 0, 0, 0, 0, 0.0078, 0, 0, 0, 0]],
+  ['Burmy (Trash)', [0.6469, 0.0088, 0.0064, 0, 0, 0, 0.0064, 0, 0, 0, 0, 0.3315]],
+  ['Cherrim (Overcast)', [0.0235, 0, 0, 0.0294, 0.1917, 0.0002, 0, 0, 0.2918, 0.2974, 0.0092, 0.1568]],
+  ['Cherrim (Sunny)', [0.1492, 0.5625, 0.0217, 0.001, 0.0097, 0, 0, 0, 0, 0, 0, 0.2559]],
+]);
+
+/** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
+const ICONS: ReadonlyMap<Form, Signature> = new Map(
+  DATA.forms.flatMap((f): [Form, Signature][] => {
+    const signature = ARTWORK.get(label(f));
+
+    return signature ? [[f, signature]] : [];
+  }),
+);
 
 /**
  * What a reader answers where it disagrees with the row it sits in. Its presence marks a defect pinned rather than a
@@ -754,7 +789,22 @@ const read = async (file: string) => {
   const detail = await parseDetail(lines, DATA, image);
   const found = await findOverlay(image);
 
-  return { image, lines, detail, box: found?.box ?? null, overlay: found?.overlay ?? null };
+  const box = found?.box ?? null;
+
+  // The artwork's own signature, which is the only thing that separates forms identical in every number. Floored on the
+  // overlay's box where one was found, PGSharp drawing over the artwork, so no fraction of one phone's screen is
+  // written down here. Memoised with the reading because the segmentation walks the pixels and the assertions are meant
+  // to be free.
+  const signature = signatureOf(image, box ? box.y + box.height : undefined);
+
+  return {
+    image,
+    lines,
+    detail,
+    box,
+    overlay: found?.overlay ?? null,
+    artwork: signature ? { signature, icons: ICONS } : undefined,
+  };
 };
 
 const readings = new Map<string, ReturnType<typeof read>>();
@@ -1173,6 +1223,147 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
  */
 const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): string[] =>
   [...new Set(rows.map((row) => String(of(row))))].sort();
+
+/**
+ * That the corpus still reaches every attribute, which no amount of the assertions above can say. A reading the whole
+ * corpus agrees on compares equal for ever and reads exactly like agreement: 59 of these captures carry no chip, so a
+ * `tagsOn` that answered `[]` unconditionally would pass every row but two. Each of these pairs is therefore what makes
+ * the corresponding assertion able to fail at all.
+ *
+ * The negative half of a flag is the one thing here that is not read off a screen. For the seven captures a search
+ * selected it is the search's own `!lucky`, which is where a negative exists at all; for the rest it is the capture
+ * showing no sign of the thing, which is weaker and is what the module docblock says about provenance. Either way it is
+ * asserted off the fields rather than off the readings, those flags having no reader to disagree with.
+ *
+ * The `defects` keys are asserted the same way and for the same reason. Each is pinned by some capture, several by one
+ * alone, so dropping that capture would take the pin with it and leave a reader free to change its answer unremarked.
+ */
+/**
+ * What the artwork match answers. These five captures are the ones whose form shares its dex, types and all three base
+ * stats with another, so nothing `parseDetail` or the overlay reads can separate them and `identify` would otherwise
+ * fold them to whichever has the shorter name.
+ *
+ * Asserted as the whole map rather than as a count, so a reader that gained one answer and lost another cannot come out
+ * even, and that nothing it answered is wrong is **derived** from it rather than transcribed again.
+ *
+ * **The half that mattered is gone, and is asserted as the gap it is.** This read `declined` on eight more captures,
+ * five of which were nearest to the wrong icon — Basculin's two, Genesect's three and `shellos-west.png`, with
+ * `keldeo-resolute.png` and `deerling-spring.png` right but short of confidence — and that five was the whole argument
+ * for `MARGIN` being load-bearing rather than decorative. Those families have left the corpus, so every capture here
+ * now answers correctly with a margin of 1.6 or more: `MARGIN` could be **0** and nothing below would notice. The
+ * empty `rescued` list is therefore a statement about the corpus rather than about the reader, and it fails the moment
+ * a capture reaches it again — which is when the figure wants restating.
+ */
+test(
+  'the artwork settles five forms the numbers cannot',
+  async () => {
+    const answers = new Map<string, string>();
+    const nearests = new Map<string, string>();
+
+    for (const fixture of FIXTURES) {
+      const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
+      const mine = DATA.forms.find((f) => label(f) === truth);
+
+      if (!mine) {
+        continue;
+      }
+
+      // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
+      const family = DATA.forms.filter(
+        (f) =>
+          f.dex === mine.dex &&
+          !f.costume &&
+          f.attack === mine.attack &&
+          f.defense === mine.defense &&
+          f.stamina === mine.stamina &&
+          [...f.types].sort().join() === [...mine.types].sort().join(),
+      );
+
+      if (family.length < 2 || !family.every((f) => ARTWORK.has(label(f)))) {
+        continue;
+      }
+
+      const { artwork } = await readingOf(fixture.file);
+      assert.ok(artwork, `${fixture.file} yields no artwork signature at all`);
+
+      const icons = new Map(
+        family.flatMap((f): [string, Signature][] => {
+          const signature = ARTWORK.get(label(f));
+
+          return signature ? [[label(f), signature]] : [];
+        }),
+      );
+      const ranked = [...icons].sort((a, b) => distance(artwork.signature, a[1]) - distance(artwork.signature, b[1]));
+      const closest = ranked[0];
+      assert.ok(closest, `${fixture.file} has no icon to compare against`);
+
+      answers.set(fixture.file, nearest(artwork.signature, icons) ?? 'declined');
+      nearests.set(fixture.file, closest[0]);
+    }
+
+    expect(Object.fromEntries(answers)).toStrictEqual({
+      'burmy-plant.png': 'Burmy (Plant)',
+      'burmy-sandy.png': 'Burmy (Sandy)',
+      'burmy-trash.png': 'Burmy (Trash)',
+      'cherrim-overcast.png': 'Cherrim (Overcast)',
+      'cherrim-sunshine.png': 'Cherrim (Sunny)',
+    });
+
+    const truthOf = (file: string) => {
+      const row = FIXTURES.find((f) => f.file === file);
+      assert.ok(row, `${file} has left the corpus`);
+
+      return row.form ? `${row.species} (${row.form})` : row.species;
+    };
+
+    const wrong = [...answers].filter(([file, answer]) => answer !== 'declined' && answer !== truthOf(file));
+    expect(wrong, 'the artwork answered a form that is not the one on the screen').toStrictEqual([]);
+
+    const rescued = [...answers]
+      .filter(([file, answer]) => answer === 'declined' && nearests.get(file) !== truthOf(file))
+      .map(([file]) => file);
+
+    // Empty, and that is the gap rather than the result: no capture left in the corpus is nearest to the wrong icon,
+    // so nothing here can tell `MARGIN` from 0. It is asserted rather than deleted because it is reachable in the
+    // direction that matters — a capture arriving that the margin does rescue fails this line and sends you back to
+    // the docblock, where the figure it used to carry is written down.
+    expect(
+      rescued,
+      `a capture now exercises the ${MARGIN} margin, so the gap the docblock describes has closed`,
+    ).toStrictEqual([]);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
+ * The property `assetBundleValue` quietly broke and the whole artwork narrowing rests on: within a family the numbers
+ * cannot separate, no two forms may be handed the same icon. Zygarde's `FIFTY_PERCENT` and `COMPLETE_FIFTY_PERCENT`
+ * both carried `1`, so one file was fetched twice and the two scored identically — a guaranteed abstention that read
+ * as the artwork being indecisive rather than as the key being wrong. Asserted off the vended game master, so it needs
+ * no network and moves only when a re-vend moves it.
+ *
+ * Both halves of the partition are asserted non-empty, since a resolver answering null for everything would leave
+ * `drawn` empty and every family short, and one answering a name for everything would leave `short` empty — and each
+ * of those passes a clash test that has nothing to compare.
+ */
+test('no family the artwork narrows has two forms sharing an icon', () => {
+  const { drawn, short } = ambiguous(DATA);
+  const families = new Map<string, Form[]>();
+
+  for (const form of drawn) {
+    const key = `${form.dex}|${[...form.types].sort().join('+')}|${form.attack}/${form.defense}/${form.stamina}`;
+    families.set(key, [...(families.get(key) ?? []), form]);
+  }
+
+  const clashes = [...families.values()]
+    .filter((family) => new Set(family.map((f) => f.icon)).size !== family.length)
+    .map((family) => family.map((f) => `${label(f)}=${f.icon}`).join(' '));
+
+  expect(clashes, 'two forms a family is narrowed within are being compared against one icon').toStrictEqual([]);
+
+  assert.ok(families.size > 0, 'no family has an icon for every form, so the clash check compares nothing');
+  assert.ok(short.length > 0, 'every family has an icon for every form, so nothing exercises the gap it reports');
+});
 
 test('the corpus reaches both sides of every attribute', () => {
   for (const flag of ['favourite', 'lucky', 'purified', 'shiny'] as const) {
