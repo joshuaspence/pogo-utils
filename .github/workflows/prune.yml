@@ -1,0 +1,51 @@
+---
+name: 'Prune'
+
+on:
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/prune.yml'
+      - 'scripts/prune-events.mts'
+      - 'src/event-feed.ts'
+
+  # Clear of the Vend workflow's minute, since both push to `master` and neither pulls before it does.
+  schedule:
+    - cron: '10 0 * * *'
+
+  workflow_dispatch: {}
+
+permissions:
+  actions: 'write'
+  contents: 'write'
+
+concurrency:
+  group: 'prune'
+  cancel-in-progress: false
+
+jobs:
+  events:
+    name: 'Events'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - uses: 'actions/checkout@v7'
+      - uses: 'pnpm/setup@v3'
+        with:
+          cache: true
+      - run: 'pnpm prune:events'
+
+      - name: 'Commit'
+        id: 'commit'
+        uses: 'stefanzweifel/git-auto-commit-action@v7'
+        with:
+          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
+          commit_message: 'Remove ended events'
+          file_pattern: 'data/events.json data/*.gpx'
+
+      # As in `vend.yml`: a commit made with the default `GITHUB_TOKEN` raises no `push` event, so `pages.yml` would not
+      # fire on its own.
+      - name: 'Deploy'
+        if: "steps.commit.outputs.changes_detected == 'true'"
+        run: 'gh workflow run pages.yml --ref "${GITHUB_REF_NAME}"'
+        env:
+          GH_TOKEN: '${{ github.token }}'

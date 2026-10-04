@@ -47,6 +47,20 @@ export const LOCAL_EVENTS = 'data/events.json';
 export const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 
 /**
+ * Whether an event is over everywhere by `now`, which is what lets `scripts/prune-events.mts` drop it. A naive end is a
+ * wall clock every timezone reaches in turn, so it has passed everywhere only once it has passed at UTC−12, the last
+ * zone to get there. An event with no announced end has not ended, however long ago it started.
+ */
+export function ended({ end }: Pick<FeedEvent, 'end'>, now: Date) {
+  if (!end) {
+    return false;
+  }
+
+  const LAST_ZONE_MS = 12 * 60 * 60 * 1000;
+  return HAS_ZONE.test(end) ? Date.parse(end) < now.getTime() : Date.parse(`${end}Z`) + LAST_ZONE_MS < now.getTime();
+}
+
+/**
  * Orders two strings by code unit rather than through `localeCompare`, which is what both the files this repository
  * writes from the feed are sorted by. Collation varies with the ICU build, so a runner on a different Node would
  * reorder a committed file having changed nothing in it.

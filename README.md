@@ -132,9 +132,18 @@ blurb, a rehosted image or a reordering upstream is not a diff here. That is wha
 differs, and the run passes without a commit when it does not. An empty list or an event with no `eventID` is refused
 rather than written, an empty list being what a broken scrape looks like.
 
-This is now the only scheduled workflow, so it is the one GitHub's 60-day rule applies to: a schedule is disabled after
-60 days with no commit to the repository. Its own hourly commits are what keep it alive, which holds as long as the
-events keep moving; if everything here goes stale at once, re-enable it from the Actions tab.
+[`data/events.json`](data/events.json) is pruned instead: the [Prune workflow](.github/workflows/prune.yml) runs
+[`scripts/prune-events.mts`](scripts/prune-events.mts) daily, which removes every event that has ended everywhere — a
+naive end once it has passed at UTC−12 — along with any `<pgr:event>` naming one. An event with no announced end is
+kept.
+
+```sh
+pnpm prune:events
+```
+
+GitHub's 60-day rule applies to both scheduled workflows: a schedule is disabled after 60 days with no commit to the
+repository. The Vend workflow's hourly commits are what keep them alive, which holds as long as the events keep moving;
+if everything here goes stale at once, re-enable them from the Actions tab.
 
 A calendar app fetches a URL and cannot run the page's JavaScript, so the merge the browser does has to happen ahead of
 time. [`scripts/build-ics.mts`](scripts/build-ics.mts) does it, as a step of the build rather than after one:

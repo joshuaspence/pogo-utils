@@ -13,7 +13,7 @@
 
 import { expect, test } from 'vitest';
 
-import { HAS_ZONE, routeSummary, vendable } from './event-feed.js';
+import { ended, HAS_ZONE, routeSummary, vendable } from './event-feed.js';
 import { testEveryZone } from './testing/zones.js';
 
 import type { FeedEvent } from './types.js';
@@ -167,4 +167,24 @@ test('an event with no eventID is refused, that being what both merges key on', 
   // silently collide with every other entry without one and leave whichever came last.
   expect(() => vendable([upstream('ok-2026'), upstream('', {})])).toThrow(/eventID/);
   expect(() => vendable([upstream('ok-2026'), upstream('x', { eventID: undefined })])).toThrow(/eventID/);
+});
+
+test('a zoned end has passed once its instant has', () => {
+  const end = '2026-09-27T08:00:00.000Z';
+
+  expect(ended({ end }, new Date('2026-09-27T07:59:59.999Z'))).toBe(false);
+  expect(ended({ end }, new Date('2026-09-27T08:00:00.001Z'))).toBe(true);
+});
+
+test('a naive end has passed only once it has passed at UTC−12, the last zone to reach it', () => {
+  // Read as UTC, this would drop a local event while the Americas were still playing it.
+  const end = '2026-10-02T20:00:00.000';
+
+  expect(ended({ end }, new Date('2026-10-03T07:59:59.999Z'))).toBe(false);
+  expect(ended({ end }, new Date('2026-10-03T08:00:00.001Z'))).toBe(true);
+});
+
+test('an event with no announced end has not ended', () => {
+  // `Date.parse(null)` is NaN and `new Date(null)` the epoch, so a careless reading would call it over since 1970.
+  expect(ended({ end: null }, new Date('2099-01-01T00:00:00.000Z'))).toBe(false);
 });
