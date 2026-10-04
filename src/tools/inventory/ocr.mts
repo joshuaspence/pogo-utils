@@ -144,8 +144,15 @@ function group(tsv: string): Line[] {
  * A floating-point exception counts as reading nothing, because it is the image rather than the machine that causes it:
  * Tesseract 5.3.4 dies of one every time on some whitelisted bands, such as `pikachu-ash-hat.png`'s at y=400 brightened
  * and read for a CP.
+ *
+ * An empty image reads as nothing without asking, since a crop wholly off the edge is one and libpng refuses a PNG
+ * with no width or height as `Invalid IHDR data` — which would fail a scan over a band that held no text anyway.
  */
 function tesseract(image: Image, psm: number, ...options: string[]): Promise<string> {
+  if (image.width === 0 || image.height === 0) {
+    return Promise.resolve('');
+  }
+
   return new Promise((resolve, reject) => {
     const child = execFile(
       'tesseract',

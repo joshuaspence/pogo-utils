@@ -86,6 +86,31 @@ test('a crop takes the rectangle asked for, and clamps one that runs off the edg
   expect(rgb(over, 0, 0)).toStrictEqual(rgb(image, 4, 4));
 });
 
+test('a crop off the top or left edge is trimmed rather than slid back inside', () => {
+  const image = ramp(6, 6);
+  const corner = crop(image, -2, -1, 3, 3);
+
+  expect([corner.width, corner.height], 'only column 0 and rows 0–1 overlap').toStrictEqual([1, 2]);
+  expect(rgb(corner, 0, 0)).toStrictEqual(rgb(image, 0, 0));
+  expect(rgb(corner, 0, 1)).toStrictEqual(rgb(image, 0, 1));
+});
+
+test('a crop wholly outside the image is empty, rather than the pixels of the next row', () => {
+  const image = ramp(4, 2);
+
+  for (const [left, top] of [
+    [4, 0],
+    [5, 0],
+    [0, 2],
+    [-3, 0],
+  ] as [number, number][]) {
+    const outside = crop(image, left, top, 2, 1);
+
+    expect(outside.width * outside.height, `${left},${top} overlaps nothing and is not empty`).toBe(0);
+    expect(outside.data).toHaveLength(0);
+  }
+});
+
 test('an inverted crop is the same rectangle with every channel turned round', () => {
   const image = ramp(4, 4);
   const plain = crop(image, 0, 0, 2, 2);

@@ -139,12 +139,16 @@ export function rgb(image: Image, x: number, y: number): [number, number, number
   return [image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0];
 }
 
-/** A rectangle out of an image, clamped to its edges, optionally inverted — white text on a sky reads badly. */
+/**
+ * The part of a rectangle that lies inside an image, optionally inverted — white text on a sky reads badly. A
+ * rectangle running off an edge is trimmed to it rather than slid back inside, and one wholly outside is an empty
+ * image, so a band placed by a fraction of the screen can overrun without picking up pixels it never asked for.
+ */
 export function crop(image: Image, left: number, top: number, width: number, height: number, invert = false): Image {
   const x0 = Math.max(0, Math.floor(left));
   const y0 = Math.max(0, Math.floor(top));
-  const w = Math.max(1, Math.min(image.width - x0, Math.floor(width)));
-  const h = Math.max(1, Math.min(image.height - y0, Math.floor(height)));
+  const w = Math.max(0, Math.min(image.width, Math.floor(left) + Math.floor(width)) - x0);
+  const h = Math.max(0, Math.min(image.height, Math.floor(top) + Math.floor(height)) - y0);
   const data = new Uint8Array(w * h * 4);
 
   for (let y = 0; y < h; y++) {

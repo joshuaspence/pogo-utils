@@ -3,7 +3,7 @@
  * the readers that have them; `findLine` and `centre` have no reader below the CLI, so they are pinned here.
  */
 
-import { centre, findLine, fold, ocr, type Line } from './ocr.mts';
+import { centre, findLine, fold, ocr, ocrLine, type Line } from './ocr.mts';
 import { expect, test } from 'vitest';
 
 const line = (text: string, left = 0, top = 0): Line => ({ text, left, top, width: 100, height: 20 });
@@ -48,5 +48,18 @@ test('a Tesseract that fails to start is a rejection naming why, however large t
     } else {
       process.env['TESSDATA_PREFIX'] = previous;
     }
+  }
+});
+
+test('an empty image holds no text, rather than being a PNG Tesseract refuses', async () => {
+  for (const [width, height] of [
+    [0, 0],
+    [0, 5],
+    [5, 0],
+  ] as [number, number][]) {
+    const empty = { width, height, data: new Uint8Array(0) };
+
+    expect(await ocr(empty), `${width}×${height}`).toStrictEqual([]);
+    expect(await ocrLine(empty), `${width}×${height}`).toBeNull();
   }
 });
