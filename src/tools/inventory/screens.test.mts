@@ -9,8 +9,21 @@
  * **A row says what the Pokémon is, not what the readers answered.** A `Fixture` is the screen: the CP above the
  * artwork, the name and the HP under it, the weight, the height and the types in the panel, the size pill where there
  * is one, PGSharp's level and IVs over the middle. A `Defects` beside it is where some reader answers something else,
- * written down rather than softened away. `COVERAGE` below pins the counts this docblock quotes, because a figure
- * quoted in prose is one nothing checks.
+ * written down rather than softened away. Everything after that is derived from the pair, so a consequence cannot drift
+ * from its cause — the level `identify` settles on, the nickname, the `could also be …` note. `COVERAGE` below pins the
+ * counts this docblock quotes, because a figure quoted in prose is one nothing checks.
+ *
+ * **What that orientation buys is the CP cross-check.** `cpOf` derives a CP from the form, the IVs and the level's
+ * multiplier, where a row's own `cp` is the number the game itself printed, so the two meeting means the form, the IVs
+ * and the level are every one of them right — and nothing shorter than the whole pipeline can say that. It reaches the
+ * 42 rows where `identify` settles on exactly one level, and on **all 42** the derived CP is the CP the screen prints.
+ * The one row left over, `snorlax-purified.png`, carries no overlay for PGSharp to have stated a level on.
+ *
+ * That is weaker than it sounds: the check's *other* job is to report a form or a level that is wrong, and no capture
+ * exercises it, so `defects.cp` is unused and a `cpOf` that quietly agreed with whatever it was handed would pass every
+ * row here. The cross-check also *narrows* rather than only reporting: `identify` keeps the candidates whose derived CP
+ * is one the screen states, which is the only thing on it that separates forms differing in attack or defense alone,
+ * and that settles all six Deoxys and Dialga rows.
  *
  * **Provenance is not the same for all of them, and the difference is worth stating rather than glossing.** Four
  * captures were selected by one of the game's own searches, recorded above `FIXTURES`: a search is falsifiable, and it
@@ -29,10 +42,15 @@
  * with PGSharp not running and once with its toolbar up and no overlay drawn — which makes them a control on each
  * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
  *
- * **No row carries a `defects`, and that is a statement about the corpus rather than about the readers.** The mechanism
- * is kept — a reader that disagrees with a screen is pinned here rather than fixed here, a fix being a change to what
- * the code does and so a pull request of its own — and the corpus test asserts that no key is in use, so a disagreement
- * arriving is reported. Every field asserted agrees with its screen: `findOverlay` finds a box on every screen that
+ * **Two rows carry a `defects`, both for `identify`, and no reader of the screen disagrees with any capture.** A reader
+ * that disagrees with a screen is pinned here rather than fixed here, a fix being a change to what the code does and so
+ * a pull request of its own, and the corpus test asserts which keys are in use, so a disagreement arriving or leaving is
+ * reported. `basculin-blue.png` is a form the screen cannot separate at all: Basculin's stripes share their stats, types
+ * and moves, no icon signature is recorded for them, and the fold answers `Basculin (Red Striped)` with nothing beside
+ * it saying that was a choice. `spoink.png`'s overlay offers level `1` alone for a Pokémon at 7, so the HP settles the
+ * level and `identify` notes the disagreement — the note reporting the overlay's misreading rather than making one.
+ *
+ * Every field the readers assert agrees with its screen: `findOverlay` finds a box on every screen that
  * carries one, `isFavourite` does not take `spinda-04.png`'s warm background for a filled star, `tagsOn` reads
  * `snorlax-purified.png`'s `Perfect` chip rather than cutting it away as the type icons, the CP is right wherever it is
  * read, a height is not taken from under the size pill that corrupts it — `spoink.png` reads `1.4m` for `1.1m` until
@@ -57,6 +75,7 @@ import { ambiguous, nearest, signatureOf, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
 import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
+import { identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
 
 /**
@@ -98,13 +117,6 @@ const TAGS = [
 const TAG_SLACK = 0.3;
 
 /**
- * A form as the CSV spells it, which is what the signatures below are keyed by. A local copy for now: `identify.mts`
- * exports the same thing and this file will import it the moment that module exists, the artwork being the half of
- * `identify` that can be measured on its own.
- */
-const label = (form: Form) => (form.form ? `${form.species} (${form.form})` : form.species);
-
-/**
  * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
  * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
  * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
@@ -119,6 +131,15 @@ const ARTWORK = new Map<string, Signature>([
   ['Cherrim (Overcast)', [0.0235, 0, 0, 0.0294, 0.1917, 0.0002, 0, 0, 0.2918, 0.2974, 0.0092, 0.1568]],
   ['Cherrim (Sunny)', [0.1492, 0.5625, 0.0217, 0.001, 0.0097, 0, 0, 0, 0, 0, 0, 0.2559]],
 ]);
+
+/** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
+const ICONS: ReadonlyMap<Form, Signature> = new Map(
+  DATA.forms.flatMap((f): [Form, Signature][] => {
+    const signature = ARTWORK.get(label(f));
+
+    return signature ? [[f, signature]] : [];
+  }),
+);
 
 /**
  * What a reader answers where it disagrees with the row it sits in. Its presence marks a defect pinned rather than a
@@ -142,6 +163,15 @@ interface Defects {
   suffix?: string | null;
   tags?: string[];
   types?: string[];
+  /** The whole label `identify` answers, where it is not this Pokémon's own. */
+  label?: string;
+  nickname?: string;
+  /** Every level `identify` still admits, where the row states the one the Pokémon is actually at. */
+  levels?: number[];
+  cp?: number;
+  alternatives?: string[];
+  /** The notes beyond the `could also be …` one, which is derived from `alternatives` rather than written out. */
+  notes?: string[];
 }
 
 /**
@@ -262,6 +292,7 @@ const FIXTURES: readonly Fixture[] = [
     gender: 'male',
     height: 1.02,
     hp: 51,
+    defects: { label: 'Basculin (Red Striped)' },
     overlay: { iv: { attack: 8, defense: 3, stamina: 5 }, level: 5 },
     species: 'Basculin',
     types: ['Water'],
@@ -687,6 +718,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 247,
+    defects: { notes: ['the overlay reads as level 1, none of which this HP can be'] },
     file: 'spoink.png',
     form: null,
     gender: 'male',
@@ -778,7 +810,29 @@ const read = async (file: string) => {
   const detail = await parseDetail(lines, DATA, image);
   const found = await findOverlay(image);
 
-  return { image, lines, detail, box: found?.box ?? null, overlay: found?.overlay ?? null };
+  // The artwork's own signature, which is the only thing that separates forms identical in every number. Floored on the
+  // overlay's box where one was found, PGSharp drawing over the artwork, so no fraction of one phone's screen is
+  // written down here. Memoised with the reading because the segmentation walks the pixels and the assertions are meant
+  // to be free.
+  const box = found?.box ?? null;
+  const signature = signatureOf(image, box ? box.y + box.height : undefined);
+
+  const overlay = found?.overlay ?? null;
+  const artwork = signature ? { signature, icons: ICONS } : undefined;
+
+  return {
+    image,
+    lines,
+    detail,
+    box,
+    overlay,
+    artwork,
+    // The end of the pipeline, memoised with the readings it is derived from because each of a capture's attributes is
+    // now a test of its own rather than a subtest sharing one function body, so eighteen of them ask for this where the
+    // loop used to compute it once. It is pure and cheap, but caching it says outright that the eighteen are asserting
+    // one answer rather than eighteen separately-derived ones.
+    identity: identify(DATA, detail, overlay, artwork),
+  };
 };
 
 const readings = new Map<string, ReturnType<typeof read>>();
@@ -807,26 +861,41 @@ const readingOf = (file: string) => {
  * `defects.iv` as well. Both are `in` tests rather than `??`, the defect in each case being a `null` that a `??` would
  * read as no defect at all.
  *
- * A function rather than two lines in the loop because `COVERAGE` counts the same thing, and two copies of this would
- * be free to disagree about what the corpus holds.
+ * `levels` follows from the pair, so a consequence cannot drift from its cause: with no triple there is no level, and
+ * with no level `identify` derives no CP. A function rather than three lines in the loop because `COVERAGE` counts the
+ * same thing, and two copies of this would be free to disagree about what the corpus holds.
  */
 const overlayOf = (fixture: Fixture) => {
   const defects = fixture.defects ?? {};
   const boxed = fixture.overlay !== null && !('box' in defects);
   const legible = boxed && !('iv' in defects) ? fixture.overlay : null;
 
-  return { boxed, legible };
+  return { boxed, legible, levels: defects.levels ?? (legible ? [legible.level] : []) };
 };
 
 for (const fixture of FIXTURES) {
   const defects = fixture.defects ?? {};
 
-  // The name the screen prints, which defaults to the species — so a row states a nickname once and the reader's
-  // expectation derives from it.
-  const name = fixture.name ?? fixture.species;
-  const { boxed, legible } = overlayOf(fixture);
+  // What the Pokémon is, and what `identify` answers about it, which are the same string wherever no `defects.label`
+  // says otherwise — `COVERAGE.answeredAsThemselves` is how many that is.
   const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
+  const answered = defects.label ?? truth;
 
+  // The name the screen prints, which defaults to the species — so a row states a nickname once and both the reader's
+  // expectation and `identify`'s derive from it.
+  const name = fixture.name ?? fixture.species;
+
+  const { boxed, legible, levels } = overlayOf(fixture);
+  const alternatives = defects.alternatives ?? [];
+  const notes = [
+    ...(alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []),
+    ...(defects.notes ?? []),
+  ];
+
+  // A `describe` rather than one test with eighteen subtests inside it, because Vitest collects a file's tests
+  // synchronously and so cannot be handed a test registered after an `await`. Each attribute therefore reads the
+  // memoised capture for itself, which costs nothing — the first of the eighteen pays for the OCR and the rest get the
+  // settled promise — and buys a failure that names the reader, which is what the subtests were for.
   describe(`${fixture.file} reads as the ${truth} on the screen`, () => {
     test('size', async () => expect((await readingOf(fixture.file)).detail.size).toBe(fixture.size ?? null));
     test('gender', async () => expect((await readingOf(fixture.file)).detail.gender).toBe(fixture.gender));
@@ -864,6 +933,35 @@ for (const fixture of FIXTURES) {
     test('overlay form', async () =>
       expect((await readingOf(fixture.file)).overlay?.form ?? null).toBe(
         ('suffix' in defects ? defects.suffix : legible?.suffix) ?? null,
+      ));
+
+    // The end of the pipeline, asserted on every capture rather than on one, which is what catches `levelsOf` admitting
+    // any HP at or above the one read: against a shortlist whose largest member is already the true level, as
+    // `fixtures/unown.png`'s `[1, 6, 16]` is, that break cannot move an answer.
+    test('identify form', async () => {
+      const { identity } = await readingOf(fixture.file);
+
+      expect(identity.form && label(identity.form)).toBe(answered);
+    });
+
+    test('identify levels', async () => expect((await readingOf(fixture.file)).identity.levels).toStrictEqual(levels));
+
+    test('identify alternatives', async () =>
+      expect((await readingOf(fixture.file)).identity.alternatives.map(label)).toStrictEqual(alternatives));
+
+    test('identify notes', async () => expect((await readingOf(fixture.file)).identity.notes).toStrictEqual(notes));
+
+    // The cross-check the whole orientation of this table exists for, and the reason a settled level is derived rather
+    // than stated: `cpOf` cannot answer without one, so a capture whose overlay goes unread and a capture whose HP two
+    // half-levels both fit are both a null here, and neither needs a `defects` entry to say so.
+    test('identify cp', async () =>
+      expect((await readingOf(fixture.file)).identity.cp).toBe(
+        defects.cp ?? (levels.length === 1 ? fixture.cp : null),
+      ));
+
+    test('identify nickname', async () =>
+      expect((await readingOf(fixture.file)).identity.nickname).toBe(
+        defects.nickname ?? (name === fixture.species ? null : name),
       ));
   });
 }
@@ -918,17 +1016,31 @@ test('every committed capture is either a row or a negative case', () => {
 const COVERAGE = {
   rows: 43,
   negatives: 6,
-  noDefects: 43,
+  answeredAsThemselves: 42,
+  oneLevel: 42,
+  crossCheckAgrees: 42,
+  crossCheckDisagrees: 0,
+  severalLevels: 0,
+  noLevel: 1,
+  noDefects: 41,
   noOverlayDrawn: 1,
   boxNotFound: 0,
   overlayNotRead: 0,
 };
 
 test('the corpus is the shape the docblock says it is', () => {
+  const settled = FIXTURES.filter((f) => overlayOf(f).levels.length === 1);
+
   expect(
     {
       rows: FIXTURES.length,
       negatives: NEGATIVE.length,
+      answeredAsThemselves: FIXTURES.filter((f) => f.defects?.label === undefined).length,
+      oneLevel: settled.length,
+      crossCheckAgrees: settled.filter((f) => f.defects?.cp === undefined).length,
+      crossCheckDisagrees: settled.filter((f) => f.defects?.cp !== undefined).length,
+      severalLevels: FIXTURES.filter((f) => overlayOf(f).levels.length > 1).length,
+      noLevel: FIXTURES.filter((f) => overlayOf(f).levels.length === 0).length,
       noDefects: FIXTURES.filter((f) => f.defects === undefined).length,
       noOverlayDrawn: FIXTURES.filter((f) => f.overlay === null).length,
       boxNotFound: FIXTURES.filter((f) => f.defects && 'box' in f.defects).length,
@@ -936,6 +1048,11 @@ test('the corpus is the shape the docblock says it is', () => {
     },
     'the docblock above quotes these figures; update both or neither',
   ).toStrictEqual(COVERAGE);
+
+  // The three ways a row can account for its level have to partition the corpus, or one of the counts above is reaching
+  // rows another has already claimed and the three could all be right while summing to the wrong thing.
+  expect(COVERAGE.oneLevel + COVERAGE.severalLevels + COVERAGE.noLevel).toBe(COVERAGE.rows);
+  expect(COVERAGE.crossCheckAgrees + COVERAGE.crossCheckDisagrees).toBe(COVERAGE.oneLevel);
 });
 
 /**
@@ -1024,6 +1141,59 @@ test(
 );
 
 /**
+ * What the overlay `fixtures/xurkitree.png` loses is worth exactly one number, and this is it. The capture plainly
+ * carries `L20 ɪᴠ82 11/12/14` and `readOverlay` answers null, so `identify` stops at the species and the `CP 2197` the
+ * screen does show is checked against nothing. Handing it that row's own level and IVs — which are what a person reads
+ * off the overlay, the row stating the Pokémon rather than the reader — closes the loop: level 20 and 11/12/14 against
+ * Xurkitree's `330/144/195` derive **2197**, the CP on the screen to the digit, with no note raised.
+ *
+ * So this is not a second way of asserting the defect — the row's `iv: null` does that — but a statement of its cost,
+ * and the two halves fail for different reasons. If `readOverlay` is fixed, the defect fails and this goes on passing;
+ * if the arithmetic or the hermetic Xurkitree moves, this fails and the defect goes on passing.
+ */
+test('the overlay fixtures/xurkitree.png does not read would have cross-checked its CP', async () => {
+  const fixture = FIXTURES.find((f) => f.file === 'xurkitree.png');
+  assert.ok(fixture?.overlay, 'the capture whose overlay goes unread has left the corpus');
+
+  const { overlay } = fixture;
+  const { detail } = await readingOf(fixture.file);
+  const identity = identify(DATA, detail, { levels: [overlay.level], iv: overlay.iv, form: null });
+
+  expect(detail.cp, 'the capture has lost the CP this is cross-checked against').toBe(fixture.cp);
+  expect(identity.levels, 'the HP no longer agrees with the level the overlay states').toStrictEqual([overlay.level]);
+  expect(identity.cp).toBe(detail.cp);
+  expect(identity.notes, 'the readers disagree with each other').toStrictEqual([]);
+});
+
+/**
+ * The same measurement for `fixtures/spinda-04.png`, and it costs more than a cross-check: Spinda's 20 forms are
+ * identical in every field the screen shows, so the fold leaves `00` standing and the bracketed `(04)` PGSharp draws is
+ * the **only** thing on the screen that can say which of the 20 it is. With the overlay unread the answer is not an
+ * ambiguity but a confident wrong form, exactly as it is for Unown below.
+ *
+ * Which is also the case for keeping all 20 in `FORMS` where the costume fold would otherwise justify one, and the test
+ * is posed so that it says so: the same detail, read once, handed to `identify` twice, with the suffix and without.
+ */
+test('the overlay fixtures/spinda-04.png does not read would have named one form of twenty', async () => {
+  const fixture = FIXTURES.find((f) => f.file === 'spinda-04.png');
+  assert.ok(fixture?.overlay, 'the capture carrying a bracketed Spinda form has left the corpus');
+
+  const { overlay } = fixture;
+  assert.ok(overlay.suffix, 'that capture has lost the bracketed form this is the measurement of');
+
+  const { detail } = await readingOf(fixture.file);
+  const stated = { levels: [overlay.level], iv: overlay.iv };
+  const blind = identify(DATA, detail, { ...stated, form: null });
+  const named = identify(DATA, detail, { ...stated, form: overlay.suffix });
+
+  expect(blind.form && label(blind.form)).toBe('Spinda (00)');
+  expect(blind.alternatives, 'the fold no longer collapses the 20, so this test is obsolete').toStrictEqual([]);
+  expect(named.form && label(named.form)).toBe(`Spinda (${overlay.suffix})`);
+  expect(named.cp, 'the CP the bracket buys no longer agrees with the screen').toBe(fixture.cp);
+  expect(named.notes, 'the readers disagree with each other').toStrictEqual([]);
+});
+
+/**
  * The two properties of the shortlist PGSharp's level is read as that make the rest of the pipeline's level handling
  * able to fail at all. They are asserted off the captures rather than written into the table, a shortlist being a
  * reading rather than a fact about a Pokémon.
@@ -1060,6 +1230,25 @@ test(
   },
   WHOLE_CORPUS_TIMEOUT,
 );
+
+/**
+ * What the bracketed form buys, measured by taking it away — and the answer is not an ambiguity but a **confident wrong
+ * answer**, which is why it is worth a test of its own. `identify` folds forms that repeat a base form's stats and
+ * types into one, since that is what collapses a costume into the Pokémon it is a costume of; Unown's 28 are all such
+ * repeats of each other, so without the suffix the fold leaves one of them standing with no alternatives beside it and
+ * nothing anywhere saying it was a choice of 28.
+ */
+test('without the form PGSharp appends, Unown is answered confidently and wrongly', async () => {
+  const { detail, overlay } = await readingOf('unown-b.png');
+  assert.ok(overlay, 'the fixture has lost its overlay');
+
+  const identity = identify(DATA, detail, { ...overlay, form: null });
+
+  expect(identity.form?.species).toBe('Unown');
+  expect(identity.form?.form).not.toBe('B');
+  expect(identity.alternatives, 'the fold no longer collapses the 28, so this test is obsolete').toStrictEqual([]);
+  expect(identity.levels, 'the numbers still settle the level; only the letter was ever in doubt').toStrictEqual([16]);
+});
 
 /**
  * That `fixtures/xurkitree.png` still carries the line its row is here for. This is the half of a regression
@@ -1103,9 +1292,16 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
  * one of them asserts that a reader declines to find a thing that is not there, so a `hpOn` returning a constant would
  * pass every row it appears in. Written as one `toStrictEqual` over the whole `Detail` rather than ten assertions,
  * because the claim is about the object and a field added to `Detail` should fail here until it is accounted for.
+ *
+ * `identify` declines it too, and for a reason worth knowing rather than by luck: with no name read there is no
+ * species, so the first filter — `f.species === species` over a `species` of `null` — admits nothing, and the fallback
+ * that searches every species is gated on an IV, an HP and a type the map has none of. So `fits` is never reached over
+ * the whole table at all, and the answer is a property of the pipeline rather than of whichever form the table folds
+ * first — which the vended 1,449 forms say outright, where a cut-down table had to have the claim measured against a
+ * real one before it could be believed at all.
  */
 test('overworld.png is the map, and every reader declines it', async () => {
-  const { detail, box } = await readingOf('overworld.png');
+  const { detail, box, overlay } = await readingOf('overworld.png');
 
   expect(box, 'a band of the map read as an overlay').toBe(null);
   expect({ ...detail }).toStrictEqual({
@@ -1121,6 +1317,15 @@ test('overworld.png is the map, and every reader declines it', async () => {
     types: [],
     weight: null,
   });
+
+  const identity = identify(DATA, detail, overlay);
+
+  expect(identity.form, 'a form was chosen for a screen with no Pokémon on it').toBe(null);
+  expect(identity.alternatives).toStrictEqual([]);
+  expect(identity.levels).toStrictEqual([]);
+  expect(identity.cp).toBe(null);
+  expect(identity.nickname).toBe(null);
+  expect(identity.notes, 'a screen with nothing on it is declined without comment').toStrictEqual([]);
 });
 
 /**
@@ -1188,6 +1393,16 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
   expect({ ...bare.detail, cp: null }).toStrictEqual({ ...toolbar.detail, cp: null });
   expect(bare.detail.cp, 'the capture PGSharp is absent from no longer misreads its CP').toBe(330);
   expect(toolbar.detail.cp, 'the capture with the toolbar up no longer reads the CP the screen prints').toBe(390);
+
+  for (const reading of [bare, toolbar]) {
+    const identity = identify(DATA, reading.detail, reading.overlay);
+
+    expect(reading.box, 'a band of a screen with no overlay on it read as one').toBe(null);
+    expect(identity.form && label(identity.form)).toBe('Squirtle');
+    expect(identity.levels, 'a level was settled on a screen that states none').toStrictEqual([]);
+    expect(identity.cp).toBe(null);
+    expect(identity.notes, 'an absent overlay is the ordinary case and not worth a note').toStrictEqual([]);
+  }
 });
 
 /**
@@ -1347,26 +1562,15 @@ test('the corpus reaches both sides of every attribute', () => {
     'nothing separates a bracketed form that names one from a bracketed form that names nothing',
   );
 
-  // No row carries a `defects`, so that some reader disagrees with some screen — what every `defects` key exists for
-  // and what the key census below counts — is a gap rather than a property, and stated as one.
-  expect(
-    FIXTURES.filter((f) => f.defects !== undefined).map((f) => f.file),
-    'a row carries a `defects` again, so the claims the docblock records as gaps can be made once more',
-  ).toStrictEqual([]);
-
   // Which `Defects` keys any capture pins, as the whole set rather than one `ok` per key, so that a key arriving is as
   // loud as a key leaving. The keys rather than the values, because some of the defects are `null` — a triple never
   // read, a suffix that reads as nothing — and a truth test would file those as absent. A key nothing pins is a reader
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
-  //
-  // Every key is absent, and the set is asserted rather than the test deleted so that one arriving is loud. That is
-  // because each reader agrees with every screen here, as the module docblock lists, and not because a key has nothing
-  // left to catch.
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual([]);
+  ).toStrictEqual(['label', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
