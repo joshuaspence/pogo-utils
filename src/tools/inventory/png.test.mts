@@ -248,6 +248,21 @@ test('difference answers over the band it is given and ignores the rest of the f
   expect(difference(a, a, 0, 1), 'a frame against itself').toBe(0);
 });
 
+test('a pixel differs where any channel moves, not only red', () => {
+  // (0,1,2) to (0,255,255) is dark to cyan with red untouched: blue or cyan text appearing on a dark panel.
+  const a = { width: 1, height: 1, data: new Uint8Array([0, 1, 2, 255]) };
+
+  for (const changed of [
+    [0, 255, 2],
+    [0, 1, 255],
+    [0, 255, 255],
+  ]) {
+    const b = { width: 1, height: 1, data: new Uint8Array([...changed, 255]) };
+
+    expect(difference(a, b, 0, 1), `(0,1,2) to (${changed.join(',')})`).toBe(1);
+  }
+});
+
 test('two images of different sizes differ completely rather than throwing', () => {
   expect(difference(ramp(4, 4), ramp(5, 4), 0, 1)).toBe(1);
 });

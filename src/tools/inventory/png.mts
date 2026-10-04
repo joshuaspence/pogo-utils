@@ -235,15 +235,6 @@ export function isolate(image: Image, minLuminance: number, maxChroma: number): 
 }
 
 /**
- * How much of a horizontal band differs between two screenshots, as a fraction of the pixels in it. Only the red
- * channel is compared, which is four times less work and answers the same question.
- *
- * The band matters more than the threshold. Through one swipe the game's panel measured 31%, then 6.2%, then 0.54%
- * and stayed near it, where the artwork above never fell below 4% at all because the Pokémon is animated, and the
- * status bar ticks with the clock. So a caller watching for a screen to stop moving watches the panel and nothing
- * else, and compares against a figure between those two — not against zero, which never arrives.
- */
-/**
  * Black where a channel reaches `min` and white elsewhere, which is `isolate` without the colour test. What that buys
  * is the overlay: its IV percentage is colour-coded by quality — magenta at 93, cyan at 86, green at 75 — so a chroma
  * limit deletes it, and the same limit clips the anti-aliased edge of a thin white `1` beside it. Measured on five
@@ -269,6 +260,16 @@ function threshold(image: Image, keep: (r: number, g: number, b: number) => bool
   return { width: image.width, height: image.height, data };
 }
 
+/**
+ * How much of a horizontal band differs between two screenshots, as a fraction of the pixels in it. A pixel differs
+ * where any of its three channels moves, since blue text appearing on a dark panel leaves red where it was.
+ *
+ * The band matters more than the threshold. Through one swipe the game's panel measured 31%, then 6.2%, then 0.54%
+ * and stayed near it, where the artwork above never fell below 4% at all because the Pokémon is animated, and the
+ * status bar ticks with the clock. So a caller watching for a screen to stop moving watches the panel and nothing
+ * else, and compares against a figure between those two — not against zero, which never arrives. Those figures counted
+ * the red channel alone, so they are a floor for the measure here rather than its value.
+ */
 export function difference(a: Image, b: Image, from: number, to: number): number {
   if (a.width !== b.width || a.height !== b.height) {
     return 1;
@@ -276,13 +277,14 @@ export function difference(a: Image, b: Image, from: number, to: number): number
 
   const first = Math.max(0, Math.round(a.height * from));
   const last = Math.min(a.height, Math.round(a.height * to));
+  const moved = (c: number): boolean => Math.abs((a.data[c] ?? 0) - (b.data[c] ?? 0)) > 8;
   let differing = 0;
 
   for (let y = first; y < last; y++) {
     for (let x = 0; x < a.width; x++) {
       const i = (y * a.width + x) * 4;
 
-      if (Math.abs((a.data[i] ?? 0) - (b.data[i] ?? 0)) > 8) {
+      if (moved(i) || moved(i + 1) || moved(i + 2)) {
         differing++;
       }
     }
