@@ -33,8 +33,9 @@
   // and is claimed by this project rather than the browser one next door: it reaches `node:child_process` for `adb` and
   // the Tesseract CLI, so it needs Node's lib and must not have the DOM's. Nothing holds it here but this line — the
   // browser project's `src/**/*.ts` does not match an `.mts` file, so a module added there under a `.ts` name would be
-  // checked against the wrong lib set instead of against none.
-  "include": ["*.mts", "../src/tools/inventory/*.mts"],
+  // checked against the wrong lib set instead of against none. The glob is the whole of `src/tools/`, which is the
+  // directory `test:inventory` collects and `test` leaves out, so nothing either suite runs goes unchecked.
+  "include": ["*.mts", "../src/tools/**/*.mts"],
 
   // These scripts import the files `tsconfig.shared.json` lists — `src/countries.ts`, `src/event-feed.ts`,
   // `src/generated.ts`, `src/gpx-dialect.ts`, `src/recurring-types.ts` and `src/types.d.ts`. Build mode wants every
