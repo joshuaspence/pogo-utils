@@ -3,6 +3,27 @@
      xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
      version="1.1"
      creator="https://github.com/joshuaspence/pogo-utils">
+  <wpt lat="37.567814" lon="126.986783">
+    <name>Jung District</name>
+    <extensions>
+      <pgr:city>Seoul</pgr:city>
+      <pgr:country>South Korea</pgr:country>
+      <pgr:event>pikachu-autumn-picnic-korea-2026</pgr:event>
+    </extensions>
+  </wpt>
+  <wpt lat="37.518103" lon="127.124086">
+    <name>Olympic Park</name>
+    <extensions>
+      <pgr:city>Seoul</pgr:city>
+      <pgr:country>South Korea</pgr:country>
+    </extensions>
+  </wpt>
+  <wpt lat="37.551167" lon="126.939058">
+    <name>Seoul</name>
+    <extensions>
+      <pgr:country>South Korea</pgr:country>
+    </extensions>
+  </wpt>
   <trk>
     <name>Starfield COEX Mall</name>
     <extensions>

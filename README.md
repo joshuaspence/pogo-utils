@@ -11,11 +11,12 @@ from a shared top tab bar:
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
-Tracks (`<trk>`) and waypoints (`<wpt>`) are stored as `*.gpx` files under [`data/`](data), grouped by country — the
-files themselves are the source of truth. The map viewer ([`map.html`](map.html), whose CSS and TypeScript live under
-[`src/`](src)) reads them directly, so to run it locally build the site and serve `dist/` over HTTP (the files are
-loaded via `fetch`). The checkout is not servable: `map.html` names `src/app.css` and `src/app.js`, and both are written
-by the build rather than kept here, so serving the repository root gets a page with no stylesheet and no module.
+Tracks (`<trk>`) and waypoints (`<wpt>`) are stored under [`data/`](data) as one `*.gpx` file per country,
+[`data/Australia.gpx`](data/Australia.gpx) and so on — the files themselves are the source of truth. The map viewer
+([`map.html`](map.html), whose CSS and TypeScript live under [`src/`](src)) reads them directly, so to run it locally
+build the site and serve `dist/` over HTTP (the files are loaded via `fetch`). The checkout is not servable: `map.html`
+names `src/app.css` and `src/app.js`, and both are written by the build rather than kept here, so serving the repository
+root gets a page with no stylesheet and no module.
 
 ```sh
 pnpm install
@@ -26,7 +27,9 @@ python3 -m http.server --directory dist
 
 Static hosting cannot list a directory, so the viewer is handed the paths in
 [`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it
-holds: a `<trk>` becomes a track and a `<wpt>` becomes a waypoint, so which directory a file sits in decides nothing.
+holds: a `<trk>` becomes a track and a `<wpt>` becomes a waypoint, each grouped under the country its own
+`<pgr:country>` names, so what a file is called decides nothing. One file per country is therefore a convention for the
+reader rather than something the viewer relies on — a file naming two countries would be drawn under both.
 
 [`data/entries-by-event.json`](data/entries-by-event.json) is generated for the same kind of reason. The Events page
 links through to an event's routes, and the only record of which event an entry belongs to is a `<pgr:event>` inside a
@@ -53,12 +56,19 @@ of a label:
 </trk>
 ```
 
+A country's file holds every entry in it, waypoints first and then tracks, which is the order
+[the schema](resources/gpx.xsd) puts them in (`wpt*`, `rte*`, `trk*`) — a track written above a waypoint fails
+`pnpm lint:xml`. Within each kind they are sorted by name, so a new entry has one place to go and a diff stays small.
+
 GPX 1.1 has no element for a locality, a country, a short/long variant or an event, so those four live in the `pgr`
 namespace declared on `<gpx>`. `<pgr:city>` is the locality the place sits in, including its region — it is absent when
 the name is itself the place (`Melbourne`, `Boston, MA`). `<pgr:variant>` is `short`/`long`, and only for routes that
 come as a pair. `<pgr:event>` names the event the entry was added for, by the `eventID` it has in
 [`data/events.json`](data/events.json), and is absent for a place that stands on its own. `<name>` and `<pgr:country>`
-are required; the viewer names any file missing either instead of guessing from the path.
+are required; the viewer names any file missing either instead of guessing from the file name.
+
+The Routes page's Copy button hands over the one entry it sits beside, written back out as a GPX file of its own rather
+than the country file it was read from.
 
 Every file is real GPX 1.1 and is checked against the schema on each push, using the copy of it vendored at
 [`resources/gpx.xsd`](resources/gpx.xsd). That check, and the HTML, CSS and JavaScript linters, run together:

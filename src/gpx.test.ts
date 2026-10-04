@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'vitest';
 
-import { eachTrack, entryCoords, entryCountry, extText, loadManifest, placeName } from './gpx.js';
+import { eachTrack, entryCoords, entryCountry, entryGpx, extText, loadManifest, placeName } from './gpx.js';
 import { parseXml } from './testing/xml.js';
 
 const gpx = (body: string) =>
@@ -207,4 +207,95 @@ test.for([
 ])('loadManifest refuses $body', async ({ value }) => {
   respondWith(value);
   await expect(loadManifest()).rejects.toThrow('is not a list of paths');
+});
+
+/**
+ * `entryGpx` is the inverse of everything above, and what the Copy button hands over. A stored file holds a whole
+ * country, so these cases are about the two halves of lifting one entry out of it: that nothing of the entry is lost,
+ * and that nothing of its neighbours comes along.
+ *
+ * The assertions are over the parsed result rather than the exact bytes wherever they can be, because attribute order
+ * in a serializer's output is its own business — xmldom writes the `xmlns` it adds last where a browser writes it first,
+ * and a test pinning the string would be pinning the stand-in rather than the contract.
+ */
+const TWO_TRACKS =
+  '<trk><name>Tan Track</name>' +
+  '<extensions><pgr:city>Melbourne, Victoria</pgr:city><pgr:country>Australia</pgr:country>' +
+  '<pgr:variant>short</pgr:variant></extensions>' +
+  '<trkseg><trkpt lat="-37.8" lon="144.97"/><trkpt lat="-37.81" lon="144.98"/></trkseg></trk>' +
+  '<trk><name>Albert Park Lake</name>' +
+  '<extensions><pgr:country>Australia</pgr:country></extensions>' +
+  '<trkseg><trkpt lat="-37.85" lon="144.97"/><trkpt lat="-37.84" lon="144.98"/></trkseg></trk>';
+
+/**
+ * The property that matters: what the clipboard gets reads back as the entry it was copied from. Driven through the
+ * readers above rather than compared to a literal, so the two directions are checked against each other.
+ */
+test('entryGpx writes an entry that reads back as itself', () => {
+  const trk = first(gpx(TWO_TRACKS), 'trk');
+  const copied = first(parseXml(entryGpx(trk)), 'trk');
+
+  expect(placeName(copied)).toBe('Tan Track, Melbourne, Victoria');
+  expect(entryCountry(copied)).toBe('Australia');
+  expect(extText(copied, 'variant')).toBe('short');
+  expect([...copied.getElementsByTagName('trkpt')].map((p) => entryCoords(p).coords)).toEqual([
+    [-37.8, 144.97],
+    [-37.81, 144.98],
+  ]);
+});
+
+/**
+ * The whole reason this function exists. Before the files were merged per country the Copy button handed over the text
+ * it had fetched, which for `data/Australia.gpx` is every route in the country under a toast naming one of them.
+ */
+test('entryGpx writes the one entry asked for and none of its neighbours', () => {
+  const doc = gpx(TWO_TRACKS);
+  const copied = parseXml(entryGpx(first(doc, 'trk')));
+
+  expect(copied.getElementsByTagName('trk')).toHaveLength(1);
+  expect(entryGpx(first(doc, 'trk'))).not.toContain('Albert Park Lake');
+});
+
+/** A `<wpt>` is the other thing a file holds, and is lifted out the same way — one function, not one per tag. */
+test('entryGpx writes a waypoint as readily as a track', () => {
+  const doc = gpx(
+    '<wpt lat="-27.46958" lon="153.025357"><name>Brisbane</name>' +
+      '<extensions><pgr:country>Australia</pgr:country></extensions></wpt>',
+  );
+  const copied = first(parseXml(entryGpx(first(doc, 'wpt'))), 'wpt');
+
+  expect(placeName(copied)).toBe('Brisbane');
+  expect(entryCoords(copied).coordStr).toBe('-27.46958,153.025357');
+});
+
+/**
+ * The tree the viewer is drawing from is the same tree this reads, so moving the element rather than cloning it would
+ * take a route off the map the first time its Copy button was pressed.
+ */
+test('entryGpx leaves the document it copied from alone', () => {
+  const doc = gpx(TWO_TRACKS);
+  const trk = first(doc, 'trk');
+
+  entryGpx(trk);
+
+  expect(doc.getElementsByTagName('trk')).toHaveLength(2);
+  expect(trk.parentNode).toBe(doc.documentElement);
+});
+
+/**
+ * A real GPX 1.1 file, not a fragment: the prologue, the version and creator every file in `data/` carries, and both
+ * namespaces declared once on the root rather than repeated down the subtree — which is what putting them in scope
+ * before the serializer walks the entry buys.
+ */
+test('entryGpx writes a whole GPX 1.1 file', () => {
+  const out = entryGpx(first(gpx(TWO_TRACKS), 'trk'));
+  const root = parseXml(out).documentElement;
+
+  expect(out.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<gpx ')).toBe(true);
+  expect(out.endsWith('</gpx>\n')).toBe(true);
+  expect(root.namespaceURI).toBe('http://www.topografix.com/GPX/1/1');
+  expect(root.getAttribute('version')).toBe('1.1');
+  expect(root.getAttribute('creator')).toBe('https://github.com/joshuaspence/pogo-utils');
+  expect(out.match(/xmlns:pgr=/g)).toHaveLength(1);
+  expect(out).toContain('<trk>');
 });

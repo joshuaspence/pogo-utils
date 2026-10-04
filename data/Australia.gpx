@@ -3,6 +3,73 @@
      xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1"
      version="1.1"
      creator="https://github.com/joshuaspence/pogo-utils">
+  <wpt lat="-27.469580" lon="153.025357">
+    <name>Brisbane</name>
+    <extensions>
+      <pgr:country>Australia</pgr:country>
+    </extensions>
+  </wpt>
+  <wpt lat="-37.815114" lon="144.966514">
+    <name>Melbourne</name>
+    <extensions>
+      <pgr:country>Australia</pgr:country>
+    </extensions>
+  </wpt>
+  <wpt lat="-33.861898" lon="151.210024">
+    <name>Sydney</name>
+    <extensions>
+      <pgr:country>Australia</pgr:country>
+    </extensions>
+  </wpt>
+  <trk>
+    <name>Melbourne Zoo</name>
+    <extensions>
+      <pgr:city>Melbourne, Victoria</pgr:city>
+      <pgr:country>Australia</pgr:country>
+    </extensions>
+    <trkseg>
+      <trkpt lat="-37.785519" lon="144.949761"/>
+      <trkpt lat="-37.785073" lon="144.949484"/>
+      <trkpt lat="-37.784552" lon="144.949162"/>
+      <trkpt lat="-37.784165" lon="144.949412"/>
+      <trkpt lat="-37.783901" lon="144.949396"/>
+      <trkpt lat="-37.783631" lon="144.949646"/>
+      <trkpt lat="-37.783069" lon="144.949495"/>
+      <trkpt lat="-37.782722" lon="144.949929"/>
+      <trkpt lat="-37.782367" lon="144.949292"/>
+      <trkpt lat="-37.782104" lon="144.950676"/>
+      <trkpt lat="-37.782239" lon="144.951353"/>
+      <trkpt lat="-37.782111" lon="144.952181"/>
+      <trkpt lat="-37.782505" lon="144.952462"/>
+      <trkpt lat="-37.782940" lon="144.952285"/>
+      <trkpt lat="-37.782822" lon="144.951789"/>
+      <trkpt lat="-37.782965" lon="144.951513"/>
+      <trkpt lat="-37.782823" lon="144.950805"/>
+      <trkpt lat="-37.783273" lon="144.950654"/>
+      <trkpt lat="-37.783735" lon="144.951172"/>
+      <trkpt lat="-37.784268" lon="144.951151"/>
+      <trkpt lat="-37.784203" lon="144.950629"/>
+      <trkpt lat="-37.784650" lon="144.950008"/>
+      <trkpt lat="-37.785208" lon="144.950451"/>
+      <trkpt lat="-37.784984" lon="144.950744"/>
+      <trkpt lat="-37.784848" lon="144.951113"/>
+      <trkpt lat="-37.785109" lon="144.951829"/>
+      <trkpt lat="-37.784783" lon="144.952228"/>
+      <trkpt lat="-37.784997" lon="144.952500"/>
+      <trkpt lat="-37.785325" lon="144.952862"/>
+      <trkpt lat="-37.785372" lon="144.953294"/>
+      <trkpt lat="-37.784955" lon="144.953271"/>
+      <trkpt lat="-37.784976" lon="144.953631"/>
+      <trkpt lat="-37.784669" lon="144.953444"/>
+      <trkpt lat="-37.784448" lon="144.953969"/>
+      <trkpt lat="-37.784163" lon="144.953859"/>
+      <trkpt lat="-37.783580" lon="144.953736"/>
+      <trkpt lat="-37.783940" lon="144.952999"/>
+      <trkpt lat="-37.784344" lon="144.952490"/>
+      <trkpt lat="-37.784293" lon="144.951898"/>
+      <trkpt lat="-37.783969" lon="144.951890"/>
+    </trkseg>
+  </trk>
   <trk>
     <name>Royal Botanic Gardens</name>
     <extensions>
@@ -161,6 +228,48 @@
       <trkpt lat="-33.865830" lon="151.216616"/>
       <trkpt lat="-33.866164" lon="151.216515"/>
       <trkpt lat="-33.866319" lon="151.216784"/>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Town Hall</name>
+    <extensions>
+      <pgr:city>Sydney, New South Wales</pgr:city>
+      <pgr:country>Australia</pgr:country>
+    </extensions>
+    <trkseg>
+      <trkpt lat="-33.868881" lon="151.208312"/>
+      <trkpt lat="-33.870745" lon="151.208207"/>
+      <trkpt lat="-33.870782" lon="151.206921"/>
+      <trkpt lat="-33.869950" lon="151.206921"/>
+      <trkpt lat="-33.869962" lon="151.204646"/>
+      <trkpt lat="-33.868757" lon="151.204556"/>
+      <trkpt lat="-33.868720" lon="151.205260"/>
+      <trkpt lat="-33.867701" lon="151.205140"/>
+      <trkpt lat="-33.867639" lon="151.207055"/>
+      <trkpt lat="-33.868732" lon="151.206891"/>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Wynyard</name>
+    <extensions>
+      <pgr:city>Sydney, New South Wales</pgr:city>
+      <pgr:country>Australia</pgr:country>
+    </extensions>
+    <trkseg>
+      <trkpt lat="-33.867671" lon="151.205910"/>
+      <trkpt lat="-33.867625" lon="151.207046"/>
+      <trkpt lat="-33.868711" lon="151.206897"/>
+      <trkpt lat="-33.869069" lon="151.209700"/>
+      <trkpt lat="-33.870765" lon="151.209528"/>
+      <trkpt lat="-33.870798" lon="151.208220"/>
+      <trkpt lat="-33.873107" lon="151.208161"/>
+      <trkpt lat="-33.872952" lon="151.206977"/>
+      <trkpt lat="-33.870805" lon="151.206920"/>
+      <trkpt lat="-33.870824" lon="151.206294"/>
+      <trkpt lat="-33.870902" lon="151.205472"/>
+      <trkpt lat="-33.868698" lon="151.205245"/>
+      <trkpt lat="-33.868679" lon="151.206006"/>
+      <trkpt lat="-33.867671" lon="151.205910"/>
     </trkseg>
   </trk>
 </gpx>
