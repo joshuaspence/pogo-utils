@@ -9,6 +9,9 @@
 # Claude
 /.claude/worktrees/
 
+# Inventory scans
+/inventory*.csv
+
 # Generated files
 /data/entries-by-event.json
 /data/gpx-paths.json
