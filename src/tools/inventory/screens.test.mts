@@ -78,6 +78,7 @@ import { HEIGHT, parseDetail, readLines } from './detail.mts';
 import { identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
 import { dexOn } from './pokedex.mts';
+import { parseMoves, type Moves } from './moves.mts';
 
 /**
  * The game master, vended beside the captures rather than downloaded: `pnpm vend:game-master` writes what a real
@@ -1619,6 +1620,84 @@ test('a Nidoran read off its entry is that Nidoran, glyph or no glyph', async ()
   expect(dexOn(retitled('0032 NIDORAN d'), DATA), 'residue after the name').toBe(32);
   expect(dexOn(retitled('90032 NIDORAN'), DATA), 'a digit ahead of the number').toBe(null);
 });
+
+/**
+ * What `parseMoves` reads off every committed capture, against what each screen shows, read by eye and asserted as the
+ * whole map so a reader that gained one move and lost another cannot come out even. The captures were taken for the
+ * top of the screen, but most reach the `GYMS & RAIDS` tab and the rows below it, so the moves are in reach of 43.
+ *
+ * A screen cut off short of a move asserts what it shows in full: `no-pgsharp.png` and `pgsharp-no-overlay.png` end
+ * halfway through Water Pulse, and the two hatted Pikachu above their charged move. The screens with no tab assert no
+ * moves at all, which is the half that keeps the reader honest: `charizard-gigantamax.png` is scrolled to its Mega
+ * Evolution, `applin.png` to its evolutions, and the rest are not detail screens. `castform-rainy.png`,
+ * `castform-sunny.png` and `cherrim-overcast.png` do the same for a caption: each has `WEATHER BONUS` under a move and
+ * Weather Ball in its pool.
+ */
+test(
+  'the moves read off every capture are the ones on its screen',
+  async () => {
+    const read: Record<string, Moves> = {};
+
+    for (const file of [...FIXTURES.map((f) => f.file), ...NEGATIVE].sort()) {
+      const { lines, image, identity } = await readingOf(file);
+      read[file] = await parseMoves(lines, DATA, identity.form, image);
+    }
+
+    expect(read).toStrictEqual({
+      'applin.png': { fast: null, charged: [] },
+      'articuno-galar.png': { fast: 'Confusion', charged: ['Fly'] },
+      'articuno-kanto.png': { fast: 'Frost Breath', charged: ['Hurricane'] },
+      'basculin-blue.png': { fast: 'Water Gun', charged: ['Muddy Water'] },
+      'burmy-plant.png': { fast: 'Tackle', charged: ['Struggle'] },
+      'burmy-sandy.png': { fast: 'Tackle', charged: ['Struggle'] },
+      'burmy-trash.png': { fast: 'Bug Bite', charged: ['Struggle'] },
+      'castform-normal.png': { fast: 'Tackle', charged: ['Weather Ball'] },
+      'castform-rainy.png': { fast: 'Tackle', charged: ['Thunder'] },
+      'castform-snowy.png': { fast: 'Powder Snow', charged: ['Blizzard'] },
+      'castform-sunny.png': { fast: 'Tackle', charged: ['Fire Blast'] },
+      'chansey-dynamax.png': { fast: 'Pound', charged: [] },
+      'charizard-gigantamax.png': { fast: null, charged: [] },
+      'cherrim-overcast.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
+      'cherrim-sunshine.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
+      'deerling-pokedex.png': { fast: null, charged: [] },
+      'deoxys-attack.png': { fast: 'Poison Jab', charged: ['Psycho Boost'] },
+      'deoxys-defense.png': { fast: 'Counter', charged: ['Psycho Boost'] },
+      'deoxys-normal.png': { fast: 'Zen Headbutt', charged: ['Hyper Beam'] },
+      'deoxys-speed.png': { fast: 'Charge Beam', charged: ['Thunderbolt'] },
+      'dialga-altered.png': { fast: 'Dragon Breath', charged: ['Thunder'] },
+      'dialga-origin.png': { fast: 'Dragon Breath', charged: ['Iron Head'] },
+      'eevee-background.png': { fast: 'Tackle', charged: ['Swift'] },
+      'growlithe-nickname.png': { fast: 'Ember', charged: ['Flamethrower'] },
+      'ho-oh.png': { fast: 'Extrasensory', charged: ['Brave Bird'] },
+      'meloetta-aria.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
+      'meowth-alola.png': { fast: 'Bite', charged: ['Foul Play'] },
+      'meowth-galar.png': { fast: 'Metal Claw', charged: ['Night Slash'] },
+      'meowth-kanto.png': { fast: 'Bite', charged: ['Night Slash'] },
+      'nidoran-female-pokedex.png': { fast: null, charged: [] },
+      'nidoran-male-pokedex.png': { fast: null, charged: [] },
+      'no-pgsharp.png': { fast: 'Bubble', charged: [] },
+      'overworld.png': { fast: null, charged: [] },
+      'pgsharp-no-overlay.png': { fast: 'Bubble', charged: [] },
+      'pikachu-ash-hat.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
+      'pikachu-santa-hat.png': { fast: 'Present', charged: [] },
+      'pikachu-willows-assistant.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
+      'pikachu-witch-hat.png': { fast: 'Quick Attack', charged: [] },
+      'pikachu.png': { fast: 'Thunder Shock', charged: ['Discharge'] },
+      'rotom-wash.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
+      'smoliv.png': { fast: 'Tackle', charged: ['Energy Ball'] },
+      // `Return` is on the screen, and its row reads as one box 293 pixels tall: a miss, pinned rather than hidden.
+      'snorlax-purified.png': { fast: 'Lick', charged: [] },
+      'spinda-04.png': { fast: 'Sucker Punch', charged: ['Icy Wind'] },
+      'spoink.png': { fast: 'Splash', charged: ['Psybeam'] },
+      'unown-b.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-exclamation.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-m.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-question.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'xurkitree.png': { fast: 'Thunder Shock', charged: ['Power Whip'] },
+    });
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 /**
  * The distinct values a column of the table holds, as words. Written out rather than left to `Array#sort`, which
