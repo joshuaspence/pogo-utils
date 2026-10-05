@@ -11,23 +11,19 @@
  * a capture's artwork can be matched against those icons, and the answer is a qualified yes — qualified by abstention
  * rather than by accuracy, because a reader that is wrong and says nothing is the expensive kind.
  *
- * **The backdrop is the whole problem, not the colours.** A hue histogram over a fixed box scores 8 of 17 captures,
- * because the game blurs an arbitrary scene behind the model and will put a photograph there: `deerling-spring.png`
- * stands on orange bokeh against which a pink Deerling is some 15% of the frame, and the naive match called it Winter.
- * Bounding the subject by the panel below it and by sharpness takes that to 12 of 17 and fixes all four Deerling.
+ * **The backdrop is the whole problem, not the colours.** The game blurs an arbitrary scene behind the model and will
+ * put a photograph there, against which a small model is a minority of any fixed box. So the subject is bounded by the
+ * panel below it and by sharpness, edges being what a blurred scene lacks, and only the largest connected run of what
+ * those edges enclose is kept: a backdrop that is flat colour with crisp shapes drawn over it has edges too, and growing
+ * the mask from them would flood it with the backdrop's colour.
  *
- * **A backdrop is not always blurred, which is what the largest component is for.** `shellos-west.png` is a pink
- * Shellos on flat teal with crisp bubbles drawn over it, so growing the mask from those edges floods it with the one
- * colour that is also East Sea's. Keeping only the largest connected run does not raise the hit rate at all — still 12
- * of 17 — and is the change that matters anyway, because it takes that capture from a confidently wrong answer to an
- * abstention.
- *
- * **Judge it on the margin.** At `MARGIN` the match answers 8 of those 17 and is right on all 8, and five of the ones
- * it declines are captures whose nearest icon is the wrong one — so the margin is what stands between it and being
- * confidently wrong five times. An abstention costs nothing and fixes nothing: `identify`'s fold still collapses the
- * rivals silently, so a declined call is exactly as wrong as it was before and no louder. Genesect is unreachable this
- * way rather than merely missed — its five forms are one robot with a differently-coloured drive cassette a few pixels
- * across, so every margin lands between 0.015 and 0.020.
+ * **Judge it on the margin.** Seventeen committed captures fall in a family the artwork can reach, and at `MARGIN` the
+ * match answers five of them — the three Burmy and the two Cherrim — and is right on all five. Ten of the twelve it
+ * declines are nearest an icon that is not their own: the four Unown nearest `D` by 0.049, `ho-oh.png` nearest the `S`
+ * form by 0.171, and four Pikachu and `charizard-gigantamax.png` nearest their clone's icon by 0.005 or less. So the
+ * margin is what stands between the match and being confidently wrong ten times. An abstention costs nothing and fixes
+ * nothing: `identify`'s fold still collapses the rivals silently, so a declined call is exactly as wrong as it was
+ * before and no louder.
  */
 
 import { join } from 'node:path';
@@ -69,10 +65,10 @@ const GROW = 6;
 
 /**
  * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
- * captures anything from 0.05 to 0.49 is right wherever it answers: each Unown capture is nearest a letter not its own,
- * by 0.049, and every right answer leads by 0.49 or more, `burmy-sandy.png` the narrowest. This sits high in that range
- * at the cost of `basculin-blue.png`, which is nearest its own stripe by 0.19 and is declined, because abstaining is
- * cheap and being confidently wrong is not.
+ * captures anything from 0.18 to 0.48 is right wherever it answers: the widest lead a wrong icon takes is `ho-oh.png`'s
+ * 0.171, and the narrowest right answers lead by 0.19 (`basculin-blue.png`) and 0.49 (`burmy-sandy.png`). This sits
+ * above the first at the cost of declining `basculin-blue.png`, because abstaining is cheap and being confidently wrong
+ * is not.
  */
 export const MARGIN = 0.3;
 
