@@ -15,7 +15,7 @@
  */
 
 import { fold } from './ocr.mts';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
@@ -407,8 +407,13 @@ async function cached(dir: string, file: string, url: string, refresh: boolean):
     throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 
+  // Written beside the copy and renamed over it, because the week's grace above trusts any file it finds: one cut short
+  // by a scan killed mid-write or a full disk would otherwise be read back, and fail to parse, until the week was out.
+  const partial = `${path}.${process.pid}`;
+
   mkdirSync(dir, { recursive: true });
-  writeFileSync(path, text);
+  writeFileSync(partial, text);
+  renameSync(partial, path);
 
   return text;
 }
