@@ -40,7 +40,7 @@ export class Device {
 
   /** Typed into whatever has focus. `input text` takes `%s` for a space and nothing else survives the shell. */
   async type(text: string): Promise<void> {
-    if (!/^[\w&,!@#*-]*$/.test(text.replaceAll(' ', ''))) {
+    if (!/^[\w&,!@#*+-]*$/.test(text.replaceAll(' ', ''))) {
       throw new Error(`refusing to type ${JSON.stringify(text)}: only search-term characters are passed to the shell`);
     }
 
