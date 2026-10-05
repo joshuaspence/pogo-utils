@@ -13,24 +13,17 @@
  * **It answers the species and never the form.** Opening a Pokémon's Pokédex entry does not preselect that Pokémon's
  * form — the entry opens on whichever form it was last left on — so the selected tile says nothing about the Pokémon
  * the walk came from, however legible it is, and on `deerling-pokedex.png` it is very legible indeed at luminance 241
- * against 183. Legible and meaningless is the worst thing a reader can be offered, so nothing here reads it: this
- * reaches a row whose species is wrong and no row whose `defects.label` comes of `identify` folding two forms
- * together, 642 being Thundurus either way.
+ * against 183. Legible and meaningless is the worst thing a reader can be offered, so nothing here reads it — which
+ * is also why this cannot help the one row whose `defects.label` comes of `identify` folding forms together:
+ * `basculin-blue.png` is 550 whichever stripe it wears.
  *
  * **Nothing beats a wrong answer here**, which is what the cross-check below is for. The screen carries other
  * four-digit numbers — `SEEN 2763` and `CAUGHT 1499` on one of these captures alone — so a reader taking the first one
  * it finds would file a species off a counter. A number is accepted only where it resolves to a species and the name
- * printed beside it folds to that same species, and `null` is the answer to every other case.
- *
- * Seven mutations over this module and `identify`'s override, five caught and both survivors accounted for rather than
- * left as a bare zero. What catches things is the cross-check and nothing else: dropping the name half makes
- * `xurkitree.png` answer a dex, off the `0900 M © Os` status-bar clock that `CLAUDE.md` already records as a trap for
- * the measurements, and dropping the species half makes twelve captures answer one. So `TITLE`'s strictness survives
- * being loosened to `/(\d{3,4})\s*([a-z][a-z ]*)?/` — a `372` reaches Shelgon and the line beside it folds to nothing
- * like `shelgon`, so the check refuses it one step later — and the pattern is a description of the screen rather than
- * the thing keeping this honest. `found.size === 1` survives too, and that one is unreachable with this corpus rather
- * than untested: two entries would have to pass the check on one screen, which takes a capture caught mid-swipe
- * between them, and a `Set` collapses two readings of the same number.
+ * printed beside it folds to that same species, and `null` is the answer to every other case. The species half refuses
+ * the counters, 2763 being no species, and the name half refuses the status bar: its `09:00` reads as `0900 M © Os` on
+ * `xurkitree.png`, the trap `WEIGHT` and `HEIGHT` in `detail.mts` are written against, and 900 is Kleavor, whose name
+ * the line does not carry.
  */
 
 import { fold, type Line } from './ocr.mts';
