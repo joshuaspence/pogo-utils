@@ -29,12 +29,18 @@ export interface Detail {
   weight: number | null;
   height: number | null;
   types: string[];
-  /** Null where the species has no gender rather than where the symbol was not read; see `genderOf`. */
+  /**
+   * Null where the species has no gender, and where there was no HP line to find the symbol beside: `genderOf` reads no
+   * symbol as no gender, but nothing looks without the HP. A null `hp` beside it says which.
+   */
   gender: Gender | null;
   favourite: boolean;
   /** Null for the two ordinary bands in the middle, which wear no badge at all. */
   size: Size | null;
-  /** The text of each tag chip under the HP, as read; matching them to the tags that exist is the caller's job. */
+  /**
+   * The text of each tag chip under the HP, as read; matching them to the tags that exist is the caller's job. Empty
+   * where no chip is drawn, and where the HP or the measurement row the chips sit between was not read.
+   */
   tags: string[];
 }
 
