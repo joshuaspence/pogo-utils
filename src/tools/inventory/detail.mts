@@ -8,7 +8,7 @@
  * thresholds, the CP being white text over artwork exactly as PGSharp's digits are.
  */
 
-import { closest, type GameData } from './game-master.mts';
+import { closest, cpOf, type GameData } from './game-master.mts';
 import { fold, ocr, ocrLine, type Line } from './ocr.mts';
 import { crop, isolate, scale, type Image } from './png.mts';
 import { genderOf, isFavourite, sizeOf, tagsOn, type Gender, type Size } from './badges.mts';
@@ -59,7 +59,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const cpPattern = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
   const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
   const read = cpLine ? (cpPattern.exec(fold(cpLine.text))?.[1] ?? null) : null;
-  const cp = cpLine && read !== null ? Number((await wholeCp(image, cpLine, read)) ?? read) : null;
+  const cp = cpLine && read !== null ? Number((await wholeCp(image, cpLine, read, cpDigits(data))) ?? read) : null;
 
   // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.
   const hpPattern = /(?:hp\s*)?(\d{1,4})\s*\/\s*(\d{1,4})(?:\s*hp)?/i;
@@ -175,12 +175,14 @@ async function cpsIn(image: Image): Promise<number[]> {
  * it. White over the artwork is the hardest text on the screen, and the loss is one-sided: `castform-snowy.png` reads
  * `46` for 746, `shellos-east.png` `84` for 784, `unown-b.png` `48` for 487 and `deoxys-defense.png` `15` for 1569.
  *
- * Accepted only where the band's number **contains** the line's and is longer, which is what makes this a rescue rather
- * than a second opinion: it says the band found more of the same number, not a different one, so a band that misreads
- * outright is rejected for disagreeing. The line's own answer has to stand otherwise — `castform-sunny.png` reads `979`
- * on the line and nothing at all out of any treatment of its band.
+ * Accepted only where the band's number **begins or ends with** the line's and is longer, which is what makes this a
+ * rescue rather than a second opinion: it says the band found more of the same number, not a different one, so a band
+ * that misreads outright is rejected for disagreeing. Where the digits are lost is the front or the back, never the
+ * middle, and no longer than a CP can be — so a `15` is not rescued into a `2150` or a five-digit `15691`. The line's
+ * own answer has to stand otherwise — `castform-sunny.png` reads `979` on the line and nothing at all out of any
+ * treatment of its band.
  */
-async function wholeCp(image: Image, line: Line, read: string): Promise<string | null> {
+async function wholeCp(image: Image, line: Line, read: string, longest: number): Promise<string | null> {
   for (const reach of CP_PADS) {
     const pad = Math.round(line.height * reach);
     const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
@@ -189,7 +191,11 @@ async function wholeCp(image: Image, line: Line, read: string): Promise<string |
       const text = (await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? '';
 
       for (const digits of text.match(/\d+/g) ?? []) {
-        if (digits.length > read.length && digits.includes(read)) {
+        if (
+          digits.length > read.length &&
+          digits.length <= longest &&
+          (digits.startsWith(read) || digits.endsWith(read))
+        ) {
           return digits;
         }
       }
@@ -357,6 +363,14 @@ async function typesOf(lines: readonly Line[], data: GameData, image: Image): Pr
 }
 
 const CP_ALPHABET = 'CP0123456789 ';
+
+/** How many digits the highest CP any form can show runs to: perfect IVs at the highest level there is. */
+const cpDigits = (data: GameData) => {
+  const [, top = 0] = data.cpm.at(-1) ?? [];
+  const best = { attack: 15, defense: 15, stamina: 15 };
+
+  return String(Math.max(...data.forms.map((form) => cpOf(form, best, top)))).length;
+};
 
 /**
  * Where the CP sits when no line carrying its label was recognised, as fractions of the screen — the one place here
