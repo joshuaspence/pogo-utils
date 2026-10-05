@@ -95,8 +95,8 @@ test('a CP derives to the number the game printed', () => {
 });
 
 /**
- * That a form differing only in attack and defense derives a different CP, which is the whole reason `identify` reaches
- * for the printed one: HP is a function of stamina alone, so every other test on the screen is blind to the pair.
+ * That a form differing only in attack and defense derives a different CP, which is the whole reason to reach for the
+ * printed one: HP is a function of stamina alone, so every other test on the screen is blind to the pair.
  */
 test('two forms sharing a stamina derive the same HP and different CPs', () => {
   const multiplier = multiplierOf(DATA, 20) ?? 0;
@@ -208,7 +208,7 @@ test('a form is found by the species and form name the CSV prints', () => {
 
 /**
  * Every form carries the file its artwork lives in, or null where the game draws none — which is a statement about the
- * game rather than a gap in the data, and the thing `identify` gates on before consulting the artwork at all.
+ * game rather than a gap in the data, and so says whether consulting the artwork could narrow a form at all.
  */
 test('a form names the icon the game draws it with, or says it has none', () => {
   expect(form('Deerling', 'Autumn').icon).toBe('pm585.fAUTUMN.icon.png');

@@ -1,14 +1,13 @@
 /**
  * What the game itself knows about every species, form and move, from PokeMiners' decoded game master and the English
- * string table beside it — the same two files `CLAUDE.md` cross-checks the search terms against.
+ * string table beside it.
  *
  * The screen says a Pokémon's form only by implication, but it follows from numbers that are shown. HP is a pure
  * function of the base stamina, the stamina IV and the level's CP multiplier, so once PGSharp's overlay has given the
- * IVs and the level, a form is whichever base stats reproduce the HP. That is a weaker test than the CP this once used
- * — it separates only forms that differ in stamina, where CP also caught a difference in Attack or Defense — but CP is
- * the one number on the detail screen that does not survive OCR, and a CP read wrongly rules out the form that is
- * right rather than merely failing to choose. Types carry most of the rest, and `identify` reports whatever is left
- * over as alternatives rather than picking between them.
+ * IVs and the level, a form is whichever base stats reproduce the HP. HP separates only forms that differ in stamina,
+ * where CP would also catch a difference in Attack or Defense, but CP is the one number on the detail screen that does
+ * not survive OCR, and a CP read wrongly rules out the form that is right rather than merely failing to choose. Types
+ * carry most of the rest, and whatever is left over is an alternative to report rather than one to pick.
  *
  * Every download is cached for a week under `.cache/inventory/`, since the game master is 20 MB and a scan of a few
  * thousand Pokémon is not the moment to discover the network is down.
@@ -51,8 +50,7 @@ export interface Form {
   stamina: number;
   /**
    * The file `pogo_assets` holds this form's artwork under — `pm585.fAUTUMN.icon.png` is the Autumn Deerling — or null
-   * where it holds none. It is the only thing that separates the forms whose stats and types are identical, so
-   * `artwork.mts` reads it and nothing else here does.
+   * where it holds none. It is the only thing that separates the forms whose stats and types are identical.
    *
    * A null is a statement about the game rather than a gap in the data: the game master lists every form Niantic's
    * data knows, where the directory holds the ones the game draws. Nine of Spinda's twenty patterns are released and
