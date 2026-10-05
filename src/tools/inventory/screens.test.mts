@@ -1392,6 +1392,12 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
 });
 
 /**
+ * What `identify` answers for a screen with no Pokémon on it, which it declines without comment. One definition, and a
+ * whole object, so a field added to `Identity` fails each screen asserted against it until it is accounted for.
+ */
+const DECLINED = { form: null, cp: null, alternatives: [], levels: [], nickname: null, notes: [] };
+
+/**
  * `fixtures/overworld.png` is the map, and this is what the detail readers answer on it: nothing, in every field. That
  * is the half a corpus of valid screens cannot state — every row asserts that a reader found the right thing and not
  * one of them asserts that a reader declines to find a thing that is not there, so a `hpOn` returning a constant would
@@ -1423,12 +1429,7 @@ test('overworld.png is the map, and every reader declines it', async () => {
     weight: null,
   });
 
-  expect(identity.form, 'a form was chosen for a screen with no Pokémon on it').toBe(null);
-  expect(identity.alternatives).toStrictEqual([]);
-  expect(identity.levels).toStrictEqual([]);
-  expect(identity.cp).toBe(null);
-  expect(identity.nickname).toBe(null);
-  expect(identity.notes, 'a screen with nothing on it is declined without comment').toStrictEqual([]);
+  expect({ ...identity }, 'something was identified on the map').toStrictEqual(DECLINED);
 });
 
 /**
@@ -1512,11 +1513,11 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
  * Pokémon's Pokédex entry is a few taps away and states the species in large flat text.
  *
  * **Both halves are asserted, and the second is the one that makes `dexOn` worth having.** It reads the three, and it
- * answers null on the other 46: every detail screen, the map, and the two PGSharp controls. A reader that answered a
- * dex off a detail screen would be worse than one that answered nothing, since the walk calls it exactly when the name
- * could not be trusted — so the 46 are the assertion and the 3 are the easy half.
+ * answers null on every other capture: every detail screen, the map, and the two PGSharp controls. A reader that
+ * answered a dex off a detail screen would be worse than one that answered nothing, since the walk calls it exactly
+ * when the name could not be trusted — so the rest are the assertion and the three are the easy half.
  *
- * **What makes the 62 decline is the cross-check rather than the screen being bare.** A Pokédex entry carries other
+ * **What makes the rest decline is the cross-check rather than the screen being bare.** A Pokédex entry carries other
  * four-digit numbers — `SEEN 2763` and `CAUGHT 1499` on `nidoran-male-pokedex.png` alone — so the number is believed
  * only where it resolves to a species and the name printed beside it folds to that same species. `0032` reaches
  * `Nidoran♂`, the line reads `NIDORAN`, and both fold to `nidoran`; `2763` reaches no species at all.
@@ -1547,12 +1548,7 @@ test(
         `${file}'s number no longer reaches its species in the vended game master`,
       ).toBe(species);
 
-      expect(identity.form, `a form was chosen for the Pokédex entry ${file}`).toBe(null);
-      expect(identity.alternatives).toStrictEqual([]);
-      expect(identity.levels).toStrictEqual([]);
-      expect(identity.cp).toBe(null);
-      expect(identity.nickname).toBe(null);
-      expect(identity.notes, 'a screen with no Pokémon on it is declined without comment').toStrictEqual([]);
+      expect({ ...identity }, `something was identified on the Pokédex entry ${file}`).toStrictEqual(DECLINED);
     }
 
     const elsewhere: string[] = [];
@@ -1575,7 +1571,9 @@ test(
 
     // The count, because an empty list of offenders is also what a loop that asked nothing produces — which is the
     // failure this whole test exists to rule out, one level up.
-    expect(asked, 'how many captures the reader was asked to decline has changed').toBe(46);
+    expect(asked, 'the reader was not asked about every other capture').toBe(
+      FIXTURES.length + NEGATIVE.length - Object.keys(entries).length,
+    );
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -1590,7 +1588,8 @@ test(
  */
 test('a species read off the Pokédex leaves the nickname alone', async () => {
   const { detail, overlay, artwork } = await readingOf('ho-oh.png');
-  const identity = identify(DATA, detail, overlay, artwork, 250);
+  const dex = DATA.forms.find((f) => f.species === 'Ho-Oh')?.dex ?? null;
+  const identity = identify(DATA, detail, overlay, artwork, dex);
 
   expect(identity.form && label(identity.form)).toBe('Ho-Oh');
   expect(identity.nickname, 'the dex override swallowed the nickname the screen prints').toBe('96%');
