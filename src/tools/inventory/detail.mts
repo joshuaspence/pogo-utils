@@ -79,7 +79,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const nameLine = hpLine
     ? lines
         .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}|\p{N}{2}/u.test(l.text))
-        .filter((l) => !/\bcp\s?\d/.test(fold(l.text)))
+        .filter((l) => !cpPattern.test(fold(l.text)))
         .at(-1)
     : undefined;
   let name = nameLine ? sanitise(nameLine.text) : null;
