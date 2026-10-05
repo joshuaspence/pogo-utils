@@ -12,6 +12,7 @@ import { fold } from './ocr.mts';
 import { nearest, type Signature } from './artwork.mts';
 import { type Detail } from './detail.mts';
 import { type Overlay } from './overlay.mts';
+
 /**
  * The two suffixes PGSharp draws that are not the form's name. It labels a form by its index from `A`, which works for
  * Unown's 26 letters and runs off the end of the alphabet for the other two: `'A'.charCodeAt(0) + 26` is `[` and `+ 27`
@@ -84,7 +85,7 @@ export function identify(
 
   // What the name read as, kept apart from what the species is, because the two answer different questions once a
   // Pokédex entry is in play: the species narrows the candidates and the name is what says whether this Pokémon is
-  // nicknamed. With no `dex` they are the same value and this is the expression it has always been.
+  // nicknamed. With no `dex` they are the same value.
   const matched = detail.name ? closest(detail.name, data.species, (s) => s) : null;
   const entry = dex === null ? null : (data.forms.find((f) => f.dex === dex)?.species ?? null);
   const species = entry ?? matched;
@@ -133,7 +134,7 @@ export function identify(
   // A narrowing rather than a filter inside `fits`, and only where it leaves something, for the reason the stated
   // levels are: the CP is white text over the artwork and the hardest thing here to read, so a misread must not empty a
   // list the numbers had narrowed correctly. Where no candidate reproduces it the disagreement is still reported below,
-  // which is the behaviour this had before and is what a wrong form or a wrong level looks like.
+  // since that is what a wrong form or a wrong level looks like.
   //
   // Restricted to the levels the stated shortlist admits where there is one, so this asks the same question the levels
   // narrowing did rather than a weaker one — a form reproducing the CP at a level the overlay rules out has not fitted.

@@ -827,9 +827,8 @@ const read = async (file: string) => {
     box,
     overlay,
     artwork,
-    // The end of the pipeline, memoised with the readings it is derived from because each of a capture's attributes is
-    // now a test of its own rather than a subtest sharing one function body, so eighteen of them ask for this where the
-    // loop used to compute it once. It is pure and cheap, but caching it says outright that the eighteen are asserting
+    // The end of the pipeline, memoised with the readings it is derived from. It is pure and cheap, but each of a
+    // capture's eighteen attributes is a test of its own, and caching it says outright that the eighteen are asserting
     // one answer rather than eighteen separately-derived ones.
     identity: identify(DATA, detail, overlay, artwork),
   };
@@ -895,7 +894,7 @@ for (const fixture of FIXTURES) {
   // A `describe` rather than one test with eighteen subtests inside it, because Vitest collects a file's tests
   // synchronously and so cannot be handed a test registered after an `await`. Each attribute therefore reads the
   // memoised capture for itself, which costs nothing — the first of the eighteen pays for the OCR and the rest get the
-  // settled promise — and buys a failure that names the reader, which is what the subtests were for.
+  // settled promise — and buys a failure that names the reader.
   describe(`${fixture.file} reads as the ${truth} on the screen`, () => {
     test('size', async () => expect((await readingOf(fixture.file)).detail.size).toBe(fixture.size ?? null));
     test('gender', async () => expect((await readingOf(fixture.file)).detail.gender).toBe(fixture.gender));
