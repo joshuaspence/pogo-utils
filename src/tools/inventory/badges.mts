@@ -8,7 +8,11 @@
 
 import { fold, ocrLine, type Line } from './ocr.mts';
 import { chroma, crop, isolate, luminance, rgb, scale, type Image } from './png.mts';
-export type Gender = 'male' | 'female';
+/**
+ * What the symbol beside the HP says, in the game's own search terms: `genderunknown` is what the game calls a species
+ * with no gender, so each value is the search that finds the Pokémon it describes.
+ */
+export type Gender = 'male' | 'female' | 'genderunknown';
 
 /** The four bands the game records, each of which `src/search/terms.ts` has a search for. */
 export type Size = 'XXL' | 'XL' | 'XS' | 'XXS';
@@ -145,8 +149,8 @@ export function isFavourite(image: Image): boolean {
 }
 
 /**
- * Male, female, or null for a species that has no gender. The symbol sits to the right of the HP bar and is the only
- * ink in that corner of the panel, so it is found by where the HP is rather than by a fraction of the screen.
+ * Male, female, or `genderunknown` for a species that has no gender. The symbol sits to the right of the HP bar and is
+ * the only ink in that corner of the panel, so it is found by where the HP is rather than by a fraction of the screen.
  *
  * Colour cannot tell the two apart — both are drawn in the same pale blue-grey — so the shape does it. A male's arrow
  * leaves the circle up and to the right and a female's stem hangs below it, which makes the female's ink taller than it
@@ -161,7 +165,7 @@ export function isFavourite(image: Image): boolean {
  * from `hp.height`, and Tesseract reports that as anything from 20 to 37 for the same text, the gender would then be
  * decided by how tall OCR thought the HP was, and a Pokémon with no gender given one.
  */
-export function genderOf(image: Image, hp: Line): Gender | null {
+export function genderOf(image: Image, hp: Line): Gender {
   const region = crop(image, image.width * 0.78, hp.top - hp.height * 4, image.width * 0.15, hp.height * 6);
   const histogram = new Map<number, number>();
 
@@ -179,7 +183,7 @@ export function genderOf(image: Image, hp: Line): Gender | null {
   );
 
   if (symbol.fraction < GENDER_INK_MIN) {
-    return null;
+    return 'genderunknown';
   }
 
   return symbol.height / Math.max(1, symbol.width) >= GENDER_TALL ? 'female' : 'male';

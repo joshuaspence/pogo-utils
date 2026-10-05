@@ -30,8 +30,8 @@ export interface Detail {
   height: number | null;
   types: string[];
   /**
-   * Null where the species has no gender, and where there was no HP line to find the symbol beside: `genderOf` reads no
-   * symbol as no gender, but nothing looks without the HP. A null `hp` beside it says which.
+   * Null where there was no HP line to find the symbol beside, so nothing looked — which is not `genderunknown`, the
+   * answer where it looked and found no symbol.
    */
   gender: Gender | null;
   favourite: boolean;
