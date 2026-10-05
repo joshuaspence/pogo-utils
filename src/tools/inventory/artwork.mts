@@ -277,17 +277,10 @@ export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null
 
   const edges = new Uint8Array(width * height);
 
-  for (let y = top; y < bottom; y++) {
-    for (let x = left; x < right; x++) {
-      if (
-        x - EDGE_RADIUS < 0 ||
-        x + EDGE_RADIUS >= image.width ||
-        y - EDGE_RADIUS < 0 ||
-        y + EDGE_RADIUS >= image.height
-      ) {
-        continue;
-      }
-
+  // Neighbours are read inside the crop only. Above it is PGSharp's box and below it the panel, so a neighbour read
+  // across either border finds the border itself, and a full-width edge there grows into a band of backdrop.
+  for (let y = top + EDGE_RADIUS; y < bottom - EDGE_RADIUS; y++) {
+    for (let x = left + EDGE_RADIUS; x < right - EDGE_RADIUS; x++) {
       const here = luminance(x, y);
       const gap = Math.max(
         Math.abs(here - luminance(x - EDGE_RADIUS, y)),
