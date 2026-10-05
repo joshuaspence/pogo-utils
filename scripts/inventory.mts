@@ -37,7 +37,7 @@
  * the account is the user's to weigh.
  */
 
-import { Device, KEY, sleep } from '../src/tools/inventory/adb.mts';
+import { Device, KEY } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
 import { parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
@@ -48,6 +48,7 @@ import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
 
 type Point = [number, number];
