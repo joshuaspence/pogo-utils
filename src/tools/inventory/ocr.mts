@@ -136,8 +136,8 @@ function group(tsv: string): Line[] {
 /**
  * Tesseract's TSV for an image, in page segmentation mode `psm`.
  *
- * TSV is asked for with `tessedit_create_tsv` rather than the `tsv` config file, which a `TESSDATA_PREFIX` pointing at a
- * models-only download lacks, and without which Tesseract writes plain text and still exits 0. OpenMP is held to one
+ * TSV is asked for with `tessedit_create_tsv` rather than the `tsv` config file, which a `TESSDATA_PREFIX` pointing at
+ * a models-only download lacks, and without which Tesseract writes plain text and still exits 0. OpenMP is held to one
  * thread, as `man tesseract` advises, because callers run reads side by side and each one's threads spin-wait against
  * the others': pinned to four cores, a pair of full-screen reads took a median 12 seconds against 0.3.
  *
@@ -173,8 +173,8 @@ function tesseract(image: Image, psm: number, ...options: string[]): Promise<str
       },
     );
 
-    // A Tesseract that fails before reading its input closes the pipe under a PNG too big to buffer, and the EPIPE would
-    // otherwise be an unhandled error that kills Node before the exit status above can say what went wrong.
+    // A Tesseract that fails before reading its input closes the pipe under a PNG too big to buffer, and the EPIPE
+    // would otherwise be an unhandled error that kills Node before the exit status above can say what went wrong.
     child.stdin?.on('error', () => {});
     child.stdin?.end(encodePng(image));
   });

@@ -12,7 +12,9 @@ import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import { brighten, crop, decodePng, difference, encodePng, isolate, rgb, scale, type Image } from './png.mts';
 
-/** An image whose every pixel is a function of its position, so a transposition or an off-by-one shows up as a value. */
+/**
+ * An image whose every pixel is a function of its position, so a transposition or an off-by-one shows up as a value.
+ */
 const ramp = (width: number, height: number): Image => {
   const data = new Uint8Array(width * height * 4);
 
