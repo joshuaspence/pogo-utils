@@ -190,14 +190,22 @@ export function identify(
   //
   // Every candidate has to carry a signature, not just two of them, or a form the game draws no icon for would be
   // dropped for having no artwork rather than for losing on its colours — which is Spinda, nine of whose twenty
-  // patterns the game has released, and is why Spinda is never narrowed here.
+  // patterns the game has released, and is why Spinda is never narrowed here. Costumes are left out: they repeat their
+  // form's numbers with no icon of their own and the fold below collapses them anyway, so counting them would keep
+  // Pikachu's 67 from ever letting the clone be told from the original.
+  //
+  // And only within one `(dex, stats, types)` group, the one `ambiguous` signs: between different numbers it is the
+  // numbers that separate the forms, and a nicknamed Pokémon's search across every species must not be settled on hue.
   //
   // An abstention costs nothing and fixes nothing: the fold below removes the rivals rather than demoting them, so a
   // declined call still comes back as one form with no alternatives and no note — `shellos-west.png` is answered as
   // East Sea either way. That is the pre-existing gap rather than one this opens, and closing it means `identify`
   // reporting the fold it performed, which is a change to what every row of the CSV says.
-  if (candidates.length > 1 && artwork) {
-    const icons = new Map(candidates.map((f) => [f, artwork.icons.get(f)]));
+  const uncostumed = candidates.filter((f) => !f.costume);
+  const [first] = uncostumed;
+
+  if (artwork && first && uncostumed.length > 1 && uncostumed.every((f) => sameNumbers(f, first))) {
+    const icons = new Map(uncostumed.map((f) => [f, artwork.icons.get(f)]));
     const known = [...icons].every(([, signature]) => signature !== undefined);
     const picked = known ? nearest(artwork.signature, icons as ReadonlyMap<Form, Signature>) : null;
 
@@ -212,7 +220,7 @@ export function identify(
   for (const f of [...candidates].sort(
     (a, b) => Number(a.costume) - Number(b.costume) || a.form.length - b.form.length,
   )) {
-    if (!distinct.some((d) => d.dex === f.dex && sameStats(d, f) && sameTypes(d.types, f.types))) {
+    if (!distinct.some((d) => sameNumbers(d, f))) {
       distinct.push(f);
     }
   }
@@ -264,6 +272,13 @@ function sameTypes(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((t) => b.includes(t));
 }
 
-function sameStats(a: Form, b: Form): boolean {
-  return a.attack === b.attack && a.defense === b.defense && a.stamina === b.stamina;
+/** Whether two forms are the same Pokémon to everything but the artwork: one dex, one set of types and one stat line. */
+function sameNumbers(a: Form, b: Form): boolean {
+  return (
+    a.dex === b.dex &&
+    sameTypes(a.types, b.types) &&
+    a.attack === b.attack &&
+    a.defense === b.defense &&
+    a.stamina === b.stamina
+  );
 }

@@ -1282,6 +1282,43 @@ test('without the level the overlay states, the CP still settles one', async () 
 });
 
 /**
+ * What the artwork may settle, measured with icons made up for the purpose since the corpus signs only Burmy and
+ * Cherrim. A costume carries no icon and must not stop the forms that do from being compared — `pikachu.png` against a
+ * clone given its own signature is the clone — but forms with different numbers are the numbers' to separate, so
+ * Deoxys' four, with the printed CP taken away, are left as alternatives however their colours fall.
+ */
+test('the artwork chooses within one set of numbers, past the costumes and no further', async () => {
+  const far = ARTWORK.get('Burmy (Trash)');
+  assert.ok(far, 'the signature standing in for an unlike icon has left the table');
+
+  const pikachu = await readingOf('pikachu.png');
+  assert.ok(pikachu.artwork, 'the fixture has lost its artwork');
+
+  const own = pikachu.artwork.signature;
+  const clones = new Map(
+    DATA.forms
+      .filter((f) => f.species === 'Pikachu' && !f.costume)
+      .map((f): [Form, Signature] => [f, f.form === 'Copy 2019' ? own : far]),
+  );
+  const clone = identify(DATA, pikachu.detail, pikachu.overlay, { signature: own, icons: clones });
+
+  expect(clone.form && label(clone.form)).toBe('Pikachu (Copy 2019)');
+
+  const deoxys = await readingOf('deoxys-attack.png');
+  assert.ok(deoxys.artwork, 'the fixture has lost its artwork');
+
+  const signature = deoxys.artwork.signature;
+  const forms = new Map(
+    DATA.forms
+      .filter((f) => f.species === 'Deoxys')
+      .map((f): [Form, Signature] => [f, f.form === 'Defense' ? signature : far]),
+  );
+  const blind = identify(DATA, { ...deoxys.detail, cp: null, cps: [] }, deoxys.overlay, { signature, icons: forms });
+
+  expect(blind.alternatives, 'the artwork chose between forms the numbers separate').toHaveLength(3);
+});
+
+/**
  * That `fixtures/xurkitree.png` still carries the line its row is here for. This is the half of a regression
  * fixture that gets left out: the row above asserts what the readers answer, and would answer exactly the same on a
  * capture whose status bar held nothing to trip over — so the trap has to be asserted present rather than assumed. A
