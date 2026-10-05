@@ -18,7 +18,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { assert, describe, expect, test } from 'vitest';
 import { decodePng } from './png.mts';
-import { findOverlay, readOverlay } from './overlay.mts';
+import { findOverlay } from './overlay.mts';
 import { type IVs } from './game-master.mts';
 
 /** One capture and the overlay the game drew on it, or null where PGSharp drew none. */
@@ -111,9 +111,9 @@ const readings = new Map<string, ReturnType<typeof read>>();
 
 const read = async (file: string) => {
   const image = decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
-  const box = await findOverlay(image);
+  const found = await findOverlay(image);
 
-  return { image, box, overlay: box ? await readOverlay(image, box) : null };
+  return { image, box: found?.box ?? null, overlay: found?.overlay ?? null };
 };
 
 const readingOf = (file: string) => {

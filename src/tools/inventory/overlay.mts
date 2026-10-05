@@ -247,7 +247,7 @@ const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map(
  */
 const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALES[0] ?? 2 }));
 
-export async function findOverlay(image: Image): Promise<OverlayBox | null> {
+export async function findOverlay(image: Image): Promise<{ box: OverlayBox; overlay: Overlay } | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
   const step = Math.max(1, Math.round(height / 3));
   const width = Math.round(image.width * OVERLAY_SPAN);
@@ -280,12 +280,20 @@ export async function findOverlay(image: Image): Promise<OverlayBox | null> {
       // `tighten` improves on the band where it can, and has to be checked rather than trusted: it derives the box from
       // the `top` Tesseract reports for a sparse line, which can sit a character-width above the glyphs — 434 against a
       // true 460 on `eevee-background.png` — so the box comes out straddling the text instead of covering it, and the
-      // read that follows gets the bottom half of a row of digits. Keeping only a box that still yields a reading is
-      // the same rule the sweep above applies to the band, one step further in: measured over the corpus, 14 of the 15
-      // captures this used to answer nothing for read on the band.
+      // read that follows gets the bottom half of a row of digits.
+      //
+      // The band is checked the same way, because matching `TRIPLE` is not reading an overlay: it admits an IV of 48,
+      // and a band whose line is only half inside it reads one. `readOverlay` is what decides, so a band it declines
+      // is passed over for the next rather than returned to a caller that would read nothing out of it.
       const tightened = await tighten(image, found);
 
-      return tightened && (await readOverlay(image, tightened)) ? tightened : found;
+      for (const box of tightened ? [tightened, found] : [found]) {
+        const overlay = await readOverlay(image, box);
+
+        if (overlay) {
+          return { box, overlay };
+        }
+      }
     }
   }
 
