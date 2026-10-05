@@ -120,16 +120,6 @@
     "end": "2026-10-27T20:00:00.000Z"
   },
   {
-    "eventID": "gigantamax-cinderace-max-battle-day-2026",
-    "name": "Gigantamax Cinderace Max Battle Day",
-    "eventType": "max-battles",
-    "heading": "Max Battles",
-    "link": "https://leekduck.com/events/gigantamax-cinderace-max-battle-day-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-03-gigantamax-cinderace-max-battle-day-2026/gigantamax-cinderace-max-battle-day.jpg",
-    "start": null,
-    "end": null
-  },
-  {
     "eventID": "giratina-origin-forme-in-5-star-raid-battles-october-2026",
     "name": "Giratina (Origin Forme) in 5-star Raid Battles",
     "eventType": "raid-battles",
@@ -161,13 +151,13 @@
   },
   {
     "eventID": "halloween-2026-part-1",
-    "name": "Halloween 2026 Part I",
+    "name": "Pokémon GO Halloween 2026 Part I",
     "eventType": "event",
     "heading": "Event",
     "link": "https://leekduck.com/events/halloween-2026-part-1/",
-    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-27-halloween-2026-part-1/halloween-2026-part-1.jpg",
     "start": "2026-10-27T10:00:00.000",
-    "end": "2026-10-31T20:00:00.000"
+    "end": "2026-11-01T10:00:00.000"
   },
   {
     "eventID": "halloween-2026-part-2",
