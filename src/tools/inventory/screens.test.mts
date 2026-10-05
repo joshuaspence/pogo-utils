@@ -1300,7 +1300,7 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
  * real one before it could be believed at all.
  */
 test('overworld.png is the map, and every reader declines it', async () => {
-  const { detail, box, overlay } = await readingOf('overworld.png');
+  const { detail, box, identity } = await readingOf('overworld.png');
 
   expect(box, 'a band of the map read as an overlay').toBe(null);
   expect({ ...detail }).toStrictEqual({
@@ -1316,8 +1316,6 @@ test('overworld.png is the map, and every reader declines it', async () => {
     types: [],
     weight: null,
   });
-
-  const identity = identify(DATA, detail, overlay);
 
   expect(identity.form, 'a form was chosen for a screen with no Pokémon on it').toBe(null);
   expect(identity.alternatives).toStrictEqual([]);
@@ -1393,10 +1391,8 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
   expect(bare.detail.cp, 'the capture PGSharp is absent from no longer misreads its CP').toBe(330);
   expect(toolbar.detail.cp, 'the capture with the toolbar up no longer reads the CP the screen prints').toBe(390);
 
-  for (const reading of [bare, toolbar]) {
-    const identity = identify(DATA, reading.detail, reading.overlay);
-
-    expect(reading.box, 'a band of a screen with no overlay on it read as one').toBe(null);
+  for (const { box, identity } of [bare, toolbar]) {
+    expect(box, 'a band of a screen with no overlay on it read as one').toBe(null);
     expect(identity.form && label(identity.form)).toBe('Squirtle');
     expect(identity.levels, 'a level was settled on a screen that states none').toStrictEqual([]);
     expect(identity.cp).toBe(null);
