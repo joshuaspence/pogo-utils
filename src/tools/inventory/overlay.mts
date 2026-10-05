@@ -473,7 +473,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   return {
     levels: levelsIn(before),
     iv,
-    form: (numeric !== null && /^\d{2}$/.test(numeric) ? numeric : null) ?? lettered ?? numeric,
+    form: numeric !== null && /^\d{2}$/.test(numeric) ? numeric : lettered,
   };
 }
 
