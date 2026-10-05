@@ -225,7 +225,7 @@ const MEASURE_WIDTH = 0.38;
  * x 759 — so a caller wanting one of them in particular cannot take it from whichever the row happened to be.
  */
 const WEIGHT = /(\d+[.,]\d+)\s*kg\b/i;
-const HEIGHT = /(\d+[.,]\d+)\s*m\b/i;
+export const HEIGHT = /(\d+[.,]\d+)\s*m\b/i;
 
 export const measurement = (text: string) => WEIGHT.test(text) || HEIGHT.test(text);
 

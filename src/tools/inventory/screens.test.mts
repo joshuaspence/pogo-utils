@@ -92,8 +92,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { assert, describe, expect, test } from 'vitest';
 import { closest, type GameData, type IVs } from './game-master.mts';
 import { decodePng } from './png.mts';
-import { type Gender, type Size } from './badges.mts';
-import { parseDetail, readLines } from './detail.mts';
+import { sizeOf, type Gender, type Size } from './badges.mts';
+import { HEIGHT, parseDetail, readLines } from './detail.mts';
 import { findOverlay } from './overlay.mts';
 
 /**
@@ -1100,6 +1100,24 @@ test('the status-bar fixture carries a line a loose measurement would take', asy
   assert.ok(height, 'the capture has lost its height');
   expect(decoy, `nothing above ${JSON.stringify(height.text)} reads as a loose measurement`).not.toBe(height);
   assert.ok(decoy.top < image.height * 0.1, `the decoy ${JSON.stringify(decoy.text)} is not in the status bar`);
+});
+
+/**
+ * One stray coloured pixel in the size badge's band, which no capture happens to carry and any could: the band is
+ * cropped from the screen round the height, artwork and all. Placed at the band's far corner from the pill, where a crop
+ * to every coloured pixel would take in the white panel between them, and the white text isolated out of that comes
+ * back as nothing.
+ */
+test('a stray coloured pixel beside the size pill does not cost the badge', async () => {
+  const { image, lines } = await readingOf('smoliv.png');
+  const height = lines.find((l) => HEIGHT.test(l.text));
+  assert.ok(height, 'smoliv.png has no height line to find the badge by');
+
+  const stray = { ...image, data: Uint8Array.from(image.data) };
+  const at = (Math.round(height.top - height.height * 1.9) * image.width + Math.round(height.left - height.height)) * 4;
+  stray.data.set([255, 0, 0], at);
+
+  expect(await sizeOf(stray, height)).toBe('XXS');
 });
 
 /**

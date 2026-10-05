@@ -9,7 +9,7 @@
  */
 
 import { fold, ocrLine, type Line } from './ocr.mts';
-import { crop, isolate, scale, type Image } from './png.mts';
+import { crop, isolate, rgb, scale, type Image } from './png.mts';
 export type Gender = 'male' | 'female';
 
 /** The four bands the game records, which `src/search/terms.js` has had a search for each of since it was written. */
@@ -54,6 +54,38 @@ function patchIn(image: Image, matches: (r: number, g: number, b: number) => boo
   };
 }
 
+/**
+ * Where the pixels a predicate accepts are, leaving out any row or column that holds only one of them. That is a
+ * patch's extent without a stray pixel beside it, where `patchIn`'s box reaches every one — and the size pill has to be
+ * cropped to the pill alone, since one stray coloured pixel at the far corner of its band would take in the white
+ * panel, which isolating the badge's white text then turns black. A proportion of the busiest row will not do: the
+ * pill's tail narrows to two or three pixels a row, and cutting it off cuts the bottom off the `XXS` above it.
+ */
+function extentOf(image: Image, matches: (r: number, g: number, b: number) => boolean): Omit<Patch, 'fraction'> {
+  const rows = new Array<number>(image.height).fill(0);
+  const columns = new Array<number>(image.width).fill(0);
+
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if (matches(...rgb(image, x, y))) {
+        rows[y] = (rows[y] ?? 0) + 1;
+        columns[x] = (columns[x] ?? 0) + 1;
+      }
+    }
+  }
+
+  const span = (counts: number[]) => {
+    const first = counts.findIndex((n) => n > 1);
+
+    return [first, counts.findLastIndex((n) => n > 1) - first + 1] as const;
+  };
+
+  const [left, width] = span(columns);
+  const [top, height] = span(rows);
+
+  return { left, top, width, height };
+}
+
 /** The warm gold the game fills a favourite's star with. */
 const gold = (r: number, g: number, b: number) => r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90;
 
@@ -90,12 +122,12 @@ export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
     height.width * SIZE_SPAN + height.height,
     height.height * SIZE_RISE,
   );
-  const pill = patchIn(band, coloured);
 
-  if (pill.fraction < SIZE_FILL) {
+  if (patchIn(band, coloured).fraction < SIZE_FILL) {
     return null;
   }
 
+  const pill = extentOf(band, coloured);
   const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
   const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3), SIZE_ALPHABET)) ?? '');
 
