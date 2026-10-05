@@ -53,7 +53,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { assert, describe, expect, test } from 'vitest';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
-import { ambiguous, distance, nearest, signatureOf, MARGIN, type Signature } from './artwork.mts';
+import { ambiguous, nearest, signatureOf, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
 import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
@@ -121,15 +121,6 @@ const ARTWORK = new Map<string, Signature>([
   ['Cherrim (Overcast)', [0.0235, 0, 0, 0.0294, 0.1917, 0.0002, 0, 0, 0.2918, 0.2974, 0.0092, 0.1568]],
   ['Cherrim (Sunny)', [0.1492, 0.5625, 0.0217, 0.001, 0.0097, 0, 0, 0, 0, 0, 0, 0.2559]],
 ]);
-
-/** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
-const ICONS: ReadonlyMap<Form, Signature> = new Map(
-  DATA.forms.flatMap((f): [Form, Signature][] => {
-    const signature = ARTWORK.get(label(f));
-
-    return signature ? [[f, signature]] : [];
-  }),
-);
 
 /**
  * What a reader answers where it disagrees with the row it sits in. Its presence marks a defect pinned rather than a
@@ -789,22 +780,7 @@ const read = async (file: string) => {
   const detail = await parseDetail(lines, DATA, image);
   const found = await findOverlay(image);
 
-  const box = found?.box ?? null;
-
-  // The artwork's own signature, which is the only thing that separates forms identical in every number. Floored on the
-  // overlay's box where one was found, PGSharp drawing over the artwork, so no fraction of one phone's screen is
-  // written down here. Memoised with the reading because the segmentation walks the pixels and the assertions are meant
-  // to be free.
-  const signature = signatureOf(image, box ? box.y + box.height : undefined);
-
-  return {
-    image,
-    lines,
-    detail,
-    box,
-    overlay: found?.overlay ?? null,
-    artwork: signature ? { signature, icons: ICONS } : undefined,
-  };
+  return { image, lines, detail, box: found?.box ?? null, overlay: found?.overlay ?? null };
 };
 
 const readings = new Map<string, ReturnType<typeof read>>();
@@ -1239,27 +1215,19 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * alone, so dropping that capture would take the pin with it and leave a reader free to change its answer unremarked.
  */
 /**
- * What the artwork match answers. These five captures are the ones whose form shares its dex, types and all three base
- * stats with another, so nothing `parseDetail` or the overlay reads can separate them and `identify` would otherwise
- * fold them to whichever has the shorter name.
+ * What the artwork match answers, for the captures whose form shares its dex, types and all three base stats with
+ * another, so that nothing `parseDetail` or the overlay reads can separate them. Asserted as the whole map, so a reader
+ * that gained one answer and lost another cannot come out even, and one that answered wrong fails it as surely as one
+ * that answered nothing.
  *
- * Asserted as the whole map rather than as a count, so a reader that gained one answer and lost another cannot come out
- * even, and that nothing it answered is wrong is **derived** from it rather than transcribed again.
- *
- * **The half that mattered is gone, and is asserted as the gap it is.** This read `declined` on eight more captures,
- * five of which were nearest to the wrong icon — Basculin's two, Genesect's three and `shellos-west.png`, with
- * `keldeo-resolute.png` and `deerling-spring.png` right but short of confidence — and that five was the whole argument
- * for `MARGIN` being load-bearing rather than decorative. Those families have left the corpus, so every capture here
- * now answers correctly with a margin of 1.6 or more: `MARGIN` could be **0** and nothing below would notice. The
- * empty `rescued` list is therefore a statement about the corpus rather than about the reader, and it fails the moment
- * a capture reaches it again — which is when the figure wants restating.
+ * Every capture here is answered, and right by 0.49 at the narrowest (`burmy-sandy.png`), so this pins the answering
+ * and not the declining: `MARGIN` could be 0 and nothing here would notice.
  */
 test(
   'the artwork settles five forms the numbers cannot',
   async () => {
     const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
-    const nearests = new Map<string, string>();
 
     for (const fixture of FIXTURES) {
       const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
@@ -1271,22 +1239,21 @@ test(
         continue;
       }
 
-      const { artwork } = await readingOf(fixture.file);
-      assert.ok(artwork, `${fixture.file} yields no artwork signature at all`);
+      // Floored on the overlay's box where one was found, PGSharp drawing over the artwork, so no fraction of one
+      // phone's screen is written down here.
+      const { image, box } = await readingOf(fixture.file);
+      const signature = signatureOf(image, box ? box.y + box.height : undefined);
+      assert.ok(signature, `${fixture.file} yields no artwork signature at all`);
 
       const icons = new Map(
         family.flatMap((f): [string, Signature][] => {
-          const signature = ARTWORK.get(label(f));
+          const icon = ARTWORK.get(label(f));
 
-          return signature ? [[label(f), signature]] : [];
+          return icon ? [[label(f), icon]] : [];
         }),
       );
-      const ranked = [...icons].sort((a, b) => distance(artwork.signature, a[1]) - distance(artwork.signature, b[1]));
-      const closest = ranked[0];
-      assert.ok(closest, `${fixture.file} has no icon to compare against`);
 
-      answers.set(fixture.file, nearest(artwork.signature, icons) ?? 'declined');
-      nearests.set(fixture.file, closest[0]);
+      answers.set(fixture.file, nearest(signature, icons) ?? 'declined');
     }
 
     expect(Object.fromEntries(answers)).toStrictEqual({
@@ -1296,29 +1263,6 @@ test(
       'cherrim-overcast.png': 'Cherrim (Overcast)',
       'cherrim-sunshine.png': 'Cherrim (Sunny)',
     });
-
-    const truthOf = (file: string) => {
-      const row = FIXTURES.find((f) => f.file === file);
-      assert.ok(row, `${file} has left the corpus`);
-
-      return row.form ? `${row.species} (${row.form})` : row.species;
-    };
-
-    const wrong = [...answers].filter(([file, answer]) => answer !== 'declined' && answer !== truthOf(file));
-    expect(wrong, 'the artwork answered a form that is not the one on the screen').toStrictEqual([]);
-
-    const rescued = [...answers]
-      .filter(([file, answer]) => answer === 'declined' && nearests.get(file) !== truthOf(file))
-      .map(([file]) => file);
-
-    // Empty, and that is the gap rather than the result: no capture left in the corpus is nearest to the wrong icon,
-    // so nothing here can tell `MARGIN` from 0. It is asserted rather than deleted because it is reachable in the
-    // direction that matters — a capture arriving that the margin does rescue fails this line and sends you back to
-    // the docblock, where the figure it used to carry is written down.
-    expect(
-      rescued,
-      `a capture now exercises the ${MARGIN} margin, so the gap the docblock describes has closed`,
-    ).toStrictEqual([]);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
