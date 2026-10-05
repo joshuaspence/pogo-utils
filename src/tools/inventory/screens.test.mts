@@ -1147,6 +1147,55 @@ test('overworld.png is the map, and every reader declines it', async () => {
 });
 
 /**
+ * That the overlay sweep declines every screen that is not a detail screen with an overlay on it. A box found on one
+ * would be worse than none: the sweep runs over the middle 70% of every screen a walk opens, and a false box is read as
+ * a level and three IVs.
+ */
+test(
+  'no screen without an overlay on it reads as having one',
+  async () => {
+    const found: string[] = [];
+
+    for (const file of NEGATIVE) {
+      if ((await readingOf(file)).box !== null) {
+        found.push(file);
+      }
+    }
+
+    expect(found, 'a band of a screen with no overlay on it read as one').toStrictEqual([]);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
+ * The three Pokédex entries, which are the stronger half of the negative cases: a screen the readers partly *can* read.
+ * The type icons come back correctly and every other field is absent, so they say that reading something is not
+ * enough to be a Pokémon — no HP, no name and no CP is invented out of a page that has a species on it.
+ */
+test('a Pokédex entry reads as its types and nothing else', async () => {
+  const absent = {
+    cp: null,
+    cps: [],
+    favourite: false,
+    gender: null,
+    height: null,
+    hp: null,
+    name: null,
+    size: null,
+    tags: [],
+    weight: null,
+  };
+
+  for (const [file, types] of [
+    ['deerling-pokedex.png', ['Normal', 'Grass']],
+    ['nidoran-female-pokedex.png', ['Poison']],
+    ['nidoran-male-pokedex.png', ['Poison']],
+  ] as const) {
+    expect({ ...(await readingOf(file)).detail }, file).toStrictEqual({ ...absent, types });
+  }
+});
+
+/**
  * One Squirtle captured twice, once with PGSharp not running at all and once with its toolbar up and no overlay drawn.
  * That makes the pair a control on each other rather than two similar captures: the same Pokémon on the same screen,
  * so every field of the two readings must agree, and whatever does differ is attributable to the toolbar alone.
