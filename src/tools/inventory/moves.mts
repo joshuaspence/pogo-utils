@@ -9,6 +9,7 @@
 import { closest, type Form, type GameData, type Move } from './game-master.mts';
 import { findLine, fold, ocrLine, type Line } from './ocr.mts';
 import { crop, scale, type Image } from './png.mts';
+
 export interface Moves {
   fast: string | null;
   charged: string[];
@@ -24,12 +25,12 @@ export interface Moves {
  * Each row is matched against the moves that form can actually hold before the whole list is considered — every trim
  * of it, so a row the pool can answer is never first answered by an unrelated move from the list. That is a choice
  * among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type icon has
- * come through as two letters, is two edits from `Tackle` and was rejected outright against the full list.
- * A row that still does not match is cropped and read again on its own, and that rescue answers only to the pool,
- * since it is the reading least worth trusting against everything.
+ * come through as two letters, is two edits from `Tackle` and is rejected outright against the full list. A row that
+ * still does not match is cropped and read again on its own, and that rescue answers only to the pool, since it is the
+ * reading least worth trusting against everything.
  *
- * Measured over fifty screens from two phones: 45 of 50 fast moves and 45 charged before, 50 and 50 after, with
- * nothing read that its Pokémon could not learn, for half a rescue read per screen.
+ * A move is the fast one or a charged one by the game master's say, not by the row it sits in. The rows are where OCR
+ * is unreliable — a row lost, split or read twice moves every row below it — where a move's own kind is a fact.
  */
 export async function parseMoves(
   lines: readonly Line[],
@@ -116,9 +117,11 @@ function moveIn(text: string, moves: readonly Move[], slack: number): Move | nul
   }
 }
 
-/** A row read again on its own, doubled, for the rows the whole-screen pass only half caught — `t Breath` for `Frost
+/**
+ * A row read again on its own, doubled, for the rows the whole-screen pass only half caught — `t Breath` for `Frost
  * Breath`, where the icon and the first letters were lost. Only the pool is offered, since a rescue read is the least
- * trustworthy text on the screen and the whole list would take almost anything. */
+ * trustworthy text on the screen and the whole list would take almost anything.
+ */
 async function moveUnder(image: Image, row: Line, pool: readonly Move[]): Promise<Move | null> {
   if (pool.length === 0) {
     return null;
