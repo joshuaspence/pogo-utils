@@ -157,7 +157,7 @@ function tesseract(image: Image, psm: number, ...options: string[]): Promise<str
     const child = execFile(
       'tesseract',
       ['stdin', 'stdout', '--psm', String(psm), '-c', 'tessedit_create_tsv=1', ...options],
-      { env: { OMP_THREAD_LIMIT: '1', ...process.env } },
+      { env: { ...process.env, OMP_THREAD_LIMIT: '1' } },
       (error, stdout, stderr) => {
         if (!error) {
           resolve(stdout);
