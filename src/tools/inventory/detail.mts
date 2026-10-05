@@ -397,13 +397,12 @@ const cpDigits = (data: GameData) => {
 const CP_SWEEP = { x: 0.3, y: 0.055, width: 0.4, height: 0.035 };
 
 /**
- * How far round the line the CP band reaches, in that line's own heights, in the order to try. Several rather than one
- * because no single pad suits every capture, and the acceptance rule in `wholeCp` makes trying more than one safe.
+ * How far round the line the CP band reaches, in that line's own heights, in the order to try. Two rather than one
+ * because neither suits every capture, and the acceptance rule in `wholeCp` makes trying both safe.
  *
  * 0.35 is what four of the corpus's five rescues read at, and 0.6 is what reaches a digit lost off the *back* of a
- * longer number: `articuno-kanto.png` reads `170` for 1705 at 0.35 and 0.4 and `1705` only at 0.6. A single wider pad
- * will not do instead, because `deoxys-defense.png` reads `1569` at 0.35 and 0.4 and loses it at 0.6 — so this is a
- * list, like the treatments it multiplies, and the first reading that extends the line's own wins. No capture is
- * rescued at 0.4 that 0.35 does not rescue first.
+ * longer number: `articuno-kanto.png` reads `170` for 1705 at 0.35 and `1705` only at 0.6. A single wider pad will not
+ * do instead, because `deoxys-defense.png` reads `1569` at 0.35 and loses it at 0.6 — so this is a list, like the
+ * treatments it multiplies, and the first reading that extends the line's own wins.
  */
-const CP_PADS = [0.35, 0.4, 0.6];
+const CP_PADS = [0.35, 0.6];
