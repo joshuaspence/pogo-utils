@@ -1255,7 +1255,7 @@ test('the corpus reaches both sides of every attribute', () => {
   ).toStrictEqual(['XL', 'XXL', 'XXS', 'undefined']);
   expect(distinct(FIXTURES, (f) => f.gender)).toStrictEqual(['female', 'male', 'null']);
   assert.ok(
-    FIXTURES.some((f) => f.form === '') && FIXTURES.some((f) => f.form !== ''),
+    FIXTURES.some((f) => !f.form) && FIXTURES.some((f) => Boolean(f.form)),
     'every capture is a named form or none is, so nothing separates a form name from a base one',
   );
   assert.ok(
