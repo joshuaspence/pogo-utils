@@ -13,18 +13,6 @@ jobs:
   unit-test:
     name: 'Unit Test'
     runs-on: 'ubuntu-latest'
-    steps:
-      - uses: 'actions/checkout@v7'
-      - uses: 'pnpm/setup@v3'
-        with:
-          cache: true
-      - run: 'pnpm test'
-
-  # Several minutes of OCR against 40 MB of committed screenshots, where `pnpm test` is half a second against none. It
-  # runs on every pull request regardless, because `on:` and its path filters are per workflow rather than per job.
-  inventory-test:
-    name: 'Inventory Test'
-    runs-on: 'ubuntu-latest'
     timeout-minutes: 30
     steps:
       - uses: 'actions/checkout@v7'
@@ -50,4 +38,4 @@ jobs:
       - uses: 'pnpm/setup@v3'
         with:
           cache: true
-      - run: 'pnpm test:inventory'
+      - run: 'pnpm test'
