@@ -109,10 +109,8 @@ const label = (form: Form) => (form.form ? `${form.species} (${form.form})` : fo
  * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
  * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
  *
- * Two families, which are the ones this corpus reaches, and both of them land: Burmy's three icons are 1.85 apart at
- * their closest and Cherrim's two 1.62, against a margin of 0.3. Five more were here and went with their captures —
- * Basculin, Deerling, Genesect, Keldeo and Shellos — and they were the half that declined, so what is left is the
- * reader answering and nothing at all of the reader refusing.
+ * Two families, and both of them land: Burmy's three icons are 1.85 apart at their closest and Cherrim's two 1.62,
+ * against a margin of 0.3.
  */
 const ARTWORK = new Map<string, Signature>([
   ['Burmy (Plant)', [0, 0.0527, 0.0288, 0.9173, 0.0012, 0, 0, 0, 0, 0, 0, 0]],
@@ -1200,20 +1198,6 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
 const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): string[] =>
   [...new Set(rows.map((row) => String(of(row))))].sort();
 
-/**
- * That the corpus still reaches every attribute, which no amount of the assertions above can say. A reading the whole
- * corpus agrees on compares equal for ever and reads exactly like agreement: 59 of these captures carry no chip, so a
- * `tagsOn` that answered `[]` unconditionally would pass every row but two. Each of these pairs is therefore what makes
- * the corresponding assertion able to fail at all.
- *
- * The negative half of a flag is the one thing here that is not read off a screen. For the seven captures a search
- * selected it is the search's own `!lucky`, which is where a negative exists at all; for the rest it is the capture
- * showing no sign of the thing, which is weaker and is what the module docblock says about provenance. Either way it is
- * asserted off the fields rather than off the readings, those flags having no reader to disagree with.
- *
- * The `defects` keys are asserted the same way and for the same reason. Each is pinned by some capture, several by one
- * alone, so dropping that capture would take the pin with it and leave a reader free to change its answer unremarked.
- */
 /**
  * What the artwork match answers, for the captures whose form shares its dex, types and all three base stats with
  * another, so that nothing `parseDetail` or the overlay reads can separate them. Asserted as the whole map, so a reader

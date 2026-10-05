@@ -68,11 +68,11 @@ const EDGE_RADIUS = 2;
 const GROW = 6;
 
 /**
- * How much closer the nearest form has to be than the runner-up before the answer is worth having. Measured over 17
- * captures: at 0.30 the match answers 8 and is right on all 8, where taking the nearest regardless is right on 12 of 17
- * and wrong with conviction on one — `shellos-west.png` at a margin of 0.211, and 0.407 before the largest-component
- * step. Abstaining is cheap and being confidently wrong is not, so this is set above the worst of those rather than to
- * maximise the hit rate.
+ * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
+ * captures anything from 0.05 to 0.49 is right wherever it answers: each Unown capture is nearest a letter not its own,
+ * by 0.049, and every right answer leads by 0.49 or more, `burmy-sandy.png` the narrowest. This sits high in that range
+ * at the cost of `basculin-blue.png`, which is nearest its own stripe by 0.19 and is declined, because abstaining is
+ * cheap and being confidently wrong is not.
  */
 export const MARGIN = 0.3;
 
