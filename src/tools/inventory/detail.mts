@@ -59,7 +59,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const cpPattern = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
   const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
   const read = cpLine ? (cpPattern.exec(fold(cpLine.text))?.[1] ?? null) : null;
-  const cp = cpLine && read !== null ? Number((await wholeCp(image, cpLine, read, cpDigits(data))) ?? read) : null;
+  const whole = cpLine && read !== null ? wholeCp(image, cpLine, read, cpDigits(data)) : null;
 
   // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.
   const hpPattern = /(?:hp\s*)?(\d{1,4})\s*\/\s*(\d{1,4})(?:\s*hp)?/i;
@@ -82,7 +82,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
         .filter((l) => !cpPattern.test(fold(l.text)))
         .at(-1)
     : undefined;
-  let name = nameLine ? sanitise(nameLine.text) : null;
+  const name = nameLine ? sanitise(nameLine.text) : null;
 
   // The name again, off its own band, where what the pass found is no species. A rescue in the sense `wholeCp` is one:
   // taken only where the band itself names a species, so it can turn a missed name into the name and never one species
@@ -93,9 +93,10 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   // POKEMON`, the green line the game draws under a lucky Pokémon's nickname, which `closest` rejects as no species.
   // Without it the rescue would replace a real nickname with that. Measured over the corpus, 57 captures name a
   // species and never reach this, four do, and of those one is rescued and three keep the nickname they had.
-  if (hpLine && (name === null || closest(name, data.species, (s) => s) === null)) {
-    name = (await named(image, hpLine, data.species)) ?? name;
-  }
+  const rescued =
+    hpLine && (name === null || closest(name, data.species, (s) => s) === null)
+      ? named(image, hpLine, data.species)
+      : null;
 
   const number = (pattern: RegExp) => {
     const line = lines.find((l) => pattern.test(l.text));
@@ -107,15 +108,8 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   // The size badge sits over the height in particular, so that line is found on its own rather than taken from the row
   // the two share — which is the weight as often as not, since they are read as separate lines at the same height.
   const heightLine = lines.find((l) => HEIGHT.test(l.text));
-  let weight = number(WEIGHT);
-  let height = number(HEIGHT);
-
-  if (row) {
-    weight ??= await measured(image, row, 0);
-    height ??= await measured(image, row, 1 - MEASURE_WIDTH);
-  }
-
-  const size = heightLine ? await sizeOf(image, heightLine) : null;
+  const weight = number(WEIGHT) ?? (row ? measured(image, row, 0) : null);
+  const height = number(HEIGHT) ?? (row ? measured(image, row, 1 - MEASURE_WIDTH) : null);
 
   // A badged height is suspect where an unbadged one is not, because the pill's tail descends into the digits it is
   // drawn over: `spoink.png` renders `1.1m` and the whole-screen pass reads `1.4m`, the tail closing the second `1`
@@ -126,22 +120,38 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   // captures that state a height, the cropped read agrees with 58, fixes `spoink.png` and breaks none. Six wear a
   // badge, so this is six more OCR passes rather than 59. `xurkitree.png` is the control, wearing the same gold `XXL`
   // and reading correctly either way because there the tail lands in the gap above its `8`.
-  if (size !== null && heightLine) {
-    height = (await remeasured(image, heightLine)) ?? height;
-  }
+  const badged = heightLine
+    ? sizeOf(image, heightLine).then(async (size) => ({
+        size,
+        height: size === null ? null : await remeasured(image, heightLine),
+      }))
+    : null;
 
-  return {
-    cp,
-    cps: cpLine ? [] : await cpsIn(image),
-    name,
-    hp,
+  // None of these reads waits on another, and `ocr.mts` holds each Tesseract process to one thread so that they can run
+  // side by side, which a screen reaching every rescue, a dozen reads, is the case for.
+  const [cpWhole, nameRescued, weightRead, heightRead, sized, cps, types, tags] = await Promise.all([
+    whole,
+    rescued,
     weight,
     height,
-    types: await typesOf(lines, data, image),
+    badged,
+    cpLine ? [] : cpsIn(image),
+    typesOf(lines, data, image),
+    hpLine && row ? tagsOn(image, hpLine, row) : [],
+  ]);
+
+  return {
+    cp: read === null ? null : Number(cpWhole ?? read),
+    cps,
+    name: nameRescued ?? name,
+    hp,
+    weight: weightRead,
+    height: sized?.height ?? heightRead,
+    types,
     gender: hpLine ? genderOf(image, hpLine) : null,
     favourite: isFavourite(image),
-    size,
-    tags: hpLine && row ? await tagsOn(image, hpLine, row) : [],
+    size: sized?.size ?? null,
+    tags,
   };
 }
 
