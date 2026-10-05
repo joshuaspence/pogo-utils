@@ -10,6 +10,7 @@
 import { type IVs } from './game-master.mts';
 import { ocr, ocrLine } from './ocr.mts';
 import { brighten, crop, isolate, scale, type Image } from './png.mts';
+import { availableParallelism } from 'node:os';
 /** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
 
 export interface OverlayBox {
@@ -97,8 +98,8 @@ const OVERLAY_TREATMENTS = [
  * says `2/4/13`, which would be 42%, and brightness says `12/4/13` and prints `64`.
  *
  * It is the end of the last run of digits ahead of the triple rather than a whole word, since it runs into what is
- * beside it — `xurkitree.png`'s `82` arrives as `182`, and `burmy-plant.png`'s level and percentage as one `015197`. And
- * it has to leave something ahead of it, because a treatment that drops the coloured percentage leaves the level as
+ * beside it — `xurkitree.png`'s `82` arrives as `182`, and `burmy-plant.png`'s level and percentage as one `015197`.
+ * And it has to leave something ahead of it, because a treatment that drops the coloured percentage leaves the level as
  * that last run, and a level of 20 would otherwise confirm any triple summing to 9. Where the `L` reads as a `1` that
  * cannot be told apart: `120` is a level of 20 alone as readily as a level of 1 and a percentage of 20.
  */
@@ -254,51 +255,67 @@ const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map(
  */
 const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALES[0] ?? 2 }));
 
+/** How many bands of a sweep to read at once: one Tesseract process per core. */
+const SWEEP_BATCH = availableParallelism();
+
 export async function findOverlay(image: Image): Promise<{ box: OverlayBox; overlay: Overlay } | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
   const step = Math.max(1, Math.round(height / 3));
   const width = Math.round(image.width * OVERLAY_SPAN);
   const left = Math.round((image.width - width) / 2);
+  const tops: number[] = [];
+
+  for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
+    tops.push(top);
+  }
 
   // A whole sweep per pass rather than every pass per band, which matters only for the clock: the overlay is found by
   // the first pass on all but a handful, and trying them all at every band cost the suite 60% more wall time to rescue
   // those few.
+  //
+  // Within a pass, a core's worth of bands at a time: `ocr.mts` holds each Tesseract process to one thread so that
+  // reads can run side by side. The bands of a batch are still taken top first, so the answer is the one a band-by-band
+  // sweep gives, and stopping at the batch holding a match wastes no more than the rest of that batch.
   for (const { treat, factor } of OVERLAY_SWEEPS) {
-    for (let top = Math.round(image.height * OVERLAY_FROM); top < image.height * OVERLAY_TO; top += step) {
-      const band = treat(crop(image, left, top, width, height));
-      const line = await tripled(band, factor);
+    for (let at = 0; at < tops.length; at += SWEEP_BATCH) {
+      const batch = tops.slice(at, at + SWEEP_BATCH);
+      const lines = await Promise.all(
+        batch.map((top) => tripled(treat(crop(image, left, top, width, height)), factor)),
+      );
 
-      if (line === null) {
-        continue;
-      }
+      for (const [i, top] of batch.entries()) {
+        if (lines[i] === null) {
+          continue;
+        }
 
-      // The band itself, which is already the right shape: as wide as the sweep, and tall enough to hold the line it
-      // was just read out of. Sizing a box from that line instead does not work, because reading a band as one line
-      // is exactly what makes its width meaningless — everything in the band comes back as one box, which on one
-      // capture spanned 626 pixels against a true 329 and on another sat 250 to the right of the text. So the band is
-      // the floor, and `tighten` improves on it where it can.
-      const found = within({
-        x: left / image.width,
-        y: top / image.height,
-        width: width / image.width,
-        height: height / image.height,
-      });
+        // The band itself, which is already the right shape: as wide as the sweep, and tall enough to hold the line it
+        // was just read out of. Sizing a box from that line instead does not work, because reading a band as one line
+        // is exactly what makes its width meaningless — everything in the band comes back as one box, which on one
+        // capture spanned 626 pixels against a true 329 and on another sat 250 to the right of the text. So the band is
+        // the floor, and `tighten` improves on it where it can.
+        const found = within({
+          x: left / image.width,
+          y: top / image.height,
+          width: width / image.width,
+          height: height / image.height,
+        });
 
-      // `tighten` improves on the band where it can, and has to be checked rather than trusted: it derives the box from
-      // the `top` Tesseract reports for a sparse line, which can sit a character-width above the glyphs — 434 against a
-      // true 460 on `eevee-background.png` — so the box comes out straddling the text instead of covering it, and the
-      // read that follows gets the bottom half of a row of digits.
-      //
-      // The band is checked the same way, because matching `TRIPLE` is not reading an overlay: it admits an IV of 48,
-      // and a band whose line is only half inside it reads one. `readOverlay` is what decides, so a band it declines
-      // is passed over for the next rather than returned to a caller that would read nothing out of it.
-      const tightened = await tighten(image, found);
+        // `tighten` improves on the band where it can, and has to be checked rather than trusted: it derives the box
+        // from the `top` Tesseract reports for a sparse line, which can sit a character-width above the glyphs — 434
+        // against a true 460 on `eevee-background.png` — so the box comes out straddling the text instead of covering
+        // it, and the read that follows gets the bottom half of a row of digits.
+        //
+        // The band is checked the same way, because matching `TRIPLE` is not reading an overlay: it admits an IV of 48,
+        // and a band whose line is only half inside it reads one. `readOverlay` is what decides, so a band it declines
+        // is passed over for the next rather than returned to a caller that would read nothing out of it.
+        const tightened = await tighten(image, found);
 
-      for (const box of tightened ? [tightened, found] : [found]) {
-        const overlay = await readOverlay(image, box);
+        for (const box of tightened ? [tightened, found] : [found]) {
+          const overlay = await readOverlay(image, box);
 
-        if (overlay) {
-          return { box, overlay };
+          if (overlay) {
+            return { box, overlay };
+          }
         }
       }
     }
@@ -474,8 +491,10 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     box.height * image.height,
   );
   const bracket = scale(isolate(wide, SUFFIX_LUMINANCE, SUFFIX_CHROMA), OVERLAY_SCALES[0] ?? 2);
-  const lettered = shaped(await suffixIn(bracket, OVERLAY_FORM_ALPHABET));
-  const numeric = shaped(await suffixIn(bracket, OVERLAY_NUMERIC_ALPHABET));
+  const [lettered, numeric] = await Promise.all([
+    suffixIn(bracket, OVERLAY_FORM_ALPHABET).then(shaped),
+    suffixIn(bracket, OVERLAY_NUMERIC_ALPHABET).then(shaped),
+  ]);
 
   return {
     levels: levelsIn(before),
