@@ -36,6 +36,7 @@ const FIXTURES: readonly Fixture[] = [
   { file: 'applin.png', overlay: { iv: { attack: 10, defense: 14, stamina: 14 }, level: 15 } },
   { file: 'articuno-galar.png', overlay: { iv: { attack: 12, defense: 4, stamina: 13 }, level: 20 } },
   { file: 'articuno-kanto.png', overlay: { iv: { attack: 13, defense: 12, stamina: 12 }, level: 20 } },
+  { file: 'basculin-blue.png', overlay: { iv: { attack: 8, defense: 3, stamina: 5 }, level: 5 } },
   { file: 'burmy-plant.png', overlay: { iv: { attack: 14, defense: 15, stamina: 15 }, level: 15 } },
   { file: 'burmy-sandy.png', overlay: { iv: { attack: 12, defense: 14, stamina: 11 }, level: 15 } },
   { file: 'burmy-trash.png', overlay: { iv: { attack: 0, defense: 7, stamina: 6 }, level: 5 } },
@@ -216,7 +217,7 @@ test(
       stated.set(fixture.file, (await readingOf(fixture.file)).overlay?.levels ?? []);
     }
 
-    expect(offered.length, 'how many overlays are read has changed, so this says less').toBe(40);
+    expect(offered.length, 'how many overlays are read has changed, so this says less').toBe(41);
     assert.ok(
       offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
       'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',

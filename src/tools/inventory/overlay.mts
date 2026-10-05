@@ -48,9 +48,8 @@ const OVERLAY_ALPHABET = 'L0123456789/ ';
  * `cherrim-sunshine.png` reads `3100773` at 2× and `10/7/7` at 3×, and near-white reads `charizard-gigantamax.png` as
  * `12/22` at 2× and as a triple, if not the right one, at 3×. No separators means no triple, which means no overlay
  * found at all on a screen that plainly carries one. Both are read correctly at 2× by another treatment, so no
- * committed capture needs 3× to be read correctly; the one that did, a Deerling read as `15 141512` at 2× for a
- * perfectly legible `L15 ɪᴠ 14/15/12`, is no longer committed. Trying 2× first is what keeps the `L` where it already
- * reads, and the level being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
+ * committed capture needs 3× to be read correctly. Trying 2× first is what keeps the `L` where it already reads, and
+ * the level being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
  */
 const OVERLAY_SCALE = 2;
 const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
@@ -62,10 +61,10 @@ const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
 const OVERLAY_BRIGHTNESS = 120;
 
 /**
- * A second brightness floor, for a band this one leaves illegible. `eevee-background.png` reads `13/1 5/15` at 120,
- * which is no triple, and `1595 13/15/15` at 180, where the percentage confirms it. Near-white reads the same triple
- * with no percentage at all, so nothing committed needs 180 to be read correctly; the capture that did, a Basculin read
- * as nothing at 120 and as `5135 8/3/5` at 180 where near-white made its `8` a `3`, is no longer committed.
+ * A second brightness floor, for a band this one leaves blank. `basculin-blue.png` reads nothing whatever at 120 — at
+ * either scale — so its near-white pass would go unchallenged and its `8` stand as the `3` that treatment makes of it.
+ * At 180 the same band reads `5135 8/3/5`, and the percentage behind it settles the matter without anything having to
+ * guess: `8/3/5` is 35%, which is the `35` inside that `135`.
  *
  * A third floor rather than a replacement: without 120, near-white and 180 between them read `articuno-galar.png`,
  * `charizard-gigantamax.png`, `dialga-altered.png` and `xurkitree.png` wrongly. Nothing here is a free parameter — a
@@ -143,9 +142,10 @@ const OVERLAY_NUMERIC_ALPHABET = OVERLAY_FORM_ALPHABET + '0123456789';
 /**
  * What a suffix PGSharp drew can look like, which is the guard the two passes below need rather than an alphabet. Every
  * form it labels is either one character — Unown's 26 letters, or the `[` and `\\` below for the other two — or
- * Spinda's two digits. Nothing it draws is two letters, so `spinda-04.png`'s `(OA)` is noise out of the artwork, and
- * rejecting it is what lets the numeric pass run at all: `O` for `0` and `A` for `4` is exactly the confusion a
- * letters-only alphabet invites, and it answered a plausible-looking suffix for a Spinda whose real label is `04`.
+ * Spinda's two digits. Nothing it draws is two letters, so `basculin-blue.png`'s `(SV)` and `spinda-04.png`'s `(OA)`
+ * are both noise out of the artwork, and rejecting them is what lets the numeric pass run at all: `O` for `0` and `A`
+ * for `4` is exactly the confusion a letters-only alphabet invites, and it answered a plausible-looking suffix for a
+ * Spinda whose real label is `04`.
  */
 const SUFFIX_SHAPE = /^(?:[A-Z[\\]|\d{2})$/;
 
@@ -477,9 +477,9 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   // Off the first pass always, and deliberately not off whichever pass the triple came from: the two are separate
   // readings of separate parts of the line, and each wants its own treatment. `unown-m.png`'s IVs are only right under
   // brightness and its `(M)` only under near-white, so following the triple would trade one for the other — and
-  // widening the bracket to every pass is worse again, since the 3× read invents a shape-valid suffix on a Basculin
-  // that carries none, a capture no longer committed. One pass for the bracket is what was measured and is what the
-  // corpus bears out.
+  // widening the bracket to every pass is worse again, since the near-white 3× read invents a shape-valid `V` on
+  // `basculin-blue.png`, which carries none. One pass for the bracket is what was measured and is what the corpus bears
+  // out.
   //
   // Out of a wider crop than the triple, though: see `OVERLAY_SUFFIX_REACH`. `crop` clamps what runs off the screen.
   //
