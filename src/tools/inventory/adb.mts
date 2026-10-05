@@ -10,6 +10,12 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 export { sleep };
 
+/**
+ * Far longer than any call here takes, so it only fires on a device or `adb` server that has wedged — an `offline`
+ * phone, a stalled USB link — which would otherwise hang the scan rather than fail the one call.
+ */
+const TIMEOUT_MS = 30_000;
+
 export class Device {
   readonly #prefix: string[];
 
@@ -82,10 +88,12 @@ export class Device {
       execFile(
         'adb',
         [...this.#prefix, ...args],
-        { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 },
+        { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024, timeout: TIMEOUT_MS },
         (error, stdout, stderr) => {
           if (error) {
-            const detail = stderr.toString().trim() || error.message;
+            const detail = error.killed
+              ? `no answer after ${TIMEOUT_MS / 1000}s; is the phone still connected?`
+              : stderr.toString().trim() || error.message;
             reject(new Error(`adb ${args.join(' ')}: ${detail}`));
           } else {
             resolve(stdout);
