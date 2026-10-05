@@ -47,11 +47,12 @@ const SPELLINGS: Record<string, string> = {
  * A constant as its name reads, right for every species SPELLINGS does not speak for: `IRON_HANDS` is `Iron Hands`.
  *
  * `charAt` rather than `word[0]`, which is `string | undefined` to the checker because a segment could be empty — as
- * one would be given a constant spelled `A__B`. None is, checked over every constant `pokedex.js` binds and every form
- * name hung off one. Worth saying rather than assuming, because where the two do differ `charAt` writes a name with a
- * stray space where the index read threw, and quietly is the worse of the two ways to be wrong.
+ * one would be given a constant spelled `A__B`. None is, checked over every constant `pokedex.js` binds, every form name
+ * hung off one and every species, form, type and move constant in the game master. Worth saying rather than assuming,
+ * because where the two do differ `charAt` writes a name with a stray space where the index read threw, and quietly is
+ * the worse of the two ways to be wrong.
  */
-const titleise = (constant: string): string =>
+export const titleise = (constant: string): string =>
   constant
     .toLowerCase()
     .split('_')
