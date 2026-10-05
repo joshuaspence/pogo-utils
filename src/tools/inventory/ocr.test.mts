@@ -1,10 +1,14 @@
 /**
- * The helpers callers find text with, and what `ocr` does when Tesseract cannot start. Reading real captures is left to
- * the readers that have them; `findLine` and `centre` have no reader below the CLI, so they are pinned here.
+ * The helpers callers find text with, and how `ocr` runs Tesseract and what it does when Tesseract cannot start.
+ * Reading real captures is left to the readers that have them; `findLine` and `centre` have no reader below the CLI, so
+ * they are pinned here.
  */
 
 import { centre, findLine, fold, ocr, ocrLine, type Line } from './ocr.mts';
-import { expect, test } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
+import { expect, test, vi } from 'vitest';
 
 const line = (text: string, left = 0, top = 0): Line => ({ text, left, top, width: 100, height: 20 });
 
@@ -48,6 +52,25 @@ test('a Tesseract that fails to start is a rejection naming why, however large t
     } else {
       process.env['TESSDATA_PREFIX'] = previous;
     }
+  }
+});
+
+/** A stand-in `tesseract` that fails with the limit it was given, which is the one thing a real one would not say. */
+test('Tesseract is held to one thread, whatever limit the shell exports', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'tesseract-'));
+  writeFileSync(join(bin, 'tesseract'), '#!/bin/sh\necho "OMP_THREAD_LIMIT=$OMP_THREAD_LIMIT" >&2\nexit 1\n', {
+    mode: 0o755,
+  });
+  vi.stubEnv('PATH', `${bin}${delimiter}${process.env['PATH']}`);
+  vi.stubEnv('OMP_THREAD_LIMIT', '8');
+
+  try {
+    await expect(ocr({ width: 1, height: 1, data: new Uint8Array(4) })).rejects.toThrow(
+      /^tesseract exited 1: OMP_THREAD_LIMIT=1$/,
+    );
+  } finally {
+    vi.unstubAllEnvs();
+    rmSync(bin, { recursive: true });
   }
 });
 
