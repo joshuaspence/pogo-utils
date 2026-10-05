@@ -96,11 +96,18 @@ const OVERLAY_TREATMENTS = [
  * believe where two of them read different triples and both are possible. `articuno-galar.png` is the case: near-white
  * says `2/4/13`, which would be 42%, and brightness says `12/4/13` and prints `64`.
  *
- * Searched for in the text ahead of the triple rather than as a whole word, since it runs into the digits beside it —
- * `xurkitree.png`'s `82` arrives as `182`, the `1` being the first digit of an attack of 11.
+ * It is the end of the last run of digits ahead of the triple rather than a whole word, since it runs into what is
+ * beside it — `xurkitree.png`'s `82` arrives as `182`, and `burmy-plant.png`'s level and percentage as one `015197`. And
+ * it has to leave something ahead of it, because a treatment that drops the coloured percentage leaves the level as
+ * that last run, and a level of 20 would otherwise confirm any triple summing to 9. Where the `L` reads as a `1` that
+ * cannot be told apart: `120` is a level of 20 alone as readily as a level of 1 and a percentage of 20.
  */
 function confirmed(before: string, iv: IVs): boolean {
-  return before.includes(String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100)));
+  const percentage = String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100));
+  const runs = before.match(/\d+/g) ?? [];
+  const last = runs.at(-1) ?? '';
+
+  return last.endsWith(percentage) && (runs.length > 1 || last.length > percentage.length);
 }
 
 /**
