@@ -1,25 +1,17 @@
-/node_modules/
-
-# The build. `dist/` is what Pages serves and `.types/` is the declarations `composite` insists on emitting, which
-# nothing serves and nothing reads except the project next door.
+# Build artefacts
 /dist/
 /.types/
 
-# The two indexes `scripts/validate-gpx.mts --write` derives from the GPX files, which `pnpm build` runs before it
-# assembles `dist/`. Tracked they were a second copy of what `git ls-files` and the `<pgr:event>` fields already say,
-# kept in step by a check that could only ever report the copy was stale.
+# Caches
+/.cache/
+*.tsbuildinfo
+
+# Claude
+/.claude/worktrees/
+
+# Generated files
 /data/entries-by-event.json
 /data/gpx-paths.json
 
-# `tsc -b` needs `composite` in both projects, and `composite` writes a build cache per project. The browser one is
-# named into `.types/` above, since its default position is derived from `outDir` and so falls inside the artifact;
-# `scripts/` emits nothing, so its own stays beside its config.
-/scripts/tsconfig.tsbuildinfo
-
-# Every subtask gets its own worktree and the harness puts them here, so this holds another branch's checkout rather
-# than anything of this one's. `.prettierignore` and `eslint.config.mjs` exclude it for the same reason.
-/.claude/worktrees/
-
-# `loadGameData` caches the game master and the English string table here, 23 MB of them, for a week. Neither belongs
-# in the repository: the fixture the tests read is vended into `src/tools/inventory/fixtures/` instead.
-/.cache/
+# NodeJS
+/node_modules/
