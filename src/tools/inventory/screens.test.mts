@@ -715,6 +715,19 @@ const FIXTURES: readonly Fixture[] = [
     weight: 5.43,
   },
   {
+    cp: 247,
+    file: 'spoink.png',
+    form: null,
+    gender: 'male',
+    height: 1.1,
+    hp: 59,
+    overlay: { iv: { attack: 14, defense: 4, stamina: 14 }, level: 7 },
+    size: 'XXL',
+    species: 'Spoink',
+    types: ['Psychic'],
+    weight: 43.83,
+  },
+  {
     cp: 487,
     file: 'unown-b.png',
     form: 'B',
@@ -934,9 +947,9 @@ test('every committed capture is either a row or a negative case', () => {
  * that paragraph. Counted off `FIXTURES` and `overlayOf`, so this is free and cannot disagree with the loop.
  */
 const COVERAGE = {
-  rows: 42,
+  rows: 43,
   negatives: 6,
-  noDefects: 42,
+  noDefects: 43,
   noOverlayDrawn: 1,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1043,23 +1056,20 @@ test(
 
 /**
  * The two properties of the shortlist PGSharp's level is read as that make the rest of the pipeline's level handling
- * able to fail at all. They were a column of the table until the table became a statement of what each Pokémon is, and
- * a shortlist is a reading rather than a fact about a Pokémon — so they are asserted here, off the captures themselves.
+ * able to fail at all. They are asserted off the captures rather than written into the table, a shortlist being a
+ * reading rather than a fact about a Pokémon.
  *
  * The first is that some capture offers a level **above** its true one, which is what an HP test admitting any HP at or
- * above the one read needs in order to be caught: against `fixtures/unown.png`'s `[1, 6, 16]`, whose largest member is
- * already the answer, such a break cannot move anything. `fixtures/applin.png` offers `51` for a level 15, and 23 of
- * the 41 do the same, so that half is in no danger.
+ * above the one read needs in order to be caught: against `articuno-kanto.png`'s `[2, 20, 8]`, whose largest member is
+ * already the answer, such a break cannot move anything. `applin.png` offers `51` for a level 15, and 23 of the 42 do
+ * the same.
  *
- * The second is gone and is asserted as the gap it is. It was that some capture's shortlist does **not** contain its
- * true level, which is what says the HP is the arbiter rather than a tie-breaker, and `fixtures/spoink.png` was the
- * only capture in the corpus that ever showed it — `1` alone for a Pokémon at level 7, where every other shortlist
- * overshoots but still holds the answer. With it gone, nothing says the HP settles anything the shortlist could not
- * have settled by intersection, and a `levelsOf` that merely filtered the stated list would pass every assertion
- * here.
+ * The second is that some capture's shortlist does **not** contain its true level, which is what says the HP is the
+ * arbiter rather than a tie-breaker: `spoink.png` offers `1` alone for a Pokémon at level 7, the only capture that
+ * does. Without it, a `levelsOf` that merely filtered the stated list would pass every assertion here.
  */
 test(
-  'the shortlists the overlay states overshoot a true level, and no longer miss one',
+  'the shortlists the overlay states both overshoot a true level and miss one',
   async () => {
     const stated = new Map<string, readonly number[]>();
 
@@ -1069,17 +1079,15 @@ test(
     }
 
     const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
-    expect(offered.length, 'how many overlays are read has changed, so this property says less').toBe(41);
+    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(42);
     assert.ok(
       offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
       'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
     );
-    // Reachable in the direction that matters: a capture arriving whose shortlist misses its own level fails this and
-    // sends you back to the docblock, where what that capture would be worth is written down.
-    expect(
-      offered.filter((f) => !stated.get(f.file)?.includes(f.overlay?.level ?? 0)).map((f) => f.file),
-      'a shortlist misses its own level again, so the HP has something to arbitrate and the gap has closed',
-    ).toStrictEqual([]);
+    assert.ok(
+      offered.some((f) => !stated.get(f.file)?.includes(f.overlay?.level ?? 0)),
+      'every shortlist contains its own level, so nothing says the HP is what settles it',
+    );
   },
   WHOLE_CORPUS_TIMEOUT,
 );
