@@ -1598,6 +1598,30 @@ test('a species read off the Pokédex leaves the nickname alone', async () => {
 });
 
 /**
+ * The Nidoran this reader exists for, end to end: `dexOn` reads `nidoran-male-pokedex.png`'s number, and `identify`,
+ * handed a detail screen whose name has lost its `♂`, answers Nidoran♂ without reporting the lost glyph as the Pokédex
+ * disagreeing. `NIDORAN` reads as either Nidoran, and `closest` breaks that tie towards Nidoran♀.
+ *
+ * Then the title line with residue round it, varied on that capture's own lines: a glyph after the name read as a
+ * letter still leads with the species, and one ahead of the number read as a digit makes five digits rather than a dex.
+ */
+test('a Nidoran read off its entry is that Nidoran, glyph or no glyph', async () => {
+  const { lines, detail } = await readingOf('nidoran-male-pokedex.png');
+  const identity = identify(DATA, { ...detail, name: 'NIDORAN' }, null, undefined, dexOn(lines, DATA));
+
+  expect(identity.form && label(identity.form)).toBe('Nidoran♂');
+  expect(identity.notes, 'the lost glyph was reported as the Pokédex disagreeing').toStrictEqual([]);
+
+  const title = lines.findIndex((line) => /\b0032\b/.test(line.text));
+  assert.ok(title >= 0, 'the capture has lost the title line this varies');
+
+  const retitled = (text: string) => lines.map((line, i) => (i === title ? { ...line, text } : line));
+
+  expect(dexOn(retitled('0032 NIDORAN d'), DATA), 'residue after the name').toBe(32);
+  expect(dexOn(retitled('90032 NIDORAN'), DATA), 'a digit ahead of the number').toBe(null);
+});
+
+/**
  * The distinct values a column of the table holds, as words. Written out rather than left to `Array#sort`, which
  * stringifies an `undefined` and so files it after every capital letter — `['XL', 'XS', 'XXL', 'XXS', undefined]`,
  * which is the right set in an order nobody would write down on purpose.

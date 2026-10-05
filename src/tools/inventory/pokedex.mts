@@ -38,13 +38,14 @@ import { type GameData } from './game-master.mts';
 
 /**
  * A four-digit number followed by a name, which is the shape of the entry's title and of nothing else on the screen.
+ * Four digits and no more, so the tail of a longer run — a glyph read as a `9` ahead of `0032` — is not taken for one.
  *
  * Searched anywhere in the folded line rather than anchored, because the game draws a circular-arrows glyph ahead of
  * the number: it folds away to nothing on all three captures, reading as `©`, and an anchor would be betting that it
  * never reads as a letter. The name is matched loosely for the same reason and checked strictly below, and takes
  * digits after its first letter for `Porygon2`.
  */
-const TITLE = /(\d{4})\s+([a-z][a-z0-9 ]*)/;
+const TITLE = /(?<!\d)(\d{4})\s+([a-z][a-z0-9 ]*)/;
 
 /**
  * Which species a Pokédex entry screen is showing, as its dex number, or null where the screen does not say so beyond
@@ -58,7 +59,8 @@ const TITLE = /(\d{4})\s+([a-z][a-z0-9 ]*)/;
  * every other name here. Slack exists to rescue a reading that is the only evidence there is; this reading is not
  * evidence at all but a check on a number that already answered, so slack would only widen what the check lets past.
  * Both Nidoran fold to `nidoran` and pass it, which is the point: the check says the line agrees, and the **number**
- * says which of the two.
+ * says which of the two. The species has to lead the line rather than be the whole of it, since what follows the name
+ * is OCR's reading of the `♀` or `♂` the name lost, or of the form counter beside it — `NIDORAN d` is still Nidoran.
  */
 export function dexOn(lines: readonly Line[], data: GameData): number | null {
   const found = new Set<number>();
@@ -74,7 +76,9 @@ export function dexOn(lines: readonly Line[], data: GameData): number | null {
     const dex = Number(digits);
     const species = data.forms.find((f) => f.dex === dex)?.species;
 
-    if (species !== undefined && fold(species) === printed.trim()) {
+    const name = printed.trim();
+
+    if (species !== undefined && (name === fold(species) || name.startsWith(`${fold(species)} `))) {
       found.add(dex);
     }
   }
