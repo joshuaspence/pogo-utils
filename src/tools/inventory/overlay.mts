@@ -3,16 +3,16 @@
  * Two jobs: finding the box, by sweeping isolated bands for the one thing nothing else on the screen carries — three
  * small numbers separated by slashes — and reading what is inside it.
  *
- * Nothing here imports a sibling. `OVERLAY_LUMINANCE` and `OVERLAY_CHROMA` are exported because `detail.mts` isolates
- * the CP band against the same near-white thresholds.
+ * `OVERLAY_LUMINANCE` and `OVERLAY_CHROMA` are exported because the detail screen's CP is the same near-white text and
+ * is isolated against the same thresholds.
  */
 
 import { type IVs } from './game-master.mts';
 import { ocr, ocrLine } from './ocr.mts';
 import { brighten, crop, isolate, scale, type Image } from './png.mts';
 import { availableParallelism } from 'node:os';
-/** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
 
+/** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
 export interface OverlayBox {
   x: number;
   y: number;
@@ -44,11 +44,13 @@ const OVERLAY_ALPHABET = 'L0123456789/ ';
  * were measured against — at 1× Tesseract read `14/18/12` for `14/13/12`, and at 3× and 4× it starts taking the level's
  * small-caps `L` for a `1`.
  *
- * 3 is a fallback and not a replacement, for the one thing 2× loses: the slashes. `deerling-autumn.png` reads
- * `15 141512` at 2× for a perfectly legible `L15 ɪᴠ 14/15/12`, and `meloetta-aria.png` reads `13/1512` — one separator
- * gone and one surviving. No separators means no triple, which means no overlay found at all on a screen that plainly
- * carries one. Both read correctly at 3×. Trying 2× first is what keeps the `L` where it already reads, and the level
- * being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
+ * 3 is a fallback and not a replacement, for the one thing 2× loses: the slashes. Brightened to 180,
+ * `cherrim-sunshine.png` reads `3100773` at 2× and `10/7/7` at 3×, and near-white reads `charizard-gigantamax.png` as
+ * `12/22` at 2× and as a triple, if not the right one, at 3×. No separators means no triple, which means no overlay
+ * found at all on a screen that plainly carries one. Both are read correctly at 2× by another treatment, so no
+ * committed capture needs 3× to be read correctly; the one that did, a Deerling read as `15 141512` at 2× for a
+ * perfectly legible `L15 ɪᴠ 14/15/12`, is no longer committed. Trying 2× first is what keeps the `L` where it already
+ * reads, and the level being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
  */
 const OVERLAY_SCALE = 2;
 const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
@@ -60,14 +62,14 @@ const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
 const OVERLAY_BRIGHTNESS = 120;
 
 /**
- * A second brightness floor, for a band this one leaves blank. `basculin-blue.png` reads nothing whatever at 120 — at
- * any scale — so its near-white pass went unchallenged and its `8` stood as the `3` that treatment makes of it. At 180
- * the same band reads `5135 8/3/5`, and the percentage behind it settles the matter without anything having to guess:
- * `8/3/5` is 35%, which is the `35` inside that `135`.
+ * A second brightness floor, for a band this one leaves illegible. `eevee-background.png` reads `13/1 5/15` at 120,
+ * which is no triple, and `1595 13/15/15` at 180, where the percentage confirms it. Near-white reads the same triple
+ * with no percentage at all, so nothing committed needs 180 to be read correctly; the capture that did, a Basculin read
+ * as nothing at 120 and as `5135 8/3/5` at 180 where near-white made its `8` a `3`, is no longer committed.
  *
- * A third floor rather than a replacement, measured the same way the second one was: 120 is what reads
- * `genesect-normal.png` and the Nidoran pair, and raising it loses them. Nothing here is a free parameter — a floor is
- * only worth adding where some band is legible at it and blank at every floor already tried.
+ * A third floor rather than a replacement: without 120, near-white and 180 between them read `articuno-galar.png`,
+ * `charizard-gigantamax.png`, `dialga-altered.png` and `xurkitree.png` wrongly. Nothing here is a free parameter — a
+ * floor is only worth adding where some band is legible at it and illegible at every floor already tried.
  */
 const OVERLAY_BRIGHTNESS_HIGH = 180;
 
@@ -78,8 +80,8 @@ const OVERLAY_BRIGHTNESS_HIGH = 180;
  * Near-white first, because that is what every reading was measured against. What it costs is the thin strokes: the
  * chroma ceiling clips the anti-aliased edge of a leading `1`, so `articuno-galar.png` reads `2/4/13` for `12/4/13`,
  * `xurkitree.png` loses its attack entirely at `/2/14`, and `cherrim-overcast.png` yields nothing at any band at all.
- * Brightness alone reads all three correctly — and misses `genesect-normal.png`, `nidoran-female.png` and
- * `nidoran-male.png`, which near-white reads. So it is a second opinion rather than a replacement.
+ * Brightness alone reads all three correctly — and misses `unown-question.png`, whose level, percentage and IVs run
+ * together at 120 as `657412/1001`, and which near-white reads. So it is a second opinion rather than a replacement.
  *
  * Order is what makes adding one safe. The loop keeps the first reading the percentage confirms and falls back on the
  * first that read a possible triple at all, so a pass appended here cannot displace a confirmed answer and cannot
@@ -138,11 +140,9 @@ const OVERLAY_NUMERIC_ALPHABET = OVERLAY_FORM_ALPHABET + '0123456789';
 /**
  * What a suffix PGSharp drew can look like, which is the guard the two passes below need rather than an alphabet. Every
  * form it labels is either one character — Unown's 26 letters, or the `[` and `\\` below for the other two — or
- * Spinda's two digits. Nothing it draws is two letters, so `basculin-blue.png`'s `(SV)` and `spinda-04.png`'s `(OA)`
- * are both
- * noise out of the artwork, and rejecting them is what lets the numeric pass run at all: `O` for `0` and `A` for `4` is
- * exactly the confusion a letters-only alphabet invites, and it answered a plausible-looking suffix for a Spinda whose
- * real label is `04`.
+ * Spinda's two digits. Nothing it draws is two letters, so `spinda-04.png`'s `(OA)` is noise out of the artwork, and
+ * rejecting it is what lets the numeric pass run at all: `O` for `0` and `A` for `4` is exactly the confusion a
+ * letters-only alphabet invites, and it answered a plausible-looking suffix for a Spinda whose real label is `04`.
  */
 const SUFFIX_SHAPE = /^(?:[A-Z[\\]|\d{2})$/;
 
@@ -174,20 +174,21 @@ const OVERLAY_CHARACTERS = 30;
  * clips the suffix, and too long drags the artwork beyond it into a band `ocrLine` reads whole.
  *
  * Both bounds are measured rather than reasoned about, over 24 Unown and 26 Pokémon PGSharp appends nothing to. At one
- * character — what the box had when it was only ever meant to hold the numbers — the letter comes back on 20 of the 24
- * and cannot be told from the level's own `L`; from three up all 24 that have an overlay read a closed bracket, and the
- * letters are identical at 3, 4, 5, 8 and 13. Going further costs readings: the no-suffix corpus reads 18 of its 26
- * overlays at 3, 4 and 5 and only 16 at 6 and beyond, losing a Buzzwole's `13/15/11` and a Hisuian Decidueye's
- * `11/15/14` — which is the IVs, not the suffix, so it would read as the overlay simply not being there. Five is the
- * most generous reach that costs none of them, and the 24 Unown triples are identical at every reach including the old.
+ * character, which is all the numbers need, the letter comes back on 20 of the 24 and cannot be told from the level's
+ * own `L`; from three up all 24 that have an overlay read a closed bracket, and the letters are identical at 3, 4, 5, 8
+ * and 13. Going further costs readings: the no-suffix corpus reads 18 of its 26 overlays at 3, 4 and 5 and only 16 at 6
+ * and beyond, losing a Buzzwole's `13/15/11` and a Hisuian Decidueye's `11/15/14` — which is the IVs, not the suffix,
+ * so it would read as the overlay simply not being there. Five is the most generous reach that costs none of them, and
+ * the 24 Unown triples are identical at every reach including one.
  */
 const OVERLAY_SUFFIX_CHARACTERS = 5;
 
 /**
  * How much wider than the triple's box to read the bracketed form out of, as a fraction of that box's width. The box
- * `tighten` hands back is sized for the digits, and PGSharp appends the form to the right of them, so the crop that
- * makes the IVs legible is the one that cuts the suffix off — measured, `unown-m.png` and `unown-exclamation.png` both
- * read their bracket out of the untightened band and neither out of the tightened box.
+ * `tighten` hands back already reaches `OVERLAY_SUFFIX_CHARACTERS` past the IVs, which is as far as the IVs' own read
+ * can go without losing them, and that is not always far enough for the bracket: `unown-m.png` reads `(MN` out of the
+ * tightened box, with no closing bracket and so no form. The suffix is read out of its own crop with its own alphabet,
+ * so reaching further for it costs the IVs nothing, and half the box again reads `(M)`.
  */
 const OVERLAY_SUFFIX_REACH = 0.5;
 
@@ -203,15 +204,6 @@ const SUFFIX_CHROMA = 40;
 /** Level 51 is a best buddy's; nothing the overlay can be saying is higher. */
 const MAX_LEVEL = 51;
 
-/** A filled star measured 19.4% gold and an outline 0.00%, so anywhere between them will do. */
-
-/**
- * Where the overlay sits, found by the one thing nothing else on the screen carries: three small numbers separated by
- * slashes. This is the expensive half and it only has to work once — a caller finds the box on whichever Pokemon it
- * first succeeds on and reads every later one straight out of it, which is what keeps this independent of the phone.
- * PGSharp draws the overlay itself rather than leaving it to Unity, so the box does not move between species; what it
- * does do is move between devices, which is why this is found rather than configured.
- */
 /** How far down the screen the overlay can sit, and how tall a band to sweep, as fractions of the screen's height. */
 const OVERLAY_FROM = 0.08;
 const OVERLAY_TO = 0.45;
@@ -225,16 +217,6 @@ const OVERLAY_BAND = 0.03;
  */
 const OVERLAY_SPAN = 0.7;
 
-/**
- * Where the overlay sits, found by sweeping narrow bands down the upper screen, isolating each and reading it. The
- * obvious cheaper thing — looking for the triple among the lines a whole-screen read already produced — was tried and
- * dropped: it found the box on nine of twelve captures from one phone and on none at all from another, where the text
- * sat across the boundary of the inverted crop `readLines` makes and was too low in contrast against the artwork for
- * the sparse pass either side of it. Isolating first is what makes the line legible, and a band is small enough that
- * the rest of the screen cannot drown it. Each band is read as a line rather than sparsely, which is what a band is by
- * construction and is not a detail: the same band holding `L1 IV48 5/2/15` reads as `r '` sparse, because sparse mode
- * takes the isolated blocks either side for pictures. A sweep costs a second or two and is only ever paid once.
- */
 /**
  * The text of an isolated overlay crop upscaled by `factor`, or null where it holds no IV triple. The whitelist is what
  * stops the isolated artwork either side of the text being read as glyphs that split a number in two.
@@ -251,7 +233,7 @@ const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map(
 /**
  * What the sweep tries, which is deliberately less than `OVERLAY_PASSES`. Finding the band and reading it are different
  * jobs: the sweep runs its passes over some forty bands a capture where `readOverlay` runs them over one box, so a pass
- * added here costs forty Tesseract processes and a pass added there costs one. Both treatments at the first scale is
+ * added here costs forty Tesseract processes and a pass added there costs one. Every treatment at the first scale is
  * enough to find every overlay in the corpus, and the scales that rescue a *reading* are left to `readOverlay`.
  */
 const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALE }));
@@ -259,6 +241,21 @@ const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERL
 /** How many bands of a sweep to read at once: one Tesseract process per core. */
 const SWEEP_BATCH = availableParallelism();
 
+/**
+ * Where the overlay sits and what it says, found by the one thing nothing else on the screen carries: three small
+ * numbers separated by slashes. This is the expensive half and it only has to work once — a caller finds the box on
+ * whichever Pokémon it first succeeds on and reads every later one straight out of it, which is what keeps this
+ * independent of the phone. PGSharp draws the overlay itself rather than leaving it to Unity, so the box does not move
+ * between species; what it does do is move between devices, which is why this is found rather than configured.
+ *
+ * Found by sweeping narrow bands down the upper screen, isolating each and reading it, rather than by looking for the
+ * triple among the lines a whole-screen read produces: that finds the box on nine of twelve captures from one phone and
+ * on none at all from another, where the text sits across the boundary of the inverted crop `readLines` makes and is
+ * too low in contrast against the artwork for the sparse pass either side of it. Isolating first is what makes the
+ * line legible, and a band is small enough that the rest of the screen cannot drown it. Each band is read as a line
+ * rather than sparsely, which is what a band is by construction and is not a detail: the same band holding `L1 IV48
+ * 5/2/15` reads as `r '` sparse, because sparse mode takes the isolated blocks either side for pictures.
+ */
 export async function findOverlay(image: Image): Promise<{ box: OverlayBox; overlay: Overlay } | null> {
   const height = Math.round(image.height * OVERLAY_BAND);
   const step = Math.max(1, Math.round(height / 3));
@@ -476,15 +473,12 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   //
   // Off the first pass always, and deliberately not off whichever pass the triple came from: the two are separate
   // readings of separate parts of the line, and each wants its own treatment. `unown-m.png`'s IVs are only right under
-  // brightness and its `(M)` only under near-white, so following the triple traded one for the other — and widening the
-  // bracket to every pass is worse again, since the 3× read invents a shape-valid suffix on `basculin-blue.png`, which
-  // carries none. One pass for the bracket is what was measured and is what the corpus bears out.
+  // brightness and its `(M)` only under near-white, so following the triple would trade one for the other — and
+  // widening the bracket to every pass is worse again, since the 3× read invents a shape-valid suffix on a Basculin
+  // that carries none, a capture no longer committed. One pass for the bracket is what was measured and is what the
+  // corpus bears out.
   //
-  // Out of a wider crop than the triple, though, because the two want opposite things of the box. `tighten` narrows it
-  // onto the digits, which is what makes the IVs read — and the suffix is appended to the *right* of those digits, so
-  // the same narrowing clips it off: `unown-m.png` and `unown-exclamation.png` both lose their bracket to a box the
-  // triple needs. Half the box's width to the right is enough to reach it on both, and `crop` clamps what runs off the
-  // screen.
+  // Out of a wider crop than the triple, though: see `OVERLAY_SUFFIX_REACH`. `crop` clamps what runs off the screen.
   //
   // And under its own thresholds, which is the same argument once more: a lower floor and a tighter chroma than the
   // triple's keeps the thin upright of a `[`. `unown-exclamation.png`'s bracket reads empty at 150/55 and reads `[` at
@@ -513,11 +507,11 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 
 /**
  * Every level the digits ahead of the IVs could be: each one and two digit piece of every run of them, since which end
- * of a run carries the stray `1` is exactly what cannot be told from the text. Restricting this to the first run was
- * tried, on the reasoning that the percentage behind the level only adds noise, and it is the artwork ahead of the
- * level that adds more — a band wide enough to find the overlay on one phone is wide enough to read a stray `4` to the
- * left of it, which was then the only candidate and disagreed with an HP that was perfectly clear. Being generous is
- * safe here: this is a shortlist for the HP to choose from, not an answer.
+ * of a run carries the stray `1` is exactly what cannot be told from the text. Every run rather than the first, though
+ * the percentage behind the level only adds noise, because the artwork ahead of the level can add more: a band wide
+ * enough to find the overlay on one phone is wide enough to read a stray `4` to the left of it, which as the only
+ * candidate would disagree with an HP that is perfectly clear. Being generous is safe here: this is a shortlist for the
+ * HP to choose from, not an answer.
  */
 function levelsIn(text: string): number[] {
   const levels = new Set<number>();
