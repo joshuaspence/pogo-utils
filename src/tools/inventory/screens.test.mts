@@ -52,7 +52,8 @@
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { assert, describe, expect, test } from 'vitest';
-import { closest, type GameData, type IVs } from './game-master.mts';
+import { closest, type Form, type GameData, type IVs } from './game-master.mts';
+import { ambiguous, nearest, signatureOf, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
 import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
@@ -95,6 +96,29 @@ const TAGS = [
   'Shiny',
 ];
 const TAG_SLACK = 0.3;
+
+/**
+ * A form as the CSV spells it, which is what the signatures below are keyed by. A local copy for now: `identify.mts`
+ * exports the same thing and this file will import it the moment that module exists, the artwork being the half of
+ * `identify` that can be measured on its own.
+ */
+const label = (form: Form) => (form.form ? `${form.species} (${form.form})` : form.species);
+
+/**
+ * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
+ * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
+ * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
+ *
+ * Two families, and both of them land: Burmy's three icons are 1.85 apart at their closest and Cherrim's two 1.62,
+ * against a margin of 0.3.
+ */
+const ARTWORK = new Map<string, Signature>([
+  ['Burmy (Plant)', [0, 0.0527, 0.0288, 0.9173, 0.0012, 0, 0, 0, 0, 0, 0, 0]],
+  ['Burmy (Sandy)', [0, 0.9677, 0.0245, 0, 0, 0, 0, 0.0078, 0, 0, 0, 0]],
+  ['Burmy (Trash)', [0.6469, 0.0088, 0.0064, 0, 0, 0, 0.0064, 0, 0, 0, 0, 0.3315]],
+  ['Cherrim (Overcast)', [0.0235, 0, 0, 0.0294, 0.1917, 0.0002, 0, 0, 0.2918, 0.2974, 0.0092, 0.1568]],
+  ['Cherrim (Sunny)', [0.1492, 0.5625, 0.0217, 0.001, 0.0097, 0, 0, 0, 0, 0, 0, 0.2559]],
+]);
 
 /**
  * What a reader answers where it disagrees with the row it sits in. Its presence marks a defect pinned rather than a
@@ -1173,6 +1197,82 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
  */
 const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): string[] =>
   [...new Set(rows.map((row) => String(of(row))))].sort();
+
+/**
+ * What the artwork match answers, for the captures whose form shares its dex, types and all three base stats with
+ * another, so that nothing `parseDetail` or the overlay reads can separate them. Asserted as the whole map, so a reader
+ * that gained one answer and lost another cannot come out even, and one that answered wrong fails it as surely as one
+ * that answered nothing.
+ *
+ * Every capture here is answered, and right by 0.49 at the narrowest (`burmy-sandy.png`), so this pins the answering
+ * and not the declining: `MARGIN` could be 0 and nothing here would notice.
+ */
+test(
+  'the artwork settles five forms the numbers cannot',
+  async () => {
+    const { drawn } = ambiguous(DATA);
+    const answers = new Map<string, string>();
+
+    for (const fixture of FIXTURES) {
+      const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
+
+      // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
+      const family = drawn.find((members) => members.some((f) => label(f) === truth));
+
+      if (!family?.every((f) => ARTWORK.has(label(f)))) {
+        continue;
+      }
+
+      // Floored on the overlay's box where one was found, PGSharp drawing over the artwork, so no fraction of one
+      // phone's screen is written down here.
+      const { image, box } = await readingOf(fixture.file);
+      const signature = signatureOf(image, box ? box.y + box.height : undefined);
+      assert.ok(signature, `${fixture.file} yields no artwork signature at all`);
+
+      const icons = new Map(
+        family.flatMap((f): [string, Signature][] => {
+          const icon = ARTWORK.get(label(f));
+
+          return icon ? [[label(f), icon]] : [];
+        }),
+      );
+
+      answers.set(fixture.file, nearest(signature, icons) ?? 'declined');
+    }
+
+    expect(Object.fromEntries(answers)).toStrictEqual({
+      'burmy-plant.png': 'Burmy (Plant)',
+      'burmy-sandy.png': 'Burmy (Sandy)',
+      'burmy-trash.png': 'Burmy (Trash)',
+      'cherrim-overcast.png': 'Cherrim (Overcast)',
+      'cherrim-sunshine.png': 'Cherrim (Sunny)',
+    });
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
+ * The property `assetBundleValue` quietly broke and the whole artwork narrowing rests on: within a family the numbers
+ * cannot separate, no two forms may be handed the same icon. Zygarde's `FIFTY_PERCENT` and `COMPLETE_FIFTY_PERCENT`
+ * both carried `1`, so one file was fetched twice and the two scored identically — a guaranteed abstention that read
+ * as the artwork being indecisive rather than as the key being wrong. Asserted off the vended game master, so it needs
+ * no network and moves only when a re-vend moves it.
+ *
+ * Both halves of the partition are asserted non-empty, since a resolver answering null for everything would leave
+ * `drawn` empty and every family short, and one answering a name for everything would leave `short` empty — and each
+ * of those passes a clash test that has nothing to compare.
+ */
+test('no family the artwork narrows has two forms sharing an icon', () => {
+  const { drawn, short } = ambiguous(DATA);
+  const clashes = drawn
+    .filter((family) => new Set(family.map((f) => f.icon)).size !== family.length)
+    .map((family) => family.map((f) => `${label(f)}=${f.icon}`).join(' '));
+
+  expect(clashes, 'two forms a family is narrowed within are being compared against one icon').toStrictEqual([]);
+
+  assert.ok(drawn.length > 0, 'no family has an icon for every form, so the clash check compares nothing');
+  assert.ok(short.length > 0, 'every family has an icon for every form, so nothing exercises the gap it reports');
+});
 
 test('the corpus reaches both sides of every attribute', () => {
   for (const flag of ['favourite', 'lucky', 'purified', 'shiny'] as const) {
