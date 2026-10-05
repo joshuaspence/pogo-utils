@@ -21,9 +21,10 @@ export interface Moves {
  * takes a line of it for Fire Spin. Bounding the region below matters as much: `CAUGHT IN THE WILD` and the rest are
  * ordinary prose that a fuzzy match will happily take for a short move.
  *
- * Each row is matched against the moves that form can actually hold before the whole list is considered, which is a
- * choice among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type
- * icon has come through as two letters, is two edits from `Tackle` and was rejected outright against the full list.
+ * Each row is matched against the moves that form can actually hold before the whole list is considered — every trim
+ * of it, so a row the pool can answer is never first answered by an unrelated move from the list. That is a choice
+ * among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type icon has
+ * come through as two letters, is two edits from `Tackle` and was rejected outright against the full list.
  * A row that still does not match is cropped and read again on its own, and that rescue answers only to the pool,
  * since it is the reading least worth trusting against everything.
  *
@@ -40,9 +41,18 @@ export async function parseMoves(
   const found: Move[] = [];
 
   for (const row of moveRows(lines)) {
-    const move = moveIn(row.text, pool, data.moves) ?? (await moveUnder(image, row, pool));
+    // Enough once a fast move and two charged ones are in, which spares what lies below them a rescue read apiece.
+    if (found.some((m) => m.fast) && found.filter((m) => !m.fast).length >= 2) {
+      break;
+    }
 
-    if (move) {
+    const move =
+      moveIn(row.text, pool, POOL_SLACK) ??
+      moveIn(row.text, data.moves, MOVE_SLACK) ??
+      (await moveUnder(image, row, pool));
+
+    // Once however many lines it spans: a rescue band at an energy bar's height takes in the name beside the bar too.
+    if (move && !found.includes(move)) {
       found.push(move);
     }
   }
@@ -91,14 +101,11 @@ function moveRows(lines: readonly Line[]): Line[] {
  * the whole row is tried first and short trailing tokens dropped one at a time only while nothing has matched:
  * longest-first is what stops `Aqua Jet` being shortened to `Aqua`, which matches nothing at all.
  */
-function moveIn(text: string, pool: readonly Move[], all: readonly Move[]): Move | null {
+function moveIn(text: string, moves: readonly Move[], slack: number): Move | null {
   let words = text.replace(/\d+/g, '').split(/\s+/).filter(Boolean);
 
   for (;;) {
-    const joined = words.join(' ');
-    const move =
-      (pool.length > 0 ? closest(joined, pool, (m) => m.name, POOL_SLACK) : null) ??
-      (all.length > 0 ? closest(joined, all, (m) => m.name, MOVE_SLACK) : null);
+    const move = moves.length > 0 ? closest(words.join(' '), moves, (m) => m.name, slack) : null;
     const last = words.at(-1);
 
     if (move !== null || last === undefined || last.length > MOVE_NOISE) {
@@ -119,7 +126,7 @@ async function moveUnder(image: Image, row: Line, pool: readonly Move[]): Promis
 
   const band = crop(image, 0, row.top - row.height * 0.3, image.width * MOVE_WIDTH, row.height * 1.6);
 
-  return moveIn((await ocrLine(scale(band, 2), MOVE_ALPHABET)) ?? '', pool, []);
+  return moveIn((await ocrLine(scale(band, 2), MOVE_ALPHABET)) ?? '', pool, POOL_SLACK);
 }
 
 /** How far a row may be from a move's name, and how short a trailing token has to be to be an energy bar. */
