@@ -413,6 +413,9 @@ export function ambiguous(data: GameData): { drawn: Drawn[]; short: Form[][] } {
   return { drawn, short };
 }
 
+/** How many icons to fetch at once. Each is some 8 KB, so the time goes on round trips rather than bytes. */
+const FETCH_BATCH = 16;
+
 /**
  * A signature per form for every form the artwork could settle, downloading the icons once and caching them beside the
  * game master. 153 files of some 8 KB on a real game master, so this is a one-off of about a megabyte.
@@ -432,16 +435,30 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
     console.error(`  no icon for every form of ${short.length} families, which stay ambiguous: ${named.join(', ')}`);
   }
 
-  for (const form of drawn) {
+  const signatureFor = async (form: Drawn): Promise<Signature | null> => {
     try {
-      const bytes = await cached(join(dir, 'icons'), form.icon, ICON_BASE + form.icon, refresh);
-      signatures.set(form, signatureOfIcon(decodePng(bytes)));
+      return signatureOfIcon(decodePng(await cached(join(dir, 'icons'), form.icon, ICON_BASE + form.icon, refresh)));
     } catch (error) {
       // An icon is an improvement rather than a prerequisite, so one that cannot be had costs an abstention and not a
       // scan. That holds as much for a network that is down with nothing cached as for a 404, a truncated download or
       // a page served in place of the image.
       const reason = error instanceof Error ? error.message : String(error);
       console.error(`  ${reason}; forms sharing its numbers stay ambiguous`);
+
+      return null;
+    }
+  };
+
+  for (let at = 0; at < drawn.length; at += FETCH_BATCH) {
+    const batch = drawn.slice(at, at + FETCH_BATCH);
+    const read = await Promise.all(batch.map(signatureFor));
+
+    for (const [i, form] of batch.entries()) {
+      const signature = read[i];
+
+      if (signature) {
+        signatures.set(form, signature);
+      }
     }
   }
 
