@@ -1250,6 +1250,21 @@ test('without the form PGSharp appends, Unown is answered confidently and wrongl
 });
 
 /**
+ * A misread level must not switch the CP off. Deoxys' four forms share a stamina, so only the printed CP says which
+ * `deoxys-attack.png` is; handed a shortlist of `1`, a level no Deoxys at this HP can be, `identify` has to check the
+ * CP at every level the HP admits rather than at none.
+ */
+test('a level the overlay misreads leaves the CP to settle the form', async () => {
+  const { detail, overlay, artwork } = await readingOf('deoxys-attack.png');
+  assert.ok(overlay, 'the fixture has lost its overlay');
+
+  const identity = identify(DATA, detail, { ...overlay, levels: [1] }, artwork);
+
+  expect(identity.form && label(identity.form)).toBe('Deoxys (Attack)');
+  expect(identity.notes).toStrictEqual(['the overlay reads as level 1, none of which this HP can be']);
+});
+
+/**
  * That `fixtures/xurkitree.png` still carries the line its row is here for. This is the half of a regression
  * fixture that gets left out: the row above asserts what the readers answer, and would answer exactly the same on a
  * capture whose status bar held nothing to trip over — so the trap has to be asserted present rather than assumed. A

@@ -117,6 +117,10 @@ export function identify(
   // Ho-Oh shows 152 at the `L25` the capture states.
   const stated = overlay?.levels ?? [];
 
+  // The shortlist where some candidate agreed with it, and empty where none did: a shortlist no form can be at was
+  // misread, and nothing below should go on trusting it.
+  let trusted: readonly number[] = [];
+
   if (stated.length > 0 && iv !== null && detail.hp !== null) {
     const agreeing = candidates.filter((f) =>
       levelsOf(data, f, iv, detail.hp as number).some((level) => stated.includes(level)),
@@ -124,6 +128,7 @@ export function identify(
 
     if (agreeing.length > 0) {
       candidates = agreeing;
+      trusted = stated;
     }
   }
 
@@ -136,8 +141,9 @@ export function identify(
   // list the numbers had narrowed correctly. Where no candidate reproduces it the disagreement is still reported below,
   // since that is what a wrong form or a wrong level looks like.
   //
-  // Restricted to the levels the stated shortlist admits where there is one, so this asks the same question the levels
+  // Restricted to the levels the stated shortlist admits where it was trusted, so this asks the same question the levels
   // narrowing did rather than a weaker one — a form reproducing the CP at a level the overlay rules out has not fitted.
+  // Where it was not, every level the HP admits is asked instead, or a misread level would switch this off entirely.
   //
   // `detail.cps` is here on the same footing as the single read and is why this reaches the captures whose label went
   // unrecognised: an unanchored band read of the CP region, right 19 times of 27 and wrong 3, handed over as candidates
@@ -149,7 +155,7 @@ export function identify(
     const hp = detail.hp;
     const showing = (f: Form) =>
       levelsOf(data, f, iv, hp)
-        .filter((level) => stated.length === 0 || stated.includes(level))
+        .filter((level) => trusted.length === 0 || trusted.includes(level))
         .some((level) => {
           const multiplier = multiplierOf(data, level);
 
