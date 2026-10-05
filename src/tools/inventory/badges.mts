@@ -9,7 +9,7 @@
  */
 
 import { fold, ocrLine, type Line } from './ocr.mts';
-import { crop, isolate, rgb, scale, type Image } from './png.mts';
+import { chroma, crop, isolate, luminance, rgb, scale, type Image } from './png.mts';
 export type Gender = 'male' | 'female';
 
 /** The four bands the game records, which `src/search/terms.js` has had a search for each of since it was written. */
@@ -33,9 +33,7 @@ function patchIn(image: Image, matches: (r: number, g: number, b: number) => boo
 
   for (let y = 0; y < image.height; y++) {
     for (let x = 0; x < image.width; x++) {
-      const i = (y * image.width + x) * 4;
-
-      if (matches(image.data[i] ?? 0, image.data[i + 1] ?? 0, image.data[i + 2] ?? 0)) {
+      if (matches(...rgb(image, x, y))) {
         found++;
         left = Math.min(left, x);
         top = Math.min(top, y);
@@ -90,7 +88,7 @@ function extentOf(image: Image, matches: (r: number, g: number, b: number) => bo
 const gold = (r: number, g: number, b: number) => r >= 180 && g >= 110 && g <= 235 && b <= 130 && r - b >= 90;
 
 /** Any hue at all, against a panel that is neutral grey. What the size badge's pill needs, since its hue varies. */
-const coloured = (r: number, g: number, b: number) => Math.max(r, g, b) - Math.min(r, g, b) >= SIZE_CHROMA;
+const coloured = (r: number, g: number, b: number) => chroma(r, g, b) >= SIZE_CHROMA;
 
 /**
  * One of the four size badges, or null for the two ordinary bands in the middle, which wear none. It is white on a
@@ -169,19 +167,17 @@ export function genderOf(image: Image, hp: Line): Gender | null {
   const region = crop(image, image.width * 0.78, hp.top - hp.height * 4, image.width * 0.15, hp.height * 6);
   const histogram = new Map<number, number>();
 
-  for (let i = 0; i < region.data.length; i += 4) {
-    const level = Math.round(
-      0.2126 * (region.data[i] ?? 0) + 0.7152 * (region.data[i + 1] ?? 0) + 0.0722 * (region.data[i + 2] ?? 0),
-    );
-    histogram.set(level, (histogram.get(level) ?? 0) + 1);
+  for (let y = 0; y < region.height; y++) {
+    for (let x = 0; x < region.width; x++) {
+      const level = Math.round(luminance(...rgb(region, x, y)));
+      histogram.set(level, (histogram.get(level) ?? 0) + 1);
+    }
   }
 
   const panel = [...histogram].reduce((most, level) => (level[1] > most[1] ? level : most), [0, 0])[0];
   const symbol = patchIn(
     region,
-    (r, g, b) =>
-      0.2126 * r + 0.7152 * g + 0.0722 * b < panel - GENDER_INK_BELOW &&
-      Math.max(r, g, b) - Math.min(r, g, b) < GENDER_INK_CHROMA,
+    (r, g, b) => luminance(r, g, b) < panel - GENDER_INK_BELOW && chroma(r, g, b) < GENDER_INK_CHROMA,
   );
 
   if (symbol.fraction < GENDER_INK_MIN) {
@@ -247,12 +243,7 @@ export async function tagsOn(image: Image, hp: Line, row: Line): Promise<string[
 /** Whether any pixel of a row carries a hue, against a panel that is neutral grey. */
 function rowColoured(band: Image, y: number): boolean {
   for (let x = 0; x < band.width; x++) {
-    const i = (y * band.width + x) * 4;
-    const r = band.data[i] ?? 0;
-    const g = band.data[i + 1] ?? 0;
-    const b = band.data[i + 2] ?? 0;
-
-    if (Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA) {
+    if (chroma(...rgb(band, x, y)) >= TAG_CHROMA) {
       return true;
     }
   }
@@ -290,14 +281,7 @@ function aboveTypes(gap: Image): number {
 
 /** The coloured runs of columns in a band, one per chip, with the rows each of them actually occupies. */
 function chipsIn(band: Image, tallest: number): { left: number; top: number; width: number; height: number }[] {
-  const coloured = (x: number, y: number) => {
-    const i = (y * band.width + x) * 4;
-    const r = band.data[i] ?? 0;
-    const g = band.data[i + 1] ?? 0;
-    const b = band.data[i + 2] ?? 0;
-
-    return Math.max(r, g, b) - Math.min(r, g, b) >= TAG_CHROMA;
-  };
+  const coloured = (x: number, y: number) => chroma(...rgb(band, x, y)) >= TAG_CHROMA;
 
   const filled: boolean[] = [];
 

@@ -219,6 +219,12 @@ export function scale(image: Image, factor: number): Image {
   return { width: w, height: h, data };
 }
 
+/** How bright a pixel looks, by the Rec. 709 weights. */
+export const luminance = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/** How far a pixel is from grey: zero for black, white and every grey between. */
+export const chroma = (r: number, g: number, b: number) => Math.max(r, g, b) - Math.min(r, g, b);
+
 /**
  * Bright, unsaturated pixels as black on white, which is the pairing Tesseract reads best. Both bounds earn their
  * place on PGSharp's overlay: the luminance floor drops the dark box the text sits on, and the chroma ceiling drops
@@ -227,11 +233,7 @@ export function scale(image: Image, factor: number): Image {
  * its colour is what made it the one field that would not threshold.
  */
 export function isolate(image: Image, minLuminance: number, maxChroma: number): Image {
-  return threshold(
-    image,
-    (r, g, b) =>
-      0.2126 * r + 0.7152 * g + 0.0722 * b >= minLuminance && Math.max(r, g, b) - Math.min(r, g, b) <= maxChroma,
-  );
+  return threshold(image, (r, g, b) => luminance(r, g, b) >= minLuminance && chroma(r, g, b) <= maxChroma);
 }
 
 /**
