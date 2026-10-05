@@ -377,7 +377,7 @@ export type Drawn = Form & { icon: string };
  * The other 11 are short of 72 icons between them, Scatterbug, Spewpa and Minior having none at all and Spinda nine of
  * twenty — nine being what the game has released.
  */
-export function ambiguous(data: GameData): { drawn: Drawn[]; short: Form[][] } {
+export function ambiguous(data: GameData): { drawn: Drawn[][]; short: Form[][] } {
   const groups = new Map<string, Form[]>();
 
   for (const form of data.forms) {
@@ -391,7 +391,7 @@ export function ambiguous(data: GameData): { drawn: Drawn[]; short: Form[][] } {
     groups.set(key, group);
   }
 
-  const drawn: Drawn[] = [];
+  const drawn: Drawn[][] = [];
   const short: Form[][] = [];
 
   for (const family of groups.values()) {
@@ -404,7 +404,7 @@ export function ambiguous(data: GameData): { drawn: Drawn[]; short: Form[][] } {
     const complete = family.filter((f): f is Drawn => f.icon !== null);
 
     if (complete.length === family.length) {
-      drawn.push(...complete);
+      drawn.push(complete);
     } else {
       short.push(family);
     }
@@ -421,7 +421,8 @@ const FETCH_BATCH = 16;
  * game master. 153 files of some 8 KB on a real game master, so this is a one-off of about a megabyte.
  */
 export async function iconsFor(dir: string, data: GameData, refresh = false): Promise<Map<Form, Signature>> {
-  const { drawn, short } = ambiguous(data);
+  const { drawn: families, short } = ambiguous(data);
+  const drawn = families.flat();
   const signatures = new Map<Form, Signature>();
 
   if (drawn.length > 0) {

@@ -1257,29 +1257,17 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
 test(
   'the artwork settles five forms the numbers cannot',
   async () => {
+    const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
     const nearests = new Map<string, string>();
 
     for (const fixture of FIXTURES) {
       const truth = fixture.form ? `${fixture.species} (${fixture.form})` : fixture.species;
-      const mine = DATA.forms.find((f) => label(f) === truth);
-
-      if (!mine) {
-        continue;
-      }
 
       // The forms this one is indistinguishable from, which is the only situation the artwork is consulted in.
-      const family = DATA.forms.filter(
-        (f) =>
-          f.dex === mine.dex &&
-          !f.costume &&
-          f.attack === mine.attack &&
-          f.defense === mine.defense &&
-          f.stamina === mine.stamina &&
-          [...f.types].sort().join() === [...mine.types].sort().join(),
-      );
+      const family = drawn.find((members) => members.some((f) => label(f) === truth));
 
-      if (family.length < 2 || !family.every((f) => ARTWORK.has(label(f)))) {
+      if (!family?.every((f) => ARTWORK.has(label(f)))) {
         continue;
       }
 
@@ -1348,20 +1336,13 @@ test(
  */
 test('no family the artwork narrows has two forms sharing an icon', () => {
   const { drawn, short } = ambiguous(DATA);
-  const families = new Map<string, Form[]>();
-
-  for (const form of drawn) {
-    const key = `${form.dex}|${[...form.types].sort().join('+')}|${form.attack}/${form.defense}/${form.stamina}`;
-    families.set(key, [...(families.get(key) ?? []), form]);
-  }
-
-  const clashes = [...families.values()]
+  const clashes = drawn
     .filter((family) => new Set(family.map((f) => f.icon)).size !== family.length)
     .map((family) => family.map((f) => `${label(f)}=${f.icon}`).join(' '));
 
   expect(clashes, 'two forms a family is narrowed within are being compared against one icon').toStrictEqual([]);
 
-  assert.ok(families.size > 0, 'no family has an icon for every form, so the clash check compares nothing');
+  assert.ok(drawn.length > 0, 'no family has an icon for every form, so the clash check compares nothing');
   assert.ok(short.length > 0, 'every family has an icon for every form, so nothing exercises the gap it reports');
 });
 
