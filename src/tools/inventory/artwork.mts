@@ -30,16 +30,9 @@
  * across, so every margin lands between 0.015 and 0.020.
  */
 
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { type Form, type GameData } from './game-master.mts';
+import { cached, ICON_BASE, type Form, type GameData } from './game-master.mts';
 import { decodePng, rgb, type Image } from './png.mts';
-
-/** Where the game's own form icons live, named by dex and form as `game-master.mts` resolves them against its index. */
-const ICONS = 'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Images/Pokemon/Addressable%20Assets/';
-
-/** How long a cached icon is good for. Artwork changes with a game update, not with a session. */
-const WEEK = 7 * 24 * 60 * 60 * 1000;
 
 /** How many hue bins a signature holds. Coarse on purpose: the model is lit and posed, where the icon is flat art. */
 const BINS = 12;
@@ -420,38 +413,6 @@ export function ambiguous(data: GameData): { drawn: Drawn[]; short: Form[][] } {
   return { drawn, short };
 }
 
-async function iconBytes(dir: string, name: string, refresh: boolean): Promise<Buffer | null> {
-  const path = join(dir, name);
-
-  if (!refresh && existsSync(path) && Date.now() - statSync(path).mtimeMs < WEEK) {
-    return readFileSync(path);
-  }
-
-  let bytes: Buffer;
-
-  try {
-    const response = await fetch(ICONS + name);
-
-    if (!response.ok) {
-      throw new Error(`${response.status} ${response.statusText}`);
-    }
-
-    bytes = Buffer.from(await response.arrayBuffer());
-  } catch (error) {
-    // An icon is an improvement rather than a prerequisite, so a missing one costs an abstention and not a scan — and
-    // that holds as much for a network that is down, where `fetch` throws, as for a 404.
-    const reason = error instanceof Error ? error.message : String(error);
-    console.error(`  ${name}: ${reason}; forms sharing its numbers stay ambiguous`);
-
-    return existsSync(path) ? readFileSync(path) : null;
-  }
-
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path, bytes);
-
-  return bytes;
-}
-
 /**
  * A signature per form for every form the artwork could settle, downloading the icons once and caching them beside the
  * game master. 153 files of some 8 KB on a real game master, so this is a one-off of about a megabyte.
@@ -472,18 +433,15 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
   }
 
   for (const form of drawn) {
-    const bytes = await iconBytes(join(dir, 'icons'), form.icon, refresh);
-
-    if (bytes === null) {
-      continue;
-    }
-
     try {
+      const bytes = await cached(join(dir, 'icons'), form.icon, ICON_BASE + form.icon, refresh);
       signatures.set(form, signatureOfIcon(decodePng(bytes)));
     } catch (error) {
-      // A truncated download or a page served in place of the image is the same abstention as a 404.
+      // An icon is an improvement rather than a prerequisite, so one that cannot be had costs an abstention and not a
+      // scan. That holds as much for a network that is down with nothing cached as for a 404, a truncated download or
+      // a page served in place of the image.
       const reason = error instanceof Error ? error.message : String(error);
-      console.error(`  ${form.icon}: ${reason}; forms sharing its numbers stay ambiguous`);
+      console.error(`  ${reason}; forms sharing its numbers stay ambiguous`);
     }
   }
 

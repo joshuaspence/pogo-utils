@@ -22,13 +22,19 @@ const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/m
 const STRINGS =
   'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Texts/Latest%20APK/JSON/i18n_english.json';
 
+/** Where `pogo_assets` keeps the form icons. */
+const ICON_DIR = 'Images/Pokemon/Addressable Assets';
+
 /**
- * What `pogo_assets` holds under `Images/Pokemon/Addressable Assets`, which is 3,522 names in 146 KB and the only
- * thing that says whether a form has artwork at all. The contents endpoint caps at 1,000 entries and would truncate
- * silently, where this one answers `truncated: false`.
+ * What `pogo_assets` holds under `ICON_DIR`, which is 3,522 names in 146 KB and the only thing that says whether a form
+ * has artwork at all. The contents endpoint caps at 1,000 entries and would truncate silently, where this one answers
+ * `truncated: false`.
  */
 const ICON_INDEX =
-  'https://api.github.com/repos/PokeMiners/pogo_assets/git/trees/master:Images%2FPokemon%2FAddressable%20Assets';
+  'https://api.github.com/repos/PokeMiners/pogo_assets/git/trees/master:' + encodeURIComponent(ICON_DIR);
+
+/** Where each file the index names is fetched from. */
+export const ICON_BASE = `https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/${encodeURI(ICON_DIR)}/`;
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 
@@ -149,7 +155,7 @@ function iconName(index: ReadonlySet<string>, dex: number, suffix: string, form:
  */
 async function iconIndex(dir: string, refresh: boolean): Promise<ReadonlySet<string>> {
   try {
-    const listing = JSON.parse(await cached(dir, 'icons.json', ICON_INDEX, refresh)) as { tree?: { path: string }[] };
+    const listing = (await cachedJson(dir, 'icons.json', ICON_INDEX, refresh)) as { tree?: { path: string }[] };
 
     return new Set((listing.tree ?? []).map((entry) => entry.path));
   } catch (error) {
@@ -160,9 +166,9 @@ async function iconIndex(dir: string, refresh: boolean): Promise<ReadonlySet<str
 }
 
 export async function loadGameData(cacheDir: string, refresh = false): Promise<GameData> {
-  const templates = JSON.parse(await cached(cacheDir, 'game-master.json', GAME_MASTER, refresh)) as Template[];
+  const templates = (await cachedJson(cacheDir, 'game-master.json', GAME_MASTER, refresh)) as Template[];
   const index = await iconIndex(cacheDir, refresh);
-  const flat = (JSON.parse(await cached(cacheDir, 'english.json', STRINGS, refresh)) as { data: string[] }).data;
+  const flat = ((await cachedJson(cacheDir, 'english.json', STRINGS, refresh)) as { data: string[] }).data;
   const strings = new Map<string, string>();
 
   for (let i = 0; i + 1 < flat.length; i += 2) {
@@ -364,15 +370,19 @@ export function closest<T>(text: string, candidates: readonly T[], name: (c: T) 
   return bestDistance <= Math.max(1, Math.floor(length * slack)) ? best : null;
 }
 
-async function cached(dir: string, file: string, url: string, refresh: boolean): Promise<string> {
+/**
+ * A download kept under `dir` for a week, or the copy from before where the network fails. Throws where there is
+ * neither.
+ */
+export async function cached(dir: string, file: string, url: string, refresh: boolean): Promise<Buffer> {
   const path = join(dir, file);
 
   if (!refresh && existsSync(path) && Date.now() - statSync(path).mtimeMs < WEEK) {
-    return readFileSync(path, 'utf8');
+    return readFileSync(path);
   }
 
   console.error(`Downloading ${url}`);
-  let text: string;
+  let bytes: Buffer;
 
   try {
     // `fetch` rejects rather than answering when there is no network at all, which is the case a stale copy is most
@@ -383,11 +393,11 @@ async function cached(dir: string, file: string, url: string, refresh: boolean):
       throw new Error(`${response.status} ${response.statusText}`);
     }
 
-    text = await response.text();
+    bytes = Buffer.from(await response.arrayBuffer());
   } catch (error) {
     if (existsSync(path)) {
       console.error(`  ${error instanceof Error ? error.message : String(error)}; using the copy from before`);
-      return readFileSync(path, 'utf8');
+      return readFileSync(path);
     }
 
     throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
@@ -398,8 +408,12 @@ async function cached(dir: string, file: string, url: string, refresh: boolean):
   const partial = `${path}.${process.pid}`;
 
   mkdirSync(dir, { recursive: true });
-  writeFileSync(partial, text);
+  writeFileSync(partial, bytes);
   renameSync(partial, path);
 
-  return text;
+  return bytes;
+}
+
+async function cachedJson(dir: string, file: string, url: string, refresh: boolean): Promise<unknown> {
+  return JSON.parse(String(await cached(dir, file, url, refresh)));
 }
