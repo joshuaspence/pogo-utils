@@ -40,19 +40,14 @@ export interface Overlay {
 const OVERLAY_ALPHABET = 'L0123456789/ ';
 
 /**
- * How much to upscale the isolated overlay before reading it, in the order to try. 2 first because that is what the IVs
- * were measured against — at 1× Tesseract read `14/18/12` for `14/13/12`, and at 3× and 4× it starts taking the level's
- * small-caps `L` for a `1`.
+ * How much to upscale the isolated overlay before reading it. 2 because that is what the IVs were measured against — at
+ * 1× Tesseract read `14/18/12` for `14/13/12`, and at 3× and 4× it starts taking the level's small-caps `L` for a `1`.
  *
- * 3 is a fallback and not a replacement, for the one thing 2× loses: the slashes. Brightened to 180,
- * `cherrim-sunshine.png` reads `3100773` at 2× and `10/7/7` at 3×, and near-white reads `charizard-gigantamax.png` as
- * `12/22` at 2× and as a triple, if not the right one, at 3×. No separators means no triple, which means no overlay
- * found at all on a screen that plainly carries one. Both are read correctly at 2× by another treatment, so no
- * committed capture needs 3× to be read correctly. Trying 2× first is what keeps the `L` where it already reads, and
- * the level being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
+ * What 2× loses is sometimes the slashes, and no separators means no triple: brightened to 180, `cherrim-sunshine.png`
+ * reads `3100773`. A second scale is not what recovers them, because another treatment at 2× already does — 120 reads
+ * the same band as `L31 153 10/7/7` — and no capture in the corpus needs a scale besides this one.
  */
 const OVERLAY_SCALE = 2;
-const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
 
 /**
  * How bright a channel has to be for `brighten` to keep it. Low enough to hold the IV percentage, whose colour is what
@@ -61,10 +56,10 @@ const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
 const OVERLAY_BRIGHTNESS = 120;
 
 /**
- * A second brightness floor, for a band this one leaves blank. `basculin-blue.png` reads nothing whatever at 120 — at
- * either scale — so its near-white pass would go unchallenged and its `8` stand as the `3` that treatment makes of it.
- * At 180 the same band reads `5135 8/3/5`, and the percentage behind it settles the matter without anything having to
- * guess: `8/3/5` is 35%, which is the `35` inside that `135`.
+ * A second brightness floor, for a band this one leaves blank. `basculin-blue.png` reads nothing whatever at 120, so
+ * its near-white pass would go unchallenged and its `8` stand as the `3` that treatment makes of it. At 180 the same
+ * band reads `5135 8/3/5`, and the percentage behind it settles the matter without anything having to guess: `8/3/5` is
+ * 35%, which is the `35` inside that `135`.
  *
  * A third floor rather than a replacement: without 120, near-white and 180 between them read `articuno-galar.png`,
  * `charizard-gigantamax.png`, `dialga-altered.png` and `xurkitree.png` wrongly. Nothing here is a free parameter — a
@@ -221,25 +216,14 @@ const OVERLAY_BAND = 0.03;
 const OVERLAY_SPAN = 0.7;
 
 /**
- * The text of an isolated overlay crop upscaled by `factor`, or null where it holds no IV triple. The whitelist is what
- * stops the isolated artwork either side of the text being read as glyphs that split a number in two.
+ * The text of an isolated overlay crop, upscaled, or null where it holds no IV triple. The whitelist is what stops the
+ * isolated artwork either side of the text being read as glyphs that split a number in two.
  */
-async function tripled(band: Image, factor: number): Promise<string | null> {
-  const text = (await ocrLine(scale(band, factor), OVERLAY_ALPHABET)) ?? '';
+async function tripled(band: Image): Promise<string | null> {
+  const text = (await ocrLine(scale(band, OVERLAY_SCALE), OVERLAY_ALPHABET)) ?? '';
 
   return TRIPLE.test(text) ? text : null;
 }
-
-/** Every treatment and scale, in the order to try them: the cheapest first, so a rescue costs only what it rescues. */
-const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map((factor) => ({ treat, factor })));
-
-/**
- * What the sweep tries, which is deliberately less than `OVERLAY_PASSES`. Finding the band and reading it are different
- * jobs: the sweep runs its passes over some forty bands a capture where `readOverlay` runs them over one box, so a pass
- * added here costs forty Tesseract processes and a pass added there costs one. Every treatment at the first scale is
- * enough to find every overlay in the corpus, and the scales that rescue a *reading* are left to `readOverlay`.
- */
-const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALE }));
 
 /** How many bands of a sweep to read at once: one Tesseract process per core. */
 const SWEEP_BATCH = availableParallelism();
@@ -277,12 +261,10 @@ export async function findOverlay(image: Image): Promise<{ box: OverlayBox; over
   // Within a pass, a core's worth of bands at a time: `ocr.mts` holds each Tesseract process to one thread so that
   // reads can run side by side. The bands of a batch are still taken top first, so the answer is the one a band-by-band
   // sweep gives, and stopping at the batch holding a match wastes no more than the rest of that batch.
-  for (const { treat, factor } of OVERLAY_SWEEPS) {
+  for (const treat of OVERLAY_TREATMENTS) {
     for (let at = 0; at < tops.length; at += SWEEP_BATCH) {
       const batch = tops.slice(at, at + SWEEP_BATCH);
-      const lines = await Promise.all(
-        batch.map((top) => tripled(treat(crop(image, left, top, width, height)), factor)),
-      );
+      const lines = await Promise.all(batch.map((top) => tripled(treat(crop(image, left, top, width, height)))));
 
       for (const [i, top] of batch.entries()) {
         if (lines[i] === null) {
@@ -427,15 +409,14 @@ export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
 export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
   const raw = cropBox(image, box);
 
-  // Every treatment and scale, keeping the first whose percentage confirms its own triple, and falling back on the
-  // first that read a possible one at all. Without that arbitration the order alone decides, and the first pass is
-  // wrong about `articuno-galar.png` in a way nothing downstream could notice: `2/4/13` is a perfectly possible triple.
+  // Every treatment, keeping the first whose percentage confirms its own triple, and falling back on the first that
+  // read a possible one at all. Without that arbitration the order alone decides, and the first pass is wrong about
+  // `articuno-galar.png` in a way nothing downstream could notice: `2/4/13` is a perfectly possible triple.
   let fallback: { iv: IVs; before: string } | null = null;
   let chosen: { iv: IVs; before: string } | null = null;
 
-  for (const { treat, factor } of OVERLAY_PASSES) {
-    const region = scale(treat(raw), factor);
-    const text = (await ocrLine(region, OVERLAY_ALPHABET)) ?? '';
+  for (const treat of OVERLAY_TREATMENTS) {
+    const text = (await ocrLine(scale(treat(raw), OVERLAY_SCALE), OVERLAY_ALPHABET)) ?? '';
     const triple = TRIPLE.exec(text);
 
     if (!triple) {
@@ -476,10 +457,8 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   //
   // Off the first pass always, and deliberately not off whichever pass the triple came from: the two are separate
   // readings of separate parts of the line, and each wants its own treatment. `unown-m.png`'s IVs are only right under
-  // brightness and its `(M)` only under near-white, so following the triple would trade one for the other — and
-  // widening the bracket to every pass is worse again, since the near-white 3× read invents a shape-valid `V` on
-  // `basculin-blue.png`, which carries none. One pass for the bracket is what was measured and is what the corpus bears
-  // out.
+  // brightness and its `(M)` only under near-white, so following the triple would trade one for the other. One pass for
+  // the bracket is what was measured and is what the corpus bears out.
   //
   // Out of a wider crop than the triple, though: see `OVERLAY_SUFFIX_REACH`. `crop` clamps what runs off the screen.
   //
