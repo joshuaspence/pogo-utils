@@ -1319,6 +1319,42 @@ test('the artwork chooses within one set of numbers, past the costumes and no fu
 });
 
 /**
+ * A name that is another species' is still a nickname once the numbers have found the real one, and what is reported
+ * afterwards is about the species searched rather than the one the name ruled in. `growlithe-nickname.png` renamed
+ * `Eevee` matches Eevee, whose forms fit none of Fire/Rock at this HP, so every species is searched and Hisuian Growlithe
+ * found; a bracketed form naming nothing is then no form of whatever fits, not of Eevee.
+ */
+test('a name that is another species is a nickname once the numbers say otherwise', async () => {
+  const { detail, overlay, artwork } = await readingOf('growlithe-nickname.png');
+  assert.ok(overlay, 'the fixture has lost its overlay');
+
+  const identity = identify(DATA, { ...detail, name: 'Eevee' }, { ...overlay, form: 'Zz' }, artwork);
+
+  expect(identity.form && label(identity.form)).toBe('Growlithe (Hisuian)');
+  expect(identity.nickname).toBe('Eevee');
+  expect(identity.notes).toStrictEqual([
+    'the numbers do not fit any form of Eevee; searched every species',
+    'the overlay says form "Zz", which is no form of any species that fits',
+  ]);
+});
+
+/**
+ * And a nickname that hides the species with no types read has nothing to be searched by, so the note says so rather
+ * than that the numbers fit nothing — they were never asked.
+ */
+test('a nickname with no types read is reported as unsearched, not as unfitted', async () => {
+  const { detail, overlay, artwork } = await readingOf('growlithe-nickname.png');
+
+  const identity = identify(DATA, { ...detail, types: [] }, overlay, artwork);
+
+  expect(identity.form).toBe(null);
+  expect(identity.nickname).toBe('Nickname');
+  expect(identity.notes).toStrictEqual([
+    'a nickname hides the species, and only the IVs, the HP and the types together can say what it is',
+  ]);
+});
+
+/**
  * That `fixtures/xurkitree.png` still carries the line its row is here for. This is the half of a regression
  * fixture that gets left out: the row above asserts what the readers answer, and would answer exactly the same on a
  * capture whose status bar held nothing to trip over — so the trap has to be asserted present rather than assumed. A

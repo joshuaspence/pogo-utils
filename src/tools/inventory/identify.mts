@@ -89,7 +89,6 @@ export function identify(
   const matched = detail.name ? closest(detail.name, data.species, (s) => s) : null;
   const entry = dex === null ? null : (data.forms.find((f) => f.dex === dex)?.species ?? null);
   const species = entry ?? matched;
-  const nickname = detail.name && !matched ? detail.name : null;
 
   if (entry !== null && matched !== null && entry !== matched) {
     notes.push(`the Pokédex says ${entry}, where the name on the screen reads as ${matched}`);
@@ -101,12 +100,18 @@ export function identify(
 
   let candidates = data.forms.filter((f) => f.species === species && fits(f));
 
-  if (candidates.length === 0 && iv !== null && detail.hp !== null && detail.types.length > 0) {
+  const searchable = iv !== null && detail.hp !== null && detail.types.length > 0;
+
+  // The species the candidates are drawn from, until the numbers are searched across every species instead.
+  let searched = species;
+
+  if (candidates.length === 0 && searchable) {
     if (species) {
       notes.push(`the numbers do not fit any form of ${species}; searched every species`);
     }
 
     candidates = data.forms.filter(fits);
+    searched = null;
   }
 
   // `fits` asks whether *some* level reproduces the HP, which is a weaker question than the screen can answer: the
@@ -181,7 +186,7 @@ export function identify(
   if (named.length > 0) {
     candidates = named;
   } else if (labelled !== null) {
-    notes.push(`the overlay says form "${labelled}", which is no form of ${species ?? 'any species that fits'}`);
+    notes.push(`the overlay says form "${labelled}", which is no form of ${searched ?? 'any species that fits'}`);
   }
 
   // The artwork, which is all that is left where the numbers are identical: Deerling's four seasons share
@@ -226,6 +231,14 @@ export function identify(
   }
 
   const [form = null, ...alternatives] = distinct;
+
+  // A nickname is a name that does not read as the species answered, which is not the same as one that reads as no
+  // species at all: a Vaporeon called `Eevee` matches a species and is still nicknamed. Read against the answer rather
+  // than compared with `matched`, so a Nidoran whose `♀` OCR lost is not taken for a nickname once the Pokédex has said
+  // which Nidoran it is.
+  const nickname =
+    detail.name && (form ? closest(detail.name, [form.species], (s) => s) : matched) === null ? detail.name : null;
+
   const consistent = form && iv && detail.hp !== null ? levelsOf(data, form, iv, detail.hp) : [];
   const agreed = consistent.filter((l) => stated.includes(l));
   const admitted = agreed.length > 0 ? agreed : consistent;
@@ -235,8 +248,8 @@ export function identify(
   const showingAt = form ? admitted.filter((l) => shows(form, l)) : [];
   const levels = showingAt.length > 0 ? showingAt : admitted;
 
-  if (nickname && iv === null) {
-    notes.push('a nickname hides the species, and only the IVs can say what it is');
+  if (species === null && nickname && !searchable) {
+    notes.push('a nickname hides the species, and only the IVs, the HP and the types together can say what it is');
   } else if (distinct.length === 0 && (species || nickname)) {
     notes.push('no form fits the HP, IVs and types read');
   } else if (alternatives.length > 0) {
