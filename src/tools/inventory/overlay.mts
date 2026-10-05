@@ -50,7 +50,8 @@ const OVERLAY_ALPHABET = 'L0123456789/ ';
  * carries one. Both read correctly at 3×. Trying 2× first is what keeps the `L` where it already reads, and the level
  * being a shortlist the HP filters is what makes the 3× read's own `L` worth having anyway.
  */
-const OVERLAY_SCALES = [2, 3];
+const OVERLAY_SCALE = 2;
+const OVERLAY_SCALES = [OVERLAY_SCALE, 3];
 
 /**
  * How bright a channel has to be for `brighten` to keep it. Low enough to hold the IV percentage, whose colour is what
@@ -253,7 +254,7 @@ const OVERLAY_PASSES = OVERLAY_TREATMENTS.flatMap((treat) => OVERLAY_SCALES.map(
  * added here costs forty Tesseract processes and a pass added there costs one. Both treatments at the first scale is
  * enough to find every overlay in the corpus, and the scales that rescue a *reading* are left to `readOverlay`.
  */
-const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALES[0] ?? 2 }));
+const OVERLAY_SWEEPS = OVERLAY_TREATMENTS.map((treat) => ({ treat, factor: OVERLAY_SCALE }));
 
 /** How many bands of a sweep to read at once: one Tesseract process per core. */
 const SWEEP_BATCH = availableParallelism();
@@ -334,16 +335,22 @@ export async function findOverlay(image: Image): Promise<{ box: OverlayBox; over
  * overlay and reading nothing at all.
  */
 async function tighten(image: Image, box: OverlayBox): Promise<OverlayBox | null> {
-  const left = box.x * image.width;
-  const top = box.y * image.height;
-  const region = crop(image, left, top, box.width * image.width, box.height * image.height);
-  const inner = (await ocr(scale(isolate(region, OVERLAY_LUMINANCE, OVERLAY_CHROMA), 2))).find((l) =>
-    TRIPLE.test(l.text),
-  );
+  const region = scale(isolate(cropBox(image, box), OVERLAY_LUMINANCE, OVERLAY_CHROMA), OVERLAY_SCALE);
+  const inner = (await ocr(region)).find((l) => TRIPLE.test(l.text));
 
-  return inner
-    ? boxAround({ ...inner, left: left + inner.left / 2, top: top + inner.top / 2, width: inner.width / 2 }, image)
-    : null;
+  if (!inner) {
+    return null;
+  }
+
+  return boxAround(
+    {
+      ...inner,
+      left: box.x * image.width + inner.left / OVERLAY_SCALE,
+      top: box.y * image.height + inner.top / OVERLAY_SCALE,
+      width: inner.width / OVERLAY_SCALE,
+    },
+    image,
+  );
 }
 
 /**
@@ -384,6 +391,17 @@ function within(box: OverlayBox): OverlayBox {
   return { x, y, width: Math.min(1 - x, box.width + box.x - x), height: Math.min(1 - y, box.height + box.y - y) };
 }
 
+/** The pixels a box covers, reaching `reach` of its width further right. */
+function cropBox(image: Image, box: OverlayBox, reach = 0): Image {
+  return crop(
+    image,
+    box.x * image.width,
+    box.y * image.height,
+    box.width * image.width * (1 + reach),
+    box.height * image.height,
+  );
+}
+
 /** The smallest box covering both, so a box that clipped one Pokémon's line grows rather than flips between them. */
 export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
   const x = Math.min(a.x, b.x);
@@ -407,13 +425,7 @@ export function widen(a: OverlayBox, b: OverlayBox): OverlayBox {
  * the whole reason this costs two Tesseract calls rather than one: see `OVERLAY_FORM_ALPHABET`.
  */
 export async function readOverlay(image: Image, box: OverlayBox): Promise<Overlay | null> {
-  const raw = crop(
-    image,
-    box.x * image.width,
-    box.y * image.height,
-    box.width * image.width,
-    box.height * image.height,
-  );
+  const raw = cropBox(image, box);
 
   // Every treatment and scale, keeping the first whose percentage confirms its own triple, and falling back on the
   // first that read a possible one at all. Without that arbitration the order alone decides, and the first pass is
@@ -483,14 +495,10 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   // forms, so the plurality answer is confidently wrong. There is no majority to take; there is only a treatment that
   // is right.
   const shaped = (suffix: string | null) => (suffix !== null && SUFFIX_SHAPE.test(suffix) ? suffix : null);
-  const wide = crop(
-    image,
-    box.x * image.width,
-    box.y * image.height,
-    box.width * image.width * (1 + OVERLAY_SUFFIX_REACH),
-    box.height * image.height,
+  const bracket = scale(
+    isolate(cropBox(image, box, OVERLAY_SUFFIX_REACH), SUFFIX_LUMINANCE, SUFFIX_CHROMA),
+    OVERLAY_SCALE,
   );
-  const bracket = scale(isolate(wide, SUFFIX_LUMINANCE, SUFFIX_CHROMA), OVERLAY_SCALES[0] ?? 2);
   const [lettered, numeric] = await Promise.all([
     suffixIn(bracket, OVERLAY_FORM_ALPHABET).then(shaped),
     suffixIn(bracket, OVERLAY_NUMERIC_ALPHABET).then(shaped),
