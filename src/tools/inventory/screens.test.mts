@@ -1265,6 +1265,23 @@ test('a level the overlay misreads leaves the CP to settle the form', async () =
 });
 
 /**
+ * The printed CP settles the level as well as the form. `cherrim-sunshine.png`'s HP admits both 31 and 31.5, and the
+ * overlay's `L31` is what settles it on the screen; without that, the `CP 1658` it prints is Cherrim at 31 and not at
+ * 31.5, which is the same answer.
+ */
+test('without the level the overlay states, the CP still settles one', async () => {
+  const { detail, overlay, artwork } = await readingOf('cherrim-sunshine.png');
+  assert.ok(overlay, 'the fixture has lost its overlay');
+
+  const identity = identify(DATA, detail, { ...overlay, levels: [] }, artwork);
+
+  expect(detail.cp, 'the capture has lost the CP this settles the level by').toBe(1658);
+  expect(identity.levels).toStrictEqual([31]);
+  expect(identity.cp).toBe(1658);
+  expect(identity.notes, 'the readers disagree with each other').toStrictEqual([]);
+});
+
+/**
  * That `fixtures/xurkitree.png` still carries the line its row is here for. This is the half of a regression
  * fixture that gets left out: the row above asserts what the readers answer, and would answer exactly the same on a
  * capture whose status bar held nothing to trip over — so the trap has to be asserted present rather than assumed. A

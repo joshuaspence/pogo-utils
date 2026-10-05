@@ -151,16 +151,18 @@ export function identify(
   // `19464`, `540` and `5141` are no form's CP at any level, so they narrow nothing and leave the row as it was.
   const printed = [detail.cp, ...detail.cps].filter((n): n is number => n !== null);
 
+  const shows = (f: Form, level: number) => {
+    const multiplier = multiplierOf(data, level);
+
+    return iv !== null && multiplier !== null && printed.includes(cpOf(f, iv, multiplier));
+  };
+
   if (printed.length > 0 && iv !== null && detail.hp !== null) {
     const hp = detail.hp;
     const showing = (f: Form) =>
       levelsOf(data, f, iv, hp)
         .filter((level) => trusted.length === 0 || trusted.includes(level))
-        .some((level) => {
-          const multiplier = multiplierOf(data, level);
-
-          return multiplier !== null && printed.includes(cpOf(f, iv, multiplier));
-        });
+        .some((level) => shows(f, level));
     const showingIt = candidates.filter(showing);
 
     if (showingIt.length > 0) {
@@ -218,7 +220,12 @@ export function identify(
   const [form = null, ...alternatives] = distinct;
   const consistent = form && iv && detail.hp !== null ? levelsOf(data, form, iv, detail.hp) : [];
   const agreed = consistent.filter((l) => stated.includes(l));
-  const levels = agreed.length > 0 ? agreed : consistent;
+  const admitted = agreed.length > 0 ? agreed : consistent;
+
+  // The printed CP settles the level as it settled the form: HP moves by whole points and so can admit two adjacent
+  // half-levels, where the CP differs between them. A narrowing, for the same reason as above.
+  const showingAt = form ? admitted.filter((l) => shows(form, l)) : [];
+  const levels = showingAt.length > 0 ? showingAt : admitted;
 
   if (nickname && iv === null) {
     notes.push('a nickname hides the species, and only the IVs can say what it is');
