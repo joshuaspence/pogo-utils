@@ -270,27 +270,34 @@ export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null
     return null;
   }
 
-  const luminance = (x: number, y: number) => {
-    const [r, g, b] = rgb(image, x, y);
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
+  // Read once rather than per neighbour, since each pixel is compared against four others.
+  const luminance = new Float64Array(width * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = ((top + y) * image.width + left + x) * 4;
+      luminance[y * width + x] =
+        0.2126 * (image.data[i] ?? 0) + 0.7152 * (image.data[i + 1] ?? 0) + 0.0722 * (image.data[i + 2] ?? 0);
+    }
+  }
 
   const edges = new Uint8Array(width * height);
 
   // Neighbours are read inside the crop only. Above it is PGSharp's box and below it the panel, so a neighbour read
   // across either border finds the border itself, and a full-width edge there grows into a band of backdrop.
-  for (let y = top + EDGE_RADIUS; y < bottom - EDGE_RADIUS; y++) {
-    for (let x = left + EDGE_RADIUS; x < right - EDGE_RADIUS; x++) {
-      const here = luminance(x, y);
+  for (let y = EDGE_RADIUS; y < height - EDGE_RADIUS; y++) {
+    for (let x = EDGE_RADIUS; x < width - EDGE_RADIUS; x++) {
+      const p = y * width + x;
+      const here = luminance[p] ?? 0;
       const gap = Math.max(
-        Math.abs(here - luminance(x - EDGE_RADIUS, y)),
-        Math.abs(here - luminance(x + EDGE_RADIUS, y)),
-        Math.abs(here - luminance(x, y - EDGE_RADIUS)),
-        Math.abs(here - luminance(x, y + EDGE_RADIUS)),
+        Math.abs(here - (luminance[p - EDGE_RADIUS] ?? 0)),
+        Math.abs(here - (luminance[p + EDGE_RADIUS] ?? 0)),
+        Math.abs(here - (luminance[p - EDGE_RADIUS * width] ?? 0)),
+        Math.abs(here - (luminance[p + EDGE_RADIUS * width] ?? 0)),
       );
 
       if (gap >= EDGE) {
-        edges[(y - top) * width + (x - left)] = 1;
+        edges[p] = 1;
       }
     }
   }
