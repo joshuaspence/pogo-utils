@@ -83,6 +83,14 @@ const GROW = 6;
  */
 export const MARGIN = 0.3;
 
+/**
+ * How many pixels have to carry a hue before the signature is worth comparing. Sampling alone moves a twelve-bin
+ * histogram of a thousand pixels by about 0.08 from the colours they were drawn from, and one of a hundred by about
+ * 0.27, which is most of `MARGIN`: a few stray pixels would lead by a margin they had not earned. The fewest any
+ * capture is answered on is `burmy-trash.png`'s 4,115.
+ */
+const COUNTED = 1000;
+
 /** A normalised hue histogram. Comparable between a capture and an icon, which is the only thing the two share. */
 export type Signature = readonly number[];
 
@@ -315,7 +323,7 @@ export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null
 
   const { signature, counted } = histogram(pixels);
 
-  return counted === 0 ? null : signature;
+  return counted < COUNTED ? null : signature;
 }
 
 /** The signature of one of the game's own form icons, which is flat art over transparency. */
