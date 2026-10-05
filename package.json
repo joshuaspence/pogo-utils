@@ -15,8 +15,7 @@
     "lint:prettier:fix": "prettier --write .",
     "lint:types": "pnpm build",
     "lint:xml": "node scripts/validate-gpx.mts",
-    "test": "vitest run --dir src",
-    "test:coverage": "pnpm test --coverage --coverage.include='src/**/*.ts' --coverage.exclude='src/**/*.d.ts' --coverage.reporter=text",
+    "test": "vitest run",
     "vend": "npm-run-all --continue-on-error --parallel --print-label 'vend:*'",
     "vend:events": "node scripts/vend-feed.mts"
   },
