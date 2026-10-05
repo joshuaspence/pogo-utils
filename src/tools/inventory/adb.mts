@@ -35,7 +35,7 @@ export class Device {
   }
 
   async swipe(from: readonly [number, number], to: readonly [number, number], ms = 300): Promise<void> {
-    await this.#shell('input', 'swipe', ...[...from, ...to].map((n) => String(Math.round(n))), String(ms));
+    await this.#shell('input', 'swipe', ...[...from, ...to, ms].map((n) => String(Math.round(n))));
   }
 
   /** Typed into whatever has focus. `input text` takes `%s` for a space and nothing else survives the shell. */
