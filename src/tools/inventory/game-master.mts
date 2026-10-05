@@ -14,6 +14,7 @@
  * thousand Pokémon is not the moment to discover the network is down.
  */
 
+import { titleise } from '../../pokemon/names.ts';
 import { fold } from './ocr.mts';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -367,15 +368,6 @@ export function closest<T>(text: string, candidates: readonly T[], name: (c: T) 
   }
 
   return bestDistance <= Math.max(1, Math.floor(length * slack)) ? best : null;
-}
-
-function titleise(constant: string): string {
-  return constant
-    .toLowerCase()
-    .split('_')
-    .filter(Boolean)
-    .map((w) => (w[0] ?? '').toUpperCase() + w.slice(1))
-    .join(' ');
 }
 
 async function cached(dir: string, file: string, url: string, refresh: boolean): Promise<string> {

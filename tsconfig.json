@@ -54,6 +54,7 @@
     "src/event-feed.ts",
     "src/generated.ts",
     "src/gpx-dialect.ts",
+    "src/pokemon/names.ts",
     "src/recurring-types.ts",
     "src/types.d.ts"
   ],
