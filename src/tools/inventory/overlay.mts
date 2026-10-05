@@ -102,16 +102,19 @@ const OVERLAY_TREATMENTS = [
  *
  * It is the end of the last run of digits ahead of the triple rather than a whole word, since it runs into what is
  * beside it — `xurkitree.png`'s `82` arrives as `182`, and `burmy-plant.png`'s level and percentage as one `015197`.
- * And it has to leave something ahead of it, because a treatment that drops the coloured percentage leaves the level as
- * that last run, and a level of 20 would otherwise confirm any triple summing to 9. Where the `L` reads as a `1` that
- * cannot be told apart: `120` is a level of 20 alone as readily as a level of 1 and a percentage of 20.
+ * And that run must not be the level alone, because a treatment that drops the coloured percentage leaves the level as
+ * the last run, and a level of 20 would otherwise confirm any triple summing to 9 — with or without a stray digit of
+ * artwork ahead of it, so it is the `L` that says which run is the level rather than how many runs there are. Where the
+ * `L` reads as a `1` that cannot be told apart: `120` is a level of 20 alone as readily as a level of 1 and a
+ * percentage of 20. Nor can a one-digit percentage inside a two-digit level, the 2% inside `L22`.
  */
 function confirmed(before: string, iv: IVs): boolean {
   const percentage = String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100));
   const runs = before.match(/\d+/g) ?? [];
   const last = runs.at(-1) ?? '';
+  const lastIsLevel = /L\d+\D*$/.test(before);
 
-  return last.endsWith(percentage) && (runs.length > 1 || last.length > percentage.length);
+  return last.endsWith(percentage) && (last.length > percentage.length || (runs.length > 1 && !lastIsLevel));
 }
 
 /**
