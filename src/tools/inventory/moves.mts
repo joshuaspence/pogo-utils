@@ -3,14 +3,12 @@
  * form can actually learn, which is a median of seven moves rather than all 328 — the single largest thing that can be
  * done for the reading, since a small pool affords slack a large one cannot.
  *
- * The region is bounded above by the `GYMS & RAIDS` tab and below by the catch details. `measurement` comes from
- * `detail.mts` because the weight-and-height row is the floor, and that row is the detail screen's to recognise.
+ * The region is bounded above by the `GYMS & RAIDS` tab and below by the catch details.
  */
 
 import { closest, type Form, type GameData, type Move } from './game-master.mts';
 import { findLine, fold, ocrLine, type Line } from './ocr.mts';
 import { crop, scale, type Image } from './png.mts';
-import { measurement } from './detail.mts';
 export interface Moves {
   fast: string | null;
   charged: string[];
@@ -18,11 +16,10 @@ export interface Moves {
 
 /**
  * The moves, read out of the rows beneath the `GYMS & RAIDS` tabs. That tab row is the anchor because it is the one
- * thing that sits immediately above the moves and nothing else does — found on all fifty screens of a corpus — where
- * the weight and height it used to be measured from are most of a screen away and leave everything between them in
- * play. Bounding the region below matters as much: `CAUGHT IN THE WILD` and the rest are ordinary prose that a fuzzy
- * match will happily take for a short move, and reading down into them produced a `Rest` and a `Fly` that neither
- * Pokémon could learn.
+ * thing that sits immediately above the moves and nothing else does, and a screen without it is read as showing no
+ * moves at all: `charizard-gigantamax.png` is scrolled to its Mega Evolution, and reading down from anything else there
+ * takes a line of it for Fire Spin. Bounding the region below matters as much: `CAUGHT IN THE WILD` and the rest are
+ * ordinary prose that a fuzzy match will happily take for a short move.
  *
  * Each row is matched against the moves that form can actually hold before the whole list is considered, which is a
  * choice among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type
@@ -62,21 +59,25 @@ export async function parseMoves(
 /** The lines that can be a move: under the tabs, above the catch details, and carrying letters rather than a power. */
 function moveRows(lines: readonly Line[]): Line[] {
   const tab = findLine(lines, MOVE_TAB);
-  // Without the tabs, fall back on the weight and height, which are at least above the moves. The HP has to be named
-  // rather than matched as a pair of numbers around a slash, since `30/09/2026` in the catch details is one too, and
-  // sits *below* the moves — measured, that alone lost every move of a live scan.
-  const above = lines.filter((l) => measurement(l.text) || (/\d\s*\/\s*\d/.test(l.text) && /hp/i.test(l.text)));
-  const floor = tab ? tab.top + tab.height : Math.max(-Infinity, ...above.map((l) => l.top + l.height));
+
+  if (!tab) {
+    return [];
+  }
+
+  const floor = tab.top + tab.height;
+  const middle = (line: Line) => line.top + line.height / 2;
   const rows: Line[] = [];
 
-  // Below the floor by its middle rather than its top, since a line's box stretches over whatever glyph was read beside
-  // it: on `no-pgsharp.png` a button lifts the fast move's top 74 pixels, to above the tabs.
-  for (const line of [...lines].filter((l) => l.top + l.height / 2 > floor).sort((a, b) => a.top - b.top)) {
-    if (BELOW_MOVES.test(fold(line.text))) {
+  // Placed and ordered by its middle rather than its top, since a line's box stretches over whatever glyph was read
+  // beside it: on `no-pgsharp.png` a button lifts the fast move's top 74 pixels, to above the tabs.
+  for (const line of [...lines].filter((l) => middle(l) > floor).sort((a, b) => middle(a) - middle(b))) {
+    const text = fold(line.text);
+
+    if (BELOW_MOVES.test(text)) {
       break;
     }
 
-    if (line.text.replace(/[^A-Za-z]/g, '').length >= 3) {
+    if (!CAPTION.test(text) && line.text.replace(/[^A-Za-z]/g, '').length >= 3) {
       rows.push(line);
     }
   }
@@ -131,6 +132,12 @@ const POOL_SLACK = 0.45;
 /** The tabs directly above the moves, and the first of whatever follows them. */
 const MOVE_TAB = /\b(gyms|raids|trainer battles)\b/;
 const BELOW_MOVES = /\b(new attack|caught|hatched|traded|swap buddies|transfer|appraise)\b/;
+
+/**
+ * The caption under a move the weather boosts: furniture, and three edits from Weather Ball. Matched by its start, since
+ * OCR cuts it to `WEATHER BON` about as often as not.
+ */
+const CAPTION = /\bweather bon/;
 
 /** Three rows of moves and a little slack; and how much of the width a name can occupy, short of its power. */
 const MOVE_ROWS = 6;
