@@ -6,9 +6,6 @@
 
 import { decodePng, type Image } from './png.mts';
 import { execFile } from 'node:child_process';
-import { setTimeout as sleep } from 'node:timers/promises';
-
-export { sleep };
 
 /**
  * Far longer than any call here takes, so it only fires on a device or `adb` server that has wedged — an `offline`
