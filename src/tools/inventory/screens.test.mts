@@ -188,7 +188,7 @@ test(
     }
 
     expect(found, 'a band of a screen with no overlay on it read as one').toStrictEqual([]);
-    expect(found.length + NEGATIVE.length, 'the negative corpus has changed size').toBe(6);
+    expect(NEGATIVE.length, 'the negative corpus has changed size').toBe(6);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
