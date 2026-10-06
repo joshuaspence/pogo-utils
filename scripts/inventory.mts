@@ -25,10 +25,10 @@
  *
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
- *                       [--config FILE] [--serial SERIAL]
- *   pnpm inventory snap [--scroll] [--verbose] [NAME]
+ *                       [--config FILE] [--serial SERIAL] [--refresh]
+ *   pnpm inventory snap [--scroll] [--verbose] [--refresh] [NAME]
  *                       save a screenshot of whatever is showing and print what each reader makes of it
- *   pnpm inventory parse [--verbose] FILE.png…
+ *   pnpm inventory parse [--verbose] [--refresh] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
