@@ -25,10 +25,6 @@ const PUBLISHED = [
   'favicon.svg',
   'manifest.json',
 
-  // The glob rather than the directory, which would take `icons/maskable.svg` with it: that file is the source the
-  // maskable PNG is rendered from and nothing fetches it, so copying it in is the one thing an allowlist is for.
-  'icons/*.png',
-
   // `src/generated.ts`'s two indexes are in here, so neither is named separately: `publish` throws rather than copying
   // a path twice, and the directory is what the pages fetch them under.
   'data',

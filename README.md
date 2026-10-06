@@ -238,12 +238,16 @@ under the Pages subdirectory as well as from a local server, and [`scripts/assem
 every one of them inside the build the same way it resolves the markup's: an icon or a shortcut naming a file that moved
 fails the build rather than drawing a letter tile on somebody's home screen.
 
-The icons under [`icons/`](icons) are PNGs because Android's installed-app icons are raster. `192.png` and `512.png` are
-[`favicon.svg`](favicon.svg) rendered with the light theme's dark rim; `maskable-512.png` is
-[`icons/maskable.svg`](icons/maskable.svg), the same ball shrunk into the safe zone a launcher keeps when it crops the
-icon to its own shape. That SVG is the one file in the directory the site does not serve, which is why the build copies
-`icons/*.png` rather than `icons/`. Nothing regenerates the PNGs, so after editing either SVG render it again at the
-listed size — any browser will do, with `prefers-color-scheme` set to light for `favicon.svg`.
+The icons the manifest names are not in the checkout at all: [`scripts/build-icons.mts`](scripts/build-icons.mts)
+renders each from [`favicon.svg`](favicon.svg) straight into `dist/icons/`, the way the calendar feed is written rather
+than kept, reading the manifest for the sizes to draw and for the plate colour behind a maskable one. The ball is
+therefore drawn in exactly one place. They are PNGs at the sizes the manifest declares because Chrome matches an
+installable icon by its declared pixel size and wants both a 192 and a 512. A maskable icon is the same ball inset to
+two thirds of its canvas — far enough in to keep the rim inside the central 40% radius a launcher promises to keep when
+it crops the icon to its own shape — composited onto an opaque plate, because the corners of a cropped icon are never
+transparent. At 768 that inset is exactly 128 pixels, so the ball is rendered at 512 rather than resampled from it.
+Nothing in the chain honours `prefers-color-scheme`, which is what makes `favicon.svg`'s themed rim come out in the
+light theme's dark colour every time, rather than whenever the person rendering it by hand remembered to.
 
 ## Pokémon inventory
 

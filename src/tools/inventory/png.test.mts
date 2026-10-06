@@ -10,7 +10,7 @@
 
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { brighten, crop, decodePng, difference, encodePng, isolate, rgb, scale, type Image } from './png.mts';
+import { brighten, crop, decodePng, difference, encodePng, isolate, pad, rgb, scale, type Image } from './png.mts';
 
 /**
  * An image whose every pixel is a function of its position, so a transposition or an off-by-one shows up as a value.
@@ -190,6 +190,32 @@ test('a scale repeats each pixel, nearest neighbour and no blending', () => {
       );
     }
   }
+});
+
+/**
+ * The two halves of `pad`: where the image lands, and what becomes of the alpha it brings. A maskable icon's plate has
+ * to show through a wholly transparent pixel exactly and through a half-transparent one proportionally, because every
+ * edge of the ball a launcher crops is an anti-aliased one.
+ */
+test('padding centres an image on an opaque plate and composites its alpha onto it', () => {
+  const quarters = new Uint8Array([255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 255, 128, 255, 255, 255, 255]);
+  const padded = pad({ width: 2, height: 2, data: quarters }, 4, [8, 16, 24]);
+
+  expect([padded.width, padded.height]).toStrictEqual([4, 4]);
+  expect([...padded.data].filter((_, i) => i % 4 === 3)).toStrictEqual(Array<number>(16).fill(255));
+  expect(rgb(padded, 0, 0)).toStrictEqual([8, 16, 24]);
+
+  // The image's own four pixels, one in from each edge: opaque, wholly transparent, half-transparent and opaque again.
+  expect(rgb(padded, 1, 1)).toStrictEqual([255, 0, 0]);
+  expect(rgb(padded, 2, 1)).toStrictEqual([8, 16, 24]);
+  expect(rgb(padded, 1, 2)).toStrictEqual([4, 8, 140]);
+  expect(rgb(padded, 2, 2)).toStrictEqual([255, 255, 255]);
+});
+
+test('an image that cannot be centred on a whole pixel is refused rather than placed half a pixel off', () => {
+  expect(() => pad(ramp(3, 3), 4, [0, 0, 0])).toThrow(/cannot centre a 3x3 image in 4x4/);
+  expect(() => pad(ramp(5, 5), 4, [0, 0, 0])).toThrow(/cannot centre/);
+  expect(() => pad(ramp(2, 3), 4, [0, 0, 0])).toThrow(/cannot centre/);
 });
 
 /**

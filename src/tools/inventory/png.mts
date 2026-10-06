@@ -219,6 +219,41 @@ export function scale(image: Image, factor: number): Image {
   return { width: w, height: h, data };
 }
 
+/**
+ * An image centred on an opaque canvas, which is what a launcher's maskable icon is: the corners of one are never
+ * transparent, and the artwork has to sit inside the circle a platform crops to. Composited rather than laid over,
+ * because an anti-aliased edge carries alpha that has to meet the colour it will really sit on — drawn against nothing
+ * it would keep a fringe of whatever it was rendered over. Refuses a margin that is not a whole pixel rather than
+ * centring the image half a pixel off.
+ */
+export function pad(image: Image, size: number, colour: [number, number, number]): Image {
+  const margin = (size - image.width) / 2;
+
+  if (image.width !== image.height || margin < 0 || !Number.isInteger(margin)) {
+    throw new Error(`cannot centre a ${image.width}x${image.height} image in ${size}x${size}`);
+  }
+
+  const data = new Uint8Array(size * size * 4);
+
+  for (let i = 0; i < size * size; i++) {
+    data.set([colour[0], colour[1], colour[2], 255], i * 4);
+  }
+
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      const src = (y * image.width + x) * 4;
+      const to = ((margin + y) * size + margin + x) * 4;
+      const alpha = (image.data[src + 3] ?? 0) / 255;
+
+      for (let c = 0; c < 3; c++) {
+        data[to + c] = Math.round((image.data[src + c] ?? 0) * alpha + (colour[c] ?? 0) * (1 - alpha));
+      }
+    }
+  }
+
+  return { width: size, height: size, data };
+}
+
 /** How bright a pixel looks, by the Rec. 709 weights. */
 export const luminance = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
