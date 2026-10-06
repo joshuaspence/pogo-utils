@@ -39,7 +39,7 @@
 
 import { Device, KEY } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
-import { parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
+import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
@@ -120,21 +120,15 @@ const DEFAULTS: Config = {
   waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, search: 1500 },
 };
 
-/** The searches that answer the yes-or-no columns, by column. `size` is filled from the two size searches. */
-const FLAGS = {
-  shiny: 'shiny',
-  lucky: 'lucky',
-  costume: 'costume',
-  shadow: 'shadow',
-  purified: 'purified',
-} as const;
+/** The searches that answer the yes-or-no columns, each column named for the game's own search term. */
+const FLAGS = ['shiny', 'lucky', 'costume', 'shadow', 'purified'] as const;
 
-type Flag = keyof typeof FLAGS;
+type Flag = (typeof FLAGS)[number];
 
 /**
- * `xxl` and `xxs` are not among these any more: the detail screen wears a gold badge saying which, so the size is read
- * from the screen the scan is already looking at rather than bought with a search of its own. Checked against the
- * game's own `xxl` search, which marked the same Applin — 5/2/15 at 0.33m — that the badge does.
+ * Size is not among these: the detail screen wears a gold badge saying `XXL` or `XXS`, so it is read off the screen the
+ * scan is already looking at rather than bought with a search of its own. Checked against the game's own `xxl` search,
+ * which marked the same Applin — 5/2/15 at 0.33m — that the badge does.
  */
 const DEFAULT_FLAGS: Flag[] = ['shiny', 'lucky', 'costume'];
 
@@ -230,8 +224,8 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
   console.log('moves:', await parseMoves(lines, data, id.form, image));
   console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
   console.log('overlay:', overlay ?? 'nothing read');
-  // The form carries its whole move pool now, which prints as a column of `[Object]` and buries everything worth
-  // reading; the names are what a person tuning this wants to see anyway.
+  // The form carries its whole move pool, which prints as a column of `[Object]` and buries everything worth reading;
+  // the names are what a person tuning this wants to see anyway.
   console.log('identity:', {
     ...id,
     form: id.form && { ...id.form, moves: id.form.moves.map((m) => m.name).join(', ') },
@@ -239,6 +233,9 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
 }
 
 async function scan() {
+  // Ahead of the phone, so a typo fails before anything is driven.
+  const limit = count('limit', options.limit, Infinity);
+  const skip = count('skip', options.skip, 0);
   const device = new Device(options.serial);
   await device.check();
   const data = await loadGameData(CACHE, options.refresh);
@@ -251,8 +248,6 @@ async function scan() {
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean);
-  const limit = options.limit === undefined ? Infinity : Number(options.limit);
-  const skip = options.skip === undefined ? 0 : Number(options.skip);
   const screens = options['keep-screens'];
   const shot = await device.screenshot();
   const at = (p: Point): Point => [p[0] * shot.width, p[1] * shot.height];
@@ -330,6 +325,11 @@ async function scan() {
       await device.key(KEY.BACK);
       await sleep(config.waits.search);
       lines = await readLines(await device.screenshot());
+
+      // A grid whose labels all misread is taken for the panel too, and Back closes storage itself from there.
+      if (!isStorage(lines)) {
+        lines = await toStorage();
+      }
     }
 
     return lines;
@@ -418,7 +418,9 @@ async function scan() {
     for (let attempt = 0; ; attempt++) {
       const image = await settled();
       const detail = await parseDetail(await readLines(image), data, image);
-      const overlay = await overlayOf(image);
+      // Only a detail screen is worth a sweep. The sweeps are rationed, and an empty search's grid or a tile still
+      // opening would otherwise spend them all before the first Pokémon, leaving every row without IVs.
+      const overlay = detail.hp === null ? null : await overlayOf(image);
       const key = keyOf(detail, overlay);
       const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
       // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
@@ -439,17 +441,18 @@ async function scan() {
    * it: the panel carries no CP anywhere.
    */
   const tileLabel = (lines: readonly Line[]) =>
-    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && /^cp\s?\d/.test(fold(l.text)));
+    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
 
   /**
-   * Opens the first Pokémon the grid shows, answering false when there is none — a search that matched nothing.
+   * Opens the first Pokémon the grid shows and reads it, answering a reading with no key when there is none — a search
+   * that matched nothing — or when it would not read.
    *
    * The row comes from the grid and the column from the configuration, which is not a compromise but the right split.
    * How far down the first row sits depends on whether a search is showing, so it has to be read; which column is
    * first does not, since the grid is three even columns and 0.18 of the width lands in the leftmost of them on both
-   * phones tried. Taking the column from the label as well is what the code did, and it opened the *second* Pokémon
-   * whenever the first one's CP failed to OCR — in an `xxl` grid of five, the top row's only legible label was the
-   * middle tile's, so the walk began one along and marked four. One short is the hardest kind of wrong to notice.
+   * phones tried. Taking the column from the label as well would open the *second* Pokémon whenever the first one's CP
+   * failed to OCR — in an `xxl` grid of five, the top row's only legible label was the middle tile's, so the walk began
+   * one along and marked four. One short is the hardest kind of wrong to notice.
    */
   const openFirst = async (grid: readonly Line[]) => {
     const label = tileLabel(grid);
@@ -460,19 +463,27 @@ async function scan() {
 
     // Through `readDetail` for its retry: the tile opens with an animation that outlasts one wait, and a screen read
     // while it is still running is indistinguishable from a grid with nothing in it.
-    return (await readDetail()).key !== null;
+    return readDetail();
   };
 
-  const walk = async (visit: (reading: Reading, index: number) => Promise<void>, max: number, from = 0) => {
+  /** Each Pokémon from the one open, `first` being that one's reading where `openFirst` has already made it. */
+  const walk = async (
+    visit: (reading: Reading, index: number) => Promise<void>,
+    max: number,
+    from = 0,
+    first?: Reading,
+  ) => {
     for (let i = 0; i < from; i++) {
       await swipe(config.swipes.next, config.waits.swipe / 2);
     }
 
+    let pending = from === 0 ? first : undefined;
     let previous: string | null = null;
     let misses = 0;
 
     for (let index = from; index < from + max; index++) {
-      const reading = await readDetail();
+      const reading = pending ?? (await readDetail());
+      pending = undefined;
 
       if (reading.key === null) {
         if (++misses >= 3) {
@@ -511,10 +522,16 @@ async function scan() {
 
   for (const flag of flags) {
     const marks = new Marks();
-    const grid = await search(FLAGS[flag]);
+    const grid = await search(flag);
+    const first = await openFirst(grid);
 
-    if (await openFirst(grid)) {
-      await walk(async ({ detail, overlay }) => marks.add(detail, overlay), Infinity);
+    if (first.key !== null) {
+      await walk(async ({ detail, overlay }) => marks.add(detail, overlay), Infinity, 0, first);
+    } else if (tileLabel(grid)) {
+      // The grid showed a Pokémon and it would not read, which is not the answer a search matching nothing gives:
+      // marking nothing would write `no` against every Pokémon the search holds. So the column is left blank instead.
+      console.error(`${flag}: the first Pokémon would not read, so this column is left blank`);
+      continue;
     }
 
     console.error(`${flag}: ${marks.size}`);
@@ -528,8 +545,9 @@ async function scan() {
   }
 
   const grid = await search('');
+  const first = await openFirst(grid);
 
-  if (!(await openFirst(grid))) {
+  if (first.key === null) {
     throw new Error('storage looks empty, or the first Pokémon did not open; try `pnpm inventory snap` to see why');
   }
 
@@ -558,8 +576,8 @@ async function scan() {
         await swipe(config.swipes.scrollDown, config.waits.scroll);
         const scrolled = await device.screenshot();
         keep(`${name}-moves`, scrolled);
-        // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipe, so
-        // that a read failing before the phone is back is a rejection here rather than an unhandled one.
+        // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipe,
+        // so that a read failing before the phone is back is a rejection here rather than an unhandled one.
         reading = ocr(scrolled).then((lines) => parseMoves(lines, data, id.form, scrolled));
         await Promise.all([reading, swipe(config.swipes.scrollUp, config.waits.scroll)]);
       }
@@ -572,14 +590,22 @@ async function scan() {
         }
       }
 
-      const flag = (f: Flag) => (flags.includes(f) ? (marked.get(f)?.take(detail, overlay) ? 'yes' : 'no') : '');
+      // Blank for a flag not asked for, or one whose pass would not read, rather than a `no` nothing checked.
+      const flag = (f: Flag) => {
+        const marks = marked.get(f);
+
+        return marks ? (marks.take(detail, overlay) ? 'yes' : 'no') : '';
+      };
+
       // A chip that matches nothing named is kept as it read rather than dropped, since a misread is worth seeing.
       const carried = detail.tags.map((t) => (tags.length > 0 ? (closest(t, tags, (n) => n, 0.3) ?? t) : t));
       const total = iv ? iv.attack + iv.defense + iv.stamina : null;
 
       const row: Record<(typeof COLUMNS)[number], string | number | null> = {
         index: index + 1,
-        species: id.form?.species ?? detail.name,
+        // A nickname says nothing of the species, so a Pokémon `identify` could not place is left blank rather than
+        // filed under it.
+        species: id.form?.species ?? (id.nickname === null ? detail.name : null),
         nickname: id.nickname,
         dex: id.form?.dex ?? null,
         form: id.form?.form ?? null,
@@ -620,6 +646,7 @@ async function scan() {
     },
     limit,
     skip,
+    first,
   );
 
   console.error(`Wrote ${written} Pokémon to ${out}`);
@@ -669,10 +696,10 @@ function bump(map: Map<string, number>, key: string, by: number) {
 }
 
 /**
- * What identifies one Pokémon across two passes. CP used to be half of this and is not any more: it is white over the
- * artwork and reads perhaps a quarter of the time, so requiring it made every screen unreadable and stopped a walk
- * after three. The overlay's IVs take its place and discriminate better — HP, weight, height and 15/15/15 together are
- * shared by almost nothing — and HP alone is what a key now needs to exist at all.
+ * What identifies one Pokémon across two passes. CP is not part of it: it is white over the artwork and the reading
+ * OCR misses most, so requiring it would make screens unreadable and stop a walk after three. The overlay's IVs
+ * discriminate better — HP, weight, height and 15/15/15 together are shared by almost nothing — and HP alone is what a
+ * key needs to exist at all.
  */
 function keyOf(detail: Detail, overlay: Overlay | null): string | null {
   if (detail.hp === null) {
@@ -706,13 +733,28 @@ function csv(value: string | number | null): string {
 
 function parseFlags(list: string): Flag[] {
   const names = list.split(',').filter(Boolean);
-  const unknown = names.filter((n) => !(n in FLAGS));
+  const unknown = names.filter((n) => !(FLAGS as readonly string[]).includes(n));
 
   if (unknown.length > 0) {
-    throw new Error(`unknown flag ${unknown.join(', ')}; the choices are ${Object.keys(FLAGS).join(', ')}`);
+    throw new Error(`unknown flag ${unknown.join(', ')}; the choices are ${FLAGS.join(', ')}`);
   }
 
   return names as Flag[];
+}
+
+/** A count option, checked here rather than left to turn into a `NaN` that quietly writes nothing after a long run. */
+function count(option: string, value: string | undefined, fallback: number): number {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  const n = Number(value);
+
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`--${option} takes a whole number, not ${value}`);
+  }
+
+  return n;
 }
 
 /** `DEFAULTS` with a JSON file laid over it one level deep, so a file can change one tap and restate nothing else. */
