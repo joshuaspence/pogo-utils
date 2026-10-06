@@ -90,7 +90,10 @@ export function identify(
   const entry = dex === null ? null : (data.forms.find((f) => f.dex === dex)?.species ?? null);
   const species = entry ?? matched;
 
-  if (entry !== null && matched !== null && entry !== matched) {
+  // A disagreement only where the name does not read as the entry's species at all. Both Nidoran fold to `nidoran`, so
+  // `closest` breaks their tie by list order and `matched` is Nidoran♀ for either; compared directly, a Nidoran♂ entry
+  // would report the very glyph loss it was opened to settle.
+  if (entry !== null && matched !== null && detail.name && closest(detail.name, [entry], (s) => s) === null) {
     notes.push(`the Pokédex says ${entry}, where the name on the screen reads as ${matched}`);
   }
 

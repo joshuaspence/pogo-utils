@@ -77,6 +77,7 @@ import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
 import { identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
+import { dexOn } from './pokedex.mts';
 
 /**
  * The game master, vended beside the captures rather than downloaded: `pnpm vend:game-master` writes what a real
@@ -1391,6 +1392,12 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
 });
 
 /**
+ * What `identify` answers for a screen with no Pokémon on it, which it declines without comment. One definition, and a
+ * whole object, so a field added to `Identity` fails each screen asserted against it until it is accounted for.
+ */
+const DECLINED = { form: null, cp: null, alternatives: [], levels: [], nickname: null, notes: [] };
+
+/**
  * `fixtures/overworld.png` is the map, and this is what the detail readers answer on it: nothing, in every field. That
  * is the half a corpus of valid screens cannot state — every row asserts that a reader found the right thing and not
  * one of them asserts that a reader declines to find a thing that is not there, so a `hpOn` returning a constant would
@@ -1422,12 +1429,7 @@ test('overworld.png is the map, and every reader declines it', async () => {
     weight: null,
   });
 
-  expect(identity.form, 'a form was chosen for a screen with no Pokémon on it').toBe(null);
-  expect(identity.alternatives).toStrictEqual([]);
-  expect(identity.levels).toStrictEqual([]);
-  expect(identity.cp).toBe(null);
-  expect(identity.nickname).toBe(null);
-  expect(identity.notes, 'a screen with nothing on it is declined without comment').toStrictEqual([]);
+  expect({ ...identity }, 'something was identified on the map').toStrictEqual(DECLINED);
 });
 
 /**
@@ -1503,6 +1505,119 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
     expect(identity.cp).toBe(null);
     expect(identity.notes, 'an absent overlay is the ordinary case and not worth a note').toStrictEqual([]);
   }
+});
+
+/**
+ * The three Pokédex entry screens and the species reader they are the input to. The detail screen hides a species in
+ * two ways this corpus pins — a nickname printed where the name goes, and a `♀` or `♂` that OCR loses — and that
+ * Pokémon's Pokédex entry is a few taps away and states the species in large flat text.
+ *
+ * **Both halves are asserted, and the second is the one that makes `dexOn` worth having.** It reads the three, and it
+ * answers null on every other capture: every detail screen, the map, and the two PGSharp controls. A reader that
+ * answered a dex off a detail screen would be worse than one that answered nothing, since the walk calls it exactly
+ * when the name could not be trusted — so the rest are the assertion and the three are the easy half.
+ *
+ * **What makes the rest decline is the cross-check rather than the screen being bare.** A Pokédex entry carries other
+ * four-digit numbers — `SEEN 2763` and `CAUGHT 1499` on `nidoran-male-pokedex.png` alone — so the number is believed
+ * only where it resolves to a species and the name printed beside it folds to that same species. `0032` reaches
+ * `Nidoran♂`, the line reads `NIDORAN`, and both fold to `nidoran`; `2763` reaches no species at all.
+ *
+ * **The name cannot do this job, which is why the number does it.** `NIDORAN` and `NIDORAN ?` fold to one string where
+ * `0032` and `0029` do not, so the two Nidoran lose their glyph on this screen exactly as they do on the detail screen
+ * and the number is the only thing that tells them apart.
+ *
+ * Until a walk calls it, `identify` declines all three as detail screens — the readers' own half of that is the Pokédex
+ * test above — because a walk must not take a Pokédex entry for a Pokémon and file a species with every number missing.
+ * With no name there is no species, and the search across every species needs an IV and an HP as well as a type.
+ */
+test(
+  'the Pokédex entry names its species, and no other capture names one',
+  async () => {
+    const entries: Record<string, [number, string]> = {
+      'deerling-pokedex.png': [585, 'Deerling'],
+      'nidoran-female-pokedex.png': [29, 'Nidoran♀'],
+      'nidoran-male-pokedex.png': [32, 'Nidoran♂'],
+    };
+
+    for (const [file, [dex, species]] of Object.entries(entries)) {
+      const { lines, identity } = await readingOf(file);
+
+      expect(dexOn(lines, DATA), `${file} no longer reads its own dex number`).toBe(dex);
+      expect(
+        DATA.forms.find((f) => f.dex === dex)?.species,
+        `${file}'s number no longer reaches its species in the vended game master`,
+      ).toBe(species);
+
+      expect({ ...identity }, `something was identified on the Pokédex entry ${file}`).toStrictEqual(DECLINED);
+    }
+
+    const elsewhere: string[] = [];
+    let asked = 0;
+
+    for (const file of [...FIXTURES.map((f) => f.file), ...NEGATIVE]) {
+      if (file in entries) {
+        continue;
+      }
+
+      const { lines } = await readingOf(file);
+      asked++;
+
+      if (dexOn(lines, DATA) !== null) {
+        elsewhere.push(file);
+      }
+    }
+
+    expect(elsewhere, 'a capture that is not a Pokédex entry answered a dex number').toStrictEqual([]);
+
+    // The count, because an empty list of offenders is also what a loop that asked nothing produces — which is the
+    // failure this whole test exists to rule out, one level up.
+    expect(asked, 'the reader was not asked about every other capture').toBe(
+      FIXTURES.length + NEGATIVE.length - Object.keys(entries).length,
+    );
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
+ * That a species read off the Pokédex does not cost the nickname, which is the half of `identify` the override could
+ * most easily have broken: the dex decides the species, and the name is still what says whether there is a nickname,
+ * which is what keeps `ho-oh.png` a Ho-Oh called `96%`.
+ *
+ * It is also the case where the fallback changes nothing, and that is worth asserting rather than assuming: the CP
+ * narrowing already settles this capture, so the dex has to agree with an answer that was right without it.
+ */
+test('a species read off the Pokédex leaves the nickname alone', async () => {
+  const { detail, overlay, artwork } = await readingOf('ho-oh.png');
+  const dex = DATA.forms.find((f) => f.species === 'Ho-Oh')?.dex ?? null;
+  const identity = identify(DATA, detail, overlay, artwork, dex);
+
+  expect(identity.form && label(identity.form)).toBe('Ho-Oh');
+  expect(identity.nickname, 'the dex override swallowed the nickname the screen prints').toBe('96%');
+  expect(identity.notes, 'the Pokédex and the numbers agree, so there is nothing to report').toStrictEqual([]);
+});
+
+/**
+ * The Nidoran this reader exists for, end to end: `dexOn` reads `nidoran-male-pokedex.png`'s number, and `identify`,
+ * handed a detail screen whose name has lost its `♂`, answers Nidoran♂ without reporting the lost glyph as the Pokédex
+ * disagreeing. `NIDORAN` reads as either Nidoran, and `closest` breaks that tie towards Nidoran♀.
+ *
+ * Then the title line with residue round it, varied on that capture's own lines: a glyph after the name read as a
+ * letter still leads with the species, and one ahead of the number read as a digit makes five digits rather than a dex.
+ */
+test('a Nidoran read off its entry is that Nidoran, glyph or no glyph', async () => {
+  const { lines, detail } = await readingOf('nidoran-male-pokedex.png');
+  const identity = identify(DATA, { ...detail, name: 'NIDORAN' }, null, undefined, dexOn(lines, DATA));
+
+  expect(identity.form && label(identity.form)).toBe('Nidoran♂');
+  expect(identity.notes, 'the lost glyph was reported as the Pokédex disagreeing').toStrictEqual([]);
+
+  const title = lines.findIndex((line) => /\b0032\b/.test(line.text));
+  assert.ok(title >= 0, 'the capture has lost the title line this varies');
+
+  const retitled = (text: string) => lines.map((line, i) => (i === title ? { ...line, text } : line));
+
+  expect(dexOn(retitled('0032 NIDORAN d'), DATA), 'residue after the name').toBe(32);
+  expect(dexOn(retitled('90032 NIDORAN'), DATA), 'a digit ahead of the number').toBe(null);
 });
 
 /**
