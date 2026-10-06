@@ -988,13 +988,55 @@ const NEGATIVE = [
 ];
 
 /**
+ * How many captures to have being read at once, ahead of the tests that assert them. Vitest takes a file's tests in
+ * order, so without this a capture's first test paid for that capture's whole reading before the next capture was so
+ * much as opened, and the suite was 49 readings end to end.
+ *
+ * A handful rather than all of them, because a single reading is already as wide as the machine in places —
+ * `findOverlay` sweeps a core's worth of bands at a time — so captures past the first few buy contention rather than
+ * parallelism. On 22 cores this file took 137s reading one capture at a time, 106s at four and 102s at eight, and 120s
+ * with all 49 in flight: past four the curve is flat, and at the far end it is worse than reading them in order.
+ *
+ * Four rather than the eight that measured 4% quicker, and the 60s `testTimeout` is the whole of the reason. A test waits
+ * on its own capture, so what a wider pool lengthens is that wait: every capture in flight puts the longest wait past the
+ * timeout and the suite fails on the clock while doing the same work, where at four it is 22s — comfortable on a machine
+ * with fewer cores or more to do than this one. The 4% buys nothing worth that margin.
+ */
+const READ_AHEAD = 4;
+
+/**
+ * The corpus read through that ceiling, in declaration order so that the tests, which run in that order too, wait on the
+ * readings most nearly finished. It changes nothing any test asserts: `readingOf` memoises the promise rather than the
+ * reading, so this is the same cache the tests read and not a second one, and a test reaching a capture the pool has not
+ * started yet simply starts it — the memo is what keeps that from reading it twice.
+ *
+ * It also takes the memo out of declaration order's hands, which is the coupling `WHOLE_CORPUS_TIMEOUT` below was left
+ * documenting rather than relying on.
+ *
+ * The `catch` is for the retry rather than the clock. A read started here and not awaited until some later test is a
+ * rejection with no handler on it for as long as that takes, which Node reports as unhandled and exits over — losing the
+ * failure the suite was about to report properly. Observing it here says only that someone will look: the memoised
+ * promise still rejects, and the test awaiting it still fails on it.
+ */
+const queue = [...FIXTURES.map((f) => f.file), ...NEGATIVE];
+
+for (let worker = 0; worker < READ_AHEAD; worker++) {
+  void (async () => {
+    for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
+      await readingOf(file).catch(() => {});
+    }
+  })();
+}
+
+/**
  * What the tests that read the whole corpus in one body are given, where the configured `testTimeout` leaves everything
  * else the 60s a single capture needs fifteen times over.
  *
- * They need it because a test is only as warm as whatever ran before it. All three pass on the full suite without this,
- * since Vitest takes a file in declaration order and the `describe` blocks above have filled the memo by then — but
- * that is a coupling rather than a guarantee. Measured rather than reasoned about: `-t 'which captures the CP is read
- * off'` on its own fails at exactly 60s, because nothing has warmed it and the corpus is about four seconds a capture.
+ * They need it because a body that waits on all 49 captures waits on the whole corpus, which `READ_AHEAD` paces at about
+ * 65s however the rest of the file is filtered: `-t 'which captures the CP is read off'` on its own has the pool to warm
+ * it and still takes 64.8s, there being no earlier test to have paid for any of it. What the pool did take away is the
+ * other reason this was here — that on a full run the `describe` blocks above happened to have filled the memo first,
+ * which passed for warm and was a coupling rather than a guarantee.
  */
 const WHOLE_CORPUS_TIMEOUT = 600_000;
 
