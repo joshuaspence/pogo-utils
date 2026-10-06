@@ -1014,6 +1014,40 @@ test('every committed capture is either a row or a negative case', () => {
 });
 
 /**
+ * How tall a capture may be against its own width before it is a stitch rather than a screen. The tallest aspect ratio
+ * a phone ships in is 21:9, or 2.33, and the stitches of these very screens run 2996 to 4516 rows at the same 1008 wide
+ * — 2.97 to 4.48 — so this sits in the gap. Nearer the phone end of it on purpose: a stitch that slipped through is the
+ * defect being guarded against, where a false failure needs a phone taller than any made.
+ */
+const SCREEN_RATIO = 2.5;
+
+/**
+ * That every capture is one screen as the phone drew it rather than a stitch of several, which is the other thing about
+ * this corpus no row can say. `snap --scroll` assembles a tall image out of a scroll, and it is the wrong artifact for
+ * this file: the star corner, the overlay sweep, the tag band, the artwork and the CP sweep are each anchored on a
+ * fraction of the image's height, so a capture three times taller moves every one of them off what it was measured
+ * against. `parseMoves` is the one reader that survives, being anchored on the `GYMS & RAIDS` line.
+ *
+ * It is a test because prose was not enough. `scripts/inventory.mts` says it twice, once calling it a limit rather than
+ * an oversight — and a stitch was still committed over all 43 detail captures, which reported as 76 failures: the five
+ * readers above, and everything `identify` derives from what they answered. Not one of them said the fixtures were what
+ * was wrong. The size is the cheapest thing on a capture to check and the only one that separates the two artifacts, so
+ * it is checked here rather than left to surface as a reader disagreeing somewhere else.
+ *
+ * Sizes rather than names in the failure, because the name is what already looked right.
+ */
+test('every committed capture is one screen rather than a stitch', () => {
+  const stitched = readdirSync(new URL('fixtures', import.meta.url))
+    .filter((file) => file.endsWith('.png'))
+    .sort()
+    .map((file) => ({ file, image: decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))) }))
+    .filter(({ image }) => image.height > image.width * SCREEN_RATIO)
+    .map(({ file, image }) => `${file} is ${image.width}x${image.height}`);
+
+  expect(stitched).toStrictEqual([]);
+});
+
+/**
  * Every figure this file's own docblock quotes about the shape of the corpus, in one place that fails when one of them
  * stops being true. The case for it is not that a count is interesting: it is that prose is the one part of a test file
  * no test reads, so a figure quoted there goes on being quoted after it stops being true.
