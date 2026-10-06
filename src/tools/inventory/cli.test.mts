@@ -251,6 +251,32 @@ test('`parse` with no file prints the usage and fails', async () => {
 });
 
 /**
+ * The suffix a snap saves its stitch under, read off the script rather than written out here so that renaming the
+ * constant cannot leave the test below pinning a string nothing uses.
+ */
+const SCROLLED = /\nconst SCROLLED = '([a-z-]+)';\n/.exec(SOURCE)?.[1] ?? '';
+
+/**
+ * A `NAME` ending in that suffix is refused, since `snap foo` writes both `foo.png` and `foo${SCROLLED}.png` — so
+ * `snap foo${SCROLLED}` would overwrite the stitch of the earlier snap with a plain screenshot, printing the same
+ * `Saved …` line it prints when it has overwritten nothing.
+ *
+ * That it is refused *before the phone is opened* is the half this can hold, and the half worth holding: this runs with
+ * no device and no `adb` on the path, so a check sitting after `device.check()` could not pass it — where on a machine
+ * with a phone plugged in it would go unnoticed.
+ */
+test('`snap` refuses a NAME ending in the stitch suffix, before it opens the phone', async () => {
+  expect(SCROLLED, 'the `SCROLLED` constant was not found, so the name below pins nothing').not.toBe('');
+
+  const failure = await run(process.execPath, [SCRIPT, 'snap', `a${SCROLLED}`]).catch((error: unknown) => error);
+  const { stderr } = failure as { stderr: string };
+
+  expect(failure).toMatchObject({ code: 1 });
+  expect(stderr).toContain(`NAME cannot end in \`${SCROLLED}\``);
+  expect(stderr, 'the phone was reached before the name was checked').not.toContain('adb');
+});
+
+/**
  * The dump of what OCR read is printed only for `--verbose`, and the rest of the report is the same either way.
  *
  * Asserted as the whole of the output rather than as the dump alone, because the claim worth holding is that the flag
