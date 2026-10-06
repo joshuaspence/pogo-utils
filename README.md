@@ -291,13 +291,16 @@ tall image, which is how a screen longer than the phone is seen whole. A scan re
 one screenshot taken part way down, and `pnpm inventory snap --scroll` is how a capture of a whole detail screen gets
 made. The stitched image is not handed to the other readers: the star corner, the overlay sweep, the tag band and the
 artwork are each anchored on a fraction of the image's height, so a frame three times taller moves all of them. The band
-of the screen the frames are lined up in is `scrollBand` in `--config`, the one position not yet measured on a phone.
+of the screen the frames are lined up in is `scrollBand` in `--config`; it has to end above the game's floating buttons,
+which are drawn over the panel rather than in it, or their top is stitched in once per frame.
 
 Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
 `pnpm inventory parse FILE.png` does the same for a saved one. `--verbose` adds every line OCR found with its box, which
 is what separates a field left empty because no text was read there from one left empty because a reader anchored on the
-wrong line. The cache, the snaps and `inventory*.csv` are git-ignored, since they describe a player's own account.
+wrong line. `snap` exits non-zero unless the screen is a Pokémon detail screen carrying PGSharp's overlay, those being
+what every other reader depends on; it still saves the screenshot when it refuses, and checks before it scrolls. The
+cache, the snaps and `inventory*.csv` are git-ignored, since they describe a player's own account.
 
 Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
 risk to the account is yours to weigh.
