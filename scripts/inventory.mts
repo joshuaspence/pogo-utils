@@ -601,17 +601,25 @@ async function scan() {
           keep(`${name}-scrolled`, scrolled);
 
           if (capture.lost) {
-            notes.push(`the scroll lost its place after ${capture.frames.length} frames`);
+            notes.push(`the scroll lost its place after frame ${capture.frames.length}`);
           }
         } else {
           await swipe(config.swipes.scrollDown, config.waits.scroll);
           scrolled = await device.screenshot();
           keep(`${name}-moves`, scrolled);
 
-          // What the drag asked for, nothing here having measured what it got. A fling carries further than the finger,
-          // so this is the short side of the real distance, which is the side `scrollUp` wants to err on.
+          // Measured against the screen before the swipe, on the same footing as the `--scroll` branch above. What the
+          // drag asked for is no bound on what it got: it asks for half the screen where a panel frequently has less
+          // than that left to give, and the distance that matters is the shorter of the two.
+          const moved = offsetBetween(image, scrolled, config.scrollBand);
           const [grab, drop] = config.swipes.scrollDown;
-          back = (grab[1] - drop[1]) * shot.height;
+          back = moved ?? (grab[1] - drop[1]) * shot.height;
+
+          if (moved === null) {
+            // A shift past three-quarters of the band is more than `offsetBetween` looks for, which a panel longer than
+            // the swipe gives it. Falling back to the drag can overshoot the top, so it is recorded rather than hidden.
+            notes.push('the swipe to the moves could not be measured; the scroll back is what it dragged');
+          }
         }
 
         // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipes,
@@ -915,7 +923,9 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
   const end: Point = [from[0] + (to[0] - from[0]) * part, from[1] + reach * part];
 
   for (let i = 0; i < drags; i++) {
-    await device.swipe(from, end);
+    // At the capture's own drag speed, and for its reason: a quick drag flings on past where the finger stopped, which
+    // on the way back means landing above what `pixels` asked for and spending the overshoot on the dismiss gesture.
+    await device.swipe(from, end, SCROLL_DRAG_MS);
     await sleep(config.waits.scroll);
   }
 }
@@ -924,64 +934,81 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
  * A screenshot of whatever the phone is showing, read out field by field and saved, which is the tool for working out
  * why a scan misread something.
  *
- * **It refuses a screen a scan could not have used** rather than printing a page of nulls and exiting 0. A snap is
- * taken to be looked at later or committed as a fixture, and one of the map, or of a Pokémon with PGSharp's overlay
- * switched off, is neither — so the two things every other reader here depends on are checked, and nothing else is: the
- * exit status says the capture is worth keeping, not that every field came out.
+ * **It refuses a capture a scan could not have used** rather than printing a page of nulls and exiting 0. A snap is
+ * taken to be looked at later or committed as a fixture, and one of the map, one of a Pokémon with PGSharp's overlay
+ * switched off, and one the scroll lost its place part way through are none of them that. Nothing beyond those three is
+ * checked: the exit status says the capture is worth keeping, not that every field came out.
  *
- * The screen is settled and checked **before** anything is dragged, so a `--scroll` of the wrong screen does not drive
- * the phone for nothing; the screenshot is saved either way, one that refuses being exactly the one worth looking at.
+ * **What it says is what it saw.** A missing HP is reported as a missing HP and not as a screen that is not a detail
+ * screen: the two cannot be told apart from here, and the case `snap` exists to serve is the detail screen whose fields
+ * do not read. Guessing which it was would put a claim nothing checked in front of whoever is debugging.
+ *
+ * The screen is grabbed and written to disk first, then read, then checked. Writing first is what makes a snap of a
+ * broken phone useful: the readers can throw rather than read nothing — `ocr` rejects outright where Tesseract is not
+ * on the path — and a snap that saved nothing is no help on the one run that needed it. Reading before any drag is what
+ * keeps a `--scroll` of the wrong screen from driving the phone for nothing, and the game master is loaded after the
+ * grab, `iconsFor` taking minutes on a cold cache: long enough for the phone to blank the screen set up for the snap.
  */
 async function snap() {
   const device = new Device(options.serial);
   await device.check();
-  const data = await loadGameData(CACHE, options.refresh);
-  const icons = await iconsFor(CACHE, data, options.refresh);
   const name = rest[0] ?? new Date().toISOString().replaceAll(':', '-');
+  const path = join(CACHE, 'snaps', `${name}.png`);
 
   const write = (image: Image) => {
-    const path = join(CACHE, 'snaps', `${name}.png`);
     mkdirSync(join(CACHE, 'snaps'), { recursive: true });
     writeFileSync(path, encodePng(image));
     console.log(`Saved ${path} (${image.width}×${image.height})`);
   };
 
+  const refuse = (...whys: readonly string[]) => {
+    for (const why of whys) {
+      console.error(`snap: ${why}`);
+    }
+
+    process.exitCode = 1;
+  };
+
   // Settled, so that what is read is the screen rather than the middle of an animation it was drawing.
   const image = await settled(device);
-  const read = await report(image, data, icons);
+  write(image);
+
+  const data = await loadGameData(CACHE, options.refresh);
+  const read = await report(image, data, await iconsFor(CACHE, data, options.refresh));
 
   // A configured `overlay` is taken on trust and so can never be missing, which would leave this check vacuous for
   // anyone who sets one — hence the second case, where the box is known and nothing read inside it.
   const refused = [
-    !isDetail(read.detail) && 'this is not a Pokémon detail screen',
+    !isDetail(read.detail) && 'its HP did not read, so a scan could not have used this screen',
     read.box === null && "PGSharp's overlay was not found on it",
     read.box !== null && read.overlay === null && "PGSharp's overlay was found but nothing read inside it",
   ].filter((why): why is string => why !== false);
 
   if (refused.length > 0) {
-    write(image);
-
-    for (const why of refused) {
-      console.error(`snap: ${why}`);
-    }
-
-    process.exitCode = 1;
+    refuse(...refused);
 
     return;
   }
 
-  // One screenshot, or the whole screen stitched out of as many as it takes. The report above ran on the unstitched
-  // screen either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
-  // something to look at and to commit as a fixture rather than something to hand them.
-  const capture = options.scroll ? await scrollFrames(device) : null;
-  write(capture ? stitch(capture.frames, capture.offsets, config.scrollBand) : image);
+  if (!options.scroll) {
+    return;
+  }
 
-  if (capture) {
-    const total = capture.offsets.reduce((a, b) => a + b, 0);
-    const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
-    const end = capture.lost ? ', where the next would not line up' : '';
-    console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first${end}.`);
-    await scrollUp(device, image, total);
+  // The whole screen stitched out of as many frames as it takes. The report above ran on the unstitched screen, the
+  // readers it calls being anchored on fractions of the image's height — so a stitched image is something to look at
+  // and to commit as a fixture rather than something to hand them.
+  const capture = await scrollFrames(device);
+  const total = capture.offsets.reduce((a, b) => a + b, 0);
+  const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
+  write(stitch(capture.frames, capture.offsets, config.scrollBand));
+  console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first.`);
+  await scrollUp(device, image, total);
+
+  // A capture that lost its place is short by however much it had left to go, and a stitch of one frame is a copy of
+  // the screenshot already written. Either is a picture of something that was on the screen, so it is kept and refused
+  // rather than thrown away — but it is not the whole screen that was asked for, and the status has to say so.
+  if (capture.lost) {
+    refuse(`the scroll lost its place after frame ${capture.frames.length}, so the stitch is short`);
   }
 }
 
