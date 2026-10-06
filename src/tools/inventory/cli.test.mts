@@ -93,11 +93,46 @@ test('the flags are read off `parseArgs` whole, not some readable subset of it',
 });
 
 /**
- * The flags the synopsis offers, parsed once and compared in both directions below. Taken from running `help` rather
- * than from matching the source again here, so the two comparisons pin the text a person is actually shown.
+ * Which flags the script says each command acts on, read off its `HONOURED` table.
+ *
+ * The block is captured first and its keys matched inside it, for the two reasons the options block above is: a list
+ * `prettier` has wrapped still reads whole, and the key pattern names no command, so a command this test has never
+ * heard of is read rather than skipped.
+ *
+ * Naming the three was the hole. A `watch:` entry added to the table was checked by nothing — the pattern could not see
+ * it, and the union below could not notice either, being taken over only the entries the pattern had read. Which is the
+ * same fail-open shape as before: a reader that matches less is compared against less.
+ */
+const TABLE = /\nconst HONOURED[^=]*= \{\n([\s\S]*?)\n\};\n/.exec(SOURCE)?.[1] ?? '';
+const HONOURED = new Map(
+  [...TABLE.matchAll(/^ {2}([a-z-]+): \[([\s\S]*?)\],$/gm)].map(([, command, list]) => [
+    command as string,
+    new Set([...(list ?? '').matchAll(/'([a-z-]+)'/g)].map(([, flag]) => flag as string)),
+  ]),
+);
+
+/**
+ * The flags the synopsis offers each command, parsed once out of one `help` run. Split on the command lines rather than
+ * read whole, which is what makes the comparison per command rather than a flat set — and a flat set was the hole here
+ * before: `--serial` sat on the `scan` line alone while `snap` honoured it, and nothing could say so.
  */
 const ADVERTISED = run(process.execPath, [SCRIPT, 'help']).then(
-  ({ stderr }) => new Set([...stderr.matchAll(/--([a-z-]+)/g)].map(([, flag]) => flag as string)),
+  ({ stderr }) =>
+    new Map(
+      stderr
+        .split(/^ {2}pnpm inventory /m)
+        .slice(1)
+        .map((chunk) => {
+          // A continuation of the command above is indented past it; a line sitting at the margin is prose beneath the
+          // synopsis, and the flags it names in passing are not an offer to the last command listed.
+          const lines = chunk.split('\n').filter((line) => !/^ {2}\S/.test(line));
+
+          return [
+            /^([a-z]+)/.exec(chunk)?.[1] ?? '',
+            new Set([...lines.join('\n').matchAll(/--([a-z-]+)/g)].map(([, flag]) => flag as string)),
+          ];
+        }),
+    ),
 );
 
 /**
@@ -116,43 +151,95 @@ test('`help` prints the synopsis and exits 0', async () => {
 });
 
 /**
- * Every flag the script accepts is in the synopsis, and every flag the synopsis offers is one the script accepts. Set
- * membership rather than a substring search, because `includes` is prefix-blind: `--out` reads as documented the moment
- * a longer flag sharing its prefix is, so rewording `[--out inventory.csv]` to `[--output …]` would leave `--out`
- * accepted, unmentioned and unreported — the drift this exists to catch.
+ * That `HONOURED` names every flag `parseArgs` accepts and invents none, which is the invariant the table exists to
+ * hold: a flag in neither list is one no command acts on, and a flag in the table but not the options is one no command
+ * could be given.
  *
- * Which command each flag is listed under is not checked, and cannot usefully be: `parseArgs` takes one flat set of
- * options and every command ignores the ones that do not concern it, so nothing in the code says where a flag belongs.
- * `--refresh` is the one this first caught, accepted by all three commands and named by none of them.
+ * It is also what keeps the two patterns above honest. Both read this file's source, and a source reader that stops
+ * matching returns *less* — so the comparisons below would agree about a shrinking set and pass. Here the union has to
+ * come out equal to the options block, which a half-read table cannot do.
  */
-test('`help` lists every flag `parseArgs` accepts', async () => {
-  const offered = await ADVERTISED;
-
-  expect(
-    FLAGS.filter((flag) => !offered.has(flag)),
-    'these flags are accepted and the synopsis never mentions them',
-  ).toStrictEqual([]);
+test('`HONOURED` accounts for every flag `parseArgs` accepts, and no others', () => {
+  expect(TABLE, 'the `HONOURED` table was not found, so every claim about commands below is vacuous').not.toBe('');
+  expect([...new Set([...HONOURED.values()].flatMap((flags) => [...flags]))].sort()).toStrictEqual([...FLAGS].sort());
 });
 
-test('every flag the synopsis advertises is accepted', async () => {
-  const offered = await ADVERTISED;
+/**
+ * The table and the synopsis name the same commands, which is what makes the per-command comparison below total. Each
+ * direction is a live bug otherwise: a table entry with no synopsis line is a command whose flags are undocumented, and
+ * a synopsis line with no table entry is a command with no gate at all, silently ignoring every flag given to it — the
+ * very thing the table is here to stop.
+ */
+test('the table and the synopsis name the same commands', async () => {
+  const advertised = await ADVERTISED;
 
-  expect(
-    [...offered].filter((flag) => !FLAGS.includes(flag)),
-    'the synopsis offers these flags and `parseArgs` would reject them',
-  ).toStrictEqual([]);
+  expect([...HONOURED.keys()].sort(), 'a command is in the table or the synopsis but not both').toStrictEqual(
+    [...advertised.keys()].sort(),
+  );
 });
+
+/**
+ * Each command's synopsis line lists exactly the flags that command acts on. Compared as sets per command, because both
+ * weaker forms have already let real drift through: a substring search is prefix-blind, so `--out` read as documented
+ * the moment `--output` was, and a flat set over the whole synopsis could not see `--serial` sitting on the `scan` line
+ * while `snap` honoured it too.
+ */
+test('the synopsis lists each command the flags it acts on, and only those', async () => {
+  const advertised = await ADVERTISED;
+
+  for (const [command, honoured] of HONOURED) {
+    const offered = advertised.get(command) ?? new Set<string>();
+
+    expect([...honoured].sort(), `the ${command} synopsis disagrees with what ${command} acts on`).toStrictEqual(
+      [...offered].sort(),
+    );
+  }
+});
+
+/**
+ * A flag a command does not act on is refused rather than ignored. `parse --out inventory.csv` wrote no CSV and said
+ * nothing, which is the failure worth closing: a flag that reads as accepted and does nothing is worse than one
+ * rejected, because the run looks like it worked.
+ */
+test('a flag its command does not act on is refused, not ignored', async () => {
+  // Seeded even though the refusal comes before any reading, so that this stays off the network in the case that
+  // matters: with the refusal gone, the run goes on to `parse` the capture for real.
+  const cwd = reads();
+
+  try {
+    const failure = await run(process.execPath, [SCRIPT, 'parse', '--out', 'x.csv', CAPTURE], { cwd }).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toMatchObject({ code: 1 });
+    expect((failure as { stderr: string }).stderr).toContain('parse does not act on --out');
+    // The usage goes with the complaint, since the list the flag was not on is what answers it.
+    expect((failure as { stderr: string }).stderr).toContain('pnpm inventory parse');
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+// That the gate is not simply refusing everything is held by the `--verbose` test below, which runs `parse --verbose`
+// to completion and asserts an empty stderr — a flag `parse` does act on, getting past this and leaving nothing behind.
 
 /**
  * A command the script does not know is a failure rather than a silent no-op, and it says what the commands are. The
  * exit code is the half that matters: `help` and a typo print the same text, and only the status tells a script which
  * of the two happened.
+ *
+ * The names off `Object.prototype` are here because they got through. `HONOURED` is a plain object, so looking one of
+ * them up answered an inherited function, the guard found that truthy, and the flag filter then called `.includes` on a
+ * function and threw a `TypeError` over the usage. Each needs a flag beside it to show it, an empty list never invoking
+ * the filter — which is why a bare `toString` looked fine throughout.
  */
 test('an unknown command prints the usage and fails', async () => {
-  const failure = await run(process.execPath, [SCRIPT, 'scna']).catch((error: unknown) => error);
+  for (const command of ['scna', 'toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    const failure = await run(process.execPath, [SCRIPT, command, '--verbose']).catch((error: unknown) => error);
 
-  expect(failure).toMatchObject({ code: 1 });
-  expect((failure as { stderr: string }).stderr).toContain('pnpm inventory scan');
+    expect(failure, `\`${command}\` did not fail`).toMatchObject({ code: 1 });
+    expect((failure as { stderr: string }).stderr, `\`${command}\` printed no usage`).toContain('pnpm inventory scan');
+  }
 });
 
 /** `parse` with no file named is the same: the guard on it is a length, and a missing argument must not read as one. */

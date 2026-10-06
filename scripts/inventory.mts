@@ -26,11 +26,13 @@
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
  *                       [--config FILE] [--serial SERIAL] [--refresh]
- *   pnpm inventory snap [--scroll] [--verbose] [--refresh] [NAME]
+ *   pnpm inventory snap [--scroll] [--verbose] [--refresh] [--config FILE] [--serial SERIAL] [NAME]
  *                       save a screenshot of whatever is showing and print what each reader makes of it; fails unless
  *                       it is a detail screen carrying PGSharp's overlay
- *   pnpm inventory parse [--verbose] [--refresh] FILE.png…
+ *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
+ *   Each line lists the flags that command acts on, and a flag handed to a command whose line omits it is refused
+ *   rather than ignored. Why a flag is on the lines it is on belongs with `HONOURED` below, not here.
  *
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
  * one tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than
@@ -225,6 +227,53 @@ const { values: options, positionals } = parseArgs({
 });
 
 const [command = 'help', ...rest] = positionals;
+
+/**
+ * The synopsis out of this file's own header. Read once rather than where it is printed, because an argument error
+ * wants it as much as `help` does: a complaint about a flag is most useful beside the list the flag was not on.
+ */
+const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
+  .match(/Usage[^]*?\n \*\n[^]*?\n \*\n/)?.[0]
+  .replace(/^ \* ?/gm, '');
+
+/**
+ * Which flags each command acts on. `parseArgs` takes one flat set of options, so nothing else in the code says where a
+ * flag belongs: `parse --out inventory.csv` wrote no CSV and said nothing about it, and the synopsis had no way to be
+ * checked against anything. Stated once here, so the rejection below and the usage block above cannot drift apart
+ * without a test noticing.
+ *
+ * `--config` is on all three, and splits two ways rather than three: `scan` and `snap` both drive the phone out of it,
+ * reading `swipes`, `waits` and `scrollBand`, where `parse` reaches `overlay` alone and only through `report`. The
+ * fields are named so the claim can be checked by grepping for them, this sentence having been wrong twice already.
+ * `--serial` stops at `snap` because `parse` opens no device.
+ */
+const HONOURED: Record<string, readonly string[]> = {
+  scan: ['out', 'limit', 'skip', 'flags', 'tags', 'no-moves', 'scroll', 'keep-screens', 'config', 'serial', 'refresh'],
+  snap: ['scroll', 'verbose', 'refresh', 'config', 'serial'],
+  parse: ['verbose', 'refresh', 'config'],
+};
+
+/**
+ * The flags actually typed, which `options` cannot answer: `parseArgs` fills in every flag carrying a `default`, so
+ * `out`, `no-moves`, `scroll`, `refresh` and `verbose` are in it whether or not anyone asked for them. `argv` is the
+ * only place that still knows the difference, and taking the name up to the `=` is what makes `--out=x` read the same
+ * as `--out x`.
+ */
+const passed = process.argv.slice(2).flatMap((arg) => /^--([a-z-]+)/.exec(arg)?.[1] ?? []);
+
+// `hasOwn` rather than the lookup alone, because a plain object inherits from `Object.prototype`: `HONOURED.toString`
+// answers a function, which is truthy, so `toString --verbose` reached `.includes` on it and threw where it should have
+// fallen through to the usage. Only ever with a flag alongside, an empty list never invoking the filter.
+const honoured = Object.hasOwn(HONOURED, command) ? HONOURED[command] : undefined;
+const ignored = honoured ? passed.filter((flag) => !honoured.includes(flag)) : [];
+
+// Only for a command that has a list: `help` and a typo fall through to the usage below, which says more than this can.
+if (ignored.length > 0) {
+  console.error(`${command} does not act on ${ignored.map((flag) => `--${flag}`).join(', ')}\n`);
+  console.error(USAGE);
+  process.exit(1);
+}
+
 const config = loadConfig(options.config);
 
 /**
@@ -1026,10 +1075,6 @@ if (command === 'scan') {
     await report(decodePng(readFileSync(path)), data, icons);
   }
 } else {
-  console.error(
-    readFileSync(new URL(import.meta.url), 'utf8')
-      .match(/Usage[^]*?\n \*\n[^]*?\n \*\n/)?.[0]
-      .replace(/^ \* ?/gm, ''),
-  );
+  console.error(USAGE);
   process.exit(command === 'help' ? 0 : 1);
 }
