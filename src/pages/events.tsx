@@ -15,6 +15,7 @@
  * Gantt chart). The view toggle switches between them; the search box, type filters and dismissals apply to all three.
  */
 
+import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from '../event-feed.js';
@@ -606,8 +607,17 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   const hidden = hiddenFor(prefs, view);
   const newly = newlyVisible().length;
 
-  /** One card. The overlay link covers it, so every other control on it has to be a sibling of that link. */
-  function Card({ ev, index }: { ev: ParsedEvent; index: number }) {
+  /**
+   * One card. The overlay link covers it, so every other control on it has to be a sibling of that link.
+   *
+   * A function returning markup rather than a component, which is what the imperative page's `card(ev, now)` was too, and
+   * here it is load-bearing rather than a preference. A component declared inside another is a *new function identity* on
+   * every render, which the reconciler reads as a different type: it threw away all sixty cards and built them again on
+   * every keystroke in the search box and on every minute's tick, re-requesting sixty `cdn.leekduck.com` thumbnails each
+   * time. Called directly it contributes no component boundary at all, so the `<article>` keyed below is diffed against
+   * the one from the last render, and the thumbnails stay where they are.
+   */
+  function renderCard(ev: ParsedEvent, index: number) {
     const status = statusOf(ev, now);
     const dismissed = prefs.dismissed.has(ev.eventID);
     const fresh = isNew(ev);
@@ -635,6 +645,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     return (
       <article
+        key={ev.eventID}
         class={`card ${status.kind}${dismissed ? ' dismissed' : ''}${typeClass(ev.eventType)}`}
         style={{ '--i': String(Math.min(index, STAGGER_MAX)) }}
       >
@@ -736,18 +747,16 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     );
   }
 
-  /** One week's segment of an event, from a span of one column to all seven. */
-  function CalBar({
-    ev,
-    columns: [first, last],
-    contLeft,
-    contRight,
-  }: {
-    ev: ParsedEvent;
-    columns: readonly [number, number];
-    contLeft: boolean;
-    contRight: boolean;
-  }) {
+  /**
+   * One week's segment of an event, from a span of one column to all seven. A function rather than a component for the
+   * reason `renderCard` is one: declared in here, a component is a fresh type on every render and the whole month is
+   * rebuilt rather than diffed.
+   */
+  function renderCalBar(
+    ev: ParsedEvent,
+    [first, last]: readonly [number, number],
+    { contLeft, contRight }: { contLeft: boolean; contRight: boolean },
+  ) {
     const classes = ['cal-bar', statusOf(ev, now).kind];
 
     if (contLeft) {
@@ -766,6 +775,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     return (
       <a
+        key={ev.eventID}
         class={classes.join(' ') + typeClass(ev.eventType)}
         style={{ gridColumn: `${first + 1} / span ${last - first + 1}` }}
         href={ev.link}
@@ -808,22 +818,27 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     return {
       count: parts.join(' · '),
+      /**
+       * Keyed by the bucket, which an anonymous `<>` cannot be — and a bucket is exactly what comes and goes here, since
+       * only the non-empty ones are drawn. Unkeyed, the four are matched by position: a search term that empties
+       * "Happening now" slides "Upcoming" into slot nought, whose grid then carries a different key from the one that was
+       * there, so the reconciler rebuilds it and throws away every card under it. Measured at 0 of 62 cards reused on one
+       * keystroke, each taking its `cdn.leekduck.com` thumbnail with it.
+       */
       body: GROUPS.filter(({ kind }) => buckets[kind].length > 0).map(({ kind, label }) => (
-        <>
+        <Fragment key={kind}>
           {/*
            * The bucket's kind rides along on the heading so the stylesheet can pick out the running events; the count
            * saves the reader tallying cards to see how big a bucket is.
            */}
-          <h2 key={`h-${kind}`} class={`group group-${kind}`}>
+          <h2 class={`group group-${kind}`}>
             {label}
             <span class="gcount">{buckets[kind].length}</span>
           </h2>
           <div key={`g-${kind}-${generation}`} class="grid enter">
-            {buckets[kind].map((ev, index) => (
-              <Card key={ev.eventID} ev={ev} index={index} />
-            ))}
+            {buckets[kind].map(renderCard)}
           </div>
-        </>
+        </Fragment>
       )),
     };
   }
@@ -944,13 +959,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
                       return columns === null
                         ? []
                         : [
-                            <CalBar
-                              key={ev.eventID}
-                              ev={ev}
-                              columns={columns}
-                              contLeft={columns[0] === 0 && win[0] < weekStartMs}
-                              contRight={columns[1] === 6 && win[1] > weekEndMs}
-                            />,
+                            renderCalBar(ev, columns, {
+                              contLeft: columns[0] === 0 && win[0] < weekStartMs,
+                              contRight: columns[1] === 6 && win[1] > weekEndMs,
+                            }),
                           ];
                     })}
                   </div>

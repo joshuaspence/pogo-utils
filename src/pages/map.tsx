@@ -16,6 +16,7 @@
 
 import * as L from 'leaflet';
 
+import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import COUNTRIES from '../countries.js';
@@ -947,13 +948,16 @@ export default function MapPage({ query: fragment }: { query: string }) {
            */}
           {(
             [
-              [`${unreachable.length} file(s) could not be fetched — try reloading:`, unreachable],
-              [`${rejected.length} file(s) rejected — fix the GPX metadata:`, rejected],
+              ['unreachable', `${unreachable.length} file(s) could not be fetched — try reloading:`, unreachable],
+              ['rejected', `${rejected.length} file(s) rejected — fix the GPX metadata:`, rejected],
             ] as const
           ).map(
-            ([heading, failures]) =>
+            ([kind, heading, failures]) =>
               failures.length > 0 && (
-                <>
+                // Keyed because this is a list, even though a two-row one whose order never changes: an anonymous
+                // fragment is matched by position, so the pair would be told apart by where they sit rather than by which
+                // they are.
+                <Fragment key={kind}>
                   <b>{heading}</b>
                   <ul>
                     {failures.map(({ file, reason }) => (
@@ -962,7 +966,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
                       </li>
                     ))}
                   </ul>
-                </>
+                </Fragment>
               ),
           )}
         </div>
