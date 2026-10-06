@@ -25,10 +25,10 @@
  *
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
- *                       [--config FILE] [--serial SERIAL]
- *   pnpm inventory snap [--scroll] [--verbose] [NAME]
+ *                       [--config FILE] [--serial SERIAL] [--refresh]
+ *   pnpm inventory snap [--scroll] [--verbose] [--refresh] [NAME]
  *                       save a screenshot of whatever is showing and print what each reader makes of it
- *   pnpm inventory parse [--verbose] FILE.png…
+ *   pnpm inventory parse [--verbose] [--refresh] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
@@ -42,8 +42,8 @@
  * `snap` and `parse` are the tools for fixing a misread: every tap position, swipe and delay the scan uses is in
  * `DEFAULTS` below and can be overridden from a JSON file passed as `--config`, with positions as fractions of the
  * screen so that one file suits any phone of the same shape. Both print what each reader made of the screen, and
- * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text was
- * read there from one left empty because a reader anchored on the wrong line.
+ * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text
+ * was read there from one left empty because a reader anchored on the wrong line.
  *
  * Automating input breaks Niantic's terms of service. This only reads, and moves at a person's pace, but the risk to
  * the account is the user's to weigh.
