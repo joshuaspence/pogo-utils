@@ -6,7 +6,7 @@ export default defineConfig({
     testTimeout: 60_000,
     coverage: {
       enabled: true,
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/**/*.d.ts'],
       reporter: ['text'],
     },
