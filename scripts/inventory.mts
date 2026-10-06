@@ -49,12 +49,15 @@
  * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text
  * was read there from one left empty because a reader anchored on the wrong line.
  *
- * `--verbose` also un-silences the progress every command narrates before it has an answer: each file downloaded, and
- * the form icons read with the families no artwork settles. That is the same few lines on every run of a warm cache,
- * and the ambiguous families are a property of the game master rather than of the run — worth reading when a download
- * is slow or a form comes out wrong, and worth nothing in front of the answer the other nine runs in ten are after.
- * What went *wrong* is never gated: a stale copy read because the download failed, an icon index that could not be
- * had, an icon that 404s — each prints either way, those being what say why an answer came out degraded.
+ * `--verbose` also un-silences the preamble every command narrates before it has an answer: the form icons it is about
+ * to read, with the families no artwork settles. That is the same two lines on every run of a warm cache, and the
+ * ambiguous families are a property of the game master rather than of the run — worth reading when a form comes out
+ * wrong, and worth nothing in front of the answer the other nine runs in ten are after.
+ *
+ * A download says so either way, there being no warm run for it to be noise on: a file already in date is read without
+ * a word, so `Downloading` prints on exactly the cold or stale run, the one with minutes of waiting to account for.
+ * Neither is what went *wrong* ever held back — a stale copy read because the download failed, an icon index that could
+ * not be had, an icon that 404s — those being what say why an answer came out degraded.
  *
  * Automating input breaks Niantic's terms of service. This only reads, and moves at a person's pace, but the risk to
  * the account is the user's to weigh.
@@ -275,9 +278,10 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
  * had gone back to the map.
  *
  * `--verbose` is on all three for two different reasons, and reaches `scan` only for the second: it adds the OCR dump
- * that `report` prints, which `scan` never calls, and it un-silences `progress`, which every command reaches through
- * `loadGameData` and `iconsFor`. A scan left off this list would be one that cannot be asked why it sat for minutes
- * on a cold cache.
+ * that `report` prints, which `scan` never calls, and it un-silences the preamble `iconsFor` narrates, which all three
+ * reach. That second reason is the narrow one — a quiet `scan` still names the app it launches and counts off each flag
+ * it reads, those not being progress to be waited through — so what the flag buys here is the icon count and the
+ * families no artwork settles, and not the difference between a silent scan and a talking one.
  */
 const HONOURED: Record<string, readonly string[]> = {
   scan: [
@@ -319,9 +323,9 @@ if (ignored.length > 0) {
   process.exit(1);
 }
 
-// Ahead of every command, because progress is narrated until this says otherwise: a run without `--verbose` is asking
-// for quiet, and anything printed above this call would have printed anyway. Nothing is — the refusal above downloads
-// nothing, and no command prints before the game master is loaded — and `cli.test.mts` holds the ordering.
+// Ahead of `iconsFor`, which is the only thing that reads it, and up here rather than beside each of its three calls
+// because progress is narrated until this says otherwise: a call made late leaves the preamble in a run that asked for
+// quiet. `cli.test.mts` is what notices, the quiet half of its `--verbose` test failing on exactly that.
 showProgress(options.verbose);
 
 const config = loadConfig(options.config);

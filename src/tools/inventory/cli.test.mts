@@ -306,9 +306,8 @@ test('the OCR dump is printed only with `--verbose`', async () => {
       loud.stdout.split('\n').filter((line) => !DUMP.test(line)),
       '`--verbose` changed the report rather than only adding the dump',
     ).toStrictEqual(quiet.stdout.split('\n'));
-    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present. It is the
-    // `--verbose` run that carries that claim, a download being silent without the flag; the quiet run adds that this
-    // cache has nothing of its own to report either.
+    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present. Both runs carry
+    // that claim, `Downloading` being outside the `--verbose` gate: a missing file would name itself either way.
     expect(quiet.stderr).toBe('');
     expect(loud.stderr).toBe('');
   } finally {
@@ -337,16 +336,17 @@ const AMBIGUOUS = ['SPINDA_00', 'SPINDA_01'].map((form) => ({
 }));
 
 /**
- * The progress a command narrates before it has an answer — the downloads, and the form icons with the families no
- * artwork settles — is printed only for `--verbose`.
+ * The preamble `iconsFor` narrates before it has an answer — the form icons it is about to read, with the families no
+ * artwork settles — is printed only for `--verbose`. That is the whole of what the flag holds back; the downloads print
+ * either way, and `progress.test.mts` is where that is pinned.
  *
  * The `--verbose` run is asserted *first*, and on purpose. The cache `reads` seeds is otherwise empty enough that none
  * of these lines is reached at all, so a quiet assertion standing alone would pass just as well for a gate deleted
  * outright as for one that works: the test has to show the preamble exists before it can claim the flag holds it back.
  *
- * It reaches only as far as `iconsFor`, that cache being in date. The `Downloading` line and the warning a failed
- * download prints under it are the other half of the gate, and `progress.test.mts` holds those against a loopback
- * server, there being no way to fail one of upstream's three on demand from out here.
+ * Between them the two assertions also place `showProgress`, which is why no separate test does. Progress is narrated
+ * until that call says otherwise, so one made too late — below `iconsFor` rather than above it — leaves the preamble in
+ * the quiet run, and the second assertion is what sees it.
  */
 test('the progress preamble is printed only with `--verbose`', async () => {
   const cwd = reads(AMBIGUOUS);
@@ -365,25 +365,4 @@ test('the progress preamble is printed only with `--verbose`', async () => {
   } finally {
     rmSync(cwd, { recursive: true });
   }
-});
-
-/**
- * `showProgress` is set ahead of everything that narrates, which no run above can show: the cache `reads` seeds is in
- * date, so none of them reaches a download at all. Moved down past `loadGameData`, the call leaves the three files
- * upstream narrating themselves on a quiet run, and every test in this file stays green.
- *
- * Checked as a position in the script's own source because there is nowhere else to check it from — the call is at the
- * top level, so importing the script to watch it happen runs it. It fails closed in the way the two readers at the head
- * of this file are built to: a call renamed or dropped reads as `-1`, which is not less than anything. What it cannot
- * see is a call moved inside a function body that runs later, source order being not quite execution order.
- */
-test('`showProgress` is set before anything narrates', () => {
-  const set = SOURCE.indexOf('showProgress(');
-  const narrates = SOURCE.indexOf('loadGameData(CACHE');
-
-  expect(set, '`showProgress` is no longer called from the script, so no run can be asked to be quiet').toBeGreaterThan(
-    0,
-  );
-  expect(narrates, 'the script loads no game master, so there is nothing here to be ahead of').toBeGreaterThan(0);
-  expect(set, 'a download is narrated before `--verbose` has been read off').toBeLessThan(narrates);
 });

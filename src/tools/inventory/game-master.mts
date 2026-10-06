@@ -15,7 +15,6 @@
 
 import { titleise } from '../../pokemon/names.ts';
 import { fold } from './ocr.mts';
-import { progress } from './progress.mts';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -382,7 +381,11 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
     return readFileSync(path);
   }
 
-  progress(`Downloading ${url}`);
+  // Ungated, because the week's grace above already gates it: this line is reached only where the copy is missing or
+  // out of date, so it prints on the cold or stale run and never on the warm one `--verbose` was added to quieten. That
+  // is also the run that has minutes of silence to account for, and a flag cannot be added once the wait has started.
+  console.error(`Downloading ${url}`);
+
   let bytes: Buffer;
 
   try {
@@ -398,9 +401,9 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
 
-    // Naming the URL rather than leaning on the line above, which `progress` prints only where it was asked for: this
-    // one is not gated, and a bare `fetch failed; using the copy from before` cannot say which of the three files or
-    // which of ~153 icons went stale.
+    // Naming the URL rather than leaning on the line above it. `iconsFor` keeps 16 downloads in flight, so the
+    // `Downloading` this reads as a continuation of is rarely the line printed before it, and a bare `fetch failed;
+    // using the copy from before` cannot say which of the three files or which of ~153 icons went stale.
     if (existsSync(path)) {
       console.error(`  ${url}: ${reason}; using the copy from before`);
       return readFileSync(path);
