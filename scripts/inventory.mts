@@ -39,7 +39,7 @@
 
 import { Device, KEY } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
-import { parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
+import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
@@ -330,6 +330,11 @@ async function scan() {
       await device.key(KEY.BACK);
       await sleep(config.waits.search);
       lines = await readLines(await device.screenshot());
+
+      // A grid whose labels all misread is taken for the panel too, and Back closes storage itself from there.
+      if (!isStorage(lines)) {
+        lines = await toStorage();
+      }
     }
 
     return lines;
@@ -441,7 +446,7 @@ async function scan() {
    * it: the panel carries no CP anywhere.
    */
   const tileLabel = (lines: readonly Line[]) =>
-    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && /^cp\s?\d/.test(fold(l.text)));
+    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
 
   /**
    * Opens the first Pokémon the grid shows, answering false when there is none — a search that matched nothing.

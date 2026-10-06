@@ -52,19 +52,22 @@ export async function readLines(image: Image): Promise<Line[]> {
   return [...all, ...sky].sort((a, b) => a.top - b.top || a.left - b.left);
 }
 
+/**
+ * The small `CP` beside the number is often read with a stray letter after it (`cPe518`), as `GP`, or — the one that
+ * cost a capture its whole form — as `ce`. `deoxys-attack.png`'s line reads `ce1441`, with the digits perfectly
+ * right and the label's `P` taken for an `e`, so the pattern rejected the one line on the screen that had the CP in
+ * it. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
+ *
+ * What it admits is 23 captures, 18 of them reading the CP exactly — and the other five matter, so widening this
+ * alone is not the change. `articuno-kanto.png` reads `170` for 1705, `castform-snowy.png` `46` for 746 and
+ * `deoxys-defense.png` `15` for 1569, and `wholeCp` recovers all five, `articuno-kanto.png` only at the widest of its
+ * pads. The two go together: the label says which line, and the band says the whole number.
+ */
+export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
+
 export async function parseDetail(lines: readonly Line[], data: GameData, image: Image): Promise<Detail> {
-  // The small `CP` beside the number is often read with a stray letter after it (`cPe518`), as `GP`, or — the one that
-  // cost a capture its whole form — as `ce`. `deoxys-attack.png`'s line reads `ce1441`, with the digits perfectly
-  // right and the label's `P` taken for an `e`, so the pattern rejected the one line on the screen that had the CP in
-  // it. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
-  //
-  // What it admits is 23 captures, 18 of them reading the CP exactly — and the other five matter, so widening this
-  // alone is not the change. `articuno-kanto.png` reads `170` for 1705, `castform-snowy.png` `46` for 746 and
-  // `deoxys-defense.png` `15` for 1569, and `wholeCp` recovers all five, `articuno-kanto.png` only at the widest of its
-  // pads. The two go together: the label says which line, and the band says the whole number.
-  const cpPattern = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
-  const cpLine = lines.find((l) => l.top < image.height / 4 && cpPattern.test(fold(l.text)));
-  const read = cpLine ? (cpPattern.exec(fold(cpLine.text))?.[1] ?? null) : null;
+  const cpLine = lines.find((l) => l.top < image.height / 4 && CP_LABEL.test(fold(l.text)));
+  const read = cpLine ? (CP_LABEL.exec(fold(cpLine.text))?.[1] ?? null) : null;
   const whole = cpLine && read !== null ? wholeCp(image, cpLine, read, cpDigits(data)) : null;
 
   // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.
@@ -85,7 +88,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const nameLine = hpLine
     ? lines
         .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}|\p{N}{2}/u.test(l.text))
-        .filter((l) => !cpPattern.test(fold(l.text)))
+        .filter((l) => !CP_LABEL.test(fold(l.text)))
         .at(-1)
     : undefined;
   const name = nameLine ? sanitise(nameLine.text) : null;
