@@ -29,8 +29,8 @@ const blank = (width: number, height: number): Image => ({
 
 /**
  * A deterministic hash, because the obvious thing does not work: a row painted `(37 * y + 3 * x) % 256` repeats every
- * 256 rows, and `cost` compares the red channel alone, so the difference between two frames becomes a function of the
- * shift and nothing else — deep minima at shifts that line nothing up. Measured: a scroll of 100 came back as 190.
+ * 256 rows, and `profile` and `pixelCost` read the red channel alone, so the difference between two frames becomes a
+ * function of the shift and nothing else — deep minima at shifts that line nothing up, a scroll of 100 reading as 190.
  * Real screen content is not periodic like that, but a fixture has to be built not to be.
  */
 const hash = (x: number, y: number) => {
@@ -101,9 +101,9 @@ test('the shift between two frames is the number of pixels the content moved', (
  * and the difference is the point: zero is a measurement — the content is where it was — where null is this reader
  * saying it cannot tell. A capture stops on either, but only one of them is a fact about the screen.
  *
- * Written the other way round first, on the reasoning that identical frames score alike everywhere so nothing would
- * stand out. They do not: a shift of zero scores exactly nought and everything else scores the full width of the
- * content, so it stands out further than any real scroll does.
+ * It might be expected to be refused, identical frames seeming to score alike everywhere. They do not: a shift of zero
+ * scores exactly nought and everything else scores the full width of the content, so it stands out further than any
+ * real scroll does.
  */
 test('two identical frames have not moved, which is a shift of zero', () => {
   const frame = frameAt(content(2000), 40);
@@ -223,9 +223,9 @@ test('stitching nothing, or frames without a shift between each pair, is a mista
  * above cannot reach, because what they lack is a **layout**. Every detail screen has the same panel, the same rows of
  * labels and the same buttons, and that is enough for one screen's row summaries to line up against another's.
  *
- * `pikachu.png` against `smoliv.png` is the case that bit: it answered a confident 114 under a margin test, which is
- * two Pokémon assembled into one image. It is refused here by how **close** the match is rather than by how far it
- * stands out — a true scroll costs 0.00 where these two cost 19.12 at their best, the band being 70% flat panel grey.
+ * `pikachu.png` against `smoliv.png` is that case: their summaries line up at a shift of 114, which would be two
+ * Pokémon assembled into one image. It is refused by how **close** the match is rather than by how far it stands out —
+ * a true scroll costs 0.00 where these two cost 19.12 at their best, the band being 70% flat panel grey.
  */
 const SCREEN: Band = { from: 0.34, to: 0.95 };
 const capture = (file: string) => decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));

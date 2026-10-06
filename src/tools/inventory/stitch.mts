@@ -1,7 +1,7 @@
 /**
  * One tall image out of several screenshots taken while scrolling, which is the only way to see a screen that is
- * longer than the phone. The detail screen is one: the moves sit below the fold on every capture this repository
- * holds, which is why `parseMoves` has no fixture to be asserted against.
+ * longer than the phone all at once. The detail screen is one: an unscrolled capture reaches the moves at its foot and
+ * stops there, short of the catch details below them.
  *
  * **Not everything on the screen scrolls, and that is the whole problem.** The status bar ticks with the clock at the
  * top, PGSharp draws its overlay *over* the app rather than in it so it stays exactly where it is, and the game's own
@@ -95,9 +95,9 @@ const rows = (image: Image, band: Band) => ({
  * Summarising first is what makes searching every shift affordable, and searching every shift is not optional. A
  * coarse pass at every eighth pixel and a fine pass around its answer is the obvious economy and it does not work
  * here: rows of a screen are distinct, so the cost of a shift is a spike at the right answer and flat either side of
- * it, and a stride of eight steps over that spike seven times in eight. Measured — a scroll of exactly one pixel came
- * back as null, because the coarse pass landed nowhere near it. Against summaries the whole range is about a million
- * operations rather than the forty-odd million a full two-dimensional search would be.
+ * it, and a stride of eight steps over that spike seven times in eight, missing a scroll of one pixel outright. Against
+ * summaries the whole range is about a million operations rather than the forty-odd million a full two-dimensional
+ * search would be.
  */
 function profile(image: Image, band: Band): { mean: Float64Array; rough: Float64Array } {
   const { top, bottom } = rows(image, band);
@@ -186,8 +186,8 @@ export function offsetBetween(a: Image, b: Image, band: Band): number | null {
   // an absolute figure is the right tool: two frames of a scroll are two screenshots of the same pixels, so where they
   // correspond they are identical rather than merely similar. Measured over a real 1008x2244 capture, with the band
   // 70% flat panel grey: a true scroll costs **0.00** at its shift and about 30 at any other, where `pikachu.png`
-  // against `smoliv.png` costs **19.12** at its best — confidently answering 114 under a margin test, and nowhere near
-  // zero. The ceiling sits in that gap, far below the 19 and well above the 0.
+  // against `smoliv.png` costs **19.12** at its best, a shift of 114 that the search above alone would accept. The
+  // ceiling sits in that gap, far below the 19 and well above the 0.
   //
   // What would move it is a screenshot that is not lossless or an animation reaching inside the band, and the symptom
   // would be a scroll that refuses rather than one that assembles the wrong rows. That is the direction to fail in.

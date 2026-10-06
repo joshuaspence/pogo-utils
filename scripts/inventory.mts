@@ -30,10 +30,10 @@
  *                                          of it
  *   pnpm inventory parse FILE.png…         the same for screenshots already saved, with no phone needed
  *
- * `--scroll` keeps swiping down and taking a screenshot until the screen stops moving, then stitches the frames into
- * one tall image. It is what sees a screen longer than the phone: the moves sit below the fold on every capture, so a
- * scan reads them from the stitched image rather than from a single screenshot taken part way down, and `snap
- * --scroll` is how a capture of a whole detail screen gets made. The stitched image is **not** given to the other
+ * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
+ * one tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than
+ * from a single screenshot taken part way down, and `snap --scroll` is how a capture of a whole detail screen gets
+ * made. The stitched image is **not** given to the other
  * readers, and that is a limit rather than an oversight — the star corner, the overlay sweep, the tag band and the
  * artwork are each anchored on a fraction of the image's height, so a frame three times taller moves every one of
  * them. `parseMoves` is the one reader that is not, being anchored on the `GYMS & RAIDS` line.

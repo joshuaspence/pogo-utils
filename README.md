@@ -269,11 +269,12 @@ and `--skip` break a long run into pieces, and `--refresh` downloads the game ma
 using the week-old cache. Pokémon GO is launched only where it is not already the app in front, so a run started over an
 open storage screen picks up from there rather than waiting out a cold start.
 
-`--scroll` keeps swiping down and screenshotting until the screen stops moving, then stitches the frames into one tall
-image — which is how a screen longer than the phone gets seen at all. A scan reads the moves from it rather than from
+`--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into one
+tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than from
 one screenshot taken part way down, and `pnpm inventory snap --scroll` is how a capture of a whole detail screen gets
 made. The stitched image is not handed to the other readers: the star corner, the overlay sweep, the tag band and the
-artwork are each anchored on a fraction of the image's height, so a frame three times taller moves all of them.
+artwork are each anchored on a fraction of the image's height, so a frame three times taller moves all of them. The band
+of the screen the frames are lined up in is `scrollBand` in `--config`, the one position not yet measured on a phone.
 
 Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
