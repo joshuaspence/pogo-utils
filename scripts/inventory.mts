@@ -224,8 +224,8 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
   console.log('moves:', await parseMoves(lines, data, id.form, image));
   console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
   console.log('overlay:', overlay ?? 'nothing read');
-  // The form carries its whole move pool now, which prints as a column of `[Object]` and buries everything worth
-  // reading; the names are what a person tuning this wants to see anyway.
+  // The form carries its whole move pool, which prints as a column of `[Object]` and buries everything worth reading;
+  // the names are what a person tuning this wants to see anyway.
   console.log('identity:', {
     ...id,
     form: id.form && { ...id.form, moves: id.form.moves.map((m) => m.name).join(', ') },
@@ -450,9 +450,9 @@ async function scan() {
    * The row comes from the grid and the column from the configuration, which is not a compromise but the right split.
    * How far down the first row sits depends on whether a search is showing, so it has to be read; which column is
    * first does not, since the grid is three even columns and 0.18 of the width lands in the leftmost of them on both
-   * phones tried. Taking the column from the label as well is what the code did, and it opened the *second* Pokémon
-   * whenever the first one's CP failed to OCR — in an `xxl` grid of five, the top row's only legible label was the
-   * middle tile's, so the walk began one along and marked four. One short is the hardest kind of wrong to notice.
+   * phones tried. Taking the column from the label as well would open the *second* Pokémon whenever the first one's CP
+   * failed to OCR — in an `xxl` grid of five, the top row's only legible label was the middle tile's, so the walk began
+   * one along and marked four. One short is the hardest kind of wrong to notice.
    */
   const openFirst = async (grid: readonly Line[]) => {
     const label = tileLabel(grid);
@@ -576,8 +576,8 @@ async function scan() {
         await swipe(config.swipes.scrollDown, config.waits.scroll);
         const scrolled = await device.screenshot();
         keep(`${name}-moves`, scrolled);
-        // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipe, so
-        // that a read failing before the phone is back is a rejection here rather than an unhandled one.
+        // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipe,
+        // so that a read failing before the phone is back is a rejection here rather than an unhandled one.
         reading = ocr(scrolled).then((lines) => parseMoves(lines, data, id.form, scrolled));
         await Promise.all([reading, swipe(config.swipes.scrollUp, config.waits.scroll)]);
       }
@@ -696,10 +696,10 @@ function bump(map: Map<string, number>, key: string, by: number) {
 }
 
 /**
- * What identifies one Pokémon across two passes. CP used to be half of this and is not any more: it is white over the
- * artwork and reads perhaps a quarter of the time, so requiring it made every screen unreadable and stopped a walk
- * after three. The overlay's IVs take its place and discriminate better — HP, weight, height and 15/15/15 together are
- * shared by almost nothing — and HP alone is what a key now needs to exist at all.
+ * What identifies one Pokémon across two passes. CP is not part of it: it is white over the artwork and the reading
+ * OCR misses most, so requiring it would make screens unreadable and stop a walk after three. The overlay's IVs
+ * discriminate better — HP, weight, height and 15/15/15 together are shared by almost nothing — and HP alone is what a
+ * key needs to exist at all.
  */
 function keyOf(detail: Detail, overlay: Overlay | null): string | null {
   if (detail.hp === null) {
