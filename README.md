@@ -257,14 +257,17 @@ brew install android-platform-tools tesseract   # or: apt install adb tesseract-
 pnpm inventory scan --out inventory.csv
 ```
 
-Plug the phone in with USB debugging on, set Pokémon GO to English and choose a storage sort order first; the scan keeps
-whatever order is set. It opens the first Pokémon and swipes through the rest. For each one it reads the detail screen,
-scrolls down to the moves and opens the appraisal. Level and form are never shown on screen. The script works them out
-from the CP, HP and IVs against the base stats in [PokeMiners' game master](https://github.com/PokeMiners), which is
-also how a nicknamed Pokémon gets its species back. Shiny, lucky, costume and size come from the game's own searches
-(`shiny`, `lucky`, `costume`, `xxl`, `xxs`), one quick pass each before the full pass. Expect several seconds per
-Pokémon. `--limit` and `--skip` break a long run into pieces. Pokémon GO is launched only where it is not already the
-app in front, so a run started over an open storage screen picks up from there rather than waiting out a cold start.
+The scan needs PGSharp with its IV display switched on, since PGSharp's overlay is where the level and the three IVs are
+read from; on the stock client those columns come back empty. Plug the phone in with USB debugging on, set Pokémon GO to
+English and choose a storage sort order first; the scan keeps whatever order is set. It opens the first Pokémon and
+swipes through the rest, reading the detail screen and then the moves scrolled into view. Form is never shown on screen,
+so the script works it out from the HP, IVs and types against the base stats in
+[PokeMiners' game master](https://github.com/PokeMiners), which is also how a nicknamed Pokémon gets its species back.
+Size comes from the `XXL` or `XXS` badge on the detail screen, and shiny, lucky and costume from the game's own
+searches, one quick pass each before the full pass; `--flags` picks which. Expect several seconds per Pokémon. `--limit`
+and `--skip` break a long run into pieces, and `--refresh` downloads the game master and form icons again rather than
+using the week-old cache. Pokémon GO is launched only where it is not already the app in front, so a run started over an
+open storage screen picks up from there rather than waiting out a cold start.
 
 Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
