@@ -418,7 +418,9 @@ async function scan() {
     for (let attempt = 0; ; attempt++) {
       const image = await settled();
       const detail = await parseDetail(await readLines(image), data, image);
-      const overlay = await overlayOf(image);
+      // Only a detail screen is worth a sweep. The sweeps are rationed, and an empty search's grid or a tile still
+      // opening would otherwise spend them all before the first Pokémon, leaving every row without IVs.
+      const overlay = detail.hp === null ? null : await overlayOf(image);
       const key = keyOf(detail, overlay);
       const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
       // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
