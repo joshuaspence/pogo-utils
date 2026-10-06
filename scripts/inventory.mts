@@ -26,9 +26,10 @@
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
  *                       [--config FILE] [--serial SERIAL]
- *   pnpm inventory snap [--scroll] [NAME]  save a screenshot of whatever is showing and print what each reader makes
- *                                          of it
- *   pnpm inventory parse FILE.png…         the same for screenshots already saved, with no phone needed
+ *   pnpm inventory snap [--scroll] [--verbose] [NAME]
+ *                       save a screenshot of whatever is showing and print what each reader makes of it
+ *   pnpm inventory parse [--verbose] FILE.png…
+ *                       the same for screenshots already saved, with no phone needed
  *
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
  * one tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than
@@ -40,7 +41,9 @@
  *
  * `snap` and `parse` are the tools for fixing a misread: every tap position, swipe and delay the scan uses is in
  * `DEFAULTS` below and can be overridden from a JSON file passed as `--config`, with positions as fractions of the
- * screen so that one file suits any phone of the same shape.
+ * screen so that one file suits any phone of the same shape. Both print what each reader made of the screen, and
+ * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text was
+ * read there from one left empty because a reader anchored on the wrong line.
  *
  * Automating input breaks Niantic's terms of service. This only reads, and moves at a person's pace, but the risk to
  * the account is the user's to weigh.
@@ -217,6 +220,7 @@ const { values: options, positionals } = parseArgs({
     'config': { type: 'string' },
     'serial': { type: 'string' },
     'refresh': { type: 'boolean', default: false },
+    'verbose': { type: 'boolean', default: false },
   },
 });
 
@@ -238,8 +242,10 @@ function artworkIn(image: Image, box: OverlayBox | null, icons: ReadonlyMap<Form
 async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Signature>) {
   const lines = await readLines(image);
 
-  for (const l of lines) {
-    console.log(`  ${`${l.left},${l.top} ${l.width}×${l.height}`.padEnd(22)} ${l.text}`);
+  if (options.verbose) {
+    for (const l of lines) {
+      console.log(`  ${`${l.left},${l.top} ${l.width}×${l.height}`.padEnd(22)} ${l.text}`);
+    }
   }
 
   const detail = await parseDetail(lines, data, image);
