@@ -587,12 +587,12 @@ async function scan() {
 
       if (!options['no-moves']) {
         let scrolled: Image;
-        let swipes = 1;
+        let back: number;
 
         if (options.scroll) {
           const capture = await scrollFrames(device);
           scrolled = stitch(capture.frames, capture.offsets, config.scrollBand);
-          swipes = capture.swipes;
+          back = capture.offsets.reduce((a, b) => a + b, 0);
           keep(`${name}-scrolled`, scrolled);
 
           if (capture.lost) {
@@ -602,12 +602,17 @@ async function scan() {
           await swipe(config.swipes.scrollDown, config.waits.scroll);
           scrolled = await device.screenshot();
           keep(`${name}-moves`, scrolled);
+
+          // What the drag asked for, nothing here having measured what it got. A fling carries further than the finger,
+          // so this is the short side of the real distance, which is the side `scrollUp` wants to err on.
+          const [grab, drop] = config.swipes.scrollDown;
+          back = (grab[1] - drop[1]) * shot.height;
         }
 
         // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipes,
         // so that a read failing before the phone is back is a rejection here rather than an unhandled one.
         reading = ocr(scrolled).then((lines) => parseMoves(lines, data, id.form, scrolled));
-        await Promise.all([reading, scrollUp(device, shot, swipes)]);
+        await Promise.all([reading, scrollUp(device, shot, back)]);
       }
 
       if (reading) {
@@ -827,10 +832,8 @@ async function settled(device: Device): Promise<Image> {
 /** What a scroll capture took, and what `stitch` and the way back up need from it. */
 interface Capture {
   frames: Image[];
-  /** The shift between each consecutive pair, as `stitch` takes them. */
+  /** The shift between each consecutive pair, as `stitch` takes them, and what they sum to is the way back up. */
   offsets: number[];
-  /** How many times it dragged the screen, which is how many it takes to get back up. */
-  swipes: number;
   /** Whether it stopped on two frames that would not line up, rather than on reaching the end. */
   lost: boolean;
 }
@@ -842,7 +845,9 @@ interface Capture {
  * up with the one before, which is left out; or at `SCROLL_FRAMES`, so that a screen which never stops moving is a
  * short capture rather than a scan that does not come back. Every frame it answers is one `stitch` uses.
  *
- * It does not scroll back up: `scrollUp` does, `swipes` times, when the caller is ready.
+ * It does not scroll back up: `scrollUp` does, by what the offsets sum to, when the caller is ready. The last drag is
+ * always one that moved nothing — that being how the end of the screen announces itself — so what it dragged is no part
+ * of the way back.
  */
 async function scrollFrames(device: Device): Promise<Capture> {
   const band = config.scrollBand;
@@ -851,16 +856,14 @@ async function scrollFrames(device: Device): Promise<Capture> {
   const y = (through: number) => first.height * (band.from + (band.to - band.from) * through);
   const frames = [first];
   const offsets: number[] = [];
-  let swipes = 0;
 
   while (frames.length < SCROLL_FRAMES) {
     await device.swipe([x, y(0.5 + SCROLL_STEP / 2)], [x, y(0.5 - SCROLL_STEP / 2)], SCROLL_DRAG_MS);
-    swipes++;
     const next = await settled(device);
     const moved = offsetBetween(frames.at(-1) as Image, next, band);
 
     if (moved === null) {
-      return { frames, offsets, swipes, lost: true };
+      return { frames, offsets, lost: true };
     }
 
     if (moved === 0) {
@@ -871,18 +874,40 @@ async function scrollFrames(device: Device): Promise<Capture> {
     offsets.push(moved);
   }
 
-  return { frames, offsets, swipes, lost: false };
+  return { frames, offsets, lost: false };
 }
 
 /**
- * Back up the screen `times` times by the configured swipe, which covers more than one drag of a capture; a spare one
- * at the top moves nothing. `screen` is any screenshot, for its size.
+ * Back up the screen by `pixels`, which is the distance it was measured to have scrolled. `screen` is any screenshot,
+ * for its size.
+ *
+ * **A drag longer than the screen has scrolled does not stop at the top.** Once the content is there the game reads the
+ * rest of the finger's travel as a swipe to dismiss and closes the panel, so asking for more than was scrolled ends on
+ * the map rather than on the Pokémon the scan opened — and the swipe to the next Pokémon then lands on nothing, three
+ * unreadable screens stopping the pass. One drag of the configured swipe covers 0.55 of the height where a detail
+ * screen scrolls 711 pixels of 2244, so a swipe per drag the capture made asked for roughly three times too much.
+ *
+ * Undershooting is the safe direction: the panel resets to its top when the game draws the next Pokémon, so a few rows
+ * left unscrolled cost nothing where a few too many close the screen.
  */
-async function scrollUp(device: Device, screen: Image, times: number) {
-  const [from, to] = config.swipes.scrollUp.map(([x, y]): Point => [x * screen.width, y * screen.height]);
+async function scrollUp(device: Device, screen: Image, pixels: number) {
+  if (pixels <= 0) {
+    return;
+  }
 
-  for (let i = 0; i < times; i++) {
-    await device.swipe(from as Point, to as Point);
+  const [from, to] = config.swipes.scrollUp.map(([x, y]): Point => [x * screen.width, y * screen.height]) as [
+    Point,
+    Point,
+  ];
+  const reach = to[1] - from[1];
+
+  // As few drags as the configured swipe reaches in, each an equal share, one drag covering only what fits on screen.
+  const drags = Math.ceil(pixels / reach);
+  const part = pixels / drags / reach;
+  const end: Point = [from[0] + (to[0] - from[0]) * part, from[1] + reach * part];
+
+  for (let i = 0; i < drags; i++) {
+    await device.swipe(from, end);
     await sleep(config.waits.scroll);
   }
 }
@@ -910,7 +935,7 @@ if (command === 'scan') {
     const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
     const end = capture.lost ? ', where the next would not line up' : '';
     console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first${end}.`);
-    await scrollUp(device, image, capture.swipes);
+    await scrollUp(device, image, total);
   }
 
   const data = await loadGameData(CACHE, options.refresh);
