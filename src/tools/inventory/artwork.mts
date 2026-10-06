@@ -29,6 +29,7 @@
 import { join } from 'node:path';
 import { cached, ICON_BASE, type Form, type GameData } from './game-master.mts';
 import { decodePng, rgb, type Image } from './png.mts';
+import { progress } from './progress.mts';
 
 /** How many hue bins a signature holds. Coarse on purpose: the model is lit and posed, where the icon is flat art. */
 const BINS = 12;
@@ -422,14 +423,14 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
   const signatures = new Map<Form, Signature>();
 
   if (drawn.length > 0) {
-    console.error(`Reading ${drawn.length} form icons`);
+    progress(`Reading ${drawn.length} form icons`);
   }
 
   // Per family and ahead of the download, since the index already said so: a family short of one icon is one the game
   // draws no artwork for, and reporting it per missing form would be the same sentence 72 times a scan.
   if (short.length > 0) {
     const named = short.map((family) => `${family[0]?.species ?? '?'} (${family.length})`);
-    console.error(`  no icon for every form of ${short.length} families, which stay ambiguous: ${named.join(', ')}`);
+    progress(`  no icon for every form of ${short.length} families, which stay ambiguous: ${named.join(', ')}`);
   }
 
   const signatureFor = async (form: Drawn): Promise<Signature | null> => {

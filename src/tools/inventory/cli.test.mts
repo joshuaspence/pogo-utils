@@ -47,8 +47,11 @@ const dumpRows = (text: string) => text.split('\n').filter((line) => DUMP.test(l
  *
  * The multipliers themselves are arbitrary values over more levels than the game has, and safe to be both: no assertion
  * here reads a number derived from them, and over-supplying keeps this from pinning the scanner's highest level.
+ *
+ * `extra` is appended to those templates, for the one test below that needs a form to exist at all. It defaults to none
+ * so that every other caller keeps the emptiness the paragraph above turns into an assertion.
  */
-function reads(): string {
+function reads(extra: readonly unknown[] = []): string {
   const dir = mkdtempSync(join(tmpdir(), 'inventory-cli-'));
   const cache = join(dir, '.cache', 'inventory');
   const levels = Array.from({ length: 100 }, (_, i) => 0.1 + i / 100);
@@ -56,7 +59,10 @@ function reads(): string {
   mkdirSync(cache, { recursive: true });
   writeFileSync(
     join(cache, 'game-master.json'),
-    JSON.stringify([{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: levels } } }]),
+    JSON.stringify([
+      { templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: levels } } },
+      ...extra,
+    ]),
   );
   writeFileSync(join(cache, 'english.json'), JSON.stringify({ data: [] }));
   writeFileSync(join(cache, 'icons.json'), JSON.stringify({ tree: [] }));
@@ -300,9 +306,61 @@ test('the OCR dump is printed only with `--verbose`', async () => {
       loud.stdout.split('\n').filter((line) => !DUMP.test(line)),
       '`--verbose` changed the report rather than only adding the dump',
     ).toStrictEqual(quiet.stdout.split('\n'));
-    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present.
+    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present. It is the
+    // `--verbose` run that carries that claim, a download being silent without the flag; the quiet run adds that this
+    // cache has nothing of its own to report either.
     expect(quiet.stderr).toBe('');
     expect(loud.stderr).toBe('');
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+/**
+ * Two forms the numbers cannot separate, which is the cheapest thing that makes `iconsFor` report at all: one dex, two
+ * non-costume forms identical in types and all three stats, and no icon for either in the empty index.
+ *
+ * That last part is what keeps this hermetic, and is why the pair is short of its icons rather than holding them. A
+ * family short of one can never be narrowed, so it is named ahead of any download and nothing is fetched; a family
+ * the artwork *could* settle would send the run to the network for an icon apiece.
+ */
+const AMBIGUOUS = ['SPINDA_00', 'SPINDA_01'].map((form) => ({
+  templateId: `V0327_POKEMON_${form}`,
+  data: {
+    pokemonSettings: {
+      pokemonId: 'SPINDA',
+      form,
+      type: 'POKEMON_TYPE_NORMAL',
+      stats: { baseAttack: 1, baseDefense: 1, baseStamina: 1 },
+    },
+  },
+}));
+
+/**
+ * The progress a command narrates before it has an answer — the downloads, and the form icons with the families no
+ * artwork settles — is printed only for `--verbose`.
+ *
+ * The `--verbose` run is asserted *first*, and on purpose. The cache `reads` seeds is otherwise empty enough that none
+ * of these lines is reached at all, so a quiet assertion standing alone would pass just as well for a gate deleted
+ * outright as for one that works: the test has to show the preamble exists before it can claim the flag holds it back.
+ *
+ * What went wrong is deliberately not covered here, there being no hermetic way to fail a download — but it is the
+ * other half of the gate, and `progress.mts` says which lines are which.
+ */
+test('the progress preamble is printed only with `--verbose`', async () => {
+  const cwd = reads(AMBIGUOUS);
+
+  try {
+    const [quiet, loud] = await Promise.all([
+      run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd }),
+      run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
+    ]);
+
+    expect(
+      loud.stderr,
+      'the preamble was never reached, so the quiet claim below would hold for no gate at all',
+    ).toContain('Spinda (2)');
+    expect(quiet.stderr, 'the preamble was printed without the flag asking for it').toBe('');
   } finally {
     rmSync(cwd, { recursive: true });
   }

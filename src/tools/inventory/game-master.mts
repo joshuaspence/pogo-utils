@@ -15,6 +15,7 @@
 
 import { titleise } from '../../pokemon/names.ts';
 import { fold } from './ocr.mts';
+import { progress } from './progress.mts';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -381,7 +382,7 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
     return readFileSync(path);
   }
 
-  console.error(`Downloading ${url}`);
+  progress(`Downloading ${url}`);
   let bytes: Buffer;
 
   try {

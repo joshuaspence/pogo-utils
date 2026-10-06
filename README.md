@@ -300,12 +300,16 @@ Every tap position, swipe and delay can be overridden from a JSON file passed as
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
 `pnpm inventory parse FILE.png` does the same for a saved one. `--verbose` adds every line OCR found with its box, which
 is what separates a field left empty because no text was read there from one left empty because a reader anchored on the
-wrong line. `snap` exits non-zero unless the screen is a Pokémon detail screen carrying PGSharp's overlay, those being
-what every other reader depends on; it still saves the screenshot when it refuses, and still stitches one whose only
-fault is a field that did not read — what it will not scroll is a screen PGSharp's overlay cannot vouch for, the map and
-a detail screen being indistinguishable there. `pnpm inventory help` lists the flags each command acts on, and a flag
-given to a command that does not act on it is refused rather than quietly ignored. The cache, the snaps and
-`inventory*.csv` are git-ignored, since they describe a player's own account.
+wrong line. On all three commands it also un-silences the progress narrated before there is anything to report — each
+file downloaded, and the form icons read with the families no artwork settles — which is the same few lines on every run
+of a warm cache, and so is worth reading only when a download is slow or a form comes out wrong. What went wrong is
+never gated: a stale copy read because the download failed, or an icon that could not be had, prints either way. `snap`
+exits non-zero unless the screen is a Pokémon detail screen carrying PGSharp's overlay, those being what every other
+reader depends on; it still saves the screenshot when it refuses, and still stitches one whose only fault is a field
+that did not read — what it will not scroll is a screen PGSharp's overlay cannot vouch for, the map and a detail screen
+being indistinguishable there. `pnpm inventory help` lists the flags each command acts on, and a flag given to a command
+that does not act on it is refused rather than quietly ignored. The cache, the snaps and `inventory*.csv` are
+git-ignored, since they describe a player's own account.
 
 Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
 risk to the account is yours to weigh.
