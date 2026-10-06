@@ -58,7 +58,7 @@ import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
-import { offsetBetween, stitch, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
+import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -108,8 +108,7 @@ interface Config {
   /**
    * The band of the screen that scrolls, which `--scroll` lines its frames up inside. Everything outside it is
    * furniture that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and lining frames up
-   * over those finds the shift that keeps *them* still, which is none. Where the panel's top edge sits during a scroll
-   * is the one position here not measured against a real phone.
+   * over those finds the shift that keeps *them* still, which is none. `SCREEN_BAND` says where it was measured.
    */
   scrollBand: Band;
 }
@@ -157,7 +156,7 @@ const DEFAULTS: Config = {
     ],
   },
   waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, search: 1500 },
-  scrollBand: SETTLE_BAND,
+  scrollBand: SCREEN_BAND,
 };
 
 /** The searches that answer the yes-or-no columns, each column named for the game's own search term. */

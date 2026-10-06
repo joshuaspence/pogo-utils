@@ -28,6 +28,18 @@ export interface Band {
 }
 
 /**
+ * The band a detail screen scrolls in, measured off the captures committed beside this file — every one of them
+ * 1008x2244. The panel's top edge is at row 722, and the game's floating buttons, which are drawn *over* the panel
+ * rather than in it, run from row 2028 to row 2194: 0.9037 to 0.9777.
+ *
+ * The bottom edge clears the top of those buttons rather than meeting it. A band that reaches even a few rows into them
+ * does not fail the correlation — the rows it lines up on are the content, and they line up — it repeats those rows
+ * once per frame, since the tail of the band is the one part of it every frame contributes. The symptom is a copy of
+ * the buttons' top cut off exactly at the band's own bottom edge, once per frame: a stitch that looks almost right.
+ */
+export const SCREEN_BAND: Band = { from: 0.34, to: 0.89 };
+
+/**
  * How much of the band two frames have to share before a shift is believed. A quarter, because a scroll that moved more
  * than three-quarters of a screen has no overlap worth correlating and the answer would be the least-bad of a field of
  * equally bad ones.
@@ -54,7 +66,7 @@ const ROW_STEP = 4;
 
 /**
  * How much two frames of one scroll may still differ where they overlap. Measured: a true scroll is 0.00 and the
- * closest two different screens come is 19.12, so this sits in the gap rather than near either end.
+ * closest two different screens come is 16.82, so this sits in the gap rather than near either end.
  */
 const MATCH_CEILING = 8;
 
@@ -186,8 +198,8 @@ export function offsetBetween(a: Image, b: Image, band: Band): number | null {
   // absolute figure is the right tool: two frames of a scroll are two screenshots of the same pixels, so where they
   // correspond they are identical rather than merely similar. Measured over a real 1008x2244 capture, with the band 70%
   // flat panel grey: a true scroll costs **0.00** at its shift and about 30 at any other, where `pikachu.png` against
-  // `smoliv.png` costs **19.12** at its best, a shift of 114 that the search above alone would accept. The ceiling sits
-  // in that gap, far below the 19 and well above the 0.
+  // `smoliv.png` costs **16.82** at its best, a shift of 114 that the search above alone would accept. The ceiling sits
+  // in that gap, far below the 16 and well above the 0.
   //
   // What would move it is a screenshot that is not lossless or an animation reaching inside the band, and the symptom
   // would be a scroll that refuses rather than one that assembles the wrong rows. That is the direction to fail in.

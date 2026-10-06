@@ -14,10 +14,17 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { offsetBetween, stitch, SCROLL_STEP, type Band } from './stitch.mts';
+import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from './stitch.mts';
 import { decodePng, rgb, type Image } from './png.mts';
 
-const BAND: Band = { from: 0.2, to: 0.9 };
+/**
+ * Where the frames below put their furniture, which is a fact about the screen rather than about any band. The band is
+ * derived from it and not the other way round, because whether a band stays clear of the furniture is the question
+ * these frames exist to pose: a fixture that painted its furniture at the edges of whatever band it was handed would
+ * answer yes for every band, including one that reached into the buttons.
+ */
+const FURNITURE = { above: 0.2, below: 0.9 };
+const BAND: Band = { from: FURNITURE.above, to: FURNITURE.below };
 const WIDTH = 120;
 const FRAME = 400;
 
@@ -64,16 +71,21 @@ const content = (height: number): Image => {
 };
 
 /**
- * One frame of a scroll: the band filled from `source` starting at `scrolled`, with furniture above and below that is
+ * One frame of a scroll: the content from `source` starting at `scrolled`, with furniture above and below it that is
  * identical on every frame. The furniture is what a correlation over the whole frame would lock on to.
+ *
+ * Each row of furniture is seeded by where it is rather than by which end it belongs to, so that a row placed twice is
+ * a row that can be found twice; seeded alike, a stitch that repeated the whole of the furniture would read the same as
+ * one that took it once. The seeds stay clear of `content`'s, which start at 1000, so a furniture row standing where a
+ * content row belongs is wrong rather than merely unlucky.
  */
 const frameAt = (source: Image, scrolled: number): Image => {
   const image = blank(WIDTH, FRAME);
-  const top = Math.round(FRAME * BAND.from);
-  const bottom = Math.round(FRAME * BAND.to);
+  const top = Math.round(FRAME * FURNITURE.above);
+  const bottom = Math.round(FRAME * FURNITURE.below);
 
   for (let y = 0; y < top; y++) {
-    paint(image, y, 7);
+    paint(image, y, y);
   }
 
   for (let y = top; y < bottom; y++) {
@@ -82,7 +94,7 @@ const frameAt = (source: Image, scrolled: number): Image => {
   }
 
   for (let y = bottom; y < FRAME; y++) {
-    paint(image, y, 9);
+    paint(image, y, y);
   }
 
   return image;
@@ -211,6 +223,45 @@ test('the fixed furniture is taken once, from the first frame and the last', () 
   );
 });
 
+/**
+ * The band's bottom edge against the furniture's top, which is the measurement a stitch cannot recover from getting
+ * wrong. Rows above the band come from the first frame and rows below it from the last, so each is taken once however
+ * wide the band is — but the **tail** of the band is the one part of it every frame contributes, being exactly the rows
+ * that frame revealed. A band reaching into the floating buttons repeats their top once per frame, each copy cut off at
+ * the band's own bottom edge.
+ *
+ * `offsetBetween` says nothing about it, and that is why this has to be asserted here rather than left to the shifts
+ * being right: the rows it lines up on are the content either way, and they line up either way.
+ */
+test('a band reaching past the furniture repeats it once per frame, where one clear of it does not', () => {
+  const source = content(2000);
+  const frames = [0, 120, 240].map((s) => frameAt(source, s));
+  const shifts = [120, 120];
+
+  // The furniture's first row, which no frame holds anywhere else, counted wherever it stands in the stitch.
+  const row = Math.round(FRAME * FURNITURE.below);
+  const columns = [0, 37, WIDTH - 1];
+  const at = (image: Image, y: number) => columns.map((x) => rgb(image, x, y).join()).join('|');
+
+  const copies = (image: Image) => {
+    const want = at(frames[0] as Image, row);
+    let found = 0;
+
+    for (let y = 0; y < image.height; y++) {
+      if (at(image, y) === want) {
+        found++;
+      }
+    }
+
+    return found;
+  };
+
+  expect(copies(stitch(frames, shifts, BAND)), 'a band clear of the furniture').toBe(1);
+  expect(copies(stitch(frames, shifts, { ...BAND, to: FURNITURE.below + 0.05 })), 'a band reaching 20 rows in').toBe(
+    frames.length,
+  );
+});
+
 test('stitching nothing, or frames without a shift between each pair, is a mistake', () => {
   const frame = frameAt(content(2000), 0);
 
@@ -219,23 +270,34 @@ test('stitching nothing, or frames without a shift between each pair, is a mista
 });
 
 /**
- * The band a detail screen actually scrolls in, and two captures of real ones — which is the half the built fixtures
- * above cannot reach, because what they lack is a **layout**. Every detail screen has the same panel, the same rows of
- * labels and the same buttons, and that is enough for one screen's row summaries to line up against another's.
+ * Captures of real detail screens, against `SCREEN_BAND` itself rather than a band written out again here — which is
+ * the half the built fixtures above cannot reach, because what they lack is a **layout**. Every detail screen has the
+ * same panel, the same rows of labels and the same buttons, and that is enough for one screen's row summaries to line
+ * up against another's.
  *
  * `pikachu.png` against `smoliv.png` is that case: their summaries line up at a shift of 114, which would be two
  * Pokémon assembled into one image. It is refused by how **close** the match is rather than by how far it stands out —
- * a true scroll costs 0.00 where these two cost 19.12 at their best, the band being 70% flat panel grey.
+ * a true scroll costs 0.00 where these two cost 16.82 at their best, the band being 70% flat panel grey.
  */
-const SCREEN: Band = { from: 0.34, to: 0.95 };
 const capture = (file: string) => decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
+
+/**
+ * Where the game's floating buttons are, measured on `pikachu.png` and `smoliv.png` — which agree exactly, the buttons
+ * being drawn over the panel rather than in it: rows 2028 to 2194 of 2244. The band has to end above them, and nothing
+ * else here can say so, the frames above having no buttons to measure.
+ */
+const BUTTONS = 2028 / 2244;
+
+test('the band a real detail screen scrolls in ends above the floating buttons', () => {
+  expect(SCREEN_BAND.to).toBeLessThan(BUTTONS);
+});
 
 /** A real capture with its band slid up, which is what a scroll does while the status bar and overlay stay put. */
 const slid = (image: Image, by: number): Image => {
   const out: Image = { width: image.width, height: image.height, data: new Uint8Array(image.data) };
   const stride = image.width * 4;
-  const top = Math.round(image.height * SCREEN.from);
-  const bottom = Math.round(image.height * SCREEN.to);
+  const top = Math.round(image.height * SCREEN_BAND.from);
+  const bottom = Math.round(image.height * SCREEN_BAND.to);
 
   for (let y = top; y < bottom; y++) {
     const from = Math.min(image.height - 1, y + by);
@@ -249,7 +311,7 @@ test('a real capture slid by a known amount reads back as that amount', () => {
   const screen = capture('pikachu.png');
 
   for (const by of [7, 60, 300, 700]) {
-    expect(offsetBetween(screen, slid(screen, by), SCREEN), `slid ${by}`).toBe(by);
+    expect(offsetBetween(screen, slid(screen, by), SCREEN_BAND), `slid ${by}`).toBe(by);
   }
 });
 
@@ -260,16 +322,16 @@ test('a real capture slid by a known amount reads back as that amount', () => {
  */
 test('the step a scroll capture drags is within reach, and the single swipe to the moves is not', () => {
   const screen = capture('pikachu.png');
-  const band = Math.round(screen.height * SCREEN.to) - Math.round(screen.height * SCREEN.from);
+  const band = Math.round(screen.height * SCREEN_BAND.to) - Math.round(screen.height * SCREEN_BAND.from);
   const step = Math.round(band * SCROLL_STEP);
 
-  expect(offsetBetween(screen, slid(screen, step), SCREEN), 'a step').toBe(step);
-  expect(offsetBetween(screen, slid(screen, Math.round(screen.height / 2)), SCREEN), 'the swipe').toBe(null);
+  expect(offsetBetween(screen, slid(screen, step), SCREEN_BAND), 'a step').toBe(step);
+  expect(offsetBetween(screen, slid(screen, Math.round(screen.height / 2)), SCREEN_BAND), 'the swipe').toBe(null);
 });
 
 test('two different detail screens are refused rather than lined up', () => {
   expect(
-    offsetBetween(capture('pikachu.png'), capture('smoliv.png'), SCREEN),
+    offsetBetween(capture('pikachu.png'), capture('smoliv.png'), SCREEN_BAND),
     'two Pokémon were lined up into one image',
   ).toBe(null);
 });
@@ -280,5 +342,5 @@ test('two different detail screens are refused rather than lined up', () => {
  * scroll, the capture ending at the last frame that moved.
  */
 test('two captures that share a screen but have not scrolled answer zero', () => {
-  expect(offsetBetween(capture('unown-b.png'), capture('unown-m.png'), SCREEN)).toBe(0);
+  expect(offsetBetween(capture('unown-b.png'), capture('unown-m.png'), SCREEN_BAND)).toBe(0);
 });
