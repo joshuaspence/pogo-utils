@@ -32,18 +32,15 @@ const PUBLISHED = [
   // `src/generated.ts`'s two indexes are in here, so neither is named separately: `publish` throws rather than copying
   // a path twice, and the directory is what the pages fetch them under.
   'data',
-
-  'src/*.css',
 ];
 
 /**
  * Copies one path into the artifact, at the same position it occupies in the repository.
  *
  * Refusing to land on something already there is what keeps two producers out of one directory. `scripts/bundle.mts`
- * writes `dist/src/app.css` from the stylesheet `src/app.ts` imports, and this runs afterwards over `src/*.css` — so a
- * repository file of that name would overwrite the bundler's output, take Leaflet's rules off the map page and report a
- * build that succeeded. The clash is not specific to that pair: anything the compiler or the bundler emits is fair game
- * for a name in `PUBLISHED`, and the copy is the half that happens second and says nothing.
+ * writes the stylesheets and the modules into `dist/src/` and this runs afterwards, so anything the bundler emits is fair
+ * game for a name in `PUBLISHED` — and the copy, being the half that happens second, would overwrite it and report a
+ * build that succeeded.
  */
 function publish(path: string): void {
   const to = join(DIST, path);
@@ -104,6 +101,9 @@ if (unexpected.length > 0) {
 const missing: string[] = [];
 let checked = 0;
 
+/** Every path in the artifact something named, which is the half the stylesheet check below reads. */
+const named = new Set<string>();
+
 /**
  * Records `ref` unless it names a file in the artifact. Relative paths resolve against the directory of the file that
  * named them rather than against `DIST`, which is what lets one function serve both a page and a manifest: the two are
@@ -118,7 +118,9 @@ function mustResolve(from: string, ref: string): void {
   // As written in an `href`, so percent-encoded: `Melbourne%20Zoo.gpx` names a file with a space in it.
   const path = decodeURIComponent(ref.split(/[?#]/)[0] ?? '');
   const at = join(dirname(from), path);
+
   checked += 1;
+  named.add(at);
 
   if (!existsSync(join(DIST, at))) {
     missing.push(`${from} names ${ref}`);
@@ -203,6 +205,30 @@ for (const manifest of manifests) {
 
 if (missing.length > 0) {
   throw new Error(`Not in the artifact:\n  ${missing.join('\n  ')}`);
+}
+
+/**
+ * The other direction for stylesheets: every one the bundler emitted has to be one a page links.
+ *
+ * The scan above answers "is everything the markup names here", which a stylesheet nothing names passes without being
+ * read. That is not hypothetical. esbuild emits a CSS file per chunk, so a stylesheet imported by a page the shell
+ * reaches through `import()` lands beside that page's chunk — and esbuild ships no runtime to fetch it, so the five page
+ * sheets were written into the artifact and no document ever loaded one. Every page rendered unstyled, and nothing in the
+ * build said so: the module graph was complete, the markup resolved, the byte counts looked plausible.
+ *
+ * `src/main.tsx` importing all seven is the fix. This is what stops the next page-local `import './x.css'` from quietly
+ * reintroducing it.
+ */
+const orphaned = readdirSync(join(DIST, 'src'), { recursive: true, withFileTypes: true })
+  .filter((entry) => entry.isFile() && extname(entry.name) === '.css')
+  .map((entry) => join(entry.parentPath, entry.name).slice(`${DIST}/`.length))
+  .filter((path) => !named.has(path));
+
+if (orphaned.length > 0) {
+  throw new Error(
+    `Stylesheet(s) in the artifact that no page links, so nothing ever loads them:\n  ${orphaned.join('\n  ')}\n` +
+      'A page reached through `import()` cannot carry its own stylesheet — import it from `src/main.tsx` instead.',
+  );
 }
 
 console.log(`${copied} path(s) copied into ${DIST}/ beside the compiler's output.`);

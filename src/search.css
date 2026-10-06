@@ -7,10 +7,23 @@
  */
 
 /**
- * Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
- * four, which reads as a list rather than as a palette.
+ * Everything below is scoped to the open page.
+ *
+ * Each of these sheets was the only one in its document and could style `.chip`, `.name` and `.copy` as it liked. One
+ * document loads all five, and between them they give nineteen class names a different meaning per page — `.chip` is a
+ * three-state term toggle here, a plain on/off filter on the Pokédex and a type legend on the Events calendar. The
+ * wrapper is what keeps each sheet's meaning to its own page; `data-page` is set on the body by the shell, from the same
+ * table the router validates a fragment against.
  */
-:root {
+body[data-page='search'] {
+  /**
+   * Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
+   * four, which reads as a list rather than as a palette.
+   *
+   * On the wrapper rather than on `:root`, where these three were while this sheet was alone in its document: three of
+   * the four pages that set `--content-w` want a different width, so on `:root` they would be one declaration and
+   * whichever the bundler wrote last would set the column for every page.
+   */
   --content-w: 880px;
 
   /**
@@ -20,594 +33,589 @@
    */
   --chip-s: 60%;
   --chip-l: 40%;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
+  /**
+   * The dark pair, declared straight into the query rather than onto the `:root` this named while the sheet was alone in
+   * its document. Nested, a `:root` is a *descendant* of the wrapper and matches nothing at all — the pair would never be
+   * read and every chip would carry the light lightness on a dark background. A declaration inside a nested conditional
+   * applies to the rule enclosing it, which is the wrapper, which is where the light pair above sits.
+   */
+  @media (prefers-color-scheme: dark) {
     --chip-s: 55%;
     --chip-l: 68%;
   }
-}
 
-header.page {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 20px 22px 6px;
-}
+  .builder {
+    max-width: var(--content-w);
+    margin: 0 auto;
+    padding: 8px 22px 40px;
+    font-size: 13px;
+  }
+
+  /**
+   * The string itself. Sticky under the tab bar, which is 48px of it — a value nav.css sets in padding and font size
+   * rather than as a number, so it is measured here rather than shared as a token neither file would own.
+   */
 
-header.page h1 {
-  margin: 0;
-  font-size: 26px;
-  letter-spacing: -0.02em;
-}
-
-header.page .sub {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.builder {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 8px 22px 40px;
-  font-size: 13px;
-}
-
-/**
- * The string itself. Sticky under the tab bar, which is 48px of it — a value nav.css sets in padding and font size
- * rather than as a number, so it is measured here rather than shared as a token neither file would own.
- */
-.output {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: var(--shadow-lift);
-}
-
-/**
- * The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
- * as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
- * disappear under an edge rather than surfacing for 14px first.
- */
-.output::after {
-  content: '';
-  position: absolute;
-  inset: 100% 0 auto;
-  height: 14px;
-  background: var(--bg);
-}
-
-.output .string {
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-}
-
-/**
- * The string is code and is read character by character — an l against a 1 decides whether a search works — so it is
- * set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search string
- * invites copying half of it.
- */
-.output code#query {
-  flex: 1;
-  overflow-x: auto;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  white-space: pre;
-  user-select: all;
-}
-
-/* Nothing built yet is a state worth showing as words rather than as an empty box the reader wonders about. */
-.output code#query.empty {
-  color: var(--muted);
-  user-select: none;
-}
-
-.output button.copy {
-  padding: 0 18px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.output button.copy:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
-
-/**
- * With nothing to copy the button is furniture, not an action refused: a faded fill of the accent red reads as a
- * broken button, where an outline reads as one waiting for something to do.
- */
-.output button.copy:disabled {
-  border-color: var(--border);
-  background: transparent;
-  color: var(--muted);
-  font-weight: 500;
-  cursor: default;
-}
-
-/**
- * Held for a moment after a copy, so the click is acknowledged where the reader is already looking rather than in a
- * banner somewhere else on the page.
- */
-.output button.copy.done {
-  border-color: var(--start);
-  background: var(--start);
-}
-
-.output .meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-/* The two things a reader can do *to* the string, kept together at the end of the row so the count keeps its side. */
-.output .actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.output .toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-}
-
-.output .toggle input {
-  margin: 0;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.output button.ghost {
-  padding: 3px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.output button.ghost:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* The one thing the builder cannot decide for the reader, so it is the one thing on the page painted as a warning. */
-.output .caveat {
-  margin: 0;
-  padding: 8px 10px;
-  border-left: 3px solid var(--city);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--city) 12%, var(--panel));
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.output .caveat code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-/* Laid out as pairs rather than as a sentence, so `charmander → 4` reads as one thing and wraps as one thing. */
-.output .rewritten {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-}
-
-/**
- * Paired with the `display: flex` above, which the UA stylesheet's own `[hidden] {display: none}` loses to: without
- * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load.
- */
-.output .rewritten[hidden] {
-  display: none;
-}
-
-.output .rewrite {
-  white-space: nowrap;
-}
-
-.output .rewritten .lossy {
-  flex: 1 0 100%;
-}
-
-.panel,
-.group {
-  margin-bottom: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
-
-/**
- * The same uppercase muted section label the events page and the routes sidebar use, so a heading reads as a heading
- * across the site rather than as this page's own idea.
- */
-.label {
-  margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
-}
-
-/**
- * An icon in one of those labels is sized up, because a label is 11px and an emoji that small reads as punctuation
- * rather than as a mark of its own. `line-height: 1` keeps the taller glyph from stretching the heading's line box, the
- * same reason the nav's tab icons carry it.
- */
-.label .ico {
-  font-size: 14px;
-  line-height: 1;
-}
-
-.help {
-  margin: 10px 0 0;
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: var(--muted);
-}
-
-.help code,
-.presets code {
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--bg);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-}
-
-/**
- * The box the names live in. What looks like a text field is this element rather than the input inside it, so the names
- * already chosen can sit in it as chips: the border, the padding and the background are all here, and the input is left
- * transparent and borderless at the end of the row. Wrapping, because a reader can choose more names than fit on a
- * line.
- */
-.field {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  cursor: text;
-}
-
-/* The ring goes on the box, since the thing that has the focus is drawn as part of it and not as a field of its own. */
-.field:focus-within {
-  outline: 2px solid var(--track);
-  outline-offset: 1px;
-}
-
-#text {
-  flex: 1;
-
-  /* Enough that a name being typed is readable beside the chips, and little enough to sit on a line with several. */
-  min-width: 9ch;
-  padding: 1px 2px;
-  border: 0;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-}
-
-#text:focus-visible {
-  outline: none;
-}
-
-.range input:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 1px;
-}
-
-/**
- * A name already chosen. Coloured on --track rather than on the accent, which on this page means a term ruled out: a
- * name is a value the reader has set, which is what --track already says on a range box they have filled in.
- */
-.field .name {
-  display: inline-flex;
-  gap: 5px;
-  align-items: center;
-  padding: 3px 5px 3px 9px;
-  border: 1px solid var(--track);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--track) 12%, var(--panel));
-  color: var(--text);
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.field .name button {
-  padding: 0 3px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.field .name button:hover {
-  color: var(--accent);
-}
-
-.field .name button:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 1px;
-}
-
-/**
- * The name box and the species it is offering. The list floats over what is beneath it rather than taking a place in
- * the flow, because a list that pushes the page down as you type moves the chips you were about to click; that is what
- * the wrapper is for, since an absolute position needs something to be absolute within.
- */
-.combobox {
-  position: relative;
-}
-
-.suggestions {
-  position: absolute;
-  z-index: 1;
-  top: calc(100% + 4px);
-  right: 0;
-  left: 0;
-  max-height: 50vh;
-  margin: 0;
-  padding: 4px;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--shadow-lift);
-  list-style: none;
-}
-
-.suggestions li {
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-/**
- * The row the keyboard is on and the row the pointer is over are painted the same, because they mean the same thing —
- * the one Enter or a click would take. Nothing else on the page marks a row this way, so the accent is enough.
- */
-.suggestions li[aria-selected='true'],
-.suggestions li:hover {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-/**
- * What tells a family row from the species row above it. Faded rather than recoloured, so it stays the quieter half of
- * the row on the one the keyboard or the pointer has reached as well as on the seven it has not.
- */
-.suggestions .family {
-  opacity: 0.6;
-}
-
-.presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.presets button {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
-.presets button:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.presets button .note {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--muted);
-}
-
-.presets button:hover .note {
-  color: inherit;
-}
-
-/**
- * Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
- * empty and makes the reader scroll past sixty chips to reach the ranges.
- */
-.groups {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  align-items: start;
-}
-
-.groups .group {
-  margin: 0;
-}
-
-.group .chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-/**
- * A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
- * came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
- * Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice.
- */
-.chip {
-  --chip: hsl(var(--hue) var(--chip-s) var(--chip-l));
-
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.chip:hover {
-  border-color: var(--chip);
-  color: var(--text);
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 2px;
-}
-
-.chip[data-state='in'] {
-  border-color: var(--chip);
-  background: color-mix(in srgb, var(--chip) 16%, var(--panel));
-  color: var(--text);
-  font-weight: 600;
-}
-
-.chip[data-state='out'] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
-}
-
-/**
- * The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
- * who cannot see the difference between a red chip and a teal one.
- */
-.chip .state {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  text-decoration: none;
-}
-
-.chip[data-state='off'] .state {
-  opacity: 0.35;
-}
-
-.ranges {
-  display: grid;
-  gap: 10px 16px;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-}
-
-.range {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.range .name {
-  flex: 1;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.range input {
-  width: 68px;
-  padding: 5px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  text-align: right;
-}
-
-.range .dash {
-  color: var(--muted);
-}
-
-/**
- * A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
- * does but looks like an empty box until you read the numbers in it.
- */
-.range.set input:not(:placeholder-shown) {
-  border-color: var(--track);
-  color: var(--text);
-  font-weight: 600;
-}
-
-footer {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 0 22px 40px;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-footer p {
-  margin: 0 0 6px;
-}
-
-@media (width <= 560px) {
   .output {
-    border-radius: 0;
-    margin-inline: -22px;
-    padding-inline: 22px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: var(--shadow-lift);
+  }
+
+  /**
+   * The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
+   * as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
+   * disappear under an edge rather than surfacing for 14px first.
+   */
+
+  .output::after {
+    content: '';
+    position: absolute;
+    inset: 100% 0 auto;
+    height: 14px;
+    background: var(--bg);
   }
 
   .output .string {
-    flex-direction: column;
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  /**
+   * The string is code and is read character by character — an l against a 1 decides whether a search works — so it is
+   * set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search string
+   * invites copying half of it.
+   */
+
+  .output code#query {
+    flex: 1;
+    overflow-x: auto;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre;
+    user-select: all;
+  }
+
+  /* Nothing built yet is a state worth showing as words rather than as an empty box the reader wonders about. */
+
+  .output code#query.empty {
+    color: var(--muted);
+    user-select: none;
   }
 
   .output button.copy {
-    padding: 9px 18px;
+    padding: 0 18px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .output button.copy:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+
+  /**
+   * With nothing to copy the button is furniture, not an action refused: a faded fill of the accent red reads as a
+   * broken button, where an outline reads as one waiting for something to do.
+   */
+
+  .output button.copy:disabled {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-weight: 500;
+    cursor: default;
+  }
+
+  /**
+   * Held for a moment after a copy, so the click is acknowledged where the reader is already looking rather than in a
+   * banner somewhere else on the page.
+   */
+
+  .output button.copy.done {
+    border-color: var(--start);
+    background: var(--start);
+  }
+
+  .output .meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* The two things a reader can do *to* the string, kept together at the end of the row so the count keeps its side. */
+
+  .output .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .output .toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+
+  .output .toggle input {
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .output button.ghost {
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .output button.ghost:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* The one thing the builder cannot decide for the reader, so it is the one thing on the page painted as a warning. */
+
+  .output .caveat {
+    margin: 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--city);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--city) 12%, var(--panel));
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+
+  .output .caveat code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  /* Laid out as pairs rather than as a sentence, so `charmander → 4` reads as one thing and wraps as one thing. */
+
+  .output .rewritten {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  /**
+   * Paired with the `display: flex` above, which the UA stylesheet's own `[hidden] {display: none}` loses to: without
+   * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load.
+   */
+
+  .output .rewritten[hidden] {
+    display: none;
+  }
+
+  .output .rewrite {
+    white-space: nowrap;
+  }
+
+  .output .rewritten .lossy {
+    flex: 1 0 100%;
+  }
+
+  .panel,
+  .group {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+
+  /**
+   * The same uppercase muted section label the events page and the routes sidebar use, so a heading reads as a heading
+   * across the site rather than as this page's own idea.
+   */
+
+  .label {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+
+  /**
+   * An icon in one of those labels is sized up, because a label is 11px and an emoji that small reads as punctuation
+   * rather than as a mark of its own. `line-height: 1` keeps the taller glyph from stretching the heading's line box, the
+   * same reason the nav's tab icons carry it.
+   */
+
+  .label .ico {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .help {
+    margin: 10px 0 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .help code,
+  .presets code {
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--bg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+  }
+
+  /**
+   * The box the names live in. What looks like a text field is this element rather than the input inside it, so the names
+   * already chosen can sit in it as chips: the border, the padding and the background are all here, and the input is left
+   * transparent and borderless at the end of the row. Wrapping, because a reader can choose more names than fit on a
+   * line.
+   */
+
+  .field {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    cursor: text;
+  }
+
+  /* The ring goes on the box, since the thing that has the focus is drawn as part of it and not as a field of its own. */
+
+  .field:focus-within {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  #text {
+    flex: 1;
+
+    /* Enough that a name being typed is readable beside the chips, and little enough to sit on a line with several. */
+    min-width: 9ch;
+    padding: 1px 2px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+  }
+
+  #text:focus-visible {
+    outline: none;
+  }
+
+  .range input:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /**
+   * A name already chosen. Coloured on --track rather than on the accent, which on this page means a term ruled out: a
+   * name is a value the reader has set, which is what --track already says on a range box they have filled in.
+   */
+
+  .field .name {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    padding: 3px 5px 3px 9px;
+    border: 1px solid var(--track);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--track) 12%, var(--panel));
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .field .name button {
+    padding: 0 3px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .field .name button:hover {
+    color: var(--accent);
+  }
+
+  .field .name button:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /**
+   * The name box and the species it is offering. The list floats over what is beneath it rather than taking a place in
+   * the flow, because a list that pushes the page down as you type moves the chips you were about to click; that is what
+   * the wrapper is for, since an absolute position needs something to be absolute within.
+   */
+
+  .combobox {
+    position: relative;
+  }
+
+  .suggestions {
+    position: absolute;
+    z-index: 1;
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    max-height: 50vh;
+    margin: 0;
+    padding: 4px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: var(--shadow-lift);
+    list-style: none;
+  }
+
+  .suggestions li {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  /**
+   * The row the keyboard is on and the row the pointer is over are painted the same, because they mean the same thing —
+   * the one Enter or a click would take. Nothing else on the page marks a row this way, so the accent is enough.
+   */
+
+  .suggestions li[aria-selected='true'],
+  .suggestions li:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /**
+   * What tells a family row from the species row above it. Faded rather than recoloured, so it stays the quieter half of
+   * the row on the one the keyboard or the pointer has reached as well as on the seven it has not.
+   */
+
+  .suggestions .family {
+    opacity: 0.6;
+  }
+
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .presets button {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .presets button:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .presets button .note {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .presets button:hover .note {
+    color: inherit;
+  }
+
+  /**
+   * Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
+   * empty and makes the reader scroll past sixty chips to reach the ranges.
+   */
+
+  .groups {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    align-items: start;
+  }
+
+  .groups .group {
+    margin: 0;
+  }
+
+  .group .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  /**
+   * A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
+   * came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
+   * Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice.
+   */
+
+  .chip {
+    --chip: hsl(var(--hue) var(--chip-s) var(--chip-l));
+
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .chip:hover {
+    border-color: var(--chip);
+    color: var(--text);
+  }
+
+  .chip:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+  }
+
+  .chip[data-state='in'] {
+    border-color: var(--chip);
+    background: color-mix(in srgb, var(--chip) 16%, var(--panel));
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .chip[data-state='out'] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  /**
+   * The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
+   * who cannot see the difference between a red chip and a teal one.
+   */
+
+  .chip .state {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    text-decoration: none;
+  }
+
+  .chip[data-state='off'] .state {
+    opacity: 0.35;
+  }
+
+  .ranges {
+    display: grid;
+    gap: 10px 16px;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+
+  .range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .range .name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .range input {
+    width: 68px;
+    padding: 5px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    text-align: right;
+  }
+
+  .range .dash {
+    color: var(--muted);
+  }
+
+  /**
+   * A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
+   * does but looks like an empty box until you read the numbers in it.
+   */
+
+  .range.set input:not(:placeholder-shown) {
+    border-color: var(--track);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @media (width <= 560px) {
+    .output {
+      border-radius: 0;
+      margin-inline: -22px;
+      padding-inline: 22px;
+    }
+
+    .output .string {
+      flex-direction: column;
+    }
+
+    .output button.copy {
+      padding: 9px 18px;
+    }
   }
 }

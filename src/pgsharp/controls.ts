@@ -15,9 +15,9 @@ const SNIPE2 = {
 };
 
 /**
- * Keyed by the checkbox's DOM id, so each control appears once and its ticked state is a direct lookup. Iteration order
- * is preserved (these ids are non-integer string keys), and it decides the order the keys land in the backup, so the
- * entries stay in the order PGSharp wrote them.
+ * Keyed by the control, so each appears once and its ticked state is a direct lookup. Iteration order is preserved
+ * (these keys are non-integer strings), and it decides the order the keys land in the backup, so the entries stay in the
+ * order PGSharp wrote them.
  *
  * `satisfies` rather than an annotation, because this table is read both ways: `backup.ts` iterates it with
  * `Object.entries` and also names `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first
@@ -61,3 +61,23 @@ export const CONTROL_RESETS = {
     hlfeeds: JSON.stringify(FEED_FILTERS),
   },
 } satisfies Record<string, Record<string, number | string>>;
+
+export type Control = keyof typeof CONTROL_RESETS;
+
+/**
+ * What the page calls each control. Beside the table rather than in the markup that renders it, which is where these
+ * lived while the page was hand-written HTML: a `Record` over the table's own keys makes a control added without a label
+ * a type error, where a second list in a second file goes out of step in silence — a new checkbox rendering blank, or a
+ * label left behind pointing at a control that no longer exists.
+ */
+export const CONTROL_LABELS: Record<Control, string> = {
+  resetIcon: 'Floating control',
+  resetSnipe1: 'Fast-snipe button',
+  resetSnipe2: 'Second fast-snipe button',
+  resetCdpos: 'Cooldown indicator',
+  resetScan: 'Nearby radar',
+  resetFeeds: 'Nearby feed filters',
+};
+
+/** The controls in the order the table lists them, which is the order the page draws them in. */
+export const CONTROLS = Object.keys(CONTROL_RESETS) as Control[];

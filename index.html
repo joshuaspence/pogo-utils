@@ -3,22 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- The shell titles the document from the page table once it knows which page the fragment names. This is what a
+         bookmark saved before that happens reads, and what a crawler that runs no script sees. -->
     <title>Pokémon GO Utilities</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#1a1d25" media="(prefers-color-scheme: dark)" />
 
-    <!-- The site opens on the events calendar; the map lives at map.html. Redirect the bare Pages URL and any
-         old bookmark of the root there. location.replace leaves no history entry, so Back does not bounce here; the
-         meta refresh is the no-JavaScript fallback and the link is the last resort if both are blocked. -->
-    <link rel="canonical" href="events.html" />
-    <meta http-equiv="refresh" content="0; url=events.html" />
-    <script>
-      location.replace('events.html');
-    </script>
+    <!-- One stylesheet, which `scripts/bundle.mts` writes from everything `src/main.tsx` and the pages import. -->
+    <link rel="stylesheet" href="src/main.css" />
   </head>
   <body>
-    <p>Redirecting to the <a href="events.html">events calendar</a>…</p>
+    <div id="app"></div>
+
+    <!-- Every one of these tools runs entirely in the browser — reading GPX files, building a search string, serializing
+         a PGSharp backup — so there is no server-rendered half to fall back to and nothing to show but this. -->
+    <noscript>
+      <p>These tools run in your browser, so they need JavaScript enabled.</p>
+    </noscript>
+
+    <script type="module" src="src/main.js"></script>
   </body>
 </html>

@@ -4,354 +4,9 @@
  */
 
 /**
- * The header, controls, filters, cards and footer all share one content column, so the page reads with a single left
- * edge rather than a title hanging further out than the cards it heads. `--content-w` holds that width in one place
- * because the sticky controls bar has to reproduce it as padding rather than as a max-width.
+ * Top level because a keyframe set cannot be nested in a style rule, and global because its name is: `card-in` is
+ * referenced by the one `animation` below and by nothing on any other page.
  */
-:root {
-  --content-w: 1100px;
-}
-
-header.page {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 20px 22px 6px;
-}
-
-header.page h1 {
-  margin: 0;
-  font-size: 26px;
-  letter-spacing: -0.02em;
-}
-
-header.page .sub {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/**
- * How many events have arrived since this browser last acknowledged them, and the only control that clears them. Its
- * own line beside the count rather than inside it, because each of the three views writes that line itself and this
- * has to read the same in all of them — a calendar or tracks bar can mark a new event but has no room for a control.
- */
-.newly {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/**
- * The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
- * none}`, so the `hidden` the page sets whenever the count is zero would lay the line out regardless — leaving Mark all
- * as seen on screen with nothing to mark, and on every page load, since the markup ships hidden with an empty count.
- * Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a
- * media query gives `.newly`.
- */
-.newly[hidden] {
-  display: none;
-}
-
-.newly .new-count {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/**
- * Quieter than the accent buttons in the controls bar below, which is a different band of the page: this sits in 12px
- * muted text and should read as a footnote to the count it follows, not compete with Refresh.
- */
-.newly button {
-  padding: 2px 9px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.newly button:hover,
-.newly button:focus-visible {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.controls {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-
-  /**
-   * Full-bleed, because it carries the sticky background and bottom rule across the whole viewport — so it lines its
-   * contents up with the content column through padding instead of a max-width.
-   */
-  padding: 12px max(22px, calc((100% - var(--content-w)) / 2));
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-}
-
-.controls input[type='search'] {
-  flex: 1 1 200px;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
-}
-
-.controls input[type='search']:focus {
-  outline: 2px solid var(--track);
-  outline-offset: -1px;
-}
-
-.controls button {
-  padding: 8px 12px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.controls button:hover {
-  filter: brightness(1.05);
-}
-
-/**
- * The Reset control is destructive-ish (it clears saved filters), so it reads as secondary rather than the accent
- * Refresh button beside it.
- */
-.controls button.ghost {
-  background: transparent;
-  color: var(--muted);
-  border-color: var(--border);
-}
-
-.controls button.ghost:hover {
-  filter: none;
-  color: var(--text);
-  border-color: var(--accent);
-}
-
-/**
- * The filter disclosure reads as the foot of the panel opening rather than a fifth control beside the four above it, so
- * it drops everything `.controls button` gives the others — the accent fill, the border, the padding — and takes a row
- * of its own. `flex: 1 0 100%` is what wins that row: the section is a wrapping flex container, so a full-basis item
- * lands below whatever the items before it did, at any viewport.
- */
-.controls .disclose {
-  flex: 1 0 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  line-height: 1;
-}
-
-.controls .disclose:hover,
-.controls .disclose:focus-visible {
-  filter: none;
-  color: var(--accent);
-}
-
-/**
- * The focus ring is drawn around the glyph rather than the button, because the button is as wide as the panel: the 2px
- * `var(--track)` outline every other control here takes would hug a 941×15 box and read as an empty text input. It is
- * still keyed on the button's own `:focus-visible`, so it appears exactly when the button has focus — only the box it
- * encloses is smaller than the target.
- */
-.controls .disclose:focus-visible {
-  outline: none;
-}
-
-.controls .disclose:focus-visible .dots {
-  outline: 2px solid var(--track);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-/**
- * The same ellipsis in both states, since it has no orientation to turn over the way a chevron would — what says the
- * row is open is the row being there, and for anyone who cannot see that, `aria-expanded` and the title. `inline-block`
- * is for the ring above: an inline box draws its outline around the font's own metrics rather than around the 15px the
- * rest of the handle is, which measures 17px tall against the ellipsis's 15.
- */
-.controls .disclose .dots {
-  display: inline-block;
-  font-size: 15px;
-}
-
-/**
- * The disclosed panel: the filter scope, the type chips and the reveals, stacked in that order. It holds the content
- * column's alignment for all three rows, which is why `.scope`, `.type-filters` and `.toggles` below carry no padding
- * of their own — several paddings to keep in step is how one row ends up a few pixels off the next and off the cards
- * under them.
- */
-.filters {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 12px 22px 0;
-}
-
-/**
- * The `display: flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
- * `[hidden] {display: none}`, so the `hidden` the markup ships with and render() maintains would lay the panel out
- * regardless — putting the whole thing on screen on every page load, which is the one thing it must not do. Keyed on
- * `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
- * query gives `.filters`.
- */
-.filters[hidden] {
-  display: none;
-}
-
-.toggles,
-.type-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.type-filters:empty {
-  display: none;
-}
-
-/**
- * The row that says what a chip click applies to: its label, then the segmented pair. The label takes the panel's muted
- * 12px so that the question reads as a caption to the chips below rather than as a control of its own — the segments
- * are the control, and they are the only part of the row that is interactive.
- */
-.scope {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/**
- * Both chip rows of the panel are made of these. A type chip wears its own type's colour — a tinted fill and a matching
- * border — which makes that row the legend for the three colour-coded views below it: the chip carries the same
- * `.type-*` class the cards and the calendar and timeline bars do, so --type-color inherits here and one palette serves
- * all four. The three reveals carry no type and so fall through to the muted grey.
- *
- * `font-family` has to be asked for because these are buttons: a button does not inherit it, and left alone the chips
- * come out in the UA's default face rather than the page's.
- */
-.chip {
-  --chip-color: var(--type-color, var(--muted));
-
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 11px;
-  border: 1px solid color-mix(in srgb, var(--chip-color) 40%, var(--border));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--chip-color) 10%, var(--panel));
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-
-/**
- * The `display: inline-flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
- * `[hidden] {display: none}`, so the `hidden` setView() puts on two of the reveals outside the cards view would lay
- * them out regardless — leaving Show ended and Show undated on screen in the calendar and tracks views, where neither
- * reveals anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any
- * later `display` a media query gives `.chip`.
- */
-.chip[hidden] {
-  display: none;
-}
-
-.chip:hover {
-  border-color: var(--chip-color);
-  background: color-mix(in srgb, var(--chip-color) 20%, var(--panel));
-}
-
-/**
- * An off chip is dimmed rather than dropped from the row, so the reader can see what they have hidden and put it back.
- * Dimming is the whole of the visible state, which is why the `aria-pressed` beside it is not decoration: it is the
- * only form the state takes for anyone who is not reading the colour.
- */
-.chip.off {
-  opacity: 0.45;
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 2px;
-}
-
-main {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 8px 22px 40px;
-}
-
-h2.group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 28px 0 12px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-}
-
-/**
- * A hairline running out to the right margin makes each bucket read as a section rather than as a faint floating label.
- * On the pseudo-element so no extra node is rendered per group.
- */
-h2.group::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-/* Running events are what a reader came for, so that one heading takes the accent while the rest stay muted. */
-h2.group.group-active {
-  color: var(--accent);
-}
-
-h2.group.group-active::after {
-  background: color-mix(in srgb, var(--accent) 35%, var(--border));
-}
-
-/**
- * The bucket's size, so "Upcoming" says how much is in it without the reader counting cards. Letter-spacing is reset
- * because the digits inherit the heading's tracking, which spaces a number oddly.
- */
-h2.group .gcount {
-  padding: 1px 7px;
-  border: 1px solid currentcolor;
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0;
-  opacity: 0.75;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-
 @keyframes card-in {
   from {
     opacity: 0;
@@ -360,847 +15,1244 @@ h2.group .gcount {
 }
 
 /**
- * Cards fade up in sequence as a grid arrives, which gives the list a direction to be read in. Only on the render that
- * follows a fetch — the renderer adds `enter` just then, because render() also runs every minute to keep the relative
- * labels honest and replaying this on every tick would be a twitch, not a flourish. `--i` is the card's position in its
- * grid, capped by the renderer so a long bucket's last card is not left waiting. `backwards` holds the card invisible
- * through its delay rather than letting it show, vanish and fade in again.
+ * Everything below is scoped to the open page.
+ *
+ * Each of these sheets was the only one in its document and could style `.card`, `.grid` and `.chip` as it liked. One
+ * document loads all five, and between them they give nineteen class names a different meaning per page — this sheet and
+ * the Pokédex's disagree about all four of `.card`, `.grid`, `.chip` and `.controls`. The wrapper is what keeps each
+ * sheet's meaning to its own page; `data-page` is set on the body by the shell, from the same table the router validates
+ * a fragment against.
  */
-.grid.enter .card {
-  animation: card-in 0.32s ease-out backwards;
-  animation-delay: calc(var(--i, 0) * 25ms);
-}
+body[data-page='events'] {
+  /**
+   * The header, controls, filters, cards and footer all share one content column, so the page reads with a single left
+   * edge rather than a title hanging further out than the cards it heads. `--content-w` holds that width in one place
+   * because the sticky controls bar has to reproduce it as padding rather than as a max-width.
+   *
+   * On the wrapper rather than on `:root`, where it was while this sheet was alone in its document: the Pokédex wants the
+   * same 1100px, the search builder 880px and the PGSharp panel 640px, so on `:root` the four would be one declaration
+   * and whichever the bundler wrote last would set the column for every page.
+   */
+  --content-w: 1100px;
 
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-  background: var(--panel);
-  color: inherit;
-  text-decoration: none;
-  box-shadow: var(--shadow);
-  transition:
-    border-color 0.12s,
-    transform 0.12s,
-    box-shadow 0.12s;
-}
+  header.page .sub {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
 
-.card:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lift);
-}
+  /**
+   * How many events have arrived since this browser last acknowledged them, and the only control that clears them. Its
+   * own line beside the count rather than inside it, because each of the three views writes that line itself and this
+   * has to read the same in all of them — a calendar or tracks bar can mark a new event but has no room for a control.
+   */
 
-/**
- * A transparent overlay covering the whole card, so a click anywhere opens the event. The dismiss button sits above it
- * (higher z-index) and stays clickable.
- */
-.card-link {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-}
+  .newly {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
 
-.dismiss {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgb(0 0 0 / 45%);
-  color: #fff;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
+  /**
+   * The rule above is what makes this one necessary: an author `display` beats the UA stylesheet's `[hidden] {display:
+   * none}`, so the `hidden` the page sets whenever the count is zero would lay the line out regardless — leaving Mark all
+   * as seen on screen with nothing to mark, and on every page load, since the markup ships hidden with an empty count.
+   * Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a
+   * media query gives `.newly`.
+   */
 
-.card:hover .dismiss,
-.dismiss:focus-visible {
-  opacity: 1;
-}
+  .newly[hidden] {
+    display: none;
+  }
 
-.dismiss:hover {
-  background: var(--accent);
-}
+  .newly .new-count {
+    color: var(--accent);
+    font-weight: 600;
+  }
 
-/* Touch devices have no hover — always show the dismiss control there. */
-@media (hover: none) {
+  /**
+   * Quieter than the accent buttons in the controls bar below, which is a different band of the page: this sits in 12px
+   * muted text and should read as a footnote to the count it follows, not compete with Refresh.
+   */
+
+  .newly button {
+    padding: 2px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .newly button:hover,
+  .newly button:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .controls {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+
+    /**
+     * Full-bleed, because it carries the sticky background and bottom rule across the whole viewport — so it lines its
+     * contents up with the content column through padding instead of a max-width.
+     */
+    padding: 12px max(22px, calc((100% - var(--content-w)) / 2));
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .controls input[type='search'] {
+    flex: 1 1 200px;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  .controls input[type='search']:focus {
+    outline: 2px solid var(--track);
+    outline-offset: -1px;
+  }
+
+  .controls button {
+    padding: 8px 12px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .controls button:hover {
+    filter: brightness(1.05);
+  }
+
+  /**
+   * The Reset control is destructive-ish (it clears saved filters), so it reads as secondary rather than the accent
+   * Refresh button beside it.
+   */
+
+  .controls button.ghost {
+    background: transparent;
+    color: var(--muted);
+    border-color: var(--border);
+  }
+
+  .controls button.ghost:hover {
+    filter: none;
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  /**
+   * The filter disclosure reads as the foot of the panel opening rather than a fifth control beside the four above it, so
+   * it drops everything `.controls button` gives the others — the accent fill, the border, the padding — and takes a row
+   * of its own. `flex: 1 0 100%` is what wins that row: the section is a wrapping flex container, so a full-basis item
+   * lands below whatever the items before it did, at any viewport.
+   */
+
+  .controls .disclose {
+    flex: 1 0 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    line-height: 1;
+  }
+
+  .controls .disclose:hover,
+  .controls .disclose:focus-visible {
+    filter: none;
+    color: var(--accent);
+  }
+
+  /**
+   * The focus ring is drawn around the glyph rather than the button, because the button is as wide as the panel: the 2px
+   * `var(--track)` outline every other control here takes would hug a 941×15 box and read as an empty text input. It is
+   * still keyed on the button's own `:focus-visible`, so it appears exactly when the button has focus — only the box it
+   * encloses is smaller than the target.
+   */
+
+  .controls .disclose:focus-visible {
+    outline: none;
+  }
+
+  .controls .disclose:focus-visible .dots {
+    outline: 2px solid var(--track);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  /**
+   * The same ellipsis in both states, since it has no orientation to turn over the way a chevron would — what says the
+   * row is open is the row being there, and for anyone who cannot see that, `aria-expanded` and the title. `inline-block`
+   * is for the ring above: an inline box draws its outline around the font's own metrics rather than around the 15px the
+   * rest of the handle is, which measures 17px tall against the ellipsis's 15.
+   */
+
+  .controls .disclose .dots {
+    display: inline-block;
+    font-size: 15px;
+  }
+
+  /**
+   * The disclosed panel: the filter scope, the type chips and the reveals, stacked in that order. It holds the content
+   * column's alignment for all three rows, which is why `.scope`, `.type-filters` and `.toggles` below carry no padding
+   * of their own — several paddings to keep in step is how one row ends up a few pixels off the next and off the cards
+   * under them.
+   */
+
+  .filters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: var(--content-w);
+    margin: 0 auto;
+    padding: 12px 22px 0;
+  }
+
+  /**
+   * The `display: flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
+   * `[hidden] {display: none}`, so the `hidden` the markup ships with and render() maintains would lay the panel out
+   * regardless — putting the whole thing on screen on every page load, which is the one thing it must not do. Keyed on
+   * `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
+   * query gives `.filters`.
+   */
+
+  .filters[hidden] {
+    display: none;
+  }
+
+  .toggles,
+  .type-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .type-filters:empty {
+    display: none;
+  }
+
+  /**
+   * The row that says what a chip click applies to: its label, then the segmented pair. The label takes the panel's muted
+   * 12px so that the question reads as a caption to the chips below rather than as a control of its own — the segments
+   * are the control, and they are the only part of the row that is interactive.
+   */
+
+  .scope {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /**
+   * Both chip rows of the panel are made of these. A type chip wears its own type's colour — a tinted fill and a matching
+   * border — which makes that row the legend for the three colour-coded views below it: the chip carries the same
+   * `.type-*` class the cards and the calendar and timeline bars do, so --type-color inherits here and one palette serves
+   * all four. The three reveals carry no type and so fall through to the muted grey.
+   *
+   * `font-family` has to be asked for because these are buttons: a button does not inherit it, and left alone the chips
+   * come out in the UA's default face rather than the page's.
+   */
+
+  .chip {
+    --chip-color: var(--type-color, var(--muted));
+
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border: 1px solid color-mix(in srgb, var(--chip-color) 40%, var(--border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--chip-color) 10%, var(--panel));
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  /**
+   * The `display: inline-flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
+   * `[hidden] {display: none}`, so the `hidden` setView() puts on two of the reveals outside the cards view would lay
+   * them out regardless — leaving Show ended and Show undated on screen in the calendar and tracks views, where neither
+   * reveals anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any
+   * later `display` a media query gives `.chip`.
+   */
+
+  .chip[hidden] {
+    display: none;
+  }
+
+  .chip:hover {
+    border-color: var(--chip-color);
+    background: color-mix(in srgb, var(--chip-color) 20%, var(--panel));
+  }
+
+  /**
+   * An off chip is dimmed rather than dropped from the row, so the reader can see what they have hidden and put it back.
+   * Dimming is the whole of the visible state, which is why the `aria-pressed` beside it is not decoration: it is the
+   * only form the state takes for anyone who is not reading the colour.
+   */
+
+  .chip.off {
+    opacity: 0.45;
+  }
+
+  .chip:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+  }
+
+  main {
+    max-width: var(--content-w);
+    margin: 0 auto;
+    padding: 8px 22px 40px;
+  }
+
+  h2.group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 28px 0 12px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  /**
+   * A hairline running out to the right margin makes each bucket read as a section rather than as a faint floating label.
+   * On the pseudo-element so no extra node is rendered per group.
+   */
+
+  h2.group::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Running events are what a reader came for, so that one heading takes the accent while the rest stay muted. */
+
+  h2.group.group-active {
+    color: var(--accent);
+  }
+
+  h2.group.group-active::after {
+    background: color-mix(in srgb, var(--accent) 35%, var(--border));
+  }
+
+  /**
+   * The bucket's size, so "Upcoming" says how much is in it without the reader counting cards. Letter-spacing is reset
+   * because the digits inherit the heading's tracking, which spaces a number oddly.
+   */
+
+  h2.group .gcount {
+    padding: 1px 7px;
+    border: 1px solid currentcolor;
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: 0;
+    opacity: 0.75;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  /**
+   * Cards fade up in sequence as a grid arrives, which gives the list a direction to be read in. Only on the render that
+   * follows a fetch — the renderer adds `enter` just then, because render() also runs every minute to keep the relative
+   * labels honest and replaying this on every tick would be a twitch, not a flourish. `--i` is the card's position in its
+   * grid, capped by the renderer so a long bucket's last card is not left waiting. `backwards` holds the card invisible
+   * through its delay rather than letting it show, vanish and fade in again.
+   */
+
+  .grid.enter .card {
+    animation: card-in 0.32s ease-out backwards;
+    animation-delay: calc(var(--i, 0) * 25ms);
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--panel);
+    color: inherit;
+    text-decoration: none;
+    box-shadow: var(--shadow);
+    transition:
+      border-color 0.12s,
+      transform 0.12s,
+      box-shadow 0.12s;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lift);
+  }
+
+  /**
+   * A transparent overlay covering the whole card, so a click anywhere opens the event. The dismiss button sits above it
+   * (higher z-index) and stays clickable.
+   */
+
+  .card-link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+
   .dismiss {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgb(0 0 0 / 45%);
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .card:hover .dismiss,
+  .dismiss:focus-visible {
     opacity: 1;
   }
-}
 
-/**
- * An event that has arrived since the reader last acknowledged the page. It takes the corner opposite the dismiss
- * button and the same elevation, because the card's overlay link covers everything below z-index 2 and would swallow
- * the click.
- *
- * What it does not borrow is that button's reveal-on-hover: a mark nobody sees until they point at the card cannot do
- * the one job it has. So it stays visible, and reads as a label that happens to be clickable rather than a control.
- */
-.new-mark {
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  z-index: 2;
-  padding: 2px 7px;
-  border: none;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1.5;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
+  .dismiss:hover {
+    background: var(--accent);
+  }
 
-.new-mark:hover,
-.new-mark:focus-visible {
-  filter: brightness(1.1);
-}
+  /* Touch devices have no hover — always show the dismiss control there. */
 
-/* A left accent stripe marks the event's state at a glance without a legend. */
-.card.active {
-  border-left: 4px solid var(--start);
-}
+  @media (hover: none) {
+    .dismiss {
+      opacity: 1;
+    }
+  }
 
-.card.upcoming {
-  border-left: 4px solid var(--track);
-}
+  /**
+   * An event that has arrived since the reader last acknowledged the page. It takes the corner opposite the dismiss
+   * button and the same elevation, because the card's overlay link covers everything below z-index 2 and would swallow
+   * the click.
+   *
+   * What it does not borrow is that button's reveal-on-hover: a mark nobody sees until they point at the card cannot do
+   * the one job it has. So it stays visible, and reads as a label that happens to be clickable rather than a control.
+   */
 
-.card.ended {
-  opacity: 0.7;
-  border-left: 4px solid var(--border);
-}
+  .new-mark {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 2;
+    padding: 2px 7px;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
 
-/**
- * A dismissed card is only ever visible while "Show hidden" is on. Dim it and keep its restore button on-screen (rather
- * than hover-only) so the reader can tell it is hidden and bring it back.
- */
-.card.dismissed {
-  opacity: 0.6;
-  border-style: dashed;
-}
+  .new-mark:hover,
+  .new-mark:focus-visible {
+    filter: brightness(1.1);
+  }
 
-.card.dismissed .dismiss {
-  opacity: 1;
-}
+  /* A left accent stripe marks the event's state at a glance without a legend. */
 
-/**
- * Per-type colour palette. Each event type gets a distinctive hue in --type-color, set here so it inherits to the card
- * badge and applies directly to the calendar and timeline bars that carry the same class. Kept in CSS rather than JS
- * so the dark-mode overrides below sit beside the light values; the slugs are the feed's stable `eventType`, and a type
- * the feed adds later simply has no rule and falls back to the neutral default in each consumer.
- */
-.type-choose-your-path {
-  --type-color: #7c3aed;
-}
+  .card.active {
+    border-left: 4px solid var(--start);
+  }
 
-.type-community-day {
-  --type-color: #16a34a;
-}
+  .card.upcoming {
+    border-left: 4px solid var(--track);
+  }
 
-.type-event {
-  --type-color: #2f6fed;
-}
+  .card.ended {
+    opacity: 0.7;
+    border-left: 4px solid var(--border);
+  }
 
-.type-go-battle-league {
-  --type-color: #dc2626;
-}
+  /**
+   * A dismissed card is only ever visible while "Show hidden" is on. Dim it and keep its restore button on-screen (rather
+   * than hover-only) so the reader can tell it is hidden and bring it back.
+   */
 
-.type-go-pass {
-  --type-color: #0891b2;
-}
+  .card.dismissed {
+    opacity: 0.6;
+    border-style: dashed;
+  }
 
-.type-max-battles {
-  --type-color: #4f46e5;
-}
+  .card.dismissed .dismiss {
+    opacity: 1;
+  }
 
-.type-max-mondays {
-  --type-color: #9333ea;
-}
+  /**
+   * Per-type colour palette. Each event type gets a distinctive hue in --type-color, set here so it inherits to the card
+   * badge and applies directly to the calendar and timeline bars that carry the same class. Kept in CSS rather than JS
+   * so the dark-mode overrides below sit beside the light values; the slugs are the feed's stable `eventType`, and a type
+   * the feed adds later simply has no rule and falls back to the neutral default in each consumer.
+   */
 
-.type-raid-battles {
-  --type-color: #ea580c;
-}
-
-.type-raid-day {
-  --type-color: #b45309;
-}
-
-.type-raid-hour {
-  --type-color: #f97316;
-}
-
-.type-regional-event {
-  --type-color: #c026d3;
-}
-
-.type-research {
-  --type-color: #0d9488;
-}
-
-.type-pokemon-spotlight-hour {
-  --type-color: #db2777;
-}
-
-.type-wild-area {
-  --type-color: #65a30d;
-}
-
-.type-season {
-  --type-color: #475569;
-}
-
-@media (prefers-color-scheme: dark) {
   .type-choose-your-path {
-    --type-color: #a78bfa;
+    --type-color: #7c3aed;
   }
 
   .type-community-day {
-    --type-color: #34d17b;
+    --type-color: #16a34a;
   }
 
   .type-event {
-    --type-color: #6ea8ff;
+    --type-color: #2f6fed;
   }
 
   .type-go-battle-league {
-    --type-color: #f87171;
+    --type-color: #dc2626;
   }
 
   .type-go-pass {
-    --type-color: #22d3ee;
+    --type-color: #0891b2;
   }
 
   .type-max-battles {
-    --type-color: #818cf8;
+    --type-color: #4f46e5;
   }
 
   .type-max-mondays {
-    --type-color: #c084fc;
+    --type-color: #9333ea;
   }
 
   .type-raid-battles {
-    --type-color: #fb923c;
+    --type-color: #ea580c;
   }
 
   .type-raid-day {
-    --type-color: #f59e0b;
+    --type-color: #b45309;
   }
 
   .type-raid-hour {
-    --type-color: #fdba74;
+    --type-color: #f97316;
   }
 
   .type-regional-event {
-    --type-color: #e879f9;
+    --type-color: #c026d3;
   }
 
   .type-research {
-    --type-color: #2dd4bf;
+    --type-color: #0d9488;
   }
 
   .type-pokemon-spotlight-hour {
-    --type-color: #f472b6;
+    --type-color: #db2777;
   }
 
   .type-wild-area {
-    --type-color: #a3e635;
+    --type-color: #65a30d;
   }
 
   .type-season {
-    --type-color: #94a3b8;
+    --type-color: #475569;
   }
-}
 
-.card .thumb {
-  width: 100%;
-  height: 120px;
-  object-fit: cover;
-  background: var(--bg);
-  transition: transform 0.3s ease-out;
-}
+  @media (prefers-color-scheme: dark) {
+    .type-choose-your-path {
+      --type-color: #a78bfa;
+    }
 
-/**
- * A slow push in on the artwork answers the hover without moving any text. The card already clips its overflow, so the
- * image grows into the frame rather than past it.
- */
-.card:hover .thumb {
-  transform: scale(1.04);
-}
+    .type-community-day {
+      --type-color: #34d17b;
+    }
 
-.card .body {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 12px 14px;
-}
+    .type-event {
+      --type-color: #6ea8ff;
+    }
 
-/**
- * The type badge is filled with the event's type colour, matching the calendar and timeline bars so a type reads the
- * same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
- * a type with no colour falls back to the neutral track blue, as the bars do.
- */
-.card .badge {
-  align-self: flex-start;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #fff;
-  background: var(--type-color, var(--track));
-  border-radius: 999px;
-  padding: 2px 8px;
-}
+    .type-go-battle-league {
+      --type-color: #f87171;
+    }
 
-.card h2 {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.3;
-}
+    .type-go-pass {
+      --type-color: #22d3ee;
+    }
 
-.card .when {
-  margin: 0;
-  font-size: 12px;
-  color: var(--text);
-}
+    .type-max-battles {
+      --type-color: #818cf8;
+    }
 
-.card .rel {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted);
-}
+    .type-max-mondays {
+      --type-color: #c084fc;
+    }
 
-/**
- * An event starting or ending within the day is the most actionable line on the card, so it takes the accent instead of
- * reading the same muted grey as one 200 days out. `SOON_MS` in events.js sets the threshold this class marks.
- */
-.card .rel.soon {
-  color: var(--accent);
-  font-weight: 600;
-}
+    .type-raid-battles {
+      --type-color: #fb923c;
+    }
 
-.card .rel.soon::before {
-  content: '⏳ ';
-}
+    .type-raid-day {
+      --type-color: #f59e0b;
+    }
 
-/**
- * Lifted above the overlay link that makes the whole card open the event's source page (`.card-link`, z-index 1), the
- * same way the dismiss button is — without it the overlay swallows the click and this link can never be followed. It is
- * sized to its own text so the rest of the line still opens the source page, and wears the chip the Routes sidebar gives
- * the other end of this pair, so the two directions of the same link look alike. Its --event hue is the colour those
- * routes are actually drawn in over there, which is the point of using it here rather than the accent.
- */
-.card .routes {
-  position: relative;
-  z-index: 2;
-  align-self: start;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--event) 14%, var(--panel));
-  color: var(--event);
-  font-size: 11px;
-  text-decoration: none;
-}
+    .type-raid-hour {
+      --type-color: #fdba74;
+    }
 
-.card .routes::before {
-  content: '🗺️ ';
-}
+    .type-regional-event {
+      --type-color: #e879f9;
+    }
 
-.card .routes:hover,
-.card .routes:focus-visible {
-  background: var(--event);
-  color: var(--panel);
-}
+    .type-research {
+      --type-color: #2dd4bf;
+    }
 
-footer {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 16px 22px 32px;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--muted);
-}
+    .type-pokemon-spotlight-hour {
+      --type-color: #f472b6;
+    }
 
-footer p {
-  margin: 0 0 4px;
-}
+    .type-wild-area {
+      --type-color: #a3e635;
+    }
 
-footer a {
-  color: var(--track);
-}
+    .type-season {
+      --type-color: #94a3b8;
+    }
+  }
 
-/**
- * A segmented control: one bordered box, one lit segment, no gap between them. Used twice — the view switcher in the
- * controls bar and the filter scope in the panel below it — so these rules are unscoped and state the whole appearance
- * themselves, including the padding and type `.controls button` used to supply. Scoped to `.controls`, they reached
- * only one of the two and the other would have come out as a pair of default browser buttons.
- *
- * That leaves them tied with `.controls button` on specificity, so what wins inside the controls bar is this block
- * coming later in the file. It has to stay below that rule.
- */
-.viewtoggle {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.viewtoggle button {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 0;
-  background: var(--bg);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.viewtoggle button:hover {
-  filter: none;
-  color: var(--text);
-}
-
-.viewtoggle button.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-/**
- * Calendar view: a month toolbar over a stack of week rows. Each week is a band of bars for the events spanning more
- * than one of its days, over the seven day cells, which list only the events confined to a single day.
- */
-.calbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 16px 0 12px;
-}
-
-.calbar .callabel {
-  min-width: 150px;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.calbar .navbtn {
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.calbar .navbtn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.cal {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/**
- * A week is two grids stacked in one grid area rather than a band of bars above a row of cells: the day cells and the
- * bars occupy the same square of the page, so an event is drawn inside the days it covers instead of floating above
- * them. Both layers stretch to the area, and the area takes the height of the taller — so the bars, which are the only
- * layer with content that grows, are what sizes the week, and the cells follow them.
- *
- * Reserving the row height for a band instead put every event outside the cell it belonged to. With most events running
- * more than a day that left the grid inverted: seven empty bordered boxes per week carrying nothing but a number, under
- * a stack holding all of the information.
- */
-.cal-week {
-  display: grid;
-  grid-template-areas: 'week';
+  .card .thumb {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    background: var(--bg);
+    transition: transform 0.3s ease-out;
+  }
 
   /**
-   * The strip at the top of a cell that the day number occupies, which the bars are offset past. Declared here so the
-   * number's own box and the offset the other layer keeps clear derive from one value rather than two that can drift
-   * apart and let a bar cover a date.
+   * A slow push in on the artwork answers the hover without moving any text. The card already clips its overflow, so the
+   * image grows into the frame rather than past it.
+   */
+
+  .card:hover .thumb {
+    transform: scale(1.04);
+  }
+
+  .card .body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px 14px;
+  }
+
+  /**
+   * The type badge is filled with the event's type colour, matching the calendar and timeline bars so a type reads the
+   * same across all three views. --type-color is set on the card (see the `.type-*` rules) and inherits down to here;
+   * a type with no colour falls back to the neutral track blue, as the bars do.
+   */
+
+  .card .badge {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #fff;
+    background: var(--type-color, var(--track));
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .card h2 {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+
+  .card .when {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  .card .rel {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /**
+   * An event starting or ending within the day is the most actionable line on the card, so it takes the accent instead of
+   * reading the same muted grey as one 200 days out. `SOON_MS` in events.js sets the threshold this class marks.
+   */
+
+  .card .rel.soon {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .card .rel.soon::before {
+    content: '⏳ ';
+  }
+
+  /**
+   * Lifted above the overlay link that makes the whole card open the event's source page (`.card-link`, z-index 1), the
+   * same way the dismiss button is — without it the overlay swallows the click and this link can never be followed. It is
+   * sized to its own text so the rest of the line still opens the source page, and wears the chip the Routes sidebar gives
+   * the other end of this pair, so the two directions of the same link look alike. Its --event hue is the colour those
+   * routes are actually drawn in over there, which is the point of using it here rather than the accent.
+   */
+
+  .card .routes {
+    position: relative;
+    z-index: 2;
+    align-self: start;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--event) 14%, var(--panel));
+    color: var(--event);
+    font-size: 11px;
+    text-decoration: none;
+  }
+
+  .card .routes::before {
+    content: '🗺️ ';
+  }
+
+  .card .routes:hover,
+  .card .routes:focus-visible {
+    background: var(--event);
+    color: var(--panel);
+  }
+
+  /**
+   * This page's footer is a ruled band rather than the quiet column the other two have, so it overrides chrome.css rather
+   * than sharing it. `line-height` is named for that reason and no other: chrome.css sets 1.6 and this footer took the
+   * body's 1.4 while it had no shared rule above it to inherit from.
+   */
+  footer {
+    max-width: var(--content-w);
+    margin: 0 auto;
+    padding: 16px 22px 32px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  footer p {
+    margin: 0 0 4px;
+  }
+
+  /**
+   * A segmented control: one bordered box, one lit segment, no gap between them. Used twice — the view switcher in the
+   * controls bar and the filter scope in the panel below it — so these rules are unscoped and state the whole appearance
+   * themselves, including the padding and type `.controls button` used to supply. Scoped to `.controls`, they reached
+   * only one of the two and the other would have come out as a pair of default browser buttons.
    *
-   * The border counts towards that offset as much as the padding does, because only one of the two layers has one: a
-   * cell's content starts a border-width lower than the bars layer's, so an offset of padding plus strip alone leaves
-   * the first bar overlapping the last row of the date by exactly this much.
+   * That leaves them tied with `.controls button` on specificity, so what wins inside the controls bar is this block
+   * coming later in the file. It has to stay below that rule.
    */
-  --cell-border: 1px;
-  --cell-pad: 4px;
-  --daynum-h: 17px;
-}
 
-/**
- * Every grid that runs the width of a week shares one column definition, which is what lines a bar up with the day cell
- * behind it. Declared together so the three cannot drift apart and leave a bar a column off from the day it names.
- */
-.cal-wd-row,
-.cal-bars,
-.cal-days {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
-}
+  .viewtoggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
 
-.cal-bars,
-.cal-days {
-  grid-area: week;
-}
+  .viewtoggle button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 0;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
 
-/**
- * Dense auto-placement does the lane packing for free: each bar carries a definite `grid-column`, and CSS drops it into
- * the first row where that span is unoccupied — the same greedy interval partitioning packLanes() spells out for the
- * Tracks view, so two bars that do not overlap share a row instead of each taking their own.
- *
- * The layer covers the cells completely, so it would swallow a click meant for one; only the bars themselves take the
- * pointer.
- */
-.cal-bars {
+  .viewtoggle button:hover {
+    filter: none;
+    color: var(--text);
+  }
+
+  .viewtoggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
   /**
-   * Which layer is on top has to be stated rather than left to document order, because `opacity` on a day cell lifts it
-   * into the z-index 0 painting layer and so above a plain in-flow sibling. A neighbouring month's cell is dimmed that
-   * way, which is why the bars crossing into one came out washed through the cell drawn over them.
+   * Calendar view: a month toolbar over a stack of week rows. Each week is a band of bars for the events spanning more
+   * than one of its days, over the seven day cells, which list only the events confined to a single day.
    */
-  position: relative;
-  z-index: 1;
-  grid-auto-flow: row dense;
-  gap: 2px 4px;
-  align-content: start;
-  padding-top: calc(var(--cell-border) + var(--cell-pad) + var(--daynum-h));
-  pointer-events: none;
-}
 
-.cal-wd {
-  padding: 4px 0;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  text-align: center;
-}
+  .calbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0 12px;
+  }
 
-/**
- * The same resting elevation the cards and the tracks panel carry, so a day cell reads as the same kind of surface. A
- * cell holds nothing but its date — the events that fall on it are drawn in the layer above — so it takes its height
- * from the bars stacked over the week rather than from its own content, and the minimum only keeps an empty week from
- * collapsing to a row of numbers.
- */
-.cal-day {
-  min-height: 52px;
-  padding: var(--cell-pad);
-  border: var(--cell-border) solid var(--border);
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-}
+  .calbar .callabel {
+    min-width: 150px;
+    font-size: 16px;
+    font-weight: 700;
+  }
 
-/* Days spilling in from the neighbouring months are dimmed so the current month reads as the focus. */
-.cal-day.other {
-  opacity: 0.45;
-}
+  .calbar .navbtn {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+  }
 
-/**
- * Today is marked twice, because the two marks answer different questions. The tint and border say which column it is
- * from across the grid, where a mark the size of a date would be lost; the pill on the date itself says exactly which
- * day, which a tint cannot without a reader comparing one cell against the next.
- *
- * Neither is a ring around the cell, and that is the constraint to keep: a cell is as tall as its whole week, so
- * anything drawn on the cell's own edge reads as a tall accent column with bars crossing it rather than as a marked
- * day. Whatever marks the day has to be on the date.
- */
-.cal-day.today {
-  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-}
+  .calbar .navbtn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 
-.cal-day .daynum {
-  display: block;
-  height: var(--daynum-h);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-}
+  .cal {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
 
-/**
- * The filled pill, in the white-on-accent the controls and the event bars already use. Block-level flex rather than an
- * inline one so it is exactly the strip's height: an inline box sits on a baseline and brings the strut's descender
- * with it, which would push the date past the offset `.cal-bars` keeps clear and let a bar cover it. `fit-content`
- * shrinks it to the date — a `display: flex` box would otherwise fill the cell — and `min-width` squares it back up, so
- * the 1st reads as a disc and the 21st as a short pill.
- */
-.cal-day.today .daynum {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  min-width: var(--daynum-h);
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-}
+  /**
+   * A week is two grids stacked in one grid area rather than a band of bars above a row of cells: the day cells and the
+   * bars occupy the same square of the page, so an event is drawn inside the days it covers instead of floating above
+   * them. Both layers stretch to the area, and the area takes the height of the taller — so the bars, which are the only
+   * layer with content that grows, are what sizes the week, and the cells follow them.
+   *
+   * Reserving the row height for a band instead put every event outside the cell it belonged to. With most events running
+   * more than a day that left the grid inverted: seven empty bordered boxes per week carrying nothing but a number, under
+   * a stack holding all of the information.
+   */
 
-/**
- * One bar per event per week row, filled with its type colour like the timeline bars. Flex rather than a plain block so
- * the continuation arrow keeps its place at the end while the name takes the ellipsis. Spanning the columns an event
- * covers is what finally gives a long name room to be read: drawn as a pill per day, 113 of 163 names were cut off.
- */
-.cal-bar {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: var(--type-color, var(--track));
-  color: #fff;
-  font-size: 11px;
-  line-height: 1.35;
-  text-decoration: none;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  .cal-week {
+    display: grid;
+    grid-template-areas: 'week';
 
-  /* Restored from the layer, which declines the pointer so an empty stretch of it does not shadow the cell behind. */
-  pointer-events: auto;
-}
+    /**
+     * The strip at the top of a cell that the day number occupies, which the bars are offset past. Declared here so the
+     * number's own box and the offset the other layer keeps clear derive from one value rather than two that can drift
+     * apart and let a bar cover a date.
+     *
+     * The border counts towards that offset as much as the padding does, because only one of the two layers has one: a
+     * cell's content starts a border-width lower than the bars layer's, so an offset of padding plus strip alone leaves
+     * the first bar overlapping the last row of the date by exactly this much.
+     */
+    --cell-border: 1px;
+    --cell-pad: 4px;
+    --daynum-h: 17px;
+  }
 
-.cal-bar .cal-bar-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+  /**
+   * Every grid that runs the width of a week shares one column definition, which is what lines a bar up with the day cell
+   * behind it. Declared together so the three cannot drift apart and leave a bar a column off from the day it names.
+   */
 
-/* A past event keeps its type colour but dims, matching the cards and the timeline bars. */
-.cal-bar.ended {
-  opacity: 0.55;
-}
-
-/**
- * An event that has arrived since the reader last acknowledged the page, on both bar kinds. A ring rather than a badge
- * or a leading dot because it costs no label width, and these labels have none to spare — a third of them already
- * ellipsise at desktop width and half do on a phone.
- *
- * Two rings, because one cannot work: the accent against the fifteen type colours measures 1.04 to 1.28 contrast in
- * both themes, which is no ring at all. The page colour is the only value that clears every type colour (2.80 worst in
- * light, 6.13 in dark), so it goes inside — and the accent then sits outside it, against the page, where it measures
- * 4.39 and 5.91. The drop shadow is repeated because a `box-shadow` declaration replaces the list rather than adds to
- * it.
- *
- * One pixel of page colour and two of accent, in that order, because the whole ring has to fit the 2px row gap the bars
- * are packed with: wider and it laps over the bar in the row above. A single pixel is all the separation the contrast
- * measurement needs, and spending the rest on the accent is what makes the ring visible at all.
- */
-.cal-bar.new,
-.bar.new {
-  box-shadow:
-    0 0 0 1px var(--bg),
-    0 0 0 3px var(--accent),
-    0 1px 2px rgb(0 0 0 / 20%);
-}
-
-.cal-bar:hover {
-  filter: brightness(1.08);
-}
-
-/**
- * A segment the week's edge cut off is squared there and given an arrow, so a bar reads as running on into the next row
- * rather than as ending on the Saturday. The arrow is decoration over the `title`, which carries the real dates.
- */
-.cal-bar.cont-left {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.cal-bar.cont-right {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.cal-bar.cont-left::before {
-  content: '‹';
-}
-
-.cal-bar.cont-right::after {
-  margin-left: auto;
-  content: '›';
-}
-
-@media (width <= 640px) {
-  .cal,
   .cal-wd-row,
   .cal-bars,
   .cal-days {
-    gap: 2px;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .cal-bars,
+  .cal-days {
+    grid-area: week;
   }
 
   /**
-   * The cell padding is narrowed through the variable rather than on `.cal-day` itself, because the bar layer's offset
-   * past the day number derives from it — set one and not the other and every bar sits a pixel off the date it
-   * covers.
+   * Dense auto-placement does the lane packing for free: each bar carries a definite `grid-column`, and CSS drops it into
+   * the first row where that span is unoccupied — the same greedy interval partitioning packLanes() spells out for the
+   * Tracks view, so two bars that do not overlap share a row instead of each taking their own.
+   *
+   * The layer covers the cells completely, so it would swallow a click meant for one; only the bars themselves take the
+   * pointer.
    */
-  .cal-week {
-    --cell-pad: 3px;
+
+  .cal-bars {
+    /**
+     * Which layer is on top has to be stated rather than left to document order, because `opacity` on a day cell lifts it
+     * into the z-index 0 painting layer and so above a plain in-flow sibling. A neighbouring month's cell is dimmed that
+     * way, which is why the bars crossing into one came out washed through the cell drawn over them.
+     */
+    position: relative;
+    z-index: 1;
+    grid-auto-flow: row dense;
+    gap: 2px 4px;
+    align-content: start;
+    padding-top: calc(var(--cell-border) + var(--cell-pad) + var(--daynum-h));
+    pointer-events: none;
   }
+
+  .cal-wd {
+    padding: 4px 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /**
+   * The same resting elevation the cards and the tracks panel carry, so a day cell reads as the same kind of surface. A
+   * cell holds nothing but its date — the events that fall on it are drawn in the layer above — so it takes its height
+   * from the bars stacked over the week rather than from its own content, and the minimum only keeps an empty week from
+   * collapsing to a row of numbers.
+   */
+
+  .cal-day {
+    min-height: 52px;
+    padding: var(--cell-pad);
+    border: var(--cell-border) solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+
+  /* Days spilling in from the neighbouring months are dimmed so the current month reads as the focus. */
+
+  .cal-day.other {
+    opacity: 0.45;
+  }
+
+  /**
+   * Today is marked twice, because the two marks answer different questions. The tint and border say which column it is
+   * from across the grid, where a mark the size of a date would be lost; the pill on the date itself says exactly which
+   * day, which a tint cannot without a reader comparing one cell against the next.
+   *
+   * Neither is a ring around the cell, and that is the constraint to keep: a cell is as tall as its whole week, so
+   * anything drawn on the cell's own edge reads as a tall accent column with bars crossing it rather than as a marked
+   * day. Whatever marks the day has to be on the date.
+   */
+
+  .cal-day.today {
+    border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+    background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  }
+
+  .cal-day .daynum {
+    display: block;
+    height: var(--daynum-h);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  /**
+   * The filled pill, in the white-on-accent the controls and the event bars already use. Block-level flex rather than an
+   * inline one so it is exactly the strip's height: an inline box sits on a baseline and brings the strut's descender
+   * with it, which would push the date past the offset `.cal-bars` keeps clear and let a bar cover it. `fit-content`
+   * shrinks it to the date — a `display: flex` box would otherwise fill the cell — and `min-width` squares it back up, so
+   * the 1st reads as a disc and the 21st as a short pill.
+   */
+
+  .cal-day.today .daynum {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-width: var(--daynum-h);
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /**
+   * One bar per event per week row, filled with its type colour like the timeline bars. Flex rather than a plain block so
+   * the continuation arrow keeps its place at the end while the name takes the ellipsis. Spanning the columns an event
+   * covers is what finally gives a long name room to be read: drawn as a pill per day, 113 of 163 names were cut off.
+   */
 
   .cal-bar {
-    font-size: 10px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--type-color, var(--track));
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.35;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+
+    /* Restored from the layer, which declines the pointer so an empty stretch of it does not shadow the cell behind. */
+    pointer-events: auto;
+  }
+
+  .cal-bar .cal-bar-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* A past event keeps its type colour but dims, matching the cards and the timeline bars. */
+
+  .cal-bar.ended {
+    opacity: 0.55;
   }
 
   /**
-   * Seven columns of a phone screen leave a bar about 50px per day, so the arrow would eat what little room the name has
-   * on a short span. The squared-off end still says it continues.
+   * An event that has arrived since the reader last acknowledged the page, on both bar kinds. A ring rather than a badge
+   * or a leading dot because it costs no label width, and these labels have none to spare — a third of them already
+   * ellipsise at desktop width and half do on a phone.
+   *
+   * Two rings, because one cannot work: the accent against the fifteen type colours measures 1.04 to 1.28 contrast in
+   * both themes, which is no ring at all. The page colour is the only value that clears every type colour (2.80 worst in
+   * light, 6.13 in dark), so it goes inside — and the accent then sits outside it, against the page, where it measures
+   * 4.39 and 5.91. The drop shadow is repeated because a `box-shadow` declaration replaces the list rather than adds to
+   * it.
+   *
+   * One pixel of page colour and two of accent, in that order, because the whole ring has to fit the 2px row gap the bars
+   * are packed with: wider and it laps over the bar in the row above. A single pixel is all the separation the contrast
+   * measurement needs, and spending the rest on the accent is what makes the ring visible at all.
    */
-  .cal-bar::before,
-  .cal-bar::after {
-    content: none;
-  }
-}
 
-/**
- * Tracks view: a Gantt-style timeline. Fixed category rows run down a left column that stays pinned while the day-scaled
- * timeline scrolls horizontally; each event is a bar positioned and sized by its date window, stacked into sub-lanes
- * where several overlap. --track-day (a day column's width) is set from JS so the gridline background matches the bar
- * positions it computes.
- */
-.tracks {
-  margin-top: 16px;
-}
-
-.tracks-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
-}
-
-.tracks-inner {
-  display: grid;
-  position: relative;
-}
-
-.track-corner,
-.track-label {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  background: var(--panel);
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.track-corner {
-  z-index: 4;
-  height: 28px;
-  color: var(--muted);
-}
-
-.track-axis {
-  position: relative;
-  height: 28px;
-  border-bottom: 1px solid var(--border);
-  background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
-}
-
-.axis-tick {
-  position: absolute;
-  top: 0;
-  height: 28px;
-  padding: 7px 0 0 4px;
-  border-left: 1px solid var(--muted);
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.track-lane {
-  position: relative;
-  border-bottom: 1px solid var(--border);
-  background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
-}
-
-/**
- * One bar per event, filled with its type colour to match the calendar bars. Absolutely positioned within its lane
- * from the inline left/width/top the renderer computes. A type with no colour falls back to the neutral track blue.
- */
-.bar {
-  position: absolute;
-  display: block;
-  overflow: hidden;
-  padding: 0 7px;
-  border-radius: 5px;
-  background: var(--type-color, var(--track));
-  color: #fff;
-  font-size: 11px;
-  line-height: 22px;
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
-}
-
-/* A past event keeps its type colour but dims, matching the calendar bars. */
-.bar.ended {
-  opacity: 0.55;
-}
-
-.bar:hover {
-  z-index: 2;
-  filter: brightness(1.08);
-}
-
-/**
- * A vertical accent line marking today, spanning the whole grid (axis included). Sits above the lanes but below the
- * pinned labels, which have an opaque background and cover it once the timeline scrolls under them.
- */
-.track-today {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 2;
-  width: 2px;
-  background: var(--accent);
-  pointer-events: none;
-}
-
-/**
- * Everything decorative above is movement, and a reader who has asked the operating system for less of it wants the
- * layout, colour and elevation without any of it. The colour-coding and the urgency accent stay: neither moves.
- */
-@media (prefers-reduced-motion: reduce) {
-  .card,
-  .card .thumb,
-  .dismiss {
-    transition: none;
+  .cal-bar.new,
+  .bar.new {
+    box-shadow:
+      0 0 0 1px var(--bg),
+      0 0 0 3px var(--accent),
+      0 1px 2px rgb(0 0 0 / 20%);
   }
 
-  .card:hover,
-  .card:hover .thumb {
-    transform: none;
+  .cal-bar:hover {
+    filter: brightness(1.08);
   }
 
-  .grid.enter .card {
-    animation: none;
+  /**
+   * A segment the week's edge cut off is squared there and given an arrow, so a bar reads as running on into the next row
+   * rather than as ending on the Saturday. The arrow is decoration over the `title`, which carries the real dates.
+   */
+
+  .cal-bar.cont-left {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .cal-bar.cont-right {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .cal-bar.cont-left::before {
+    content: '‹';
+  }
+
+  .cal-bar.cont-right::after {
+    margin-left: auto;
+    content: '›';
+  }
+
+  @media (width <= 640px) {
+    .cal,
+    .cal-wd-row,
+    .cal-bars,
+    .cal-days {
+      gap: 2px;
+    }
+
+    /**
+     * The cell padding is narrowed through the variable rather than on `.cal-day` itself, because the bar layer's offset
+     * past the day number derives from it — set one and not the other and every bar sits a pixel off the date it
+     * covers.
+     */
+    .cal-week {
+      --cell-pad: 3px;
+    }
+
+    .cal-bar {
+      font-size: 10px;
+    }
+
+    /**
+     * Seven columns of a phone screen leave a bar about 50px per day, so the arrow would eat what little room the name has
+     * on a short span. The squared-off end still says it continues.
+     */
+    .cal-bar::before,
+    .cal-bar::after {
+      content: none;
+    }
+  }
+
+  /**
+   * Tracks view: a Gantt-style timeline. Fixed category rows run down a left column that stays pinned while the day-scaled
+   * timeline scrolls horizontally; each event is a bar positioned and sized by its date window, stacked into sub-lanes
+   * where several overlap. --track-day (a day column's width) is set from JS so the gridline background matches the bar
+   * positions it computes.
+   */
+
+  .tracks {
+    margin-top: 16px;
+  }
+
+  .tracks-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+
+  .tracks-inner {
+    display: grid;
+    position: relative;
+  }
+
+  .track-corner,
+  .track-label {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .track-corner {
+    z-index: 4;
+    height: 28px;
+    color: var(--muted);
+  }
+
+  .track-axis {
+    position: relative;
+    height: 28px;
+    border-bottom: 1px solid var(--border);
+    background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
+  }
+
+  .axis-tick {
+    position: absolute;
+    top: 0;
+    height: 28px;
+    padding: 7px 0 0 4px;
+    border-left: 1px solid var(--muted);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .track-lane {
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px var(--track-day));
+  }
+
+  /**
+   * One bar per event, filled with its type colour to match the calendar bars. Absolutely positioned within its lane
+   * from the inline left/width/top the renderer computes. A type with no colour falls back to the neutral track blue.
+   */
+
+  .bar {
+    position: absolute;
+    display: block;
+    overflow: hidden;
+    padding: 0 7px;
+    border-radius: 5px;
+    background: var(--type-color, var(--track));
+    color: #fff;
+    font-size: 11px;
+    line-height: 22px;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  }
+
+  /* A past event keeps its type colour but dims, matching the calendar bars. */
+
+  .bar.ended {
+    opacity: 0.55;
+  }
+
+  .bar:hover {
+    z-index: 2;
+    filter: brightness(1.08);
+  }
+
+  /**
+   * A vertical accent line marking today, spanning the whole grid (axis included). Sits above the lanes but below the
+   * pinned labels, which have an opaque background and cover it once the timeline scrolls under them.
+   */
+
+  .track-today {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 2;
+    width: 2px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  /**
+   * Everything decorative above is movement, and a reader who has asked the operating system for less of it wants the
+   * layout, colour and elevation without any of it. The colour-coding and the urgency accent stay: neither moves.
+   */
+
+  @media (prefers-reduced-motion: reduce) {
+    .card,
+    .card .thumb,
+    .dismiss {
+      transition: none;
+    }
+
+    .card:hover,
+    .card:hover .thumb {
+      transform: none;
+    }
+
+    .grid.enter .card {
+      animation: none;
+    }
   }
 }

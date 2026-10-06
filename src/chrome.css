@@ -1,0 +1,46 @@
+/**
+ * The page chrome every page shares: the heading block under the tab bar, and the footer under the content.
+ *
+ * These rules were a copy per stylesheet while each page was its own document — `header.page` and `header.page h1` were
+ * byte-identical in all four, and the footer in two of the three that have one. Four documents could not share a
+ * stylesheet without each fetching rules it had no use for, so the copies were the cheaper trade; one document makes
+ * them a liability instead, four places to edit a padding and three chances to miss one.
+ *
+ * The Events page's own heading and footer are a few pixels off these and stay that way, as an override in its own
+ * sheet scoped to that page rather than as a third copy of the whole block.
+ */
+
+header.page {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 20px 22px 6px;
+}
+
+header.page h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+header.page .sub {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+footer {
+  max-width: var(--content-w);
+  margin: 0 auto;
+  padding: 0 22px 40px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+footer p {
+  margin: 0 0 6px;
+}
+
+footer a {
+  color: var(--track);
+}

@@ -2,7 +2,7 @@
   "name": "Pokémon GO Utilities",
   "short_name": "PoGo Utils",
   "description": "Events calendar, GPX route map, search strings, a Pokédex and PGSharp backups for Pokémon GO.",
-  "start_url": "events.html",
+  "start_url": "#/events",
   "display": "standalone",
   "background_color": "#f7f8fa",
   "theme_color": "#ffffff",
@@ -12,10 +12,10 @@
     { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Events", "url": "events.html" },
-    { "name": "Map", "url": "map.html" },
-    { "name": "Search", "url": "search.html" },
-    { "name": "Pokédex", "url": "pokedex.html" },
-    { "name": "PGSharp", "url": "pgsharp.html" }
+    { "name": "Events", "url": "#/events" },
+    { "name": "Map", "url": "#/map" },
+    { "name": "Search", "url": "#/search" },
+    { "name": "Pokédex", "url": "#/pokedex" },
+    { "name": "PGSharp", "url": "#/pgsharp" }
   ]
 }
