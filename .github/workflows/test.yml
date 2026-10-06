@@ -10,10 +10,25 @@ permissions:
   contents: 'read'
 
 jobs:
-  unit-test:
+  all:
     name: 'Unit Test'
+    needs: 'test'
+    if: 'always()'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - if: "needs.test.result != 'success'"
+        run: 'exit 1'
+
+  test:
+    name: '${{ matrix.project }}'
     runs-on: 'ubuntu-latest'
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - 'corpus'
+          - 'fast'
     steps:
       - uses: 'actions/checkout@v7'
         with:
@@ -25,4 +40,4 @@ jobs:
       - uses: 'pnpm/setup@v3'
         with:
           cache: true
-      - run: 'pnpm test'
+      - run: 'pnpm vitest run --project ${{ matrix.project }}'

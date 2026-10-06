@@ -16,7 +16,9 @@
     "lint:prettier:fix": "prettier --write .",
     "lint:types": "pnpm build",
     "lint:xml": "node scripts/validate-gpx.mts",
-    "test": "vitest run",
+    "test": "vitest run --project fast",
+    "test:corpus": "vitest run --project corpus",
+    "test:coverage": "vitest run --coverage",
     "vend": "npm-run-all --continue-on-error --parallel --print-label 'vend:*'",
     "vend:events": "node scripts/vend-feed.mts",
     "vend:game-master": "node scripts/vend-game-master.mts"
