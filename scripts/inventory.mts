@@ -239,6 +239,9 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
 }
 
 async function scan() {
+  // Ahead of the phone, so a typo fails before anything is driven.
+  const limit = count('limit', options.limit, Infinity);
+  const skip = count('skip', options.skip, 0);
   const device = new Device(options.serial);
   await device.check();
   const data = await loadGameData(CACHE, options.refresh);
@@ -251,8 +254,6 @@ async function scan() {
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean);
-  const limit = options.limit === undefined ? Infinity : Number(options.limit);
-  const skip = options.skip === undefined ? 0 : Number(options.skip);
   const screens = options['keep-screens'];
   const shot = await device.screenshot();
   const at = (p: Point): Point => [p[0] * shot.width, p[1] * shot.height];
@@ -722,6 +723,21 @@ function parseFlags(list: string): Flag[] {
   }
 
   return names as Flag[];
+}
+
+/** A count option, checked here rather than left to turn into a `NaN` that quietly writes nothing after a long run. */
+function count(option: string, value: string | undefined, fallback: number): number {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  const n = Number(value);
+
+  if (!Number.isInteger(n) || n < 0) {
+    throw new Error(`--${option} takes a whole number, not ${value}`);
+  }
+
+  return n;
 }
 
 /** `DEFAULTS` with a JSON file laid over it one level deep, so a file can change one tap and restate nothing else. */
