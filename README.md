@@ -295,8 +295,9 @@ of the screen the frames are lined up in is `scrollBand` in `--config`, the one 
 
 Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
-`pnpm inventory parse FILE.png` does the same for a saved one. The cache, the snaps and `inventory*.csv` are
-git-ignored, since they describe a player's own account.
+`pnpm inventory parse FILE.png` does the same for a saved one. `--verbose` adds every line OCR found with its box, which
+is what separates a field left empty because no text was read there from one left empty because a reader anchored on the
+wrong line. The cache, the snaps and `inventory*.csv` are git-ignored, since they describe a player's own account.
 
 Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
 risk to the account is yours to weigh.
