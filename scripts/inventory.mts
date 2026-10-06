@@ -586,7 +586,9 @@ async function scan() {
 
       const row: Record<(typeof COLUMNS)[number], string | number | null> = {
         index: index + 1,
-        species: id.form?.species ?? detail.name,
+        // A nickname says nothing of the species, so a Pokémon `identify` could not place is left blank rather than
+        // filed under it.
+        species: id.form?.species ?? (id.nickname === null ? detail.name : null),
         nickname: id.nickname,
         dex: id.form?.dex ?? null,
         form: id.form?.form ?? null,
