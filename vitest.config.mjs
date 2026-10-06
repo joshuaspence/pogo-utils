@@ -1,9 +1,12 @@
 import { defaultExclude, defineConfig } from 'vitest/config';
 
-// The capture corpus, which costs 95% of the suite and so runs on its own. Why, in `screens.test.mts`.
+// The capture corpus, which costs 95% of the suite and so runs on its own.
 const CORPUS = '**/screens.test.mts';
 
-const shared = { dir: 'src', testTimeout: 60_000 };
+const shared = {
+  dir: 'src',
+  testTimeout: 60_000,
+};
 
 export default defineConfig({
   test: {
@@ -14,8 +17,20 @@ export default defineConfig({
       reporter: ['text'],
     },
     projects: [
-      { test: { ...shared, name: 'fast', exclude: [...defaultExclude, CORPUS] } },
-      { test: { ...shared, name: 'corpus', include: [CORPUS] } },
+      {
+        test: {
+          ...shared,
+          name: 'corpus',
+          include: [CORPUS],
+        },
+      },
+      {
+        test: {
+          ...shared,
+          name: 'default',
+          exclude: [...defaultExclude, CORPUS]
+        }
+      },
     ],
   },
 });
