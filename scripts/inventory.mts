@@ -32,8 +32,8 @@
  *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *   Each line lists the flags that command acts on, and a flag handed to a command whose line omits it is refused
- *   rather than ignored. `--config` is on all three because the overlay box in it is read wherever a screen is, and
- *   `--serial` stops at `snap` because `parse` opens no device.
+ *   rather than ignored. `--config` is on all three because `scan` drives the phone out of it where `snap` and `parse`
+ *   read only the overlay box in it; `--serial` stops at `snap`, `parse` opening no device.
  *
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
  * one tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than
@@ -243,8 +243,9 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
  * checked against anything. Stated once here, so the rejection below and the usage block above cannot drift apart
  * without a test noticing.
  *
- * `--config` reaches all three because `report` reads `overlay` out of it, and `--serial` stops at `snap` because
- * `parse` opens no device. Neither is obvious from the synopsis alone, which is the whole reason for writing it down.
+ * `--config` reaches all three for two different reasons, which is the kind of thing this is written down rather than
+ * inferred for: `scan` drives the phone out of it — the taps, swipes and waits — where `snap` and `parse` reach only
+ * the overlay box in it, through `report`. `--serial` stops at `snap` because `parse` opens no device.
  */
 const HONOURED: Record<string, readonly string[]> = {
   scan: ['out', 'limit', 'skip', 'flags', 'tags', 'no-moves', 'scroll', 'keep-screens', 'config', 'serial', 'refresh'],
@@ -259,7 +260,11 @@ const HONOURED: Record<string, readonly string[]> = {
  * as `--out x`.
  */
 const passed = process.argv.slice(2).flatMap((arg) => /^--([a-z-]+)/.exec(arg)?.[1] ?? []);
-const honoured = HONOURED[command];
+
+// `hasOwn` rather than the lookup alone, because a plain object inherits from `Object.prototype`: `HONOURED.toString`
+// answers a function, which is truthy, so `toString --verbose` reached `.includes` on it and threw where it should have
+// fallen through to the usage. Only ever with a flag alongside, an empty list never invoking the filter.
+const honoured = Object.hasOwn(HONOURED, command) ? HONOURED[command] : undefined;
 const ignored = honoured ? passed.filter((flag) => !honoured.includes(flag)) : [];
 
 // Only for a command that has a list: `help` and a typo fall through to the usage below, which says more than this can.

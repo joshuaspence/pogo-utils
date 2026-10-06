@@ -93,12 +93,19 @@ test('the flags are read off `parseArgs` whole, not some readable subset of it',
 });
 
 /**
- * Which flags the script says each command acts on, read off its `HONOURED` table. Captured per entry across newlines
- * rather than a line at a time, so a list `prettier` has wrapped — the `scan` one is four characters from it — still
- * reads whole, which is the same trap as the options block above.
+ * Which flags the script says each command acts on, read off its `HONOURED` table.
+ *
+ * The block is captured first and its keys matched inside it, for the two reasons the options block above is: a list
+ * `prettier` has wrapped still reads whole, and the key pattern names no command, so a command this test has never
+ * heard of is read rather than skipped.
+ *
+ * Naming the three was the hole. A `watch:` entry added to the table was checked by nothing — the pattern could not see
+ * it, and the union below could not notice either, being taken over only the entries the pattern had read. Which is the
+ * same fail-open shape as before: a reader that matches less is compared against less.
  */
+const TABLE = /\nconst HONOURED[^=]*= \{\n([\s\S]*?)\n\};\n/.exec(SOURCE)?.[1] ?? '';
 const HONOURED = new Map(
-  [...SOURCE.matchAll(/^ {2}(scan|snap|parse): \[([\s\S]*?)\],$/gm)].map(([, command, list]) => [
+  [...TABLE.matchAll(/^ {2}([a-z-]+): \[([\s\S]*?)\],$/gm)].map(([, command, list]) => [
     command as string,
     new Set([...(list ?? '').matchAll(/'([a-z-]+)'/g)].map(([, flag]) => flag as string)),
   ]),
@@ -153,12 +160,22 @@ test('`help` prints the synopsis and exits 0', async () => {
  * come out equal to the options block, which a half-read table cannot do.
  */
 test('`HONOURED` accounts for every flag `parseArgs` accepts, and no others', () => {
-  expect([...HONOURED.keys()].sort(), 'the `HONOURED` table did not read whole').toStrictEqual([
-    'parse',
-    'scan',
-    'snap',
-  ]);
+  expect(TABLE, 'the `HONOURED` table was not found, so every claim about commands below is vacuous').not.toBe('');
   expect([...new Set([...HONOURED.values()].flatMap((flags) => [...flags]))].sort()).toStrictEqual([...FLAGS].sort());
+});
+
+/**
+ * The table and the synopsis name the same commands, which is what makes the per-command comparison below total. Each
+ * direction is a live bug otherwise: a table entry with no synopsis line is a command whose flags are undocumented, and
+ * a synopsis line with no table entry is a command with no gate at all, silently ignoring every flag given to it — the
+ * very thing the table is here to stop.
+ */
+test('the table and the synopsis name the same commands', async () => {
+  const advertised = await ADVERTISED;
+
+  expect([...HONOURED.keys()].sort(), 'a command is in the table or the synopsis but not both').toStrictEqual(
+    [...advertised.keys()].sort(),
+  );
 });
 
 /**
@@ -210,12 +227,19 @@ test('a flag its command does not act on is refused, not ignored', async () => {
  * A command the script does not know is a failure rather than a silent no-op, and it says what the commands are. The
  * exit code is the half that matters: `help` and a typo print the same text, and only the status tells a script which
  * of the two happened.
+ *
+ * The names off `Object.prototype` are here because they got through. `HONOURED` is a plain object, so looking one of
+ * them up answered an inherited function, the guard found that truthy, and the flag filter
+ * then called `.includes` on a function and threw a `TypeError` over the usage. Each needs a flag beside it to show it,
+ * an empty list never invoking the filter — which is why a bare `toString` looked fine throughout.
  */
 test('an unknown command prints the usage and fails', async () => {
-  const failure = await run(process.execPath, [SCRIPT, 'scna']).catch((error: unknown) => error);
+  for (const command of ['scna', 'toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    const failure = await run(process.execPath, [SCRIPT, command, '--verbose']).catch((error: unknown) => error);
 
-  expect(failure).toMatchObject({ code: 1 });
-  expect((failure as { stderr: string }).stderr).toContain('pnpm inventory scan');
+    expect(failure, `\`${command}\` did not fail`).toMatchObject({ code: 1 });
+    expect((failure as { stderr: string }).stderr, `\`${command}\` printed no usage`).toContain('pnpm inventory scan');
+  }
 });
 
 /** `parse` with no file named is the same: the guard on it is a length, and a missing argument must not read as one. */
