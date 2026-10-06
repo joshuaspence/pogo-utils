@@ -16,7 +16,9 @@
     <link rel="stylesheet" href="src/main.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <!-- `root` rather than `app`, which the map page's own layout grid is already called: one character between two
+         selectors meaning different things is a trap for whoever edits `styles.css` next. -->
+    <div id="root"></div>
 
     <!-- Every one of these tools runs entirely in the browser — reading GPX files, building a search string, serializing
          a PGSharp backup — so there is no server-rendered half to fall back to and nothing to show but this. -->

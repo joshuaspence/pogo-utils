@@ -25,6 +25,24 @@ body[data-page='map'] {
   flex-direction: column;
   overflow: hidden;
 
+  /**
+   * The shell's root, which this page needs to be as tall as the body and lay its children out the way the body does.
+   *
+   * It is the one box this layout did not have to account for before. `.app` was a direct child of `<body>` in the old
+   * document and took its height from the flex column above; the shell renders into a `<div>` between the two, which is
+   * `display: block` and so sized by its content. `.app`'s `flex: 1` then had no flex parent to fill and the map came out
+   * 413px tall in a 757px viewport — the sidebar's content height, with the rest of the window below it empty.
+   *
+   * `min-height: 0` for the reason `.app` and `#sidebar` below carry it: a flex item's floor is its content, so without
+   * this the route list refuses to shrink and pushes the column past the viewport instead of scrolling inside it.
+   */
+  #root {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .app {
     flex: 1;
     display: grid;

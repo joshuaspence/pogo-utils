@@ -324,7 +324,13 @@ export default function SearchPage({ query: fragment }: { query: string }) {
          */}
         <section class="output" aria-label="The search string">
           <div class="string">
-            <code ref={queryRef} class={query ? undefined : 'empty'} aria-live="polite">
+            {/*
+             * The id is the stylesheet's, not the script's: `search.css` selects `.output code#query` for the mono face,
+             * the bordered box and the `user-select: all` the Copy button's fallback depends on. The ref beside it is the
+             * script's handle for that fallback — the two are not a duplicate, and dropping the id for the ref left every
+             * one of those rules matching nothing while the page still rendered.
+             */}
+            <code id="query" ref={queryRef} class={query ? undefined : 'empty'} aria-live="polite">
               {query || 'Nothing chosen yet'}
             </code>
             <button type="button" class={copyLabel === 'Copy' ? 'copy' : 'copy done'} disabled={!query} onClick={copy}>

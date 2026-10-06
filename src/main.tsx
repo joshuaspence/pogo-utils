@@ -35,4 +35,4 @@ import './pgsharp.css';
 import { byId } from './dom.js';
 import { Shell } from './shell.js';
 
-render(<Shell />, byId('app'));
+render(<Shell />, byId('root'));
