@@ -2,14 +2,14 @@
  * What the stitcher does to frames it is handed, built here rather than captured: the whole of a scroll capture is a
  * pure function of a list of images, so a test of it needs no phone and no screenshots.
  *
- * **Every case starts from a tall image and cuts frames out of it**, which is what makes the assertion the strong one
- * — the stitch has to reproduce the source it was sliced from, pixel for pixel, rather than merely come back the right
+ * **Every case starts from a tall image and cuts frames out of it**, which is what makes the assertion the strong one —
+ * the stitch has to reproduce the source it was sliced from, pixel for pixel, rather than merely come back the right
  * size. A test that asserted dimensions would pass on an image assembled at entirely the wrong offsets.
  *
  * The fixed furniture is in every fixture here on purpose. A status bar that ticks, an overlay drawn over the app and
- * the game's own floating buttons are what a naive concatenation repeats once per frame, and they are also what makes
- * a whole-screen correlation answer zero — so a band that excludes them is the thing under test as much as the
- * stitching is.
+ * the game's own floating buttons are what a naive concatenation repeats once per frame, and they are also what makes a
+ * whole-screen correlation answer zero — so a band that excludes them is the thing under test as much as the stitching
+ * is.
  */
 
 import { readFileSync } from 'node:fs';
@@ -183,8 +183,8 @@ test('frames cut from a tall image stitch back into it', () => {
 
 /**
  * That the furniture appears once rather than once per frame, which is the failure a concatenation would have and the
- * one that is invisible in a height check — four frames concatenated are exactly as tall as this when the shifts
- * happen to be the band's height.
+ * one that is invisible in a height check — four frames concatenated are exactly as tall as this when the shifts happen
+ * to be the band's height.
  */
 test('the fixed furniture is taken once, from the first frame and the last', () => {
   const source = content(2000);

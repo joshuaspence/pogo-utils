@@ -1,7 +1,7 @@
 /**
- * One tall image out of several screenshots taken while scrolling, which is the only way to see a screen that is
- * longer than the phone all at once. The detail screen is one: an unscrolled capture reaches the moves at its foot and
- * stops there, short of the catch details below them.
+ * One tall image out of several screenshots taken while scrolling, which is the only way to see a screen that is longer
+ * than the phone all at once. The detail screen is one: an unscrolled capture reaches the moves at its foot and stops
+ * there, short of the catch details below them.
  *
  * **Not everything on the screen scrolls, and that is the whole problem.** The status bar ticks with the clock at the
  * top, PGSharp draws its overlay *over* the app rather than in it so it stays exactly where it is, and the game's own
@@ -28,9 +28,9 @@ export interface Band {
 }
 
 /**
- * How much of the band two frames have to share before a shift is believed. A quarter, because a scroll that moved
- * more than three-quarters of a screen has no overlap worth correlating and the answer would be the least-bad of a
- * field of equally bad ones.
+ * How much of the band two frames have to share before a shift is believed. A quarter, because a scroll that moved more
+ * than three-quarters of a screen has no overlap worth correlating and the answer would be the least-bad of a field of
+ * equally bad ones.
  */
 const MIN_OVERLAP = 0.25;
 
@@ -92,12 +92,12 @@ const rows = (image: Image, band: Band) => ({
  * Two numbers per row of the band: how bright it is on average, and how much it changes along its own length. The
  * second is what tells a row of text from a row of gap between two lines that happen to average the same.
  *
- * Summarising first is what makes searching every shift affordable, and searching every shift is not optional. A
- * coarse pass at every eighth pixel and a fine pass around its answer is the obvious economy and it does not work
- * here: rows of a screen are distinct, so the cost of a shift is a spike at the right answer and flat either side of
- * it, and a stride of eight steps over that spike seven times in eight, missing a scroll of one pixel outright. Against
- * summaries the whole range is about a million operations rather than the forty-odd million a full two-dimensional
- * search would be.
+ * Summarising first is what makes searching every shift affordable, and searching every shift is not optional. A coarse
+ * pass at every eighth pixel and a fine pass around its answer is the obvious economy and it does not work here: rows
+ * of a screen are distinct, so the cost of a shift is a spike at the right answer and flat either side of it, and a
+ * stride of eight steps over that spike seven times in eight, missing a scroll of one pixel outright. Against summaries
+ * the whole range is about a million operations rather than the forty-odd million a full two-dimensional search would
+ * be.
  */
 function profile(image: Image, band: Band): { mean: Float64Array; rough: Float64Array } {
   const { top, bottom } = rows(image, band);
@@ -164,8 +164,8 @@ export function offsetBetween(a: Image, b: Image, band: Band): number | null {
     }
   }
 
-  // The field this has to stand out from, taken as the median of every shift scored rather than as the runner-up: on
-  // a real screen the shifts either side of the right answer are nearly as good as it is, so a runner-up margin would
+  // The field this has to stand out from, taken as the median of every shift scored rather than as the runner-up: on a
+  // real screen the shifts either side of the right answer are nearly as good as it is, so a runner-up margin would
   // reject every correct answer.
   //
   // A band of flat colour is what this refuses: every shift matches it equally well, so the best is the median and
@@ -179,15 +179,15 @@ export function offsetBetween(a: Image, b: Image, band: Band): number | null {
   }
 
   // And then the pixels, because the summaries above are not evidence enough on their own. Two **different** detail
-  // screens share a layout — the same panel, the same rows of labels, the same buttons — so one's row summaries line
-  // up against the other's at some shift and nothing in the search above can tell that from a scroll.
+  // screens share a layout — the same panel, the same rows of labels, the same buttons — so one's row summaries line up
+  // against the other's at some shift and nothing in the search above can tell that from a scroll.
   //
-  // What separates them is not how far the winner stands out but how **close** it is, and this is the one place here
-  // an absolute figure is the right tool: two frames of a scroll are two screenshots of the same pixels, so where they
-  // correspond they are identical rather than merely similar. Measured over a real 1008x2244 capture, with the band
-  // 70% flat panel grey: a true scroll costs **0.00** at its shift and about 30 at any other, where `pikachu.png`
-  // against `smoliv.png` costs **19.12** at its best, a shift of 114 that the search above alone would accept. The
-  // ceiling sits in that gap, far below the 19 and well above the 0.
+  // What separates them is not how far the winner stands out but how **close** it is, and this is the one place here an
+  // absolute figure is the right tool: two frames of a scroll are two screenshots of the same pixels, so where they
+  // correspond they are identical rather than merely similar. Measured over a real 1008x2244 capture, with the band 70%
+  // flat panel grey: a true scroll costs **0.00** at its shift and about 30 at any other, where `pikachu.png` against
+  // `smoliv.png` costs **19.12** at its best, a shift of 114 that the search above alone would accept. The ceiling sits
+  // in that gap, far below the 19 and well above the 0.
   //
   // What would move it is a screenshot that is not lossless or an animation reaching inside the band, and the symptom
   // would be a scroll that refuses rather than one that assembles the wrong rows. That is the direction to fail in.
@@ -222,8 +222,8 @@ export function stitch(frames: readonly Image[], offsets: readonly number[], ban
     data.set(source.data.subarray(from * stride, (from + rowCount) * stride), at * stride);
   };
 
-  // Everything above the band, which is the status bar and whatever is drawn over the app rather than in it, taken
-  // from the first frame alone.
+  // Everything above the band, which is the status bar and whatever is drawn over the app rather than in it, taken from
+  // the first frame alone.
   place(first, 0, top, 0);
   place(first, top, bottom - top, top);
 
@@ -234,8 +234,8 @@ export function stitch(frames: readonly Image[], offsets: readonly number[], ban
     at += shift;
   }
 
-  // And everything below the band, from the last frame — the game's floating buttons, which would otherwise be
-  // repeated once per frame.
+  // And everything below the band, from the last frame — the game's floating buttons, which would otherwise be repeated
+  // once per frame.
   place(last, bottom, first.height - bottom, at);
 
   return image;

@@ -33,10 +33,10 @@
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
  * one tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than
  * from a single screenshot taken part way down, and `snap --scroll` is how a capture of a whole detail screen gets
- * made. The stitched image is **not** given to the other
- * readers, and that is a limit rather than an oversight — the star corner, the overlay sweep, the tag band and the
- * artwork are each anchored on a fraction of the image's height, so a frame three times taller moves every one of
- * them. `parseMoves` is the one reader that is not, being anchored on the `GYMS & RAIDS` line.
+ * made. The stitched image is **not** given to the other readers, and that is a limit rather than an oversight — the
+ * star corner, the overlay sweep, the tag band and the artwork are each anchored on a fraction of the image's height,
+ * so a frame three times taller moves every one of them. `parseMoves` is the one reader that is not, being anchored on
+ * the `GYMS & RAIDS` line.
  *
  * `snap` and `parse` are the tools for fixing a misread: every tap position, swipe and delay the scan uses is in
  * `DEFAULTS` below and can be overridden from a JSON file passed as `--config`, with positions as fractions of the
@@ -103,18 +103,18 @@ interface Config {
    */
   overlay?: OverlayBox;
   /**
-   * The band of the screen that scrolls, which `--scroll` lines its frames up inside. Everything outside it is furniture
-   * that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and lining frames up over those
-   * finds the shift that keeps *them* still, which is none. Where the panel's top edge sits during a scroll is the one
-   * position here not measured against a real phone.
+   * The band of the screen that scrolls, which `--scroll` lines its frames up inside. Everything outside it is
+   * furniture that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and lining frames up
+   * over those finds the shift that keeps *them* still, which is none. Where the panel's top edge sits during a scroll
+   * is the one position here not measured against a real phone.
    */
   scrollBand: Band;
 }
 
 /**
  * The band a screen is watched for movement in, and how much of it may still differ for it to count as still. The
- * game's own panel, since the artwork above it holds an animated Pokémon that never stops and the status bar ticks
- * with the clock. Measured through one swipe: 31%, then 6.2%, then 0.54% and steady, so anything between settles it.
+ * game's own panel, since the artwork above it holds an animated Pokémon that never stops and the status bar ticks with
+ * the clock. Measured through one swipe: 31%, then 6.2%, then 0.54% and steady, so anything between settles it.
  */
 const SETTLE_BAND = { from: 0.34, to: 0.95 };
 const SETTLE_CHANGE = 0.02;
@@ -889,8 +889,8 @@ if (command === 'scan') {
   const device = new Device(options.serial);
   await device.check();
 
-  // One screenshot, or the whole screen stitched out of as many as it takes. The report below is run on the first
-  // frame either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
+  // One screenshot, or the whole screen stitched out of as many as it takes. The report below is run on the first frame
+  // either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
   // something to look at and to commit as a fixture rather than something to hand them.
   const capture = options.scroll ? await scrollFrames(device) : null;
   const image = capture?.frames[0] ?? (await device.screenshot());
@@ -902,10 +902,9 @@ if (command === 'scan') {
 
   if (capture) {
     const total = capture.offsets.reduce((a, b) => a + b, 0);
-    console.log(
-      `Stitched ${capture.frames.length} frames, scrolling ${capture.offsets.join(' + ') || 0} = ${total} pixels past ` +
-        `the first${capture.lost ? ', where the next would not line up' : ''}.`,
-    );
+    const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
+    const end = capture.lost ? ', where the next would not line up' : '';
+    console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first${end}.`);
     await scrollUp(device, image, capture.swipes);
   }
 
