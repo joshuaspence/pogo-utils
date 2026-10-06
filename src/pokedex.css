@@ -4,479 +4,467 @@
  */
 
 /**
- * Wider than the search page, since the cards are the page and more of them to a row is less scrolling through 1025.
+ * Everything below is scoped to the open page.
+ *
+ * Each of these sheets was the only one in its document and could style `.card`, `.grid` and `.chip` as it liked. One
+ * document loads all five, and between them they give nineteen class names a different meaning per page — this sheet and
+ * the Events calendar's disagree about all four of `.card`, `.grid`, `.chip` and `.controls`. The wrapper is what keeps
+ * each sheet's meaning to its own page; `data-page` is set on the body by the shell, from the same table the router
+ * validates a fragment against.
  */
-:root {
-  --content-w: 1100px;
-}
-
-/**
- * Everything the script shows and hides is toggled with `hidden`, and the UA's `[hidden] {display: none}` loses to any
- * author `display` on the same element — the grid's list items and the empty message both carry one.
- */
-[hidden] {
-  display: none !important;
-}
-
-/* Words for a screen reader that the eye is given as a glyph instead. */
-.sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-header.page {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 20px 22px 6px;
-}
-
-header.page h1 {
-  margin: 0;
-  font-size: 26px;
-  letter-spacing: -0.02em;
-}
-
-header.page .sub {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.dex {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 8px 22px 40px;
-  font-size: 13px;
-}
-
-/**
- * The controls stay in view while the grid scrolls under them, as the string does on the search page: a filter changed
- * from the middle of the list should not need a trip back to the top.
- */
-.controls {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: var(--shadow-lift);
-}
-
-.controls .row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.controls input,
-.controls select {
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-}
-
-.controls input {
-  flex: 1 1 200px;
-  min-width: 0;
-}
-
-.controls input:focus-visible,
-.controls select:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 1px;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.chip:hover {
-  border-color: var(--track);
-  color: var(--text);
-}
-
-.chip:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 2px;
-}
-
-.chip[aria-pressed='true'] {
-  border-color: var(--track);
-  background: color-mix(in srgb, var(--track) 16%, var(--panel));
-  color: var(--text);
-  font-weight: 600;
-}
-
-.controls .meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.ghost {
-  padding: 3px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.ghost:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.ghost:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  padding: 8px 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  color: var(--text);
-  font: inherit;
-  cursor: pointer;
-}
-
-.card:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow-lift);
-}
-
-.card:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 2px;
-}
-
-/**
- * A species not in the game yet stays in the list — it is still in the dex — but reads as set back from the ones a
- * reader can go and catch.
- */
-.card.unreleased .sprite {
-  filter: grayscale(1);
-  opacity: 0.45;
-}
-
-.card.unreleased .name {
-  color: var(--muted);
-}
-
-/**
- * The sprite's box is held whether or not the image arrives, so a card that failed to load a picture stays the height
- * of its neighbours rather than collapsing the row it sits in.
- */
-.sprite {
-  display: block;
-  width: 96px;
-  height: 96px;
-  image-rendering: pixelated;
-}
-
-.sprite.missing {
-  visibility: hidden;
-}
-
-.card .num {
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-}
-
-.card .name {
-  font-weight: 600;
-  text-align: center;
-}
-
-.card .marks {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  display: flex;
-  gap: 2px;
-  font-size: 13px;
-}
-
-.empty {
-  padding: 40px 0;
-  color: var(--muted);
-  text-align: center;
-}
-
-.detail {
-  width: min(720px, calc(100vw - 24px));
-  max-height: calc(100vh - 48px);
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: var(--shadow-lift);
-}
-
-.detail::backdrop {
-  background: rgb(0 0 0 / 45%);
-}
-
-.detail .head {
-  position: sticky;
-  top: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
-}
-
-.detail .title {
-  display: flex;
-  flex: 1;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-}
-
-.detail .title .num {
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-}
-
-.detail h2 {
-  margin: 0;
-  overflow: hidden;
-  font-size: 20px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.detail .head button {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.detail .head button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.detail .head .close {
-  margin-left: 6px;
-  font-size: 14px;
-}
-
-.detail .body {
-  padding: 16px;
-  font-size: 13px;
-}
-
-.detail .grid2 {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 4px 20px;
-  align-items: start;
-}
-
-.detail .picture {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  grid-row: span 2;
-  margin: 0;
-}
-
-.detail .picture .sprite {
-  width: 192px;
-  height: 192px;
-}
-
-.facts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 14px;
-  margin: 0;
-}
-
-.facts dt {
-  color: var(--muted);
-}
-
-.facts dd {
-  margin: 0;
-}
-
-.facts ul.hunts {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hunts .unwatched .note {
-  color: var(--muted);
-}
-
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 10px 0 0;
-}
-
-.variants h3 {
-  margin: 18px 0 8px;
-  font-size: 13px;
-}
-
-/**
- * The table scrolls sideways on a phone rather than squeezing the form names. `position` makes this the containing
- * block for the screen-reader words in its cells, which are absolutely positioned: without it they belong to the dialog
- * instead, escape this clip, and give the whole dialog a sideways scroll of their own.
- */
-.variants .scroll {
-  position: relative;
-  overflow-x: auto;
-}
-
-.variants table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.variants th,
-.variants td {
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.variants thead th {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.variants tbody th {
-  font-weight: 500;
-}
-
-.variants tr.unreleased th {
-  color: var(--muted);
-}
-
-.variants td.hunts {
-  color: var(--muted);
-  white-space: normal;
-}
-
-.mark.yes {
-  color: var(--start);
-}
-
-.mark.no {
-  color: var(--muted);
-}
-
-footer {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 0 22px 40px;
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-footer p {
-  margin: 0 0 6px;
-}
-
-@media (width <= 560px) {
+body[data-page='pokedex'] {
   /**
-   * Stacked for a phone, the controls are a third of its screen, which is too much to keep pinned over the list. They
-   * scroll away with the page instead.
+   * Wider than the search page, since the cards are the page and more of them to a row is less scrolling through 1025.
+   *
+   * On the wrapper rather than on `:root`, where it was while this sheet was alone in its document: three of the four
+   * pages that set it want a different width, so on `:root` they would be one declaration and whichever the bundler wrote
+   * last would set the column for every page.
    */
-  .controls {
-    position: static;
-    border-radius: 0;
-    margin-inline: -22px;
-    padding-inline: 22px;
+  --content-w: 1100px;
+
+  /**
+   * Everything the script shows and hides is toggled with `hidden`, and the UA's `[hidden] {display: none}` loses to any
+   * author `display` on the same element — the grid's list items and the empty message both carry one.
+   */
+
+  [hidden] {
+    display: none !important;
   }
 
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  /* Words for a screen reader that the eye is given as a glyph instead. */
+
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .dex {
+    max-width: var(--content-w);
+    margin: 0 auto;
+    padding: 8px 22px 40px;
+    font-size: 13px;
+  }
+
+  /**
+   * The controls stay in view while the grid scrolls under them, as the string does on the search page: a filter changed
+   * from the middle of the list should not need a trip back to the top.
+   */
+
+  .controls {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .controls .row {
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
+  .controls input,
+  .controls select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .controls input {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+
+  .controls input:focus-visible,
+  .controls select:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .chip:hover {
+    border-color: var(--track);
+    color: var(--text);
+  }
+
+  .chip:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+  }
+
+  .chip[aria-pressed='true'] {
+    border-color: var(--track);
+    background: color-mix(in srgb, var(--track) 16%, var(--panel));
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .controls .meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .ghost {
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .ghost:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .ghost:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    padding: 8px 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .card:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+  }
+
+  /**
+   * A species not in the game yet stays in the list — it is still in the dex — but reads as set back from the ones a
+   * reader can go and catch.
+   */
+
+  .card.unreleased .sprite {
+    filter: grayscale(1);
+    opacity: 0.45;
+  }
+
+  .card.unreleased .name {
+    color: var(--muted);
+  }
+
+  /**
+   * The sprite's box is held whether or not the image arrives, so a card that failed to load a picture stays the height
+   * of its neighbours rather than collapsing the row it sits in.
+   */
+
+  .sprite {
+    display: block;
+    width: 96px;
+    height: 96px;
+    image-rendering: pixelated;
+  }
+
+  .sprite.missing {
+    visibility: hidden;
+  }
+
+  .card .num {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+  }
+
+  .card .name {
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .card .marks {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    font-size: 13px;
+  }
+
+  .empty {
+    padding: 40px 0;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .detail {
+    width: min(720px, calc(100vw - 24px));
+    max-height: calc(100vh - 48px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .detail::backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+
+  .detail .head {
+    position: sticky;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .detail .title {
+    display: flex;
+    flex: 1;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .detail .title .num {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+
+  .detail h2 {
+    margin: 0;
+    overflow: hidden;
+    font-size: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .detail .head button {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .detail .head button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .detail .head .close {
+    margin-left: 6px;
+    font-size: 14px;
+  }
+
+  .detail .body {
+    padding: 16px;
+    font-size: 13px;
+  }
+
   .detail .grid2 {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 20px;
+    align-items: start;
   }
 
   .detail .picture {
-    grid-row: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    grid-row: span 2;
+    margin: 0;
+  }
+
+  .detail .picture .sprite {
+    width: 192px;
+    height: 192px;
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 14px;
+    margin: 0;
+  }
+
+  .facts dt {
+    color: var(--muted);
+  }
+
+  .facts dd {
+    margin: 0;
+  }
+
+  .facts ul.hunts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hunts .unwatched .note {
+    color: var(--muted);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 0;
+  }
+
+  .variants h3 {
+    margin: 18px 0 8px;
+    font-size: 13px;
+  }
+
+  /**
+   * The table scrolls sideways on a phone rather than squeezing the form names. `position` makes this the containing
+   * block for the screen-reader words in its cells, which are absolutely positioned: without it they belong to the dialog
+   * instead, escape this clip, and give the whole dialog a sideways scroll of their own.
+   */
+
+  .variants .scroll {
+    position: relative;
+    overflow-x: auto;
+  }
+
+  .variants table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .variants th,
+  .variants td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .variants thead th {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .variants tbody th {
+    font-weight: 500;
+  }
+
+  .variants tr.unreleased th {
+    color: var(--muted);
+  }
+
+  .variants td.hunts {
+    color: var(--muted);
+    white-space: normal;
+  }
+
+  .mark.yes {
+    color: var(--start);
+  }
+
+  .mark.no {
+    color: var(--muted);
+  }
+
+  @media (width <= 560px) {
+    /**
+     * Stacked for a phone, the controls are a third of its screen, which is too much to keep pinned over the list. They
+     * scroll away with the page instead.
+     */
+    .controls {
+      position: static;
+      border-radius: 0;
+      margin-inline: -22px;
+      padding-inline: 22px;
+    }
+
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+      gap: 8px;
+    }
+
+    .detail .grid2 {
+      grid-template-columns: 1fr;
+    }
+
+    .detail .picture {
+      grid-row: auto;
+    }
   }
 }

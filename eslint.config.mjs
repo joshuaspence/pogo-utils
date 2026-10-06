@@ -31,7 +31,7 @@ export default [
   },
 
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
     languageOptions: {
       sourceType: 'module',
       globals: globals.browser,

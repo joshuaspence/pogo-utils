@@ -1,28 +1,40 @@
 # Pokémon GO Utilities
 
-A collection of small, self-contained browser tools for Pokémon GO, served as static files on GitHub Pages and reached
-from a shared top tab bar:
+A collection of small, self-contained browser tools for Pokémon GO, served as static files on GitHub Pages as one Preact
+application and reached from a shared top tab bar:
 
-- **Events** — a calendar of current and upcoming in-game events, also published as a calendar subscription.
-- **Map** — an interactive map of GPX walking tracks and teleport waypoints.
-- **Search** — a builder for the strings the game's own Pokémon search box takes.
-- **Pokédex** — every species and its forms: what is in the game, which have a shiny, and which hunts still want it.
-- **PGSharp** — a backup builder that loads those routes into PGSharp as favourites.
+- **Events** (`#/events`) — a calendar of current and upcoming in-game events, also published as a calendar
+  subscription.
+- **Map** (`#/map`) — an interactive map of GPX walking tracks and teleport waypoints.
+- **Search** (`#/search`) — a builder for the strings the game's own Pokémon search box takes.
+- **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny, and which hunts
+  still want it.
+- **PGSharp** (`#/pgsharp`) — a backup builder that loads those routes into PGSharp as favourites.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
+One document, [`index.html`](index.html), and a page per tab under [`src/pages/`](src/pages). The fragment carries both
+where the reader is and the state they left that page in — `#/pokedex?q=pika&n=25` is the Pokédex with a filter typed
+and a species open — so a filtered view is still a link. The fragment rather than a path because GitHub Pages has no
+rewrites: a path would need every deep link served by `404.html`, which answers HTTP 404 while rendering the page.
+[`src/router.ts`](src/router.ts) splits the two halves apart, which is what lets each page keep the state module it
+already had: [`src/pokedex/state.ts`](src/pokedex/state.ts) and [`src/search/query.ts`](src/search/query.ts) parse a
+query string and have no opinion about which page they are on.
+
+Each page is reached through `import()`, so the chunk holding Leaflet and the one holding the Java serialization codec
+are fetched only by the tabs that need them rather than by every reader of the events calendar.
+
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored under [`data/`](data) as one `*.gpx` file per country,
-[`data/Australia.gpx`](data/Australia.gpx) and so on — the files themselves are the source of truth. The map viewer
-([`map.html`](map.html), whose CSS and TypeScript live under [`src/`](src)) reads them directly, so to run it locally
-build the site and serve `dist/` over HTTP (the files are loaded via `fetch`). The checkout is not servable: `map.html`
-names `src/app.css` and `src/app.js`, and both are written by the build rather than kept here, so serving the repository
-root gets a page with no stylesheet and no module.
+[`data/Australia.gpx`](data/Australia.gpx) and so on — the files themselves are the source of truth. The map page reads
+them directly, so to run it locally build the site and serve `dist/` over HTTP (the files are loaded via `fetch`). The
+checkout is not servable: `index.html` names `src/main.css` and `src/main.js`, and both are written by the build rather
+than kept here, so serving the repository root gets a page with no stylesheet and no module.
 
 ```sh
 pnpm install
 pnpm build
 python3 -m http.server --directory dist
-# then open http://localhost:8000/map.html
+# then open http://localhost:8000/#/map
 ```
 
 Static hosting cannot list a directory, so the viewer is handed the paths in
@@ -158,9 +170,9 @@ follows it.
 
 ## Search strings
 
-The **Search** page ([`search.html`](search.html)) builds a string for the search box on the game's Pokémon storage
-screen. Chips are three-state — click once to require a term, again to rule it out, again to drop it — and the string is
-written live, with a link that carries the choices so one can be shared or bookmarked.
+The **Search** page ([`src/pages/search.tsx`](src/pages/search.tsx)) builds a string for the search box on the game's
+Pokémon storage screen. Chips are three-state — click once to require a term, again to rule it out, again to drop it —
+and the string is written live, with a link that carries the choices so one can be shared or bookmarked.
 
 The terms live in one table, [`src/search/terms.ts`](src/search/terms.ts), and the page is rendered from it, so adding
 or correcting one is a single line. [`src/search/query.ts`](src/search/query.ts) turns the state into the string and
@@ -196,12 +208,12 @@ not hold. A `+` keeps its name and gets the name shortening alone.
 
 ## Pokédex
 
-The **Pokédex** page ([`pokedex.html`](pokedex.html)) is the whole national dex as a grid of cards, narrowed by name or
-number, by generation, by whether a species is in the game yet, and by toggles for a shiny, a wild spawn, a category
-(Legendary, Mythical, Ultra Beast, Baby, Regional) or a place on one of the hunt lists. Picking a card opens the
-species: its normal and shiny sprite, what is true of it, each of its forms and regional variants with the same answers,
-and a link into the **Search** page for it or its family. The arrows step through the species the filters left, and the
-link carries both the filters and the open species.
+The **Pokédex** page ([`src/pages/pokedex.tsx`](src/pages/pokedex.tsx)) is the whole national dex as a grid of cards,
+narrowed by name or number, by generation, by whether a species is in the game yet, and by toggles for a shiny, a wild
+spawn, a category (Legendary, Mythical, Ultra Beast, Baby, Regional) or a place on one of the hunt lists. Picking a card
+opens the species: its normal and shiny sprite, what is true of it, each of its forms and regional variants with the
+same answers, and a link into the **Search** page for it or its family. The arrows step through the species the filters
+left, and the link carries both the filters and the open species.
 
 Nothing on it is kept by hand. [`src/pokedex/entries.ts`](src/pokedex/entries.ts) reads
 [`src/pokemon/pokedex.ts`](src/pokemon/pokedex.ts) for the flags and the hunt lists in [`src/filters/`](src/filters) for
@@ -213,12 +225,13 @@ keeps its number and name if one does not load.
 
 ## Import into PGSharp
 
-The **PGSharp backup** page ([`pgsharp.html`](pgsharp.html), reached from the top tab bar) builds a _partial_
-`PGSData.dat` containing only every route and waypoint here — plus, if ticked, a fixed control layout (floating control,
-fast-snipe buttons, cooldown indicator, nearby radar) and the nearby feed's filter list (`Shiny Hunting` and `100%`). No
-existing backup is needed: click **Generate & download**, then import the file into PGSharp to add them as favourites.
-Because the file holds only those keys, importing it leaves the rest of your PGSharp profile as it was. Everything runs
-in the browser. The favourite encoding is a client-side port of [`pgsedit`](https://github.com/joshuaspence/pgsedit).
+The **PGSharp backup** page ([`src/pages/pgsharp.tsx`](src/pages/pgsharp.tsx), reached from the top tab bar) builds a
+_partial_ `PGSData.dat` containing only every route and waypoint here — plus, if ticked, a fixed control layout
+(floating control, fast-snipe buttons, cooldown indicator, nearby radar) and the nearby feed's filter list
+(`Shiny Hunting` and `100%`). No existing backup is needed: click **Generate & download**, then import the file into
+PGSharp to add them as favourites. Because the file holds only those keys, importing it leaves the rest of your PGSharp
+profile as it was. Everything runs in the browser. The favourite encoding is a client-side port of
+[`pgsedit`](https://github.com/joshuaspence/pgsedit).
 
 Every favourite is named with its country's flag in front — `🇳🇱 Amsterdam, Netherlands`, `🇯🇵 Ueno Park, Tokyo, Japan` —
 matching PGSharp's own hot places (`🇺🇸 Pier 39, California, USA`). The favourite format has no icon field, so the flag

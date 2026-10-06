@@ -1,179 +1,184 @@
 /**
- * The PGSharp backup page. Shares the colour tokens in theme.css and the tab bar in nav.css with the other pages; the
- * panel here builds a partial PGSData.dat entirely in the browser from the repository's GPX files. These rules moved
- * out of styles.css when the panel left the map's sidebar for its own tab.
+ * The PGSharp backup page. Shares the colour tokens in theme.css, the tab bar in nav.css and the heading block in
+ * chrome.css with the other pages; the panel here builds a partial PGSData.dat entirely in the browser from the
+ * repository's GPX files.
  */
 
 /**
- * The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
- * at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need.
+ * Everything below is scoped to the open page.
+ *
+ * Each of these sheets was the only one in its document and could style `.body`, `.note` and `.group` as it liked. One
+ * document loads all five, and between them they give nineteen class names — `.card`, `.chip`, `.grid`, `.name`, `.meta`
+ * among them — a different meaning per page. The wrapper is what keeps each sheet's meaning to its own page; `data-page`
+ * is set on the body by the shell, from the same table the router validates a fragment against.
  */
-:root {
+body[data-page='pgsharp'] {
+  /**
+   * The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
+   * at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need.
+   *
+   * On the wrapper rather than on `:root`, which is what each sheet used while each was alone. Three of the four want a
+   * different width — 1100px for the Events calendar and the Pokédex grid, 880px for the search builder — so on `:root`
+   * the four would be one declaration and whichever the bundler wrote last would set the column for every page.
+   */
   --content-w: 640px;
-}
 
-header.page {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 20px 22px 6px;
-}
+  .backup {
+    max-width: var(--content-w);
+    margin: 0 auto;
+    padding: 8px 22px 40px;
+    font-size: 13px;
+  }
 
-header.page h1 {
-  margin: 0;
-  font-size: 26px;
-  letter-spacing: -0.02em;
-}
+  /**
+   * The form is one object, so it reads as one surface on the page rather than as text floating on the background — the
+   * same panel, border and resting elevation the cards and calendar cells carry on the events page. The gutter stays on
+   * the container above, which keeps the panel off the screen edge on a narrow viewport.
+   */
 
-.backup {
-  max-width: var(--content-w);
-  margin: 0 auto;
-  padding: 8px 22px 40px;
-  font-size: 13px;
-}
+  .backup .body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    color: var(--text);
+  }
 
-/**
- * The form is one object, so it reads as one surface on the page rather than as text floating on the background — the
- * same panel, border and resting elevation the cards and calendar cells carry on the events page. The gutter stays on
- * the container above, which keeps the panel off the screen edge on a narrow viewport.
- */
-.backup .body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 18px 20px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  color: var(--text);
-}
+  .backup p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+  }
 
-.backup p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
+  .backup .group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
 
-.backup .group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+  /**
+   * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only ever
+   * heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full contrast,
+   * an accent on hover and a focus ring tell the two apart.
+   */
 
-/**
- * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only ever
- * heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full contrast,
- * an accent on hover and a focus ring tell the two apart.
- */
-.backup details.subgroup > summary {
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text);
-}
+  .backup details.subgroup > summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text);
+  }
 
-.backup details.subgroup > summary:hover {
-  color: var(--accent);
-}
+  .backup details.subgroup > summary:hover {
+    color: var(--accent);
+  }
 
-.backup details.subgroup > summary:focus-visible {
-  outline: 2px solid var(--track);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
+  .backup details.subgroup > summary:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 
-.backup details.subgroup > summary::-webkit-details-marker {
-  display: none;
-}
+  .backup details.subgroup > summary::-webkit-details-marker {
+    display: none;
+  }
 
-.backup details.subgroup > summary::before {
-  content: '▸';
-  font-size: 9px;
-}
+  .backup details.subgroup > summary::before {
+    content: '▸';
+    font-size: 9px;
+  }
 
-.backup details.subgroup[open] > summary::before {
-  content: '▾';
-}
+  .backup details.subgroup[open] > summary::before {
+    content: '▾';
+  }
 
-.backup details.subgroup[open] .group {
-  margin-top: 8px;
-}
+  .backup details.subgroup[open] .group {
+    margin-top: 8px;
+  }
 
-/**
- * How many of the options below are ticked — the same pill the routes sidebar counts a collapsed group with, for the
- * same reason: collapsing the list closes it over six boxes that are ticked, and the button writes every one of them.
- */
-.backup .tally {
-  padding: 1px 7px;
-  border: 1px solid currentcolor;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0;
-  opacity: 0.7;
-}
+  /**
+   * How many of the options below are ticked — the same pill the routes sidebar counts a collapsed group with, for the
+   * same reason: collapsing the list closes it over six boxes that are ticked, and the button writes every one of them.
+   */
 
-/* Nothing ticked writes nothing, which is the one state worth saying in words rather than as a 0. */
-.backup .tally.off {
-  color: var(--muted);
-}
+  .backup .tally {
+    padding: 1px 7px;
+    border: 1px solid currentcolor;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0;
+    opacity: 0.7;
+  }
 
-.backup label.opt {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  cursor: pointer;
-}
+  /* Nothing ticked writes nothing, which is the one state worth saying in words rather than as a 0. */
 
-/**
- * Belongs to the option directly above it, so it is indented past that checkbox to sit under the label's text and pulled
- * up out of the column's 6px gap — otherwise it floats between two options with nothing saying which one it qualifies.
- */
-.backup .note {
-  margin: -2px 0 0 24px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--muted);
-}
+  .backup .tally.off {
+    color: var(--muted);
+  }
 
-.backup button.run {
-  align-self: flex-start;
-  padding: 9px 14px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
+  .backup label.opt {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+  }
 
-.backup button.run:hover:not(:disabled) {
-  filter: brightness(1.05);
-}
+  /**
+   * Belongs to the option directly above it, so it is indented past that checkbox to sit under the label's text and pulled
+   * up out of the column's 6px gap — otherwise it floats between two options with nothing saying which one it qualifies.
+   */
 
-.backup button.run:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
+  .backup .note {
+    margin: -2px 0 0 24px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
 
-.backup .status {
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--muted);
-}
+  .backup button.run {
+    align-self: flex-start;
+    padding: 9px 14px;
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
 
-.backup .status.ok {
-  color: var(--start);
-}
+  .backup button.run:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
 
-.backup .status.err {
-  color: var(--accent);
+  .backup button.run:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .backup .status {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  .backup .status.ok {
+    color: var(--start);
+  }
+
+  .backup .status.err {
+    color: var(--accent);
+  }
 }

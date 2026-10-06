@@ -42,13 +42,20 @@
     // Pages serves what this emits, and a browser has no loader to erase anything for it, so a construct needing one is
     // not available here at all — the same rejection `scripts/` takes for Node's type stripping, for a different
     // reason.
-    "erasableSyntaxOnly": true
+    "erasableSyntaxOnly": true,
+
+    // `react-jsx` is the modern transform, which imports what it needs rather than expecting a name in scope, so no
+    // module here has to import Preact to write JSX. The source it imports from is the setting that points it at Preact
+    // instead of React; `scripts/bundle.mts` is told the same pair, since it is the half that does the transform and the
+    // compiler only checks it.
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
   },
 
   // Everything in `src/` except what the shared project owns, reached through its declarations instead. Excluding those
   // by name rather than by directory because they sit among the files that import them: they are shared by what reads
   // them, not by where they live.
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": [
     "src/countries.ts",
     "src/event-feed.ts",
