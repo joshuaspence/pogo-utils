@@ -176,8 +176,8 @@
     "heading": "Event",
     "link": "https://leekduck.com/events/harvest-festival-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-09-29-harvest-festival-2026/harvest-festival-2026.jpg",
-    "start": "2026-09-29T10:00:00.000",
-    "end": "2026-10-05T20:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "harvest-festival-taken-over-2026",
@@ -186,8 +186,8 @@
     "heading": "Event",
     "link": "https://leekduck.com/events/harvest-festival-taken-over-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-02-harvest-festival-taken-over-2026/harvest-festival-taken-over-2026.jpg",
-    "start": "2026-10-02T00:00:00.000",
-    "end": "2026-10-05T20:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "max-mondays-2026-10-05",
@@ -196,8 +196,8 @@
     "heading": "Max Mondays",
     "link": "https://leekduck.com/events/max-mondays-2026-10-05/",
     "image": "https://cdn.leekduck.com/assets/img/events/max-battles-kanto.jpg",
-    "start": "2026-10-05T06:00:00.000",
-    "end": "2026-10-05T21:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "max-mondays-2026-10-12",
