@@ -27,7 +27,8 @@
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
  *                       [--config FILE] [--serial SERIAL] [--refresh]
  *   pnpm inventory snap [--scroll] [--verbose] [--refresh] [NAME]
- *                       save a screenshot of whatever is showing and print what each reader makes of it
+ *                       save a screenshot of whatever is showing and print what each reader makes of it; fails unless
+ *                       it is a detail screen carrying PGSharp's overlay
  *   pnpm inventory parse [--verbose] [--refresh] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *
@@ -264,6 +265,10 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
     ...id,
     form: id.form && { ...id.form, moves: id.form.moves.map((m) => m.name).join(', ') },
   });
+
+  // Handed back rather than only printed, so that `snap` can refuse a screen on what was already read instead of
+  // parsing it a second time; a Tesseract run is the slowest thing here.
+  return { detail, box, overlay };
 }
 
 async function scan() {
@@ -320,7 +325,7 @@ async function scan() {
         return lines;
       }
 
-      if (await isDetail(lines, data, image)) {
+      if (isDetail(await parseDetail(lines, data, image))) {
         await tap(at(config.taps.closeDetail));
         continue;
       }
@@ -753,10 +758,13 @@ function isStorage(lines: readonly Line[]): boolean {
   return findLine(lines, /\beggs?\b/) !== undefined || findLine(lines, /^search\b/) !== undefined;
 }
 
-/** Whether a screen is a detail screen, asked without reading the overlay, which costs a crop and a Tesseract run. */
-async function isDetail(lines: readonly Line[], data: GameData, image: Image): Promise<boolean> {
-  return (await parseDetail(lines, data, image)).hp !== null;
-}
+/**
+ * Whether a screen is a detail screen, which is its HP having read: the one field every detail screen states and the
+ * map, the storage grid and a Pokédex entry all lack. Asked of a `Detail` rather than of a screen so that a caller
+ * holding one already does not pay a second Tesseract run, and so that `snap` refuses on the test `toStorage` navigates
+ * by rather than on a second notion of the same thing.
+ */
+const isDetail = (detail: Detail) => detail.hp !== null;
 
 function csv(value: string | number | null): string {
   const text = value === null ? '' : String(value);
@@ -912,23 +920,61 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
   }
 }
 
-// Last, so that everything above — the `Marks` class in particular — is initialised before anything runs.
-if (command === 'scan') {
-  await scan();
-} else if (command === 'snap') {
+/**
+ * A screenshot of whatever the phone is showing, read out field by field and saved, which is the tool for working out
+ * why a scan misread something.
+ *
+ * **It refuses a screen a scan could not have used** rather than printing a page of nulls and exiting 0. A snap is
+ * taken to be looked at later or committed as a fixture, and one of the map, or of a Pokémon with PGSharp's overlay
+ * switched off, is neither — so the two things every other reader here depends on are checked, and nothing else is: the
+ * exit status says the capture is worth keeping, not that every field came out.
+ *
+ * The screen is settled and checked **before** anything is dragged, so a `--scroll` of the wrong screen does not drive
+ * the phone for nothing; the screenshot is saved either way, one that refuses being exactly the one worth looking at.
+ */
+async function snap() {
   const device = new Device(options.serial);
   await device.check();
+  const data = await loadGameData(CACHE, options.refresh);
+  const icons = await iconsFor(CACHE, data, options.refresh);
+  const name = rest[0] ?? new Date().toISOString().replaceAll(':', '-');
 
-  // One screenshot, or the whole screen stitched out of as many as it takes. The report below is run on the first frame
-  // either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
+  const write = (image: Image) => {
+    const path = join(CACHE, 'snaps', `${name}.png`);
+    mkdirSync(join(CACHE, 'snaps'), { recursive: true });
+    writeFileSync(path, encodePng(image));
+    console.log(`Saved ${path} (${image.width}×${image.height})`);
+  };
+
+  // Settled, so that what is read is the screen rather than the middle of an animation it was drawing.
+  const image = await settled(device);
+  const read = await report(image, data, icons);
+
+  // A configured `overlay` is taken on trust and so can never be missing, which would leave this check vacuous for
+  // anyone who sets one — hence the second case, where the box is known and nothing read inside it.
+  const refused = [
+    !isDetail(read.detail) && 'this is not a Pokémon detail screen',
+    read.box === null && "PGSharp's overlay was not found on it",
+    read.box !== null && read.overlay === null && "PGSharp's overlay was found but nothing read inside it",
+  ].filter((why): why is string => why !== false);
+
+  if (refused.length > 0) {
+    write(image);
+
+    for (const why of refused) {
+      console.error(`snap: ${why}`);
+    }
+
+    process.exitCode = 1;
+
+    return;
+  }
+
+  // One screenshot, or the whole screen stitched out of as many as it takes. The report above ran on the unstitched
+  // screen either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
   // something to look at and to commit as a fixture rather than something to hand them.
   const capture = options.scroll ? await scrollFrames(device) : null;
-  const image = capture?.frames[0] ?? (await device.screenshot());
-  const saved = capture ? stitch(capture.frames, capture.offsets, config.scrollBand) : image;
-  const path = join(CACHE, 'snaps', `${rest[0] ?? new Date().toISOString().replaceAll(':', '-')}.png`);
-  mkdirSync(join(CACHE, 'snaps'), { recursive: true });
-  writeFileSync(path, encodePng(saved));
-  console.log(`Saved ${path} (${saved.width}×${saved.height})`);
+  write(capture ? stitch(capture.frames, capture.offsets, config.scrollBand) : image);
 
   if (capture) {
     const total = capture.offsets.reduce((a, b) => a + b, 0);
@@ -937,9 +983,13 @@ if (command === 'scan') {
     console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first${end}.`);
     await scrollUp(device, image, total);
   }
+}
 
-  const data = await loadGameData(CACHE, options.refresh);
-  await report(image, data, await iconsFor(CACHE, data, options.refresh));
+// Last, so that everything above — the `Marks` class in particular — is initialised before anything runs.
+if (command === 'scan') {
+  await scan();
+} else if (command === 'snap') {
+  await snap();
 } else if (command === 'parse' && rest.length > 0) {
   const data = await loadGameData(CACHE, options.refresh);
   const icons = await iconsFor(CACHE, data, options.refresh);

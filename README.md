@@ -298,7 +298,9 @@ Every tap position, swipe and delay can be overridden from a JSON file passed as
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
 `pnpm inventory parse FILE.png` does the same for a saved one. `--verbose` adds every line OCR found with its box, which
 is what separates a field left empty because no text was read there from one left empty because a reader anchored on the
-wrong line. The cache, the snaps and `inventory*.csv` are git-ignored, since they describe a player's own account.
+wrong line. `snap` exits non-zero unless the screen is a Pokémon detail screen carrying PGSharp's overlay, those being
+what every other reader depends on; it still saves the screenshot when it refuses, and checks before it scrolls. The
+cache, the snaps and `inventory*.csv` are git-ignored, since they describe a player's own account.
 
 Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
 risk to the account is yours to weigh.
