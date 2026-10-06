@@ -76,7 +76,7 @@
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { assert, describe, expect, test } from 'vitest';
+import { afterAll, assert, describe, expect, test } from 'vitest';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
 import { ambiguous, nearest, signatureOf, type Signature } from './artwork.mts';
 import { decodePng } from './png.mts';
@@ -992,51 +992,96 @@ const NEGATIVE = [
  * order, so without this a capture's first test paid for that capture's whole reading before the next capture was so
  * much as opened, and the suite was 49 readings end to end.
  *
- * A handful rather than all of them, because a single reading is already as wide as the machine in places —
- * `findOverlay` sweeps a core's worth of bands at a time — so captures past the first few buy contention rather than
- * parallelism. On 22 cores this file took 137s reading one capture at a time, 106s at four and 102s at eight, and 120s
- * with all 49 in flight: past four the curve is flat, and at the far end it is worse than reading them in order.
+ * A handful rather than all of them, and a multiplier on the machine rather than a count of processes: a single reading
+ * is already as wide as the machine in places — `findOverlay` sweeps `availableParallelism()` bands at a time — so four
+ * captures in flight is four Tesseract processes per core, 88 on the 22 cores every figure below was measured on and 16
+ * on a four-core runner. Captures past the first few therefore buy contention rather than parallelism. On 22 cores this
+ * file took 137s reading one capture at a time, 106s at four and 102s at eight, and 120s with all 49 in flight: past
+ * four the curve is flat, and at the far end it is worse than reading them in order.
  *
- * Four rather than the eight that measured 4% quicker, and the 60s `testTimeout` is the whole of the reason. A test waits
- * on its own capture, so what a wider pool lengthens is that wait: every capture in flight puts the longest wait past the
- * timeout and the suite fails on the clock while doing the same work, where at four it is 22s — comfortable on a machine
- * with fewer cores or more to do than this one. The 4% buys nothing worth that margin.
+ * Oversubscribing by four has the cost `readingOf` above names — the kernel occasionally kills one of the thousands of
+ * Tesseract processes a suite spawns, and four per core makes that likelier — which is the second reason not to raise
+ * it. The first is the 60s `testTimeout`, and it is why this is four rather than the eight that measured 4% quicker. A
+ * test waits on its own capture, so what a wider pool lengthens is that wait: every capture in flight puts the longest
+ * wait past the timeout and the suite fails on the clock while doing the same work, where at this setting the longest
+ * measured 22s — comfortable on a machine with fewer cores or more to do than this one. The 4% buys nothing worth that
+ * margin. That 22s is a measurement of the suite as it actually runs, which is this many captures plus the one a test
+ * can add for itself; `queue` below is where that one comes from.
  */
 const READ_AHEAD = 4;
 
+/** Every capture committed beside this file, which is the two tables and nothing else. */
+const CORPUS = [...FIXTURES.map((f) => f.file), ...NEGATIVE];
+
 /**
- * The corpus read through that ceiling, in declaration order so that the tests, which run in that order too, wait on the
- * readings most nearly finished. It changes nothing any test asserts: `readingOf` memoises the promise rather than the
- * reading, so this is the same cache the tests read and not a second one, and a test reaching a capture the pool has not
- * started yet simply starts it — the memo is what keeps that from reading it twice.
+ * The corpus read through that ceiling, in declaration order so that the tests, which run in that order too, wait on
+ * the readings most nearly finished. A copy of `CORPUS` because the pool below drains it destructively, and whatever
+ * reads `CORPUS` wants all of it.
+ *
+ * The pool changes nothing any test asserts: `readingOf` memoises the promise rather than the reading, so this is the
+ * same cache the tests read and not a second one, and a test reaching a capture the pool has not started yet simply
+ * starts it — the memo is what keeps that from reading it twice.
+ *
+ * That last case is the one thing that exceeds `READ_AHEAD`, and it exceeds it by exactly one: Vitest runs a file's
+ * tests one at a time, so there is never more than a single test able to add a read of its own. So `READ_AHEAD` is a
+ * ceiling of four on this pool rather than on the file, and five is the number its timeout margin is measured against.
  *
  * It also takes the memo out of declaration order's hands, which is the coupling `WHOLE_CORPUS_TIMEOUT` below was left
  * documenting rather than relying on.
  *
- * The `catch` is for the retry rather than the clock. A read started here and not awaited until some later test is a
- * rejection with no handler on it for as long as that takes, which Node reports as unhandled and exits over — losing the
- * failure the suite was about to report properly. Observing it here says only that someone will look: the memoised
- * promise still rejects, and the test awaiting it still fails on it.
+ * The `catch` is for the clock rather than the failure. A read started here and not awaited until some later test is a
+ * rejection with no handler on it for as long as that takes, which Node reports as unhandled and exits over — losing
+ * the failure the suite was about to report properly. What it does not do is report that failure either: `readingOf`
+ * forgets a reading that rejects, so a capture whose read-ahead was killed is read again by the test that asserts it,
+ * and only a failure that reproduces on that second read is one the suite fails on.
  */
-const queue = [...FIXTURES.map((f) => f.file), ...NEGATIVE];
+const queue = [...CORPUS];
 
-for (let worker = 0; worker < READ_AHEAD; worker++) {
-  void (async () => {
-    for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
-      await readingOf(file).catch(() => {});
+/**
+ * Set at teardown so that a pool worker between captures stops rather than taking another. A read cannot be aborted
+ * once started, so this is what keeps the wait below to the ones already in flight.
+ */
+let abandoned = false;
+
+const workers = Array.from({ length: READ_AHEAD }, async () => {
+  while (!abandoned) {
+    const file = queue.shift();
+
+    if (file === undefined) {
+      return;
     }
-  })();
-}
+
+    await readingOf(file).catch(() => {});
+  }
+});
+
+/**
+ * The pool bounded by the file that owns it. `afterAll` bounds tests, and this pool is started at import instead, so
+ * without being awaited somewhere it has no owner at all: a filtered run reaches the end of its tests with up to
+ * `READ_AHEAD` reads still going and Vitest tears the worker down underneath them, orphaning the Tesseract children
+ * they had spawned on the pipes they inherited.
+ *
+ * Waiting is all that is on offer, since nothing here can abort a read Tesseract already has, and `abandoned` is what
+ * keeps the wait to the reads in flight rather than the rest of the corpus behind them. A full run pays nothing for it
+ * — the whole-corpus tests at the end of the file have already waited on everything — and a filtered run pays the one
+ * read it interrupted, which is why `hookTimeout` is configured alongside `testTimeout` rather than left at the 10s
+ * default this timed out against.
+ */
+afterAll(async () => {
+  abandoned = true;
+
+  await Promise.all(workers);
+});
 
 /**
  * What the tests that read the whole corpus in one body are given, where the configured `testTimeout` leaves everything
  * else the 60s a single capture needs fifteen times over.
  *
- * They need it because a body that waits on all 49 captures waits on the whole corpus, which `READ_AHEAD` paces at about
- * 65s however the rest of the file is filtered: `-t 'which captures the CP is read off'` on its own has the pool to warm
- * it and still takes 64.8s, there being no earlier test to have paid for any of it. What the pool did take away is the
- * other reason this was here — that on a full run the `describe` blocks above happened to have filled the memo first,
- * which passed for warm and was a coupling rather than a guarantee.
+ * They need it because a body that waits on all 49 captures waits on the whole corpus, which `READ_AHEAD` paces at
+ * about 65s however the rest of the file is filtered: `-t 'which captures the CP is read off'` on its own has the pool
+ * to warm it and still takes 64.8s, there being no earlier test to have paid for any of it. What the pool did take away
+ * is the other reason this was here — that on a full run the `describe` blocks above happened to have filled the memo
+ * first, which passed for warm and was a coupling rather than a guarantee.
  */
 const WHOLE_CORPUS_TIMEOUT = 600_000;
 
@@ -1057,7 +1102,7 @@ const COMMITTED = readdirSync(new URL('fixtures', import.meta.url))
  * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
-  expect(COMMITTED).toStrictEqual([...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
+  expect(COMMITTED).toStrictEqual([...CORPUS].sort());
 });
 
 /**
