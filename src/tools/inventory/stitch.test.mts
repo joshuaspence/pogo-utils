@@ -14,7 +14,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import { bandOf, offsetBetween, stitch, type Band } from './stitch.mts';
+import { offsetBetween, stitch, SCROLL_STEP, type Band } from './stitch.mts';
 import { decodePng, rgb, type Image } from './png.mts';
 
 const BAND: Band = { from: 0.2, to: 0.9 };
@@ -99,7 +99,7 @@ test('the shift between two frames is the number of pixels the content moved', (
 /**
  * A screen that did not move, which is how a scroll says it has reached the end. It answers **zero** rather than null,
  * and the difference is the point: zero is a measurement — the content is where it was — where null is this reader
- * saying it cannot tell. `stitch` stops on either, but only one of them is a fact about the screen.
+ * saying it cannot tell. A capture stops on either, but only one of them is a fact about the screen.
  *
  * Written the other way round first, on the reasoning that identical frames score alike everywhere so nothing would
  * stand out. They do not: a shift of zero scores exactly nought and everything else scores the full width of the
@@ -140,19 +140,23 @@ test('frames of different sizes cannot be lined up', () => {
   expect(offsetBetween(blank(WIDTH, FRAME), blank(WIDTH + 1, FRAME), BAND)).toBe(null);
 });
 
+/** The shifts between each consecutive pair, as a capture measures them while it scrolls. */
+const offsetsOf = (frames: readonly Image[]) =>
+  frames.slice(1).map((frame, i) => offsetBetween(frames[i] as Image, frame, BAND));
+
 /**
  * The round trip, and the assertion the rest of this file exists to set up: frames cut from a tall image at known
- * offsets must stitch back into exactly the rows they were cut from, with the furniture appearing once.
+ * offsets must be measured at those offsets and stitch back into exactly the rows they were cut from, with the
+ * furniture appearing once.
  */
 test('frames cut from a tall image stitch back into it', () => {
   const source = content(2000);
   const shifts = [150, 150, 150];
   const frames = shifts.reduce<number[]>((at, s) => [...at, (at.at(-1) ?? 0) + s], [0]).map((s) => frameAt(source, s));
 
-  const { image, used, offsets } = stitch(frames, BAND);
+  expect(offsetsOf(frames)).toStrictEqual(shifts);
 
-  expect(used, 'a frame was dropped').toBe(4);
-  expect(offsets).toStrictEqual(shifts);
+  const image = stitch(frames, shifts, BAND);
 
   const top = Math.round(FRAME * BAND.from);
   const bottom = Math.round(FRAME * BAND.to);
@@ -185,7 +189,7 @@ test('frames cut from a tall image stitch back into it', () => {
 test('the fixed furniture is taken once, from the first frame and the last', () => {
   const source = content(2000);
   const frames = [0, 120, 240].map((s) => frameAt(source, s));
-  const { image } = stitch(frames, BAND);
+  const image = stitch(frames, [120, 120], BAND);
   const top = Math.round(FRAME * BAND.from);
   const bottom = Math.round(FRAME * BAND.to);
 
@@ -207,32 +211,11 @@ test('the fixed furniture is taken once, from the first frame and the last', () 
   );
 });
 
-/**
- * A scroll that stopped moving part way through, which is what reaching the end of a screen looks like when the loop
- * asked for one frame too many. The stitch has to end at the last frame that moved and say how many it used, rather
- * than appending a duplicate of the final screen.
- */
-test('a stitch stops at the first pair that will not line up, and says how far it got', () => {
-  const source = content(2000);
-  const settled = frameAt(source, 300);
-  const { image, used, offsets } = stitch([frameAt(source, 0), frameAt(source, 150), settled, settled], BAND);
-
-  expect(used, 'the repeated final frame was counted').toBe(3);
-  expect(offsets).toStrictEqual([150, 150]);
-  expect(image.height).toBe(FRAME + 300);
-});
-
-test('a band on its own is the rows the band names', () => {
+test('stitching nothing, or frames without a shift between each pair, is a mistake', () => {
   const frame = frameAt(content(2000), 0);
-  const only = bandOf(frame, BAND);
-  const top = Math.round(FRAME * BAND.from);
 
-  expect([only.width, only.height]).toStrictEqual([WIDTH, Math.round(FRAME * BAND.to) - top]);
-  expect(rgb(only, 5, 0)).toStrictEqual(rgb(frame, 5, top));
-});
-
-test('stitching nothing is a mistake rather than an empty image', () => {
-  expect(() => stitch([], BAND)).toThrow(/no frames/);
+  expect(() => stitch([], [], BAND)).toThrow(/no frames/);
+  expect(() => stitch([frame, frame], [], BAND)).toThrow(/2 frames and 0 shifts/);
 });
 
 /**
@@ -270,6 +253,20 @@ test('a real capture slid by a known amount reads back as that amount', () => {
   }
 });
 
+/**
+ * How far one step of a scroll capture may move and still be lined up, on a real screen. Half the band is what the
+ * capture drags, and it reads back exactly; the scan's single swipe to the moves, half the whole screen, is past what
+ * `offsetBetween` looks for at all, which is why a capture does not use it.
+ */
+test('the step a scroll capture drags is within reach, and the single swipe to the moves is not', () => {
+  const screen = capture('pikachu.png');
+  const band = Math.round(screen.height * SCREEN.to) - Math.round(screen.height * SCREEN.from);
+  const step = Math.round(band * SCROLL_STEP);
+
+  expect(offsetBetween(screen, slid(screen, step), SCREEN), 'a step').toBe(step);
+  expect(offsetBetween(screen, slid(screen, Math.round(screen.height / 2)), SCREEN), 'the swipe').toBe(null);
+});
+
 test('two different detail screens are refused rather than lined up', () => {
   expect(
     offsetBetween(capture('pikachu.png'), capture('smoliv.png'), SCREEN),
@@ -280,7 +277,7 @@ test('two different detail screens are refused rather than lined up', () => {
 /**
  * Two captures of the same species and layout, differing only in a glyph and some numbers. They have not scrolled, so
  * zero is the right answer — and it is what stops a walk that wandered onto another Pokémon from being stitched as a
- * scroll, `stitch` ending at the last frame that moved.
+ * scroll, the capture ending at the last frame that moved.
  */
 test('two captures that share a screen but have not scrolled answer zero', () => {
   expect(offsetBetween(capture('unown-b.png'), capture('unown-m.png'), SCREEN)).toBe(0);

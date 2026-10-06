@@ -55,7 +55,7 @@ import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
-import { offsetBetween, stitch } from '../src/tools/inventory/stitch.mts';
+import { offsetBetween, stitch, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -102,7 +102,33 @@ interface Config {
    * make out and uses that for the rest of the run, which is what lets one configuration suit any phone.
    */
   overlay?: OverlayBox;
+  /**
+   * The band of the screen that scrolls, which `--scroll` lines its frames up inside. Everything outside it is furniture
+   * that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and lining frames up over those
+   * finds the shift that keeps *them* still, which is none. Where the panel's top edge sits during a scroll is the one
+   * position here not measured against a real phone.
+   */
+  scrollBand: Band;
 }
+
+/**
+ * The band a screen is watched for movement in, and how much of it may still differ for it to count as still. The
+ * game's own panel, since the artwork above it holds an animated Pokémon that never stops and the status bar ticks
+ * with the clock. Measured through one swipe: 31%, then 6.2%, then 0.54% and steady, so anything between settles it.
+ */
+const SETTLE_BAND = { from: 0.34, to: 0.95 };
+const SETTLE_CHANGE = 0.02;
+const SETTLE_ATTEMPTS = 4;
+
+/** How many frames one `--scroll` may take before it is a loop rather than a screen. */
+const SCROLL_FRAMES = 12;
+
+/**
+ * How long one drag of a scroll capture takes, in milliseconds. Slow, so that the content follows the finger rather
+ * than flinging on past where it stopped and out of `offsetBetween`'s reach; a guess rather than a measurement, there
+ * being no phone here to time one on.
+ */
+const SCROLL_DRAG_MS = 1000;
 
 const DEFAULTS: Config = {
   package: 'com.nianticlabs.pokemongo',
@@ -128,6 +154,7 @@ const DEFAULTS: Config = {
     ],
   },
   waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, search: 1500 },
+  scrollBand: SETTLE_BAND,
 };
 
 /** The searches that answer the yes-or-no columns, each column named for the game's own search term. */
@@ -175,29 +202,6 @@ const COLUMNS = [
 
 /** How many times one detail screen is read before its reading is taken as final. */
 const READ_ATTEMPTS = 3;
-
-/**
- * The band a screen is watched for movement in, and how much of it may still differ for it to count as still. The
- * game's own panel, since the artwork above it holds an animated Pokémon that never stops and the status bar ticks
- * with the clock. Measured through one swipe: 31%, then 6.2%, then 0.54% and steady, so anything between settles it.
- */
-const SETTLE_BAND = { from: 0.34, to: 0.95 };
-
-/**
- * The band `--scroll` lines consecutive frames up inside, which is the same region as the one above and for the same
- * reason: it is the game's own panel, so it is what moves when a finger drags it. Everything outside it is furniture
- * that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and correlating over those finds
- * the shift that keeps *them* still, which is none.
- *
- * Taken from the settle band rather than written out again, and in `DEFAULTS` rather than here if a phone disagrees:
- * where the panel's top edge sits during a scroll is the one part of this not measured against a real one.
- */
-const SCROLL_BAND = SETTLE_BAND;
-
-/** How many frames one `--scroll` may take before it is a loop rather than a screen. */
-const SCROLL_FRAMES = 12;
-const SETTLE_CHANGE = 0.02;
-const SETTLE_ATTEMPTS = 4;
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
@@ -370,51 +374,6 @@ async function scan() {
   }
 
   /**
-   * A screenshot of a screen that has stopped moving, which is what a fixed wait after a swipe can only guess at. The
-   * cost is one extra screenshot where the screen was already still, and the gain is that a scan slowed down by
-   * anything — a phone thinking, an animation that ran long — waits for it rather than reading through it.
-   */
-  const settled = async (): Promise<Image> => {
-    let previous = await device.screenshot();
-
-    for (let attempt = 1; attempt < SETTLE_ATTEMPTS; attempt++) {
-      const image = await device.screenshot();
-
-      if (difference(previous, image, SETTLE_BAND.from, SETTLE_BAND.to) < SETTLE_CHANGE) {
-        return image;
-      }
-
-      previous = image;
-    }
-
-    return previous;
-  };
-
-  /**
-   * Every frame of the screen from here to its bottom, by swiping down and waiting for each to settle. Stops when the
-   * last two line up at nothing — which is what reaching the end looks like — or at `SCROLL_FRAMES`, so that a screen
-   * which never stops moving is a short capture rather than a scan that does not come back.
-   *
-   * It does not scroll back up. The caller does that, because what it has to get back to differs.
-   */
-  const scrollFrames = async (): Promise<Image[]> => {
-    const frames = [await settled()];
-
-    for (let i = 1; i < SCROLL_FRAMES; i++) {
-      await swipe(config.swipes.scrollDown, config.waits.scroll);
-      const next = await settled();
-      const moved = offsetBetween(frames[frames.length - 1] as Image, next, SCROLL_BAND);
-      frames.push(next);
-
-      if (moved === null || moved === 0) {
-        break;
-      }
-    }
-
-    return frames;
-  };
-
-  /**
    * PGSharp's overlay, with the box it sits in found on the way if it is not known yet. The box does not move between
    * Pokémon — only between phones — so it is worth finding once and keeping, which is the difference between a sweep
    * of the upper screen and one crop. Only a box that actually yielded a reading is kept: one that merely looked
@@ -465,7 +424,7 @@ async function scan() {
    */
   const readDetail = async (): Promise<Reading> => {
     for (let attempt = 0; ; attempt++) {
-      const image = await settled();
+      const image = await settled(device);
       const detail = await parseDetail(await readLines(image), data, image);
       // Only a detail screen is worth a sweep. The sweeps are rationed, and an empty search's grid or a tile still
       // opening would otherwise spend them all before the first Pokémon, leaving every row without IVs.
@@ -623,30 +582,27 @@ async function scan() {
 
       if (!options['no-moves']) {
         let scrolled: Image;
+        let swipes = 1;
 
         if (options.scroll) {
-          const frames = await scrollFrames();
-          const joined = stitch(frames, SCROLL_BAND);
-          scrolled = joined.image;
+          const capture = await scrollFrames(device);
+          scrolled = stitch(capture.frames, capture.offsets, config.scrollBand);
+          swipes = capture.swipes;
           keep(`${name}-scrolled`, scrolled);
 
-          if (joined.used < frames.length) {
-            notes.push(`only ${joined.used} of ${frames.length} frames would line up`);
-          }
-
-          // Back to the top, which took as many swipes to leave as it takes to return.
-          for (let i = 1; i < joined.used; i++) {
-            await swipe(config.swipes.scrollUp, config.waits.scroll);
+          if (capture.lost) {
+            notes.push(`the scroll lost its place after ${capture.frames.length} frames`);
           }
         } else {
           await swipe(config.swipes.scrollDown, config.waits.scroll);
           scrolled = await device.screenshot();
           keep(`${name}-moves`, scrolled);
-          await swipe(config.swipes.scrollUp, config.waits.scroll);
         }
 
-        // Read after the phone is back where it was, since the stitch above already needed every frame in hand.
+        // Read while the phone scrolls back, since nothing that follows depends on the moves. Awaited with the swipes,
+        // so that a read failing before the phone is back is a rejection here rather than an unhandled one.
         reading = ocr(scrolled).then((lines) => parseMoves(lines, data, id.form, scrolled));
+        await Promise.all([reading, scrollUp(device, shot, swipes)]);
       }
 
       if (reading) {
@@ -838,7 +794,92 @@ function loadConfig(path: string | undefined): Config {
     swipes: { ...DEFAULTS.swipes, ...(overrides.swipes as Partial<Config['swipes']>) },
     waits: { ...DEFAULTS.waits, ...(overrides.waits as Partial<Config['waits']>) },
     overlay: (overrides.overlay as OverlayBox | undefined) ?? DEFAULTS.overlay,
+    scrollBand: { ...DEFAULTS.scrollBand, ...(overrides.scrollBand as Partial<Band>) },
   };
+}
+
+/**
+ * A screenshot of a screen that has stopped moving, which is what a fixed wait after a swipe can only guess at. The
+ * cost is one extra screenshot where the screen was already still, and the gain is that a scan slowed down by anything
+ * — a phone thinking, an animation that ran long — waits for it rather than reading through it.
+ */
+async function settled(device: Device): Promise<Image> {
+  let previous = await device.screenshot();
+
+  for (let attempt = 1; attempt < SETTLE_ATTEMPTS; attempt++) {
+    const image = await device.screenshot();
+
+    if (difference(previous, image, SETTLE_BAND.from, SETTLE_BAND.to) < SETTLE_CHANGE) {
+      return image;
+    }
+
+    previous = image;
+  }
+
+  return previous;
+}
+
+/** What a scroll capture took, and what `stitch` and the way back up need from it. */
+interface Capture {
+  frames: Image[];
+  /** The shift between each consecutive pair, as `stitch` takes them. */
+  offsets: number[];
+  /** How many times it dragged the screen, which is how many it takes to get back up. */
+  swipes: number;
+  /** Whether it stopped on two frames that would not line up, rather than on reaching the end. */
+  lost: boolean;
+}
+
+/**
+ * Every frame of the screen from here to its bottom, dragging half the scrolling band at a time — `SCROLL_STEP`, kept
+ * within what `offsetBetween` looks for, where the scan's single swipe to the moves is not — and waiting for each frame
+ * to settle. Stops on a frame that has not moved, which is what reaching the end looks like; on one that will not line
+ * up with the one before, which is left out; or at `SCROLL_FRAMES`, so that a screen which never stops moving is a
+ * short capture rather than a scan that does not come back. Every frame it answers is one `stitch` uses.
+ *
+ * It does not scroll back up: `scrollUp` does, `swipes` times, when the caller is ready.
+ */
+async function scrollFrames(device: Device): Promise<Capture> {
+  const band = config.scrollBand;
+  const first = await settled(device);
+  const x = first.width / 2;
+  const y = (through: number) => first.height * (band.from + (band.to - band.from) * through);
+  const frames = [first];
+  const offsets: number[] = [];
+  let swipes = 0;
+
+  while (frames.length < SCROLL_FRAMES) {
+    await device.swipe([x, y(0.5 + SCROLL_STEP / 2)], [x, y(0.5 - SCROLL_STEP / 2)], SCROLL_DRAG_MS);
+    swipes++;
+    const next = await settled(device);
+    const moved = offsetBetween(frames.at(-1) as Image, next, band);
+
+    if (moved === null) {
+      return { frames, offsets, swipes, lost: true };
+    }
+
+    if (moved === 0) {
+      break;
+    }
+
+    frames.push(next);
+    offsets.push(moved);
+  }
+
+  return { frames, offsets, swipes, lost: false };
+}
+
+/**
+ * Back up the screen `times` times by the configured swipe, which covers more than one drag of a capture; a spare one
+ * at the top moves nothing. `screen` is any screenshot, for its size.
+ */
+async function scrollUp(device: Device, screen: Image, times: number) {
+  const [from, to] = config.swipes.scrollUp.map(([x, y]): Point => [x * screen.width, y * screen.height]);
+
+  for (let i = 0; i < times; i++) {
+    await device.swipe(from as Point, to as Point);
+    await sleep(config.waits.scroll);
+  }
 }
 
 // Last, so that everything above — the `Marks` class in particular — is initialised before anything runs.
@@ -848,42 +889,24 @@ if (command === 'scan') {
   const device = new Device(options.serial);
   await device.check();
 
-  // One screenshot, or the whole screen stitched out of as many as it takes. The report below is run on the single
+  // One screenshot, or the whole screen stitched out of as many as it takes. The report below is run on the first
   // frame either way, the readers it calls being anchored on fractions of the image's height — so a stitched image is
   // something to look at and to commit as a fixture rather than something to hand them.
-  const image = await device.screenshot();
-  const frames: Image[] = [image];
-
-  // The configured swipe is in fractions of the screen, which `scan` converts with a helper of its own; here the one
-  // screenshot already in hand is what gives it a size.
-  const at = (point: Point): Point => [point[0] * image.width, point[1] * image.height];
-
-  if (options.scroll) {
-    for (let i = 1; i < SCROLL_FRAMES; i++) {
-      await device.swipe(at(config.swipes.scrollDown[0]), at(config.swipes.scrollDown[1]));
-      await sleep(config.waits.scroll);
-      const next = await device.screenshot();
-      const moved = offsetBetween(frames[frames.length - 1] as Image, next, SCROLL_BAND);
-      frames.push(next);
-
-      if (moved === null || moved === 0) {
-        break;
-      }
-    }
-  }
-
-  const joined = options.scroll ? stitch(frames, SCROLL_BAND) : null;
-  const saved = joined?.image ?? image;
+  const capture = options.scroll ? await scrollFrames(device) : null;
+  const image = capture?.frames[0] ?? (await device.screenshot());
+  const saved = capture ? stitch(capture.frames, capture.offsets, config.scrollBand) : image;
   const path = join(CACHE, 'snaps', `${rest[0] ?? new Date().toISOString().replaceAll(':', '-')}.png`);
   mkdirSync(join(CACHE, 'snaps'), { recursive: true });
   writeFileSync(path, encodePng(saved));
   console.log(`Saved ${path} (${saved.width}×${saved.height})`);
 
-  if (joined) {
+  if (capture) {
+    const total = capture.offsets.reduce((a, b) => a + b, 0);
     console.log(
-      `Stitched ${joined.used} of ${frames.length} frames, scrolling ${joined.offsets.join(' + ')} = ` +
-        `${joined.offsets.reduce((a, b) => a + b, 0)} pixels past the first.`,
+      `Stitched ${capture.frames.length} frames, scrolling ${capture.offsets.join(' + ') || 0} = ${total} pixels past ` +
+        `the first${capture.lost ? ', where the next would not line up' : ''}.`,
     );
+    await scrollUp(device, image, capture.swipes);
   }
 
   const data = await loadGameData(CACHE, options.refresh);

@@ -14,12 +14,12 @@
  * A naive concatenation would repeat both the overlay and the buttons once per frame.
  *
  * **It refuses rather than guesses.** `offsetBetween` scores every candidate shift and takes the best only where it is
- * clearly better than the field; two frames that overlap by too little to be sure, or not at all, answer null and
- * `stitch` stops there with what it has. A capture that is short is obvious to whoever looks at it, where a capture
+ * clearly better than the field; two frames that overlap by too little to be sure, or not at all, answer null and the
+ * capture stops there with what it has. A capture that is short is obvious to whoever looks at it, where a capture
  * silently assembled at the wrong offset is a screenshot of something that was never on the screen.
  */
 
-import { crop, rgb, type Image } from './png.mts';
+import { rgb, type Image } from './png.mts';
 
 /** The fractions of a frame's height that scroll, which is the region the game draws its own content in. */
 export interface Band {
@@ -35,6 +35,13 @@ export interface Band {
 const MIN_OVERLAP = 0.25;
 
 /**
+ * How much of the band one step of a scroll capture should move, which has to stay inside what `offsetBetween` will
+ * look for. Half, against the three-quarters `MIN_OVERLAP` leaves, so the step can overshoot by half again before a
+ * pair is refused: a drag is not exact, and a fast one flings past where the finger stopped.
+ */
+export const SCROLL_STEP = 0.5;
+
+/**
  * How much better than the field the best shift has to score. The same shape as the artwork match's margin and for the
  * same reason: this is a comparison and not a threshold, so what matters is whether one candidate stands out rather
  * than whether it is good in the absolute — a frame of a dark screen scores well everywhere.
@@ -45,8 +52,10 @@ const MARGIN = 1.4;
 const COLUMN_STEP = 8;
 const ROW_STEP = 4;
 
-/** How much two frames of one scroll may still differ where they overlap. Measured: a true scroll is 0.00 and the
- * closest two different screens come is 19.12, so this sits in the gap rather than near either end. */
+/**
+ * How much two frames of one scroll may still differ where they overlap. Measured: a true scroll is 0.00 and the
+ * closest two different screens come is 19.12, so this sits in the gap rather than near either end.
+ */
 const MATCH_CEILING = 8;
 
 /**
@@ -161,7 +170,7 @@ export function offsetBetween(a: Image, b: Image, band: Band): number | null {
   //
   // A band of flat colour is what this refuses: every shift matches it equally well, so the best is the median and
   // nothing stands out. A screen that has not moved at all is the opposite case and answers zero, which is a
-  // measurement rather than a refusal — `stitch` stops on both, but only one of them is a fact about the screen.
+  // measurement rather than a refusal — a capture stops on both, but only one of them is a fact about the screen.
   const sorted = [...scores].sort((x, y) => x - y);
   const median = sorted[Math.floor(sorted.length / 2)] ?? Infinity;
 
@@ -185,45 +194,25 @@ export function offsetBetween(a: Image, b: Image, band: Band): number | null {
   return pixelCost(a, b, band, best) <= MATCH_CEILING ? best : null;
 }
 
-/** What `stitch` managed, which is the image and how far through the frames it got before one would not line up. */
-export interface Stitched {
-  image: Image;
-  /** How many frames contributed. Fewer than it was given means two of them could not be lined up. */
-  used: number;
-  /** The shift found between each pair, so a caller can report a scroll that was not moving. */
-  offsets: number[];
-}
-
 /**
- * The frames joined into one tall image. The first frame contributes everything above the band and its whole band; the
- * ones after it contribute only the rows they revealed; the last contributes everything below.
- *
- * Stops at the first pair that cannot be lined up and says so, rather than leaving a seam nobody asked for.
+ * The frames joined into one tall image, given the shift between each consecutive pair as the capture measured it —
+ * taken rather than worked out again, so the capture's rule for which frames count is the only one. The first frame
+ * contributes everything above the band and its whole band; the ones after it contribute only the rows they revealed;
+ * the last contributes everything below.
  */
-export function stitch(frames: readonly Image[], band: Band): Stitched {
+export function stitch(frames: readonly Image[], offsets: readonly number[], band: Band): Image {
   const [first] = frames;
 
   if (!first) {
     throw new Error('stitch was given no frames');
   }
 
-  const { top, bottom } = rows(first, band);
-  const offsets: number[] = [];
-
-  for (let i = 1; i < frames.length; i++) {
-    const shift = offsetBetween(frames[i - 1] as Image, frames[i] as Image, band);
-
-    // A zero is the scroll having reached the end, and a null is two frames that share too little to be sure. Both
-    // mean the same thing here: there is nothing further to add, so stop with what is already assembled.
-    if (shift === null || shift === 0) {
-      break;
-    }
-
-    offsets.push(shift);
+  if (offsets.length !== frames.length - 1) {
+    throw new Error(`stitch was given ${frames.length} frames and ${offsets.length} shifts between them`);
   }
 
-  const used = offsets.length + 1;
-  const last = frames[used - 1] as Image;
+  const { top, bottom } = rows(first, band);
+  const last = frames.at(-1) as Image;
   const height = first.height + offsets.reduce((a, b) => a + b, 0);
   const data = new Uint8Array(first.width * height * 4);
   const image: Image = { width: first.width, height, data };
@@ -245,16 +234,9 @@ export function stitch(frames: readonly Image[], band: Band): Stitched {
     at += shift;
   }
 
-  // And everything below the band, from the last frame that contributed — the game's floating buttons, which would
-  // otherwise be repeated once per frame.
+  // And everything below the band, from the last frame — the game's floating buttons, which would otherwise be
+  // repeated once per frame.
   place(last, bottom, first.height - bottom, at);
 
-  return { image, used, offsets };
-}
-
-/** A frame's band on its own, which is what a caller wants to look at when a stitch refuses to line two of them up. */
-export function bandOf(image: Image, band: Band): Image {
-  const { top, bottom } = rows(image, band);
-
-  return crop(image, 0, top, image.width, bottom - top);
+  return image;
 }
