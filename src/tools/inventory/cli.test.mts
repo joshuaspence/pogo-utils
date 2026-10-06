@@ -13,7 +13,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,11 +36,17 @@ const dumpRows = (text: string) => text.split('\n').filter((line) => DUMP.test(l
  * scanner's `CACHE` is relative, which is the whole of why this works: the directory a subprocess runs in decides where
  * its cache is, and no flag or stub is needed to move it.
  *
- * Only the CP multipliers have to be there. `loadGameData` throws without one for every level and reads an empty form
- * list and an empty string table without complaint, which is also why a run against this prints an empty stderr: no
- * form means no icon to read, so nothing is fetched and nothing is reported. The multipliers are arbitrary values over
- * more levels than the game has, and safe to be both: no assertion below reads a number derived from them, and
- * over-supplying is what keeps this from pinning the scanner's own highest level.
+ * All three files are load-bearing, and that is measured rather than reasoned about — seeded with `game-master.json`
+ * alone, a `parse` run prints two `Downloading` lines and goes out for the icon index and the string table. Only
+ * `game-master.json`'s *contents* matter: `loadGameData` throws without a CP multiplier for every level, where an empty
+ * icon index and an empty string table it takes in its stride.
+ *
+ * That emptiness is also what lets the stderr below be asserted at all. No form means no icon to read, so nothing is
+ * fetched and nothing is reported, and an empty stderr is then exactly the claim that the seeded cache was read rather
+ * than merely present.
+ *
+ * The multipliers themselves are arbitrary values over more levels than the game has, and safe to be both: no assertion
+ * here reads a number derived from them, and over-supplying keeps this from pinning the scanner's highest level.
  */
 function reads(): string {
   const dir = mkdtempSync(join(tmpdir(), 'inventory-cli-'));
@@ -59,18 +65,40 @@ function reads(): string {
 }
 
 /**
- * The flags the script accepts, read off its own `parseArgs` call. Read from the source because there is nowhere else
- * to read them from — the options are a literal inside a top-level call, so a test cannot import them without running
- * the script — and the anchors below are what stop a pattern that has stopped matching from passing this vacuously.
+ * The `options` block of the script's own `parseArgs` call, and the flag names declared in it.
+ *
+ * Read off the source because there is nowhere else to read them from: the options are a literal inside a top-level
+ * call, so a test cannot import them without running the script. Matched as the block first and the keys within it
+ * second, rather than as whole option lines — a pattern wanting `{ type:` on the key's own line stops seeing any option
+ * `prettier` has wrapped, which is one added property away, and any that declares a `short` alias before its type.
+ *
+ * That mode of failure is the one to design against, because a check that inspects its own source fails *open*: a flag
+ * that drops out of this list is a flag the two comparisons below then agree about, and a shorter list of things to
+ * check passes more easily. So it is cross-checked against a count that does not read the names at all.
  */
-const FLAGS = [...SOURCE.matchAll(/^ {4}'([a-z-]+)': \{ type:/gm)].map(([, flag]) => flag as string);
+const OPTIONS = /\n {2}options: \{\n([\s\S]*?)\n {2}\},\n/.exec(SOURCE)?.[1] ?? '';
+const FLAGS = [...OPTIONS.matchAll(/^ {4}'([a-z-]+)':/gm)].map(([, flag]) => flag as string);
 
-test('the flags read off `parseArgs` are the flags, not an empty list', () => {
-  expect(
-    FLAGS,
-    'the pattern over `parseArgs` has stopped matching, so every claim about flags below is vacuous',
-  ).toEqual(expect.arrayContaining(['out', 'scroll', 'verbose']));
+/**
+ * Every top-level entry of that block, counted without reading its name, so that a key written in a form the name
+ * pattern does not recognise makes the two disagree. A line opening with `}` is a wrapped option's own close rather
+ * than an entry of its own.
+ */
+const ENTRIES = OPTIONS.split('\n').filter((line) => /^ {4}[^\s}]/.test(line)).length;
+
+test('the flags are read off `parseArgs` whole, not some readable subset of it', () => {
+  expect(OPTIONS, 'the `options` block was not found, so every claim about flags below is vacuous').not.toBe('');
+  expect(FLAGS.length, 'an option is declared in a form the flag pattern cannot read').toBe(ENTRIES);
+  expect(FLAGS).toEqual(expect.arrayContaining(['out', 'scroll', 'refresh', 'verbose']));
 });
+
+/**
+ * The flags the synopsis offers, parsed once and compared in both directions below. Taken from running `help` rather
+ * than from matching the source again here, so the two comparisons pin the text a person is actually shown.
+ */
+const ADVERTISED = run(process.execPath, [SCRIPT, 'help']).then(
+  ({ stderr }) => new Set([...stderr.matchAll(/--([a-z-]+)/g)].map(([, flag]) => flag as string)),
+);
 
 /**
  * That `help` answers at all, which is less obvious than it looks: the synopsis is cut out of the script's own source
@@ -88,28 +116,31 @@ test('`help` prints the synopsis and exits 0', async () => {
 });
 
 /**
- * Every flag the script accepts is in the synopsis `help` prints. The synopsis comes from running `help` rather than
- * from matching the source again here, so this pins the text a person is shown rather than a second guess at where it
- * lives.
+ * Every flag the script accepts is in the synopsis, and every flag the synopsis offers is one the script accepts. Set
+ * membership rather than a substring search, because `includes` is prefix-blind: `--out` reads as documented the moment
+ * a longer flag sharing its prefix is, so rewording `[--out inventory.csv]` to `[--output …]` would leave `--out`
+ * accepted, unmentioned and unreported — the drift this exists to catch.
  *
  * Which command each flag is listed under is not checked, and cannot usefully be: `parseArgs` takes one flat set of
  * options and every command ignores the ones that do not concern it, so nothing in the code says where a flag belongs.
  * `--refresh` is the one this first caught, accepted by all three commands and named by none of them.
  */
 test('`help` lists every flag `parseArgs` accepts', async () => {
-  const { stderr } = await run(process.execPath, [SCRIPT, 'help']);
-  const undocumented = FLAGS.filter((flag) => !stderr.includes(`--${flag}`));
+  const offered = await ADVERTISED;
 
-  expect(undocumented, 'these flags are accepted but the synopsis never mentions them').toStrictEqual([]);
+  expect(
+    FLAGS.filter((flag) => !offered.has(flag)),
+    'these flags are accepted and the synopsis never mentions them',
+  ).toStrictEqual([]);
 });
 
-/** A flag the synopsis advertises has to be one `parseArgs` takes, which is the same drift seen from the other side. */
 test('every flag the synopsis advertises is accepted', async () => {
-  const { stderr } = await run(process.execPath, [SCRIPT, 'help']);
-  const advertised = [...stderr.matchAll(/--([a-z-]+)/g)].map(([, flag]) => flag as string);
-  const unknown = [...new Set(advertised)].filter((flag) => !FLAGS.includes(flag));
+  const offered = await ADVERTISED;
 
-  expect(unknown, 'the synopsis offers these flags and `parseArgs` would reject them').toStrictEqual([]);
+  expect(
+    [...offered].filter((flag) => !FLAGS.includes(flag)),
+    'the synopsis offers these flags and `parseArgs` would reject them',
+  ).toStrictEqual([]);
 });
 
 /**
@@ -143,18 +174,23 @@ test('`parse` with no file prints the usage and fails', async () => {
  */
 test('the OCR dump is printed only with `--verbose`', async () => {
   const cwd = reads();
-  const [quiet, loud] = await Promise.all([
-    run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd }),
-    run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
-  ]);
 
-  expect(dumpRows(quiet.stdout), 'the dump was printed without the flag asking for it').toStrictEqual([]);
-  expect(dumpRows(loud.stdout).length, '`--verbose` printed no dump at all').toBeGreaterThan(0);
-  expect(
-    loud.stdout.split('\n').filter((line) => !DUMP.test(line)),
-    '`--verbose` changed the report rather than only adding the dump',
-  ).toStrictEqual(quiet.stdout.split('\n'));
-  // Nothing was downloaded, which is what says the seeded cache was read rather than merely present.
-  expect(quiet.stderr).toBe('');
-  expect(loud.stderr).toBe('');
+  try {
+    const [quiet, loud] = await Promise.all([
+      run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd }),
+      run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
+    ]);
+
+    expect(dumpRows(quiet.stdout), 'the dump was printed without the flag asking for it').toStrictEqual([]);
+    expect(dumpRows(loud.stdout).length, '`--verbose` printed no dump at all').toBeGreaterThan(0);
+    expect(
+      loud.stdout.split('\n').filter((line) => !DUMP.test(line)),
+      '`--verbose` changed the report rather than only adding the dump',
+    ).toStrictEqual(quiet.stdout.split('\n'));
+    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present.
+    expect(quiet.stderr).toBe('');
+    expect(loud.stderr).toBe('');
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
 });
