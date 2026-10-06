@@ -42,8 +42,8 @@
  * `snap` and `parse` are the tools for fixing a misread: every tap position, swipe and delay the scan uses is in
  * `DEFAULTS` below and can be overridden from a JSON file passed as `--config`, with positions as fractions of the
  * screen so that one file suits any phone of the same shape. Both print what each reader made of the screen, and
- * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text was
- * read there from one left empty because a reader anchored on the wrong line.
+ * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text
+ * was read there from one left empty because a reader anchored on the wrong line.
  *
  * Automating input breaks Niantic's terms of service. This only reads, and moves at a person's pace, but the risk to
  * the account is the user's to weigh.
