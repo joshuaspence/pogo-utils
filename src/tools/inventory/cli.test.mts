@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
+import { typeable } from './adb.mts';
 
 const run = promisify(execFile);
 
@@ -297,6 +298,37 @@ test('`snap` refuses a NAME ending in the stitch suffix, before it opens the pho
   expect(failure).toMatchObject({ code: 1 });
   expect(stderr).toContain(`NAME cannot end in \`${SCROLLED}\``);
   expect(stderr, 'the phone was reached before the name was checked').not.toContain('adb');
+});
+
+/**
+ * That the `--search` example the usage advertises is one the phone can actually be sent. The two know nothing about
+ * each other — the example is the only place the search syntax is written down, and `typeable` is a whitelist drawn up
+ * for the scan's own searches — so a whitelist tightened without the example in mind would leave the one term a reader
+ * is told to type failing on the phone, with every other test here passing.
+ *
+ * Taken out of the synopsis rather than written again, so what is checked is what a reader is told.
+ */
+test('the `--search` term the usage advertises is one the phone can be sent', () => {
+  const advertised = /--search '([^']+)'/.exec(SOURCE)?.[1];
+
+  expect(advertised, 'the usage no longer shows a quoted `--search` example, so this pins nothing').toBeTruthy();
+  expect(typeable(advertised ?? '')).toBe(true);
+});
+
+/**
+ * A `--search` term `type` would refuse is refused before the phone is opened, and for the same reason the name above
+ * is: the alternative is driving the phone into storage and onto the search box before anything says the term was never
+ * going to be sent, which leaves storage open with the keyboard up and nothing captured.
+ */
+test('`snap` refuses an untypeable `--search`, before it opens the phone', async () => {
+  const failure = await run(process.execPath, [SCRIPT, 'snap', '--search', '+burmy (sandy)']).catch(
+    (error: unknown) => error,
+  );
+  const { stderr } = failure as { stderr: string };
+
+  expect(failure).toMatchObject({ code: 1 });
+  expect(stderr).toContain('characters the phone cannot be sent');
+  expect(stderr, 'the phone was reached before the term was checked').not.toContain('adb');
 });
 
 /**

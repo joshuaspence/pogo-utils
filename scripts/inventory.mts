@@ -26,10 +26,12 @@
  *   pnpm inventory scan [--out inventory.csv] [--limit N] [--skip N] [--flags shiny,lucky,…]
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
  *                       [--config FILE] [--serial SERIAL] [--refresh] [--verbose]
- *   pnpm inventory snap [--verbose] [--refresh] [--config FILE] [--serial SERIAL] [NAME]
+ *   pnpm inventory snap [--search TERM] [--verbose] [--refresh] [--config FILE] [--serial SERIAL] [NAME]
  *                       save a screenshot of whatever is showing, and a stitch of the whole screen beside it, and print
  *                       what each reader makes of the screenshot; fails unless it is a detail screen carrying PGSharp's
- *                       overlay
+ *                       overlay. `--search` opens the first Pokémon storage's own search matches first, so that a
+ *                       capture names the Pokémon it wants — `--search '+burmy & cp196'` rather than a screen set up by
+ *                       hand
  *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *   Each line lists the flags that command acts on, and a flag handed to a command whose line omits it is refused
@@ -63,7 +65,7 @@
  * the account is the user's to weigh.
  */
 
-import { Device, KEY } from '../src/tools/inventory/adb.mts';
+import { Device, KEY, typeable } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
 import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
@@ -245,6 +247,7 @@ const { values: options, positionals } = parseArgs({
     'no-moves': { type: 'boolean', default: false },
     'scroll': { type: 'boolean', default: false },
     'keep-screens': { type: 'string' },
+    'search': { type: 'string' },
     'config': { type: 'string' },
     'serial': { type: 'string' },
     'refresh': { type: 'boolean', default: false },
@@ -298,7 +301,7 @@ const HONOURED: Record<string, readonly string[]> = {
     'refresh',
     'verbose',
   ],
-  snap: ['verbose', 'refresh', 'config', 'serial'],
+  snap: ['search', 'verbose', 'refresh', 'config', 'serial'],
   parse: ['verbose', 'refresh', 'config'],
 };
 
@@ -374,39 +377,20 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
   return { detail, box, overlay };
 }
 
-async function scan() {
-  // Ahead of the phone, so a typo fails before anything is driven.
-  const limit = count('limit', options.limit, Infinity);
-  const skip = count('skip', options.skip, 0);
-  const device = new Device(options.serial);
-  await device.check();
-  const data = await loadGameData(CACHE, options.refresh);
-  const icons = await iconsFor(CACHE, data, options.refresh);
-  const flags = options.flags === undefined ? DEFAULT_FLAGS : parseFlags(options.flags);
-  // The chips under the HP say which tags a Pokémon carries, so this is a vocabulary rather than a list to search for:
-  // the names are the user's own, and only something to match against can say that `Shiny SJ` is the `Shiny` chip with
-  // its `✦` read as letters. Storage's own TAGS tab is where they come from.
-  const tags = (options.tags ?? '')
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean);
-  const screens = options['keep-screens'];
-  const shot = await device.screenshot();
-  const at = (p: Point): Point => [p[0] * shot.width, p[1] * shot.height];
+/**
+ * Getting about storage on the phone: to the grid, a search typed into it, and where the first tile of what it left is.
+ *
+ * Shared by `scan` and `snap --search` rather than written once each, because the two have to agree about what a grid
+ * is and which tile is its first. A second copy would drift, and the way it would show is a capture pinned off the
+ * *second* Pokémon the search matched — a screenshot of the wrong Pokémon looks just like one of the right Pokémon.
+ *
+ * Taps are sized against a screenshot rather than `Config`, every position in it being a fraction of the screen so that
+ * one configuration suits any phone of the same shape.
+ */
+function storage(device: Device, config: Config, data: GameData, screen: Image) {
   let searchBox: Point | null = null;
-  let overlayBox: OverlayBox | null = config.overlay ?? null;
-  // A phone with PGSharp's overlay switched off would otherwise sweep for it on every Pokémon, for ever.
-  let searchesLeft = 5;
 
-  if (screens) {
-    mkdirSync(screens, { recursive: true });
-  }
-
-  const keep = (name: string, image: Image) => {
-    if (screens) {
-      writeFileSync(join(screens, `${name}.png`), encodePng(image));
-    }
-  };
+  const at = (p: Point): Point => [p[0] * screen.width, p[1] * screen.height];
 
   const tap = async (p: Point, wait = config.waits.tap) => {
     await device.tap(p);
@@ -417,6 +401,13 @@ async function scan() {
     await device.swipe(at(from), at(to));
     await sleep(wait);
   };
+
+  /**
+   * The first Pokémon's CP label in a grid, which doubles as how a grid is told from the suggestions panel drawn over
+   * it: the panel carries no CP anywhere.
+   */
+  const tileLabel = (lines: readonly Line[]) =>
+    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
 
   /** Gets to the storage grid from wherever the game is: the map, a detail screen, or the grid already. */
   const toStorage = async () => {
@@ -461,8 +452,8 @@ async function scan() {
     // closes them and leaves the unfiltered grid behind. An empty search matches everything, so a grid with nothing in
     // it is that panel and can be nothing else — which is a surer test than the panel's own headings, since PGSharp's
     // toolbar sits down the left edge over their first letters and `Recent` reads as `serccemt` behind it. Getting
-    // this wrong is expensive rather than merely unhelpful: `openFirst` then falls back to its blind tap, which lands
-    // on the first Recent chip and quietly scans whatever was searched for last.
+    // this wrong is expensive rather than merely unhelpful: `firstTile` then falls back to its blind tap, which lands
+    // on the first Recent chip and quietly opens whatever was searched for last.
     if (term === '' && !tileLabel(lines)) {
       await device.key(KEY.BACK);
       await sleep(config.waits.search);
@@ -475,6 +466,58 @@ async function scan() {
     }
 
     return lines;
+  };
+
+  /**
+   * Where the first Pokémon in a grid is, to be tapped.
+   *
+   * The row comes from the grid and the column from the configuration, which is not a compromise but the right split.
+   * How far down the first row sits depends on whether a search is showing, so it has to be read; which column is
+   * first does not, since the grid is three even columns and 0.18 of the width lands in the leftmost of them on both
+   * phones tried. Taking the column from the label as well would open the *second* Pokémon whenever the first one's CP
+   * failed to OCR — in an `xxl` grid of five, the top row's only legible label was the middle tile's, so the walk began
+   * one along and marked four. One short is the hardest kind of wrong to notice.
+   */
+  const firstTile = (grid: readonly Line[]): Point => {
+    const label = tileLabel(grid);
+
+    return label ? [at(config.taps.firstTile)[0], label.top + label.height * 2.5] : at(config.taps.firstTile);
+  };
+
+  return { at, tap, swipe, search, tileLabel, firstTile };
+}
+
+async function scan() {
+  // Ahead of the phone, so a typo fails before anything is driven.
+  const limit = count('limit', options.limit, Infinity);
+  const skip = count('skip', options.skip, 0);
+  const device = new Device(options.serial);
+  await device.check();
+  const data = await loadGameData(CACHE, options.refresh);
+  const icons = await iconsFor(CACHE, data, options.refresh);
+  const flags = options.flags === undefined ? DEFAULT_FLAGS : parseFlags(options.flags);
+  // The chips under the HP say which tags a Pokémon carries, so this is a vocabulary rather than a list to search for:
+  // the names are the user's own, and only something to match against can say that `Shiny SJ` is the `Shiny` chip with
+  // its `✦` read as letters. Storage's own TAGS tab is where they come from.
+  const tags = (options.tags ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const screens = options['keep-screens'];
+  const shot = await device.screenshot();
+  const { at, tap, swipe, search, tileLabel, firstTile } = storage(device, config, data, shot);
+  let overlayBox: OverlayBox | null = config.overlay ?? null;
+  // A phone with PGSharp's overlay switched off would otherwise sweep for it on every Pokémon, for ever.
+  let searchesLeft = 5;
+
+  if (screens) {
+    mkdirSync(screens, { recursive: true });
+  }
+
+  const keep = (name: string, image: Image) => {
+    if (screens) {
+      writeFileSync(join(screens, `${name}.png`), encodePng(image));
+    }
   };
 
   interface Reading {
@@ -558,29 +601,11 @@ async function scan() {
   };
 
   /**
-   * The first Pokémon's CP label in a grid, which doubles as how a grid is told from the suggestions panel drawn over
-   * it: the panel carries no CP anywhere.
-   */
-  const tileLabel = (lines: readonly Line[]) =>
-    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
-
-  /**
    * Opens the first Pokémon the grid shows and reads it, answering a reading with no key when there is none — a search
    * that matched nothing — or when it would not read.
-   *
-   * The row comes from the grid and the column from the configuration, which is not a compromise but the right split.
-   * How far down the first row sits depends on whether a search is showing, so it has to be read; which column is
-   * first does not, since the grid is three even columns and 0.18 of the width lands in the leftmost of them on both
-   * phones tried. Taking the column from the label as well would open the *second* Pokémon whenever the first one's CP
-   * failed to OCR — in an `xxl` grid of five, the top row's only legible label was the middle tile's, so the walk began
-   * one along and marked four. One short is the hardest kind of wrong to notice.
    */
   const openFirst = async (grid: readonly Line[]) => {
-    const label = tileLabel(grid);
-    await tap(
-      label ? [at(config.taps.firstTile)[0], label.top + label.height * 2.5] : at(config.taps.firstTile),
-      config.waits.swipe,
-    );
+    await tap(firstTile(grid), config.waits.swipe);
 
     // Through `readDetail` for its retry: the tile opens with an animation that outlasts one wait, and a screen read
     // while it is still running is indistinguishable from a grid with nothing in it.
@@ -1085,6 +1110,15 @@ async function snap() {
     return;
   }
 
+  // Refused here for the same reason, and against `adb`'s own test rather than a second copy of it: a term `type` will
+  // not send is one the phone would be driven to storage and into the search box for before anything said so.
+  if (options.search !== undefined && !typeable(options.search)) {
+    console.error(`snap: --search ${JSON.stringify(options.search)} has characters the phone cannot be sent`);
+    process.exitCode = 1;
+
+    return;
+  }
+
   const device = new Device(options.serial);
   await device.check();
 
@@ -1104,11 +1138,26 @@ async function snap() {
     process.exitCode = 1;
   };
 
+  // At most one load however many things below want it. `--search` wants it before the grab, `toStorage` reading the
+  // screen to tell the storage grid from a detail screen; without one nothing wants it until after, and that order is
+  // deliberate — the screen was set up by hand there, and a cold `loadGameData` fetches 23 MB before `iconsFor` spends
+  // minutes on the icons, long enough for the phone to blank what was set up for the snap.
+  let loaded: GameData | null = null;
+  const gameData = async () => (loaded ??= await loadGameData(CACHE, options.refresh));
+
+  // Driven to the Pokémon rather than taking what is showing, which is what makes a capture reproducible: the search
+  // names what it wanted, where a screen set up by hand records nothing about which Pokémon that was.
+  if (options.search !== undefined) {
+    const { tap, search, firstTile } = storage(device, config, await gameData(), await device.screenshot());
+
+    await tap(firstTile(await search(options.search)), config.waits.swipe);
+  }
+
   // Settled, so that what is read is the screen rather than the middle of an animation it was drawing.
   const image = await settled(device);
   write('', image);
 
-  const data = await loadGameData(CACHE, options.refresh);
+  const data = await gameData();
   const read = await report(image, data, await iconsFor(CACHE, data, options.refresh));
 
   // A configured `overlay` is taken on trust and so can never be missing, which would leave this check vacuous for
