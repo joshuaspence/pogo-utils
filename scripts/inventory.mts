@@ -319,8 +319,9 @@ if (ignored.length > 0) {
   process.exit(1);
 }
 
-// After the refusal above, so a run about to be told it handed `scan` a flag the command does not act on does not
-// narrate a download first, and before every command, none of which prints before the game master is loaded.
+// Ahead of every command, because progress is narrated until this says otherwise: a run without `--verbose` is asking
+// for quiet, and anything printed above this call would have printed anyway. Nothing is — the refusal above downloads
+// nothing, and no command prints before the game master is loaded — and `cli.test.mts` holds the ordering.
 showProgress(options.verbose);
 
 const config = loadConfig(options.config);

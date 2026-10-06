@@ -396,12 +396,17 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
 
     bytes = Buffer.from(await response.arrayBuffer());
   } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    // Naming the URL rather than leaning on the line above, which `progress` prints only where it was asked for: this
+    // one is not gated, and a bare `fetch failed; using the copy from before` cannot say which of the three files or
+    // which of ~153 icons went stale.
     if (existsSync(path)) {
-      console.error(`  ${error instanceof Error ? error.message : String(error)}; using the copy from before`);
+      console.error(`  ${url}: ${reason}; using the copy from before`);
       return readFileSync(path);
     }
 
-    throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    throw new Error(`${url}: ${reason}`, { cause: error });
   }
 
   // Written beside the copy and renamed over it, because the week's grace above trusts any file it finds: one cut short
