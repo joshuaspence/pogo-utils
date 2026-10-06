@@ -32,8 +32,7 @@
  *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *   Each line lists the flags that command acts on, and a flag handed to a command whose line omits it is refused
- *   rather than ignored. `--config` is on all three because `scan` drives the phone out of it where `snap` and `parse`
- *   read only the overlay box in it; `--serial` stops at `snap`, `parse` opening no device.
+ *   rather than ignored. Why a flag is on the lines it is on belongs with `HONOURED` below, not here.
  *
  * `--scroll` keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames into
  * one tall image, which is how a screen longer than the phone is seen whole. A scan reads the moves from it rather than
@@ -243,9 +242,10 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
  * checked against anything. Stated once here, so the rejection below and the usage block above cannot drift apart
  * without a test noticing.
  *
- * `--config` reaches all three for two different reasons, which is the kind of thing this is written down rather than
- * inferred for: `scan` drives the phone out of it — the taps, swipes and waits — where `snap` and `parse` reach only
- * the overlay box in it, through `report`. `--serial` stops at `snap` because `parse` opens no device.
+ * `--config` is on all three, and splits two ways rather than three: `scan` and `snap` both drive the phone out of it,
+ * reading `swipes`, `waits` and `scrollBand`, where `parse` reaches `overlay` alone and only through `report`. The
+ * fields are named so the claim can be checked by grepping for them, this sentence having been wrong twice already.
+ * `--serial` stops at `snap` because `parse` opens no device.
  */
 const HONOURED: Record<string, readonly string[]> = {
   scan: ['out', 'limit', 'skip', 'flags', 'tags', 'no-moves', 'scroll', 'keep-screens', 'config', 'serial', 'refresh'],

@@ -229,9 +229,9 @@ test('a flag its command does not act on is refused, not ignored', async () => {
  * of the two happened.
  *
  * The names off `Object.prototype` are here because they got through. `HONOURED` is a plain object, so looking one of
- * them up answered an inherited function, the guard found that truthy, and the flag filter
- * then called `.includes` on a function and threw a `TypeError` over the usage. Each needs a flag beside it to show it,
- * an empty list never invoking the filter — which is why a bare `toString` looked fine throughout.
+ * them up answered an inherited function, the guard found that truthy, and the flag filter then called `.includes` on a
+ * function and threw a `TypeError` over the usage. Each needs a flag beside it to show it, an empty list never invoking
+ * the filter — which is why a bare `toString` looked fine throughout.
  */
 test('an unknown command prints the usage and fails', async () => {
   for (const command of ['scna', 'toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
