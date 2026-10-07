@@ -18,8 +18,9 @@ permissions:
   actions: 'write'
   contents: 'write'
 
+# Shared with `prune.yml`: both push to `master` without pulling first, so the second of two at once is rejected.
 concurrency:
-  group: 'vend'
+  group: 'master'
   cancel-in-progress: false
 
 jobs:

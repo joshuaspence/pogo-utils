@@ -16,6 +16,7 @@
     "lint:prettier:fix": "prettier --write .",
     "lint:types": "pnpm build",
     "lint:xml": "node scripts/validate-gpx.mts",
+    "prune:events": "node scripts/prune-events.mts",
     "test": "vitest run",
     "test:corpus": "vitest run --project corpus",
     "test:coverage": "vitest run --coverage",

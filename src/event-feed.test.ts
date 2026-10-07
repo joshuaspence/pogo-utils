@@ -13,7 +13,7 @@
 
 import { expect, test } from 'vitest';
 
-import { HAS_ZONE, routeSummary, vendable } from './event-feed.js';
+import { ended, HAS_ZONE, prunable, routeSummary, vendable } from './event-feed.js';
 import { testEveryZone } from './testing/zones.js';
 
 import type { FeedEvent } from './types.js';
@@ -167,4 +167,74 @@ test('an event with no eventID is refused, that being what both merges key on', 
   // silently collide with every other entry without one and leave whichever came last.
   expect(() => vendable([upstream('ok-2026'), upstream('', {})])).toThrow(/eventID/);
   expect(() => vendable([upstream('ok-2026'), upstream('x', { eventID: undefined })])).toThrow(/eventID/);
+});
+
+test('a zoned end has passed once its instant has', () => {
+  const end = '2026-09-27T08:00:00.000Z';
+
+  expect(ended({ end }, new Date('2026-09-27T07:59:59.999Z'))).toBe(false);
+  expect(ended({ end }, new Date('2026-09-27T08:00:00.001Z'))).toBe(true);
+});
+
+testEveryZone('a naive end has passed only once it has passed at UTC−12, the last zone to reach it', () => {
+  /*
+   * Built inside the body, as a swept test must. Read as UTC this end would drop a local event while the Americas were
+   * still playing it, and the sweep is what reaches the other misreading: `Date.parse(end)` on a naive datetime answers
+   * the *machine's* zone, so `Date.parse(end) + 12h` is this same assertion in UTC and nothing like it anywhere else.
+   * In `Australia/Sydney`, eleven hours ahead in October, that reading calls the event over a day early and the first
+   * expectation below fails — where CI runs in UTC and would never have said so.
+   */
+  const end = '2026-10-02T20:00:00.000';
+
+  expect(ended({ end }, new Date('2026-10-03T07:59:59.999Z'))).toBe(false);
+  expect(ended({ end }, new Date('2026-10-03T08:00:00.001Z'))).toBe(true);
+});
+
+test('an event with no announced end has not ended', () => {
+  // `Date.parse(null)` is NaN and `new Date(null)` the epoch, so a careless reading would call it over since 1970.
+  expect(ended({ end: null }, new Date('2099-01-01T00:00:00.000Z'))).toBe(false);
+});
+
+test('an end that is a date with no time is refused rather than read as not over', () => {
+  /*
+   * The case that separates "no end announced" from "an end this cannot read", which a `NaN` would have merged: both
+   * compare as not over, and `data/events.json` is hand-written, so `"end": "2026-12-31"` for an all-day event would
+   * have sat in the list permanently with nothing to say why the daily prune never touched it.
+   *
+   * It carries no zone, so it is read as naive — and `Date.parse('2026-12-31-12:00')` is `NaN`, where the `${end}Z`
+   * this replaced parsed it as midnight, which is the wrong end of the day in any case.
+   */
+  expect(() => ended({ end: '2026-12-31' }, new Date('2099-01-01T00:00:00.000Z'))).toThrow(/not a datetime/);
+
+  // Not a blanket refusal of anything short: a full naive datetime is the feed's own shape and still reads.
+  expect(ended({ end: '2026-12-31T23:59:59.000' }, new Date('2099-01-01T00:00:00.000Z'))).toBe(true);
+});
+
+/** Long after every `end` below, so what each case turns on is the lists rather than the clock. */
+const AFTER = new Date('2099-01-01T00:00:00.000Z');
+
+test('an ended entry the feed does not carry is prunable, and an unended one is not', () => {
+  const over = { eventID: 'over-2026', end: '2026-09-27T08:00:00.000Z' };
+  const running = { eventID: 'running-2026', end: '2099-09-27T08:00:00.000Z' };
+
+  expect(prunable([over, running], [], AFTER)).toEqual(new Set(['over-2026']));
+});
+
+test('an ended entry the feed also carries is kept, removing it being no removal', () => {
+  /*
+   * `patterns-of-the-wild-2026` was this case on 2026-10-06: dated locally, `start: null, end: null` upstream. Both
+   * merges key a Map by `eventID` with the local list last, so dropping the local entry does not drop the event — it
+   * uncovers upstream's dateless copy, and the card comes back without its dates or its route count.
+   *
+   * Asserted empty rather than by absence, so a `prunable` that returned everything could not pass it.
+   */
+  const over = { eventID: 'patterns-of-the-wild-2026', end: '2026-10-02T20:00:00.000' };
+
+  expect(prunable([over], [{ eventID: 'patterns-of-the-wild-2026' }], AFTER)).toEqual(new Set());
+});
+
+test('a feed entry that is not in the local list is nothing to prune', () => {
+  // Only `data/events.json` is written, so an upstream event is never a candidate however long over it is — the vend
+  // overwrites that file wholesale on the next scrape and would put it straight back.
+  expect(prunable([], [{ eventID: 'upstream-2026' }], AFTER)).toEqual(new Set());
 });
