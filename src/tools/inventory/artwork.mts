@@ -370,9 +370,9 @@ export type Drawn = Form & { icon: string };
  * one can never be narrowed — `identify` declines to choose between forms it cannot all see — so its icons would be
  * downloaded for nothing, and naming it once is the whole of what can be said about it.
  *
- * Measured over a real game master: 52 groups hold 237 forms, and 41 of those groups have an icon for every member.
- * The other 11 are short of 72 icons between them, Scatterbug, Spewpa and Minior having none at all and Spinda nine of
- * twenty — nine being what the game has released.
+ * Measured over a real game master: 52 groups hold 237 forms, and 44 of those groups have an icon for every member.
+ * The other 8 are short of 63 icons between them, Scatterbug, Spewpa, Minior and Magearna having none at all and Spinda
+ * nine of twenty — nine being what the game has released.
  */
 export function ambiguous(data: GameData): { drawn: Drawn[][]; short: Form[][] } {
   const groups = new Map<string, Form[]>();
@@ -410,12 +410,12 @@ export function ambiguous(data: GameData): { drawn: Drawn[][]; short: Form[][] }
   return { drawn, short };
 }
 
-/** How many icons to fetch at once. Each is some 8 KB, so the time goes on round trips rather than bytes. */
+/** How many icons to fetch at once. Each is some 24 KB, so the time goes on round trips rather than bytes. */
 const FETCH_BATCH = 16;
 
 /**
  * A signature per form for every form the artwork could settle, downloading the icons once and caching them beside the
- * game master. 153 files of some 8 KB on a real game master, so this is a one-off of about a megabyte.
+ * game master. 162 files of some 24 KB on a real game master, so this is a one-off of under 4 MiB.
  */
 export async function iconsFor(dir: string, data: GameData, refresh = false): Promise<Map<Form, Signature>> {
   const { drawn: families, short } = ambiguous(data);
