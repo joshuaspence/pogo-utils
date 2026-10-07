@@ -1013,25 +1013,16 @@ const NEGATIVE = [
  * | 4                  | 30.3s                    | 111.1s                   |
  *
  * The costliest capture is `overworld.png`, which carries no overlay at all, so `findOverlay` exhausts every treatment
- * over every band rather than stopping at a match. Two captures in flight is within 4% of four on total time and ten
- * seconds cheaper on that worst wait, so four is not obviously right on a narrow machine — it is kept because 22 cores
- * measured 137s at one and 106s at four, and no reading of two was taken there.
+ * over every band rather than stopping at a match.
  *
- * What the latency does reach is the clock a test is held to, which is why `vitest.config.mjs` gives the `corpus`
- * project a longer `testTimeout` than the rest of the suite rather than the 60s that left this 30s of margin.
+ * What the latency reaches is the clock whatever is waiting gets held to, which is why `vitest.config.mjs` gives the
+ * `corpus` project its own `testTimeout` and `hookTimeout` rather than the 60s that left 30.3s only 30s of margin. That
+ * is also what settles the depth: two captures in flight is within 4% of four on total time and ten seconds cheaper on
+ * the worst wait, but with four times the margin on that wait the saving buys nothing, so four is kept for the column
+ * that still matters. This table is the artefact to re-run if the setting is ever revisited, being the only thing here
+ * that shows the trade rather than asserting a point on it.
  */
 const READ_AHEAD = 4;
-
-/**
- * How long one capture read may take with the pool at full depth, which is what both the slowest test and the teardown
- * below wait on. Four times the 30.3s the table above measured, where the 60s the rest of the suite gets left 30s and a
- * runner having a bad day between a real failure and a reported one. A timeout is here to catch a read that has hung,
- * not to hold a contended one to a budget, so the margin is worth more than the tighter number.
- *
- * `vitest.config.mjs` holds the `corpus` project's `testTimeout` to the same figure for the same reason, and the two
- * are a pair: a reading of the table above that moves one wants the other.
- */
-const CONTENDED_CAPTURE_TIMEOUT = 120_000;
 
 /** Every capture committed beside this file, which is the two tables and nothing else. */
 const CORPUS = [...FIXTURES.map((f) => f.file), ...NEGATIVE];
@@ -1109,18 +1100,18 @@ beforeAll(() => {
  * none of it, the whole-corpus tests at the end having waited on everything already; a `-t` run against one cheap test
  * pays several captures for nothing.
  *
- * The timeout is given here rather than as a `hookTimeout` in `vitest.config.mjs`, which would hold every hook in both
- * projects to it to cover this one. Vitest's own default is 10s, which this failed outright.
+ * That wait is longer than the 10s Vitest allows a hook by default, which this failed outright. What it gets instead is
+ * the `corpus` project's `hookTimeout` in `vitest.config.mjs`, that project being this file alone.
  */
 afterAll(async () => {
   abandoned = true;
 
   await Promise.all(workers);
-}, CONTENDED_CAPTURE_TIMEOUT);
+});
 
 /**
- * What the tests that read the whole corpus in one body are given, where `CONTENDED_CAPTURE_TIMEOUT` above covers
- * everything else in this file — one capture rather than 49.
+ * What the tests that read the whole corpus in one body are given, where the `corpus` project's own `testTimeout`
+ * covers everything else in this file — one capture rather than 49.
  *
  * They need it because a body that waits on all 49 captures waits on the whole corpus, which `READ_AHEAD` paces at
  * about 65s however the rest of the file is filtered: `-t 'which captures the CP is read off'` on its own has the pool
