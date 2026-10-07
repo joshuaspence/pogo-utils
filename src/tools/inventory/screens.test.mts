@@ -999,6 +999,15 @@ const NEGATIVE = [
 const WHOLE_CORPUS_TIMEOUT = 600_000;
 
 /**
+ * Every PNG committed beside this file, which is what the two tests below check the corpus against. One list rather
+ * than two, so a change to what counts as a capture cannot leave them covering different sets and each reporting that
+ * the half it can see is accounted for.
+ */
+const COMMITTED = readdirSync(new URL('fixtures', import.meta.url))
+  .filter((file) => file.endsWith('.png'))
+  .sort();
+
+/**
  * That every committed capture is accounted for, which is the one thing about this corpus no row can say. A PNG added
  * to `fixtures/` and left out of `FIXTURES` costs nothing and reports nothing — the suite goes on passing at whatever
  * size it was, and the capture sits in the tree looking exactly like a capture that is pinned. So the directory is the
@@ -1006,11 +1015,7 @@ const WHOLE_CORPUS_TIMEOUT = 600_000;
  * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
-  const committed = readdirSync(new URL('fixtures', import.meta.url))
-    .filter((file) => file.endsWith('.png'))
-    .sort();
-
-  expect(committed).toStrictEqual([...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
+  expect(COMMITTED).toStrictEqual([...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
 });
 
 /**
@@ -1037,10 +1042,10 @@ const SCREEN_RATIO = 2.5;
  * Sizes rather than names in the failure, because the name is what already looked right.
  */
 test('every committed capture is one screen rather than a stitch', () => {
-  const stitched = readdirSync(new URL('fixtures', import.meta.url))
-    .filter((file) => file.endsWith('.png'))
-    .sort()
-    .map((file) => ({ file, image: decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))) }))
+  const stitched = COMMITTED.map((file) => ({
+    file,
+    image: decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))),
+  }))
     .filter(({ image }) => image.height > image.width * SCREEN_RATIO)
     .map(({ file, image }) => `${file} is ${image.width}x${image.height}`);
 
