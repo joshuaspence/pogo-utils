@@ -39,6 +39,7 @@ test('the default hidden set is the recurring types and three standing states', 
     'Choose Your Path',
     'GO Battle League',
     'GO Pass',
+    'Twitch Drops',
   ]);
 });
 
