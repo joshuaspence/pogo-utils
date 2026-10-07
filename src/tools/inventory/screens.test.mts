@@ -302,6 +302,12 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1966,
+    defects: {
+      cp: 1951,
+      iv: { attack: 10, defense: 4, stamina: 13 },
+      levels: [20],
+      notes: ['the screen reads CP 1966, where this form at this level is 1951'],
+    },
     favourite: true,
     file: 'articuno-galar.png',
     form: 'Galarian',
@@ -340,6 +346,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 206,
+    defects: { notes: ['the overlay reads as level 4 or 45 or 5, none of which this HP can be'] },
     file: 'burmy-plant.png',
     form: 'Plant',
     gender: 'male',
@@ -390,6 +397,11 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 832,
+    defects: {
+      alternatives: ['Quaxwell', 'Finizen', 'Castform (Rainy)', 'Basculin (Red Striped)'],
+      cp: 1512,
+      label: 'Inteleon',
+    },
     file: 'castform-rainy.png',
     form: 'Rainy',
     gender: 'male',
@@ -416,6 +428,9 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 979,
+    defects: {
+      notes: ['the overlay reads as level 2 or 27 or 7 or 1 or 11 or 10, none of which this HP can be'],
+    },
     file: 'castform-sunny.png',
     form: 'Sunny',
     gender: 'female',
@@ -441,19 +456,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1605,
-    defects: {
-      alternatives: ['Fletchinder', 'Oricorio (Baile)'],
-      cp: 1670,
-      iv: { attack: 5, defense: 4, stamina: 4 },
-      label: 'Ho-Oh',
-      levels: [16.5],
-      nickname: 'Charizard',
-      notes: [
-        'the numbers do not fit any form of Charizard; searched every species',
-        'could also be Fletchinder, Oricorio (Baile)',
-        'the screen reads CP 605, where this form at this level is 1670',
-      ],
-    },
+    defects: { notes: ['the overlay reads as level 5 or 8, none of which this HP can be'] },
     file: 'charizard-gigantamax.png',
     form: null,
     gender: 'male',
@@ -492,6 +495,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1441,
+    defects: { notes: ['the overlay reads as level 9 or 1, none of which this HP can be'] },
     file: 'deoxys-attack.png',
     form: 'Attack',
     gender: null,
@@ -516,7 +520,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1772,
-    defects: { alternatives: ['Deoxys (Speed)', 'Deoxys (Attack)', 'Deoxys (Defense)'] },
     file: 'deoxys-normal.png',
     form: '',
     gender: null,
@@ -554,12 +557,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2845,
-    defects: {
-      alternatives: ['Dialga (Origin)'],
-      cp: 2809,
-      label: 'Dialga',
-      notes: ['could also be Dialga (Origin)', 'the screen reads CP 284, where this form at this level is 2809'],
-    },
     file: 'dialga-origin.png',
     form: 'Origin',
     gender: null,
@@ -600,7 +597,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2738,
-    defects: { name: 'LUCKY POKEMON', nickname: 'LUCKY POKEMON' },
     favourite: true,
     file: 'ho-oh.png',
     form: null,
@@ -732,6 +728,15 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 813,
+    defects: {
+      cp: 765,
+      iv: { attack: 3, defense: 13, stamina: 3 },
+      levels: [11.5],
+      notes: [
+        'the overlay reads as level 1 or 12 or 2, none of which this HP can be',
+        'the screen reads CP 813, where this form at this level is 765',
+      ],
+    },
     file: 'rotom-wash.png',
     form: 'Wash',
     gender: null,
@@ -1282,13 +1287,13 @@ test('every committed screen is one screen rather than a stitch', () => {
  * exhaustive — every capture is on one side of `SCREEN_RATIO` or the other, and which side it is allowed to be on is
  * its name.
  *
- * One is not: `eevee-background-scrolled.png` is a stitch of a single frame, which `stitch` answers as a copy of that
- * frame. The scroll was refused rather than the capture mis-taken — `offsetBetween` scores every shift and takes none
- * where the best does not stand out, and against a photographic backdrop drifting between frames it stands out nowhere.
- * The screen beside it is a sound capture and its row passes; what is missing is only the tall view. Pinned as the one
- * rather than excused, because a second capture joining it says the refusal is not particular to that backdrop.
+ * All of them are, which is worth stating because one was not. `eevee-background.png`'s scroll was refused twice over —
+ * `offsetBetween` scores every shift and takes none where the best does not stand out, and a photographic backdrop
+ * drifting between frames stands out nowhere — so its companion came back a copy of the single frame it had. The capture
+ * taken once `scrollFrames` was handed the screen already in hand assembled three frames, so the backdrop was never the
+ * whole of it. Asserted empty rather than deleted, a capture joining the list being the refusal coming back.
  */
-test('every stitch is taller than the screen beside it, bar the one whose scroll was refused', () => {
+test('every stitch is taller than the screen beside it', () => {
   const copies = STITCHES.flatMap((file) => {
     const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
     const width = bytes.readUInt32BE(16);
@@ -1297,9 +1302,7 @@ test('every stitch is taller than the screen beside it, bar the one whose scroll
     return height > width * SCREEN_RATIO ? [] : [`${file} is ${width}x${height}`];
   });
 
-  expect(copies, 'which stitches assembled nothing has changed').toStrictEqual([
-    'eevee-background-scrolled.png is 1008x2244',
-  ]);
+  expect(copies, 'a stitch assembled nothing, so its scroll was refused').toStrictEqual([]);
 });
 
 /**
@@ -1407,16 +1410,16 @@ test(
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 38,
+  answeredAsThemselves: 39,
   oneLevel: 43,
-  crossCheckAgrees: 41,
-  crossCheckDisagrees: 2,
+  crossCheckAgrees: 40,
+  crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 33,
+  noDefects: 30,
   noOverlayDrawn: 0,
   boxNotFound: 0,
-  overlayNotRead: 1,
+  overlayNotRead: 2,
 };
 
 test('the corpus is the shape the docblock says it is', () => {
@@ -1480,7 +1483,7 @@ test('the vended game master is the shape the readers are asserted against', () 
  * lost off one end of the number to the artwork behind it.
  */
 test(
-  'which captures the CP is read off, and which three of them it reads wrongly',
+  'which captures the CP is read off, and which one of them it reads wrongly',
   async () => {
     const states = new Map<string, number>();
 
@@ -1497,14 +1500,14 @@ test(
       'basculin-blue.png': 253,
       'burmy-plant.png': 206,
       'burmy-sandy.png': 196,
-      'castform-rainy.png': 832,
-      'castform-snowy.png': 746,
-      'charizard-gigantamax.png': 605,
+      'charizard-gigantamax.png': 1605,
+      'cherrim-overcast.png': 1025,
+      'cherrim-sunshine.png': 1658,
       'deoxys-attack.png': 1441,
       'deoxys-defense.png': 1569,
       'deoxys-speed.png': 2009,
       'dialga-altered.png': 2848,
-      'dialga-origin.png': 284,
+      'dialga-origin.png': 2845,
       'growlithe-nickname.png': 38,
       'meowth-alola.png': 431,
       'pikachu-ash-hat.png': 489,
@@ -1512,8 +1515,9 @@ test(
       'pikachu-witch-hat.png': 625,
       'pikachu.png': 69,
       'rotom-wash.png': 813,
+      'smoliv.png': 340,
       'unown-b.png': 487,
-      'unown-m.png': 839,
+      'unown-exclamation.png': 517,
       'unown-question.png': 486,
       'xurkitree.png': 2197,
     });
@@ -1521,15 +1525,17 @@ test(
     // And which of them it reads *wrongly*, derived from the map rather than listed again — a row already states what
     // the screen shows, so a disagreement is a filter and not a second list to keep in step.
     //
-    // Three, and all three the same shape: the leading digit is lost and the rest reads cleanly — 605 for 1605, 284 for
-    // 2845, 38 for 738. The band rescue in `wholeCp` is what recovers such a line elsewhere, and on these it does not,
-    // so each of the three carries a `defects.notes` entry reporting the `cps` candidate the arithmetic rejected. That
-    // is the loss worth stating: the unanchored read is handed over as candidates precisely because it is unreliable,
-    // and a leading digit is the digit that costs the most.
+    // One, and the same shape the other two were before the corpus was taken again: the leading digit is lost and the
+    // rest reads cleanly, `38` for 738. The band rescue in `wholeCp` recovers such a line elsewhere and on this one it
+    // does not, so the row carries a `defects.notes` entry reporting the `cps` candidate the arithmetic rejected.
+    //
+    // It was three, on captures that now read whole — which is the figure worth keeping an eye on rather than the
+    // explanation: the same reader over a different photograph of the same screen is right twice more often, so what
+    // this pins is a property of the captures as much as of `wholeCp`.
     expect(
       FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
       'which captures misread their CP has changed',
-    ).toStrictEqual(['charizard-gigantamax.png', 'dialga-origin.png', 'growlithe-nickname.png']);
+    ).toStrictEqual(['growlithe-nickname.png']);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -1594,12 +1600,15 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  *
  * The first is that some capture offers a level **above** its true one, which is what an HP test admitting any HP at or
  * above the one read needs in order to be caught: against `articuno-kanto.png`'s `[2, 20, 8]`, whose largest member is
- * already the answer, such a break cannot move anything. `applin.png` offers `51` for a level 15, and 23 of the 42 do
+ * already the answer, such a break cannot move anything. `applin.png` offers `51` for a level 15, and 23 of the 43 do
  * the same.
  *
  * The second is that some capture's shortlist does **not** contain its true level, which is what says the HP is the
- * arbiter rather than a tie-breaker: `spoink.png` offers `1` alone for a Pokémon at level 7, the only capture that
- * does. Without it, a `levelsOf` that merely filtered the stated list would pass every assertion here.
+ * arbiter rather than a tie-breaker. Five do: `spoink.png` offers `1` alone for a Pokémon at level 7,
+ * `burmy-plant.png` `[4, 45, 5]` for 15, `castform-sunny.png` `[2, 27, 7, 1, 11, 10]` for 21,
+ * `charizard-gigantamax.png` `[5, 8]` for 20 and `deoxys-attack.png` `[9, 1]` for 20 — each one a `defects.notes`
+ * entry reporting the disagreement. Without any of them, a `levelsOf` that merely filtered the stated list would pass
+ * every assertion here.
  */
 test(
   'the shortlists the overlay states both overshoot a true level and miss one',
@@ -1612,7 +1621,7 @@ test(
     }
 
     const offered = FIXTURES.filter((f) => f.overlay !== null && stated.get(f.file)?.length);
-    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(42);
+    expect(offered.length, 'how many overlays are read has changed, so these two properties say less').toBe(43);
     assert.ok(
       offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
       'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
@@ -1668,17 +1677,9 @@ test('without the level the overlay states, the CP still settles one', async () 
   const { detail, overlay, artwork } = await readingOf('cherrim-sunshine.png');
   assert.ok(overlay, 'the fixture has lost its overlay');
 
-  const fixture = FIXTURES.find((f) => f.file === 'cherrim-sunshine.png');
-  assert.ok(fixture, 'the capture a printed CP settles a half-level on has left the corpus');
+  const identity = identify(DATA, detail, { ...overlay, levels: [] }, artwork);
 
-  // The row's CP rather than the one OCR reads, because this capture no longer states one it can read — the same
-  // substitution `xurkitree.png`'s test makes below, and for the same reason: a row says what the screen prints where
-  // `detail.cp` says what Tesseract got off it, and what is under test is the arithmetic settling a level from the
-  // printed CP. A capture whose CP line will not read cannot reach that arithmetic at all, so without this the test
-  // would report the OCR rather than the thing it exists for.
-  const identity = identify(DATA, { ...detail, cp: fixture.cp }, { ...overlay, levels: [] }, artwork);
-
-  expect(detail.cp, 'the capture reads its own CP again, so this can go back to the read one').toBe(null);
+  expect(detail.cp, 'the capture has lost the CP this settles the level by').toBe(1658);
   expect(identity.levels).toStrictEqual([31]);
   expect(identity.cp).toBe(1658);
   expect(identity.notes, 'the readers disagree with each other').toStrictEqual([]);
@@ -1791,7 +1792,7 @@ test(
     }
 
     expect(decoys, 'which captures read a loose measurement in the status bar has changed').toStrictEqual([
-      'castform-snowy.png',
+      'ho-oh.png',
     ]);
   },
   WHOLE_CORPUS_TIMEOUT,
@@ -1961,13 +1962,12 @@ test('a species read off the Pokédex leaves the nickname alone', async () => {
 
   expect(identity.form && label(identity.form)).toBe('Ho-Oh');
 
-  // Against what the same capture answers *without* the override rather than against `96%`, which is the nickname the
-  // screen prints and the one the name pass no longer reads — `ho-oh.png`'s row pins that as `defects.nickname`, the
-  // green `LUCKY POKÉMON` under the nickname being taken for the name. The claim here is the override leaving the
-  // nickname untouched, so stating it as invariance keeps this passing once the misread is fixed, where a `96%` written
-  // out would have to be remembered at the same moment.
+  // Against what the same capture answers *without* the override rather than against `96%` directly, which is the claim
+  // worth making: the override leaves the nickname alone, whatever the name pass made of it. Stated as invariance it
+  // survived the name pass starting to read this screen correctly — it used to answer `LUCKY POKEMON`, the green line
+  // under the nickname taken for the name, and a `96%` written out here would have been a second thing to remember.
   expect(identity.nickname, 'the dex override swallowed the nickname the screen prints').toBe(without.nickname);
-  expect(without.nickname, 'what `ho-oh.png` reads as its nickname has changed').toBe('LUCKY POKEMON');
+  expect(without.nickname, 'what `ho-oh.png` reads as its nickname has changed').toBe('96%');
   expect(identity.notes, 'the Pokédex and the numbers agree, so there is nothing to report').toStrictEqual([]);
 });
 
@@ -2005,7 +2005,7 @@ test(
       'castform-rainy.png': { fast: 'Tackle', charged: ['Thunder'] },
       'castform-snowy.png': { fast: 'Powder Snow', charged: ['Blizzard'] },
       'castform-sunny.png': { fast: 'Tackle', charged: ['Fire Blast'] },
-      'chansey-dynamax.png': { fast: 'Pound', charged: ['Psychic'] },
+      'chansey-dynamax.png': { fast: 'Pound', charged: [] },
       'charizard-gigantamax.png': { fast: null, charged: [] },
       'cherrim-overcast.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
       'cherrim-sunshine.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
@@ -2017,7 +2017,7 @@ test(
       'dialga-origin.png': { fast: 'Dragon Breath', charged: ['Iron Head'] },
       'eevee-background.png': { fast: 'Tackle', charged: ['Swift'] },
       'growlithe-nickname.png': { fast: 'Ember', charged: ['Flamethrower'] },
-      'ho-oh.png': { fast: 'Extrasensory', charged: [] },
+      'ho-oh.png': { fast: 'Extrasensory', charged: ['Brave Bird'] },
       'meloetta-aria.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
       'meowth-alola.png': { fast: 'Scratch', charged: ['Foul Play'] },
       'meowth-galar.png': { fast: 'Metal Sound', charged: ['Trailblaze'] },
@@ -2028,14 +2028,14 @@ test(
       'pikachu-ash-hat.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
       'pikachu-santa-hat.png': { fast: 'Present', charged: [] },
       'pikachu-willows-assistant.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
-      'pikachu-witch-hat.png': { fast: 'Quick Attack', charged: ['Discharge'] },
+      'pikachu-witch-hat.png': { fast: 'Quick Attack', charged: [] },
       'pikachu.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
       'rotom-wash.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
       'smoliv.png': { fast: 'Tackle', charged: ['Energy Ball'] },
-      'snorlax-purified.png': { fast: 'Lick', charged: ['Return'] },
+      'snorlax-purified.png': { fast: 'Lick', charged: [] },
       'spinda-04.png': { fast: 'Sucker Punch', charged: ['Icy Wind'] },
       'spoink.png': { fast: 'Splash', charged: ['Psybeam'] },
-      'unown-b.png': { fast: 'Hidden Power', charged: [] },
+      'unown-b.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'unown-exclamation.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'unown-m.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'unown-question.png': { fast: 'Hidden Power', charged: ['Struggle'] },
@@ -2059,17 +2059,17 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * that gained one answer and lost another cannot come out even, and one that answered wrong fails it as surely as one
  * that answered nothing.
  *
- * Two of the five are answered and three are declined, which is both halves rather than one: `MARGIN` mattering is now
- * something this would notice, where on the captures it was written against every one was answered and the margin could
- * have been 0 unremarked.
+ * Three of the five are answered and two are declined, which is both halves rather than one: `MARGIN` mattering is now
+ * something this would notice, where on the captures it was first written against every one was answered and the margin
+ * could have been 0 unremarked.
  *
- * The three that decline are the Burmy cloaks, and the decline is the match's own doing rather than stale data here —
- * `ARTWORK` holds signatures of the game's icons, which no capture can move, so what changed is the signature the
- * capture yields. Their rows carry `defects.label` saying what `identify` then answers: `Burmy (Plant)` for all three,
- * the fold's first cloak, with nothing beside it saying that was a choice.
+ * The two that decline are the Sandy and Trash cloaks, and the decline is the match's own doing rather than stale data
+ * here — `ARTWORK` holds signatures of the game's icons, which no capture can move, so what changed is the signature the
+ * capture yields. Their rows carry `defects.label` saying what `identify` then answers: `Burmy (Plant)` for both, the
+ * fold's first cloak, with nothing beside it saying that was a choice.
  */
 test(
-  'the artwork settles two of five forms the numbers cannot, and declines three',
+  'the artwork settles three of five forms the numbers cannot, and declines two',
   async () => {
     const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
@@ -2102,7 +2102,7 @@ test(
     }
 
     expect(Object.fromEntries(answers)).toStrictEqual({
-      'burmy-plant.png': 'declined',
+      'burmy-plant.png': 'Burmy (Plant)',
       'burmy-sandy.png': 'declined',
       'burmy-trash.png': 'declined',
       'cherrim-overcast.png': 'Cherrim (Overcast)',
@@ -2354,7 +2354,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'name', 'nickname', 'notes', 'size']);
+  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'notes', 'size']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
