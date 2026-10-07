@@ -1046,7 +1046,7 @@ const SCREEN_RATIO = 2.35;
  * was wrong. The size is the cheapest thing on a capture to check and the only one that separates the two artifacts, so
  * it is checked here rather than left to surface as a reader disagreeing somewhere else.
  *
- * Sizes rather than names in the failure, because the name is what already looked right.
+ * The failure names the size beside the file, because the name is the part that already looked right.
  */
 test('every committed capture is one screen rather than a stitch', () => {
   const stitched = COMMITTED.flatMap((file) => {
