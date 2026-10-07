@@ -423,6 +423,41 @@ test('a cached file that will not decode is reported against its own URL, and no
 });
 
 /**
+ * The listing that parses and is still no good, which is the stale directory's failure arriving by another route: every
+ * name it carries resolves, so a reader that takes it answers confidently about the forms it happens to name and says
+ * nothing at all about the ones it dropped.
+ *
+ * Seeded with the pair's own icons and both their names, which is what makes this two-sided rather than an assertion
+ * that nothing happened. The same cache without `truncated` is the test above it — the index resolves both forms, the
+ * family is drawn and the count prints — so `Reading 2 form icons` going missing is the refusal, and the warning in its
+ * place is where the refusal says so. Reverting the guard prints the count and no warning, which is the mutation.
+ *
+ * `--verbose` because the count is behind it and the absence has to be of a line the run would otherwise have reached.
+ * The warning is not: a listing that cannot be used is reported whether or not progress was asked for.
+ */
+test('a listing that says it is truncated is refused rather than half read', async () => {
+  const cwd = reads(AMBIGUOUS, ['pm327.f00.icon.png', 'pm327.f01.icon.png']);
+  const index = join(cwd, '.cache', 'inventory', ICON_CACHE);
+  const tree = ['pm327.f00.icon.png', 'pm327.f01.icon.png'].map((path) => ({ path }));
+
+  writeFileSync(index, JSON.stringify({ tree, truncated: true }));
+
+  try {
+    const { stderr } = await run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd });
+    const [warning, ...rest] = stderr.split('\n').filter((line) => line.includes('narrowed by its artwork'));
+
+    expect(rest, 'the icon index was reported more than once, so the line below is one of several').toStrictEqual([]);
+    expect(warning).toMatch(/^ {2}https:\/\/\S+: the listing is truncated, .+; no form is narrowed by its artwork$/);
+    expect(stderr, 'the truncated listing was read, so some of the artwork was taken for all of it').not.toContain(
+      'Reading 2 form icons',
+    );
+    expect(existsSync(index), 'the truncated copy was left to be read again for the week').toBe(false);
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+/**
  * The other half of that preamble, which the test above cannot reach. `AMBIGUOUS` on its own leaves both Spinda
  * forms short of an icon, so the family lands in `short` rather than `drawn`, `drawn.length` is 0 and `Reading N form
  * icons` is never printed at all — measured by reverting that one line to `console.error`, which left the whole suite
