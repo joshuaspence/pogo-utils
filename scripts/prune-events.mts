@@ -33,19 +33,26 @@ if (gone.size === 0) {
 
 const kept = events.filter((event) => !gone.has(event.eventID));
 
-// Written the way `scripts/vend-feed.mts` writes its copy, for the same reason: it is already what `prettier` would.
-writeFileSync(LOCAL_EVENTS, `${JSON.stringify(kept, null, 2)}\n`);
-console.log(`${LOCAL_EVENTS}: removed ${[...gone].join(', ')}`);
-
-for (const { fileName, contents } of gpxSources()) {
+/**
+ * Every GPX edit computed before anything is written, which is what makes the run all-or-nothing. The two writes have
+ * to agree — `validate-gpx.mts` refuses a reference whose event is gone — so writing `data/events.json` first and then
+ * throwing in here left exactly the tree the build rejects, under a log line that said `removed …` as though it had
+ * worked. CI discarded that, the failed step running before the commit; whoever ran `pnpm prune:events` by hand, which
+ * the README documents, was left holding it.
+ */
+const edits = gpxSources().flatMap(({ fileName, contents }) => {
   const cut = eventRefs(parseGpx(contents))
     .filter(({ eventID }) => gone.has(eventID))
     .map(({ element }) => element);
 
-  if (cut.length === 0) {
-    continue;
-  }
+  return cut.length === 0 ? [] : [{ cut: cut.length, fileName, pruned: cutElements(contents, cut) }];
+});
 
-  writeFileSync(fileName, cutElements(contents, cut));
-  console.log(`${fileName}: removed ${cut.length} <pgr:event> naming an event that has ended`);
+// Written the way `scripts/vend-feed.mts` writes its copy, for the same reason: it is already what `prettier` would.
+writeFileSync(LOCAL_EVENTS, `${JSON.stringify(kept, null, 2)}\n`);
+console.log(`${LOCAL_EVENTS}: removed ${[...gone].join(', ')}`);
+
+for (const { cut, fileName, pruned } of edits) {
+  writeFileSync(fileName, pruned);
+  console.log(`${fileName}: removed ${cut} <pgr:event> naming an event that has ended`);
 }

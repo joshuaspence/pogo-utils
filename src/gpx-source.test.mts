@@ -9,6 +9,11 @@
  * siblings, whitespace around the ID, CRLF endings and a prefix other than `pgr`. None is in `data/` today, which is
  * exactly why they are written out here rather than read from it — a corpus test can only pin the one shape the corpus
  * happens to be in, and the corpus case at the end says what that shape is.
+ *
+ * The cases that refuse are the other half, and they matter more than the ones that cut. A span that over-runs deletes
+ * whatever followed it, the file can still parse afterwards, and the Prune workflow commits that to `master` with
+ * nobody watching — so every shape this cannot read for certain has to throw, and each of those shapes is pinned here
+ * as a throw rather than left to a reader's judgement.
  */
 
 import { cutElements, eventRefs, gpxSources, parseGpx } from './gpx-source.mts';
@@ -96,6 +101,60 @@ test('two references in one file are both cut, the earlier not having moved the 
 
   expect(idsIn(before)).toEqual(['a-2026', 'b-2026']);
   expect(cutAll(before)).toBe(gpx('  <wpt>\n  </wpt>'));
+});
+
+test('an end tag written with whitespace is cut, not skipped for the next element’s', () => {
+  /*
+   * Whitespace before the `>` of an end tag is legal (production 42), and `indexOf('</pgr:event>')` does not match it.
+   * It matched the *second* reference's end tag instead, so the first span ran 60 characters past its element, the two
+   * spans overlapped, and `<pgr:country>Australia</pgr:country>` came out as `ountry>` — still well-formed XML, so
+   * nothing downstream was obliged to notice.
+   */
+  const country = '<pgr:country>Australia</pgr:country>';
+  const before = gpx(`  <wpt><pgr:event>a-2026</pgr:event >\n    <pgr:event>b-2026</pgr:event>${country}</wpt>`);
+
+  expect(idsIn(before)).toEqual(['a-2026', 'b-2026']);
+  expect(cutAll(before)).toBe(gpx(`  <wpt>\n    ${country}</wpt>`));
+});
+
+test('a comment carrying the literal end tag is refused rather than cut around', () => {
+  // The other shape that beat the literal search, and the one there is no right answer for: the element's extent is
+  // readable but what the old search matched was inside a comment, so the cut ran past the element and left `-->`
+  // behind. Nothing in `data/` writes a comment inside a `<pgr:event>`, and a throw is what says so out loud.
+  const before = gpx('  <wpt><pgr:event>a-2026<!-- </pgr:event> --></pgr:event></wpt>');
+
+  expect(() => cutAll(before)).toThrow(/not by its own end tag/);
+});
+
+test('a bare carriage return counts as the line terminator XML says it is', () => {
+  /*
+   * XML ends a line with `\n`, `\r\n` or a lone `\r` alike (production 2.11) and the parser counts all three, where
+   * `split('\n')` saw only two: the reported `lineNumber` ran one ahead of the reconstruction and the offset landed
+   * somewhere else entirely. That threw rather than mangling, but incidentally — the literal end-tag search happened to
+   * find nothing at the wrong offset — and the message named a line the file does not have. `startOfLine` counts the
+   * same three now, so the cut simply lands, and the start-tag check is what would refuse if the two ever disagreed.
+   */
+  const before = gpx('  <wpt>\r    <name>A</name>\n    <pgr:event>a-2026</pgr:event>\n  </wpt>');
+
+  expect(idsIn(before)).toEqual(['a-2026']);
+  expect(cutAll(before)).toBe(gpx('  <wpt>\r    <name>A</name>\n  </wpt>'));
+});
+
+test('a position that does not hold a start tag is refused rather than cut at', () => {
+  // The guard behind the one above, reached directly: nothing the corpus contains makes the parser and `startOfLine`
+  // disagree today, so this hands `cutElements` an element from a *different* document to stand in for that. Without
+  // the start-tag check the span would be computed from whatever happened to sit at the offset.
+  const before = gpx('  <wpt><pgr:event>a-2026</pgr:event></wpt>');
+  const elsewhere = eventRefs(
+    parseGpx(gpx('  <wpt>\n    <name>A</name>\n    <pgr:event>a-2026</pgr:event>\n  </wpt>')),
+  );
+
+  expect(() =>
+    cutElements(
+      before,
+      elsewhere.map(({ element }) => element),
+    ),
+  ).toThrow(/where the parser put it/);
 });
 
 test('cutting every reference in the corpus removes whole lines and touches nothing else', () => {

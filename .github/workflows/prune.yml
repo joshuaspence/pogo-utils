@@ -47,6 +47,10 @@ jobs:
           commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
           commit_message: 'Remove ended events'
 
+          # A git pathspec, not a path: `*.gpx` matches at any depth, so this covers whatever `git ls-files` hands the
+          # script without widening to every dirty file in the tree.
+          file_pattern: 'data/events.json *.gpx'
+
       # As in `vend.yml`: a commit made with the default `GITHUB_TOKEN` raises no `push` event, so `pages.yml` would not
       # fire on its own.
       - name: 'Deploy'

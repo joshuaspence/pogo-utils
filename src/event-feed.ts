@@ -58,7 +58,19 @@ export function ended({ end }: Pick<FeedEvent, 'end'>, now: Date) {
     return false;
   }
 
-  return Date.parse(HAS_ZONE.test(end) ? end : `${end}-12:00`) < now.getTime();
+  const over = Date.parse(HAS_ZONE.test(end) ? end : `${end}-12:00`);
+
+  /**
+   * An unreadable `end` is refused rather than read as "not over", which is what a `NaN` compares as and would keep
+   * the entry for good with nothing to say why. A date with no time reaches this: `"end": "2026-12-31"` is the natural
+   * thing to hand-write for an all-day event, carries no zone, and `2026-12-31-12:00` is not a datetime `Date.parse`
+   * will take — where `${end}Z` happened to parse it as midnight, which was the wrong end of the day anyway.
+   */
+  if (Number.isNaN(over)) {
+    throw new Error(`end "${end}" is not a datetime — expected one like "2026-12-31T23:59:59.000" or "…Z"`);
+  }
+
+  return over < now.getTime();
 }
 
 /**

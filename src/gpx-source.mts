@@ -77,13 +77,10 @@ export function cutElements(contents: string, elements: readonly Element[]) {
 
 /**
  * The half-open range of `contents` that `element` occupies, widened to the whole line where nothing else shares one.
- * That widening is what makes the cut independent of how the file is written: an element inline among others loses only
- * itself, one on its own line loses the line, and a `\r` sits inside the span either way.
  *
- * `lineNumber` and `columnNumber` are 1-based and point at the `<` of the start tag. The end is found by searching for
- * the literal closing tag, which cannot be confused with content because a `<` in XML text is an error — it has to be
- * written `&lt;`. A self-closing element has no closing tag to find and throws rather than cutting the wrong range; one
- * is unreachable from the pruner, whose every element holds an `eventID`, and a failed run beats a mangled file.
+ * Every step here refuses rather than guesses, because the failure it is guarding is silent: a span that over-runs
+ * deletes whatever followed, the result can still be well-formed XML, and this is committed to `master` unattended. A
+ * failed run beats a mangled file.
  */
 function spanOf(contents: string, element: Element): [number, number] {
   const { lineNumber, columnNumber, tagName } = element;
@@ -94,19 +91,102 @@ function spanOf(contents: string, element: Element): [number, number] {
     throw new Error(`<${tagName}> was parsed without a position, so there is nothing to cut`);
   }
 
-  // `split` with a limit keeps the first `lineNumber - 1` lines, whose lengths plus their newlines are the offset of
-  // this one. A `\r` stays on the end of the preceding line, so a CRLF file counts the same as an LF one.
-  const start = contents.split('\n', lineNumber - 1).reduce((n, line) => n + line.length + 1, 0) + columnNumber - 1;
-  const close = contents.indexOf(`</${tagName}>`, start);
+  const lineStart = startOfLine(contents, lineNumber);
+  const start = (lineStart ?? 0) + columnNumber - 1;
 
-  if (close === -1) {
-    throw new Error(`<${tagName}> at ${lineNumber}:${columnNumber} has no closing tag, so its end cannot be found`);
+  /**
+   * That the start tag really is at the offset reconstructed for it. The parser reports a line and a column, not an
+   * offset, so this file has to count line terminators the way the parser counted them — and a disagreement about what
+   * ends a line would otherwise put the cut somewhere else in the file entirely. This is the only thing standing
+   * between such a disagreement and a silent splice through unrelated content.
+   */
+  if (lineStart === null || !contents.startsWith(`<${tagName}`, start)) {
+    throw new Error(`<${tagName}> is not at ${lineNumber}:${columnNumber} where the parser put it — refusing to cut`);
   }
 
-  const end = close + `</${tagName}>`.length;
-  const lineStart = contents.lastIndexOf('\n', start) + 1;
-  const lineEnd = contents.indexOf('\n', end);
-  const alone = !contents.slice(lineStart, start).trim() && lineEnd !== -1 && !contents.slice(end, lineEnd).trim();
+  return wholeLine(contents, start, endOf(contents, tagName, start));
+}
 
-  return alone ? [lineStart, lineEnd + 1] : [start, end];
+/**
+ * The offset line `lineNumber` starts at, 1-based, or `null` where the file has no such line. XML ends a line with
+ * `\n`, `\r\n` or a bare `\r` alike (production 2.11), where `split('\n')` sees only the first two — and the parser
+ * reporting positions here counts all three.
+ */
+function startOfLine(contents: string, lineNumber: number) {
+  const breaks = /\r\n|[\n\r]/g;
+  let offset = 0;
+
+  for (let line = 1; line < lineNumber; line++) {
+    const next = breaks.exec(contents);
+
+    if (next === null) {
+      return null;
+    }
+
+    offset = next.index + next[0].length;
+  }
+
+  return offset;
+}
+
+/**
+ * The offset just past `tagName`'s own end tag, given the `start` of its start tag.
+ *
+ * Found from the element's own extent rather than by searching the file for the literal `</tagName>`, which `indexOf`
+ * would answer with the *first* occurrence anywhere after `start` — not necessarily this element's. Two shapes reach
+ * that: whitespace is legal before the `>` of an end tag (production 42), so `</pgr:event >` is this element's end and
+ * the literal is not, and a comment child may carry the literal itself. Either way the span runs past the element into
+ * whatever follows, two such spans overlap, and the result can still be well-formed — a `<pgr:country>` spliced down to
+ * `ountry>` with nothing downstream obliged to notice.
+ *
+ * A `<` cannot appear in text or in an attribute value, so the first one after the start tag opens this element's end
+ * tag, a child element, a comment or CDATA. Only the end tag is an extent this can read; the rest throw.
+ */
+function endOf(contents: string, tagName: string, start: number) {
+  const startTagEnd = contents.indexOf('>', start);
+
+  if (startTagEnd === -1) {
+    throw new Error(`<${tagName}> has an unterminated start tag — refusing to cut`);
+  }
+
+  // `<x/>` holds nothing and ends where its start tag does.
+  if (contents[startTagEnd - 1] === '/') {
+    return startTagEnd + 1;
+  }
+
+  const close = contents.indexOf('<', startTagEnd + 1);
+  const endTag = close === -1 ? null : /^<\/([^\s/>]+)[ \t\r\n]*>/.exec(contents.slice(close));
+
+  if (endTag === null || endTag[1] !== tagName) {
+    const found = close === -1 ? 'the end of the file' : JSON.stringify(contents.slice(close, close + 24));
+
+    throw new Error(`<${tagName}> is followed by ${found}, not by its own end tag — refusing to cut`);
+  }
+
+  return close + endTag[0].length;
+}
+
+/**
+ * `[start, end)` widened to the whole line where only whitespace shares it, so the cut leaves behind neither a blank
+ * line nor one of trailing spaces — nothing formats these files afterwards. An element inline among siblings keeps its
+ * line and loses only itself, which is the case a whole-line cut would get wrong by taking a `<pgr:country>` with it.
+ */
+function wholeLine(contents: string, start: number, end: number): [number, number] {
+  let from = start;
+  let to = end;
+
+  while (from > 0 && (contents[from - 1] === ' ' || contents[from - 1] === '\t')) {
+    from--;
+  }
+
+  while (contents[to] === ' ' || contents[to] === '\t') {
+    to++;
+  }
+
+  // Against the three terminators rather than `\n`, for the reason `startOfLine` counts them: on a CRLF file the `\r`
+  // has to fall inside the span, not survive as a line of its own.
+  const opensLine = from === 0 || contents[from - 1] === '\n' || contents[from - 1] === '\r';
+  const closesLine = /^(?:\r\n|[\n\r])/.exec(contents.slice(to));
+
+  return opensLine && closesLine ? [from, to + closesLine[0].length] : [start, end];
 }

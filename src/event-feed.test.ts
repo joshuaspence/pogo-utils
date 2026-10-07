@@ -195,6 +195,21 @@ test('an event with no announced end has not ended', () => {
   expect(ended({ end: null }, new Date('2099-01-01T00:00:00.000Z'))).toBe(false);
 });
 
+test('an end that is a date with no time is refused rather than read as not over', () => {
+  /*
+   * The case that separates "no end announced" from "an end this cannot read", which a `NaN` would have merged: both
+   * compare as not over, and `data/events.json` is hand-written, so `"end": "2026-12-31"` for an all-day event would
+   * have sat in the list permanently with nothing to say why the daily prune never touched it.
+   *
+   * It carries no zone, so it is read as naive — and `Date.parse('2026-12-31-12:00')` is `NaN`, where the `${end}Z`
+   * this replaced parsed it as midnight, which is the wrong end of the day in any case.
+   */
+  expect(() => ended({ end: '2026-12-31' }, new Date('2099-01-01T00:00:00.000Z'))).toThrow(/not a datetime/);
+
+  // Not a blanket refusal of anything short: a full naive datetime is the feed's own shape and still reads.
+  expect(ended({ end: '2026-12-31T23:59:59.000' }, new Date('2099-01-01T00:00:00.000Z'))).toBe(true);
+});
+
 /** Long after every `end` below, so what each case turns on is the lists rather than the clock. */
 const AFTER = new Date('2099-01-01T00:00:00.000Z');
 
