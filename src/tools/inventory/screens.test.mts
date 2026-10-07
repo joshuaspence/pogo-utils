@@ -1791,22 +1791,30 @@ test('no family the artwork narrows has two forms sharing an icon', () => {
 });
 
 /**
- * Which families the artwork cannot reach, named rather than counted, because `ICON_DIR` once pointed at a directory
+ * Which families are short of an icon, named rather than counted, because `ICON_DIR` once pointed at a directory
  * `pogo_assets` had stopped filling and nothing could tell: its listing answered `truncated: false` over 3,522 valid
  * `pm{dex}.f{FORM}.icon.png` names, every form resolved against it as before, and Mimikyu, Cramorant and Squawkabilly
- * simply went unnarrowed for a year. A stale index fails open twice over — the assertions above pass on any listing
- * that is neither empty nor total, and `vend-game-master.mts` refuses only the listing that resolves *nothing*.
+ * were short of every one of their icons for a year. A stale index fails open twice over — the assertions above pass on
+ * any listing that is neither empty nor total, and `vend-game-master.mts` refuses only the one that resolves *nothing*.
  *
  * So the names are the assertion. Each is a family the game draws no full set of artwork for, and the reason differs
  * per entry: the three beasts carry an `_S` form the game never shows, `AR_PHOTO_FEATURE_FLAGS` excluding it beside
  * `VENUSAUR_COPY_2019`; Spinda has nine of twenty patterns released and nine icons; Scatterbug and Spewpa are drawn
  * without their pattern, only Vivillon showing it; Minior and Magearna have no art anywhere in `pogo_assets`.
  *
+ * **A full set is what the artwork needs, not what it is given.** `drawn` means every member has a file, which is the
+ * precondition `identify` checks before consulting the artwork at all — it is not a claim that the family can be told
+ * apart. Running each of the 162 live icons against its own family through `nearest` at `MARGIN`, the best query a
+ * capture could ever be, only **15 of the 44** families identify every member: Mimikyu answers 0 of 2 with its icons
+ * 0.1139 apart, Cramorant 1 of 3 at 0.0912, Squawkabilly 2 of 4 at 0.0578, and eight families — Latias, Latios,
+ * Maushold, Poltchageist, Rockruff, Sinistcha and both Zygarde groups — hold two icons whose signatures are identical.
+ * So this test pins which families never reach the margin, and says nothing about which clear it.
+ *
  * Expect it to move when upstream publishes art or the game master releases a form, and read either as the vend being
- * reviewed rather than as the suite breaking. A name **arriving** is the case worth stopping on: it says a family that
- * was narrowable no longer is, which is what going stale looked like.
+ * reviewed rather than as the suite breaking. A name **arriving** is the case worth stopping on: it says a family lost
+ * an icon it had, which is what going stale looked like.
  */
-test('the families the artwork cannot narrow are the ones upstream draws no full set for', () => {
+test('the families short of an icon are the ones upstream draws no full set for', () => {
   const { short } = ambiguous(DATA);
 
   expect(
