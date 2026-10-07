@@ -86,8 +86,8 @@
     "heading": "GO Battle League",
     "link": "https://leekduck.com/events/gbl-twilight-trails_master-league_mega-color-cup-great-league-edition/",
     "image": "https://cdn.leekduck.com/assets/img/events/gobattleleague-master-key.jpg",
-    "start": "2026-09-29T20:00:00.000Z",
-    "end": "2026-10-06T20:00:00.000Z"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "gbl-twilight-trails_master-league_mega-halloween-cup-great-league-edition",
@@ -146,8 +146,8 @@
     "heading": "GO Pass",
     "link": "https://leekduck.com/events/go-pass-september-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-09-08-go-pass-september-2026/go-pass-september-2026.jpg",
-    "start": "2026-09-08T10:00:00.000",
-    "end": "2026-10-06T10:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "halloween-2026-part-1",
