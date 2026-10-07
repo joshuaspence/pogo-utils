@@ -1176,21 +1176,22 @@ export default function EventsPage({ query: fragment }: { query: string }) {
          * The handle that discloses the filters, on a row of its own at the foot of the panel. `aria-expanded` carries the
          * state and the title says which way a click goes, so the label stays neutral in both of them and the ellipsis
          * only has to say there is more here; it is a real character rather than CSS content so it survives the stylesheet
-         * not loading, and is hidden from the accessibility tree because the label already names it.
+         * not loading, and needs no `aria-hidden` because `aria-label` already replaces the contents in the accessible
+         * name. The wrapper gives the handle its row — see `.disclose-row` for why that is not the button's job.
          */}
-        <button
-          type="button"
-          class="disclose"
-          aria-controls="filters"
-          aria-expanded={filtersOpen}
-          aria-label="Filters"
-          title={`${filtersOpen ? 'Hide' : 'Show'} filters`}
-          onClick={() => setFiltersOpen(!filtersOpen)}
-        >
-          <span class="dots" aria-hidden="true">
+        <div class="disclose-row">
+          <button
+            type="button"
+            class="disclose"
+            aria-controls="filters"
+            aria-expanded={filtersOpen}
+            aria-label="Filters"
+            title={`${filtersOpen ? 'Hide' : 'Show'} filters`}
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
             …
-          </span>
-        </button>
+          </button>
+        </div>
       </section>
 
       {/*
