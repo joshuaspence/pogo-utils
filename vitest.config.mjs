@@ -4,17 +4,16 @@ import { defaultExclude, defineConfig } from 'vitest/config';
 const CORPUS = '**/screens.test.mts';
 
 /**
- * What anything that waits on one screenshot being read gets, which is the slowest thing in the suite by a long way and
- * the only reason either timeout below is not the default. A hook gets it as well as a test because `screens.test.mts`
- * tears its read-ahead pool down by waiting on the reads already in flight, a read not being abortable once Tesseract
- * has it.
+ * What a `corpus` test gets instead of the 60s below, because a test there waits on one screenshot being read and that
+ * read competes with the others the file keeps in flight — 30.3s for the costliest capture on four cores against 8.4s
+ * read on its own. `CONTENDED_CAPTURE_TIMEOUT` in `screens.test.mts` is the same figure and carries the measurements
+ * behind it; the two are a pair.
  */
-const CAPTURE_TIMEOUT = 60_000;
+const CORPUS_TIMEOUT = 120_000;
 
 const shared = {
   dir: 'src',
-  testTimeout: CAPTURE_TIMEOUT,
-  hookTimeout: CAPTURE_TIMEOUT,
+  testTimeout: 60_000,
 };
 
 export default defineConfig({
@@ -31,6 +30,7 @@ export default defineConfig({
           ...shared,
           name: 'corpus',
           include: [CORPUS],
+          testTimeout: CORPUS_TIMEOUT,
         },
       },
       {
