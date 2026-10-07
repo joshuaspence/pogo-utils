@@ -1806,9 +1806,9 @@ test('no family the artwork narrows has two forms sharing an icon', () => {
  * precondition `identify` checks before consulting the artwork at all — it is not a claim that the family can be told
  * apart. Running each of the 162 live icons against its own family through `nearest` at `MARGIN`, the best query a
  * capture could ever be, only **15 of the 44** families identify every member: Mimikyu answers 0 of 2 with its icons
- * 0.1139 apart, Cramorant 1 of 3 at 0.0912, Squawkabilly 2 of 4 at 0.0578, and eight families — Latias, Latios,
- * Maushold, Poltchageist, Rockruff, Sinistcha and both Zygarde groups — hold two icons whose signatures are identical.
- * So this test pins which families never reach the margin, and says nothing about which clear it.
+ * 0.1139 apart, Cramorant 1 of 3 at 0.0912 and Squawkabilly 2 of 4 at 0.0578. Latias, Latios, Maushold, Poltchageist,
+ * Rockruff, Sinistcha and the two Zygarde groups do worse still, holding two icons whose signatures are identical —
+ * none of them a family this test names, which lists the ones with no full set rather than the ones the margin defeats.
  *
  * Expect it to move when upstream publishes art or the game master releases a form, and read either as the vend being
  * reviewed rather than as the suite breaking. A name **arriving** is the case worth stopping on: it says a family lost
@@ -1819,7 +1819,7 @@ test('the families short of an icon are the ones upstream draws no full set for'
 
   expect(
     short.map((family) => `${family[0]?.species} (${family.length})`),
-    'a name arriving means a family stopped being narrowable; re-vend and update both or neither',
+    'a name arriving means a family lost an icon it had; re-vend and update both or neither',
   ).toStrictEqual([
     'Raikou (2)',
     'Entei (2)',
