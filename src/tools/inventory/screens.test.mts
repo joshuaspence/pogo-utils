@@ -102,6 +102,7 @@ import { identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
 import { dexOn } from './pokedex.mts';
 import { parseMoves, type Moves } from './moves.mts';
+import { SCREEN_BAND } from './stitch.mts';
 
 /**
  * The game master, vended beside the captures rather than downloaded: `pnpm vend:game-master` writes what a real
@@ -1217,8 +1218,8 @@ test('every committed capture is either a row or a negative case', () => {
  * capture of a Pokémon nothing here states — the stitch carries no row of its own, so there is nothing else to catch
  * it.
  *
- * Only one direction: a screen needs no companion. The six negatives have none, `snap` refusing to scroll a screen
- * PGSharp's overlay cannot vouch for, and five detail screens have none either, those being the captures still waiting
+ * Only one direction: a screen needs no companion. The three negatives have none, `snap` refusing to scroll a screen
+ * PGSharp's overlay cannot vouch for, and three detail screens have none either, those being the captures still waiting
  * for the right Pokémon to be found — a companion of the Pokémon that was found instead would sit beside a screen of a
  * different one, which is worse than no companion at all.
  */
@@ -1336,30 +1337,67 @@ const keywordsIn = (file: string): string[] => {
 };
 
 /**
- * That no committed stitch carries the `Viewport` its writer now records, **which is a gap rather than a rule.** The 38
- * companions were captured before `snap` wrote the chunk, so the first reader of `Viewport` would find nothing to read
- * on any capture in this repository, and the invariant the writer exists to create — that a stitch's first frame is the
- * screen committed beside it — holds for no pair here either. Retaking them on a phone is what closes both.
+ * That every stitch carries the `Viewport` its writer records, and holds the screen beside it down to the scrolling
+ * band's foot. This replaces the gap that stood here: the companions were captured before `snap` wrote the chunk, so
+ * nothing in the repository could exercise a reader of it, and that was pinned as an empty list until a retake closed
+ * it. The retake has happened, and this is the stronger claim it asked for.
  *
- * Pinned rather than left to prose because a reader written against the chunk would otherwise be developed against a
- * corpus that cannot exercise it, and pass. This going red is the signal that the retake has happened and that the
- * stronger claim — every stitch carrying a `Viewport`, and matching its screen down to the band's foot — can replace
- * it.
+ * Both halves are one test because they are one property. `stitch` keeps every row above the band's foot from its first
+ * frame verbatim, so a stitch whose first frame *is* the screen written beside it contains that screen — and a reader
+ * handed the stitch can crop to the `Viewport` and see pixel for pixel what the screen reader sees. Measured across the
+ * forty: every field of every reader agrees on the crop and on the screen.
  *
- * The screens are asserted too, and for a reason that will outlive the gap: `snap` writes the chunk on the stitch
- * alone, the screen's own `IHDR` height already being that number, so a `Viewport` appearing on a screen is a writer
+ * It did not hold before, and the reason is worth keeping: `snap` photographed the same screen twice, seconds apart,
+ * and the two differed over about half their rows — the artwork animates, the clock ticks and PGSharp redraws its
+ * overlay. One of forty held by luck. `scrollFrames` taking the screenshot already in hand is what made it forty.
+ *
+ * The screens are asserted to carry no `Viewport`, and for a reason that outlives the gap: `snap` writes the chunk on
+ * the stitch alone, the screen's own `IHDR` height already being that number, so a `Viewport` on a screen is a writer
  * that has started saying something twice.
  */
-test('no committed capture carries a `Viewport`, the stitches not yet having been retaken', () => {
-  const carrying = (files: readonly string[]) => files.filter((file) => keywordsIn(file).includes('Viewport'));
+test(
+  'every stitch carries a `Viewport` and holds the screen beside it',
+  () => {
+    const faults: string[] = [];
 
-  expect(
-    carrying(STITCHES),
-    'a stitch carries a `Viewport`, so the retake has begun and these can be held to their screens',
-  ).toStrictEqual([]);
+    for (const file of STITCHES) {
+      const screenFile = `${file.slice(0, -SCROLLED.length)}.png`;
+      const screen = decodePng(readFileSync(new URL(`fixtures/${screenFile}`, import.meta.url)));
+      const stitch = decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
+      const wanted = `${screen.width}x${screen.height}`;
 
-  expect(carrying(SCREENS), 'a screen carries a `Viewport`, which its own height already states').toStrictEqual([]);
-});
+      if (stitch.text?.Viewport !== wanted) {
+        faults.push(`${file} says Viewport ${JSON.stringify(stitch.text?.Viewport ?? null)}, not ${wanted}`);
+        continue;
+      }
+
+      const stride = screen.width * 4;
+      const foot = Math.round(screen.height * SCREEN_BAND.to);
+      let differs = -1;
+
+      for (let y = 0; y < foot && differs < 0; y++) {
+        for (let x = 0; x < stride; x++) {
+          if (screen.data[y * stride + x] !== stitch.data[y * stride + x]) {
+            differs = y;
+            break;
+          }
+        }
+      }
+
+      if (differs >= 0) {
+        faults.push(`${file} differs from its screen at row ${differs} of ${foot}`);
+      }
+    }
+
+    expect(faults).toStrictEqual([]);
+
+    expect(
+      SCREENS.filter((file) => keywordsIn(file).includes('Viewport')),
+      'a screen carries a `Viewport`, which its own height already states',
+    ).toStrictEqual([]);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 /**
  * Every figure this file's own docblock quotes about the shape of the corpus, in one place that fails when one of them
@@ -1743,7 +1781,7 @@ test(
   async () => {
     const decoys: string[] = [];
 
-    for (const file of [...FIXTURES.map((f) => f.file), ...NEGATIVE].sort()) {
+    for (const file of CORPUS.toSorted()) {
       const { image, lines } = await readingOf(file);
       const height = lines.find((line) => /\d+[.,]\d+\s*m\b/i.test(line.text));
       const decoy = lines.find(
