@@ -1,6 +1,6 @@
 /**
- * What `cached` says while downloading, which `cli.test.mts` cannot reach: the cache it seeds is in date, so no run
- * there takes the download path at all.
+ * What `cached` says while downloading, and what it leaves behind — both of which `cli.test.mts` cannot reach: the
+ * cache it seeds is in date, so no run there takes the download path at all.
  *
  * Reached here against a server on the loopback interface, which is hermetic in the way upstream is not and is also the
  * only way to fail a download on demand. A `file:` URL will not stand in for one: Node's `fetch` answers
@@ -12,7 +12,7 @@
  * swept into `progress`, which is what `progress.mts` sets out and nothing else holds.
  */
 
-import { cached } from './game-master.mts';
+import { cached, cachedAs } from './game-master.mts';
 import { showProgress } from './progress.mts';
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
@@ -145,6 +145,40 @@ test('a stale copy read because the download failed names the file, quietly or n
       'the copy from before',
     );
     expect(said).toStrictEqual([`Downloading ${url}`, `  ${url}: 503 Service Unavailable; using the copy from before`]);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+/**
+ * A body that will not decode is not left behind to be read for the week. `cached` writes and renames before it
+ * returns, so a 200 carrying an error page is cached before anything has tried to parse it — and the week's grace
+ * would then read that HTML off disk on every run for seven days, past the `Downloading` line and so without even
+ * saying where it came from, until someone thought to pass `--refresh`.
+ *
+ * Driven as two calls with the server mended between them, which asserts the consequence rather than the mechanism: the
+ * second answers from upstream where it would otherwise answer from the poisoned copy. `cached` guards the sibling case
+ * already, renaming over the file so a write cut short cannot be read back "until the week was out", and a body that
+ * parses no better than a truncated one is the same bad cache arriving by another route.
+ */
+test('a download that will not decode is not left to be read for the week', async () => {
+  const dir = cacheDir();
+  const url = `${base}icons.json`;
+  const parse = (bytes: Buffer): unknown => JSON.parse(String(bytes));
+
+  try {
+    showProgress(false);
+    answer = (response) => response.end('<html>502 Bad Gateway</html>');
+
+    await expect(stderrOf(() => cachedAs(dir, 'icons.json', url, false, parse))).rejects.toThrow(url);
+
+    answer = (response) => response.end('{"tree":[]}');
+
+    const [listing] = await stderrOf(() => cachedAs(dir, 'icons.json', url, false, parse));
+
+    expect(listing, 'the copy that would not decode was read again rather than fetched afresh').toStrictEqual({
+      tree: [],
+    });
   } finally {
     rmSync(dir, { recursive: true });
   }

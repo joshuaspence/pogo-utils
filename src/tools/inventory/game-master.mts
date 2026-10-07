@@ -15,7 +15,7 @@
 
 import { titleise } from '../../pokemon/names.ts';
 import { fold } from './ocr.mts';
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
@@ -433,6 +433,13 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
  * the scan — and a message naming nothing says neither which of the three files nor which of ~153 icons went unread.
  * Prefixing it at the relay instead would say the URL twice over on the commoner path, where `cached` has named it
  * already.
+ *
+ * The copy is dropped rather than kept, because this is the only place that knows it is no good: `cached` would read
+ * it back for the rest of the week, past its own `Downloading` line and so without even saying where the bytes came
+ * from, and a relay that abstains rather than throwing leaves nothing to say why but one indented sentence a run.
+ * That is the same bad cache `cached` already renames over a write cut short to avoid, arriving by another route.
+ * Dropped whether it was downloaded here or read off disk, bytes that do not decode being no more use on a second
+ * reading than a first.
  */
 export async function cachedAs<T>(
   dir: string,
@@ -446,6 +453,8 @@ export async function cachedAs<T>(
   try {
     return decode(bytes);
   } catch (error) {
+    rmSync(join(dir, file), { force: true });
+
     throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
 }

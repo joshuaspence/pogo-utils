@@ -14,7 +14,7 @@
 
 import { encodePng } from './png.mts';
 import { execFile } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -397,11 +397,17 @@ test('the progress preamble is printed only with `--verbose`', async () => {
  * to know: the claim is that the line names the file it is about. `iconsFor`'s icons are the other half of that claim
  * and cannot be reached from here — `ICON_BASE` is upstream, with nowhere to point it — so they rest on the same
  * `cachedAs`, which is what this holds.
+ *
+ * That the copy is gone afterwards is the seeded half of the other claim `cachedAs` makes, and the half
+ * `progress.test.mts` cannot reach: there the bytes that will not decode are ones it downloaded, here ones it only
+ * ever read, and a fix that dropped the file on the write path alone would pass that test and leave this run reading
+ * the same HTML every day for a week.
  */
-test('a cached file that will not decode is reported against its own URL', async () => {
+test('a cached file that will not decode is reported against its own URL, and not kept', async () => {
   const cwd = reads();
+  const index = join(cwd, '.cache', 'inventory', 'icons.json');
 
-  writeFileSync(join(cwd, '.cache', 'inventory', 'icons.json'), '<html>502 Bad Gateway</html>');
+  writeFileSync(index, '<html>502 Bad Gateway</html>');
 
   try {
     const { stderr } = await run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd });
@@ -409,6 +415,7 @@ test('a cached file that will not decode is reported against its own URL', async
 
     expect(rest, 'the icon index was reported more than once, so the line below is one of several').toStrictEqual([]);
     expect(warning).toMatch(/^ {2}https:\/\/\S+: .+; no form is narrowed by its artwork$/);
+    expect(existsSync(index), 'the copy that would not decode was left to be read again for the week').toBe(false);
   } finally {
     rmSync(cwd, { recursive: true });
   }
