@@ -158,54 +158,56 @@ body[data-page='events'] {
   }
 
   /**
-   * The filter disclosure reads as the foot of the panel opening rather than a fifth control beside the four above it, so
-   * it drops everything `.controls button` gives the others — the accent fill, the border, the padding — and takes a row
-   * of its own. `flex: 1 0 100%` is what wins that row: the section is a wrapping flex container, so a full-basis item
-   * lands below whatever the items before it did, at any viewport.
+   * The filter disclosure takes the quieter of the two button treatments in this bar — the border and transparent fill
+   * `.ghost` gives Reset rather than the accent fill behind Refresh — on a row of its own at the foot of the panel.
+   *
+   * The row belongs to the wrapper rather than to the button. `flex: 1 0 100%` is what wins it: the section is a
+   * wrapping flex container, so a full-basis item lands below whatever came before it, at any viewport. But a
+   * full-basis button is as wide as the panel, and a border around 941px reads as a bar or an empty text input rather
+   * than as something to press — so the wrapper takes the width and centres a content-sized button in it, leaving the
+   * clickable box the same box as the border around it.
    */
 
-  .controls .disclose {
+  .controls .disclose-row {
+    display: flex;
     flex: 1 0 100%;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    line-height: 1;
-  }
-
-  .controls .disclose:hover,
-  .controls .disclose:focus-visible {
-    filter: none;
-    color: var(--accent);
+    justify-content: center;
   }
 
   /**
-   * The focus ring is drawn around the glyph rather than the button, because the button is as wide as the panel: the 2px
-   * `var(--track)` outline every other control here takes would hug a 941×15 box and read as an empty text input. It is
-   * still keyed on the button's own `:focus-visible`, so it appears exactly when the button has focus — only the box it
-   * encloses is smaller than the target.
+   * Declared against `.disclose` rather than by adding `ghost` to its class list, which would say the same three
+   * declarations in one word: `.controls button.ghost:hover` carries a type selector this cannot, so it would outrank
+   * anything keyed on `.disclose` and hold the hover colour at `--text` where the handle wants `--accent`.
+   *
+   * The glyph has no ascender above the baseline, so padding that is symmetric centres the line box and leaves the ink
+   * low: measured on the page, the ink starts 10px below the top of the 15px content box and ends 2px above the bottom,
+   * which is 8px of imbalance at any equal padding. Hence the 8px between 3px over and 11px under, which measures 14px
+   * of the border box above the ink and 14px below. It reads lopsided in the declaration for the reason it has to be.
+   *
+   * `font-size` is the 15px the glyph carried before this was a button, which the 13px `.controls button` sets would
+   * otherwise shrink.
    */
 
-  .controls .disclose:focus-visible {
-    outline: none;
-  }
-
-  .controls .disclose:focus-visible .dots {
-    outline: 2px solid var(--track);
-    outline-offset: 3px;
-    border-radius: 4px;
+  .controls .disclose {
+    padding: 3px 18px 11px;
+    border-color: var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1;
   }
 
   /**
    * The same ellipsis in both states, since it has no orientation to turn over the way a chevron would — what says the
-   * row is open is the row being there, and for anyone who cannot see that, `aria-expanded` and the title. `inline-block`
-   * is for the ring above: an inline box draws its outline around the font's own metrics rather than around the 15px the
-   * rest of the handle is, which measures 17px tall against the ellipsis's 15.
+   * row is open is the row being there, and for anyone who cannot see that, `aria-expanded` and the title. So hover and
+   * focus are the only states that move, and they move the border with the text to keep the two reading as one control.
    */
 
-  .controls .disclose .dots {
-    display: inline-block;
-    font-size: 15px;
+  .controls .disclose:hover,
+  .controls .disclose:focus-visible {
+    filter: none;
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   /**
