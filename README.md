@@ -32,10 +32,14 @@ than kept here, so serving the repository root gets a page with no stylesheet an
 
 ```sh
 pnpm install
-pnpm build
-python3 -m http.server --directory dist
+pnpm serve
 # then open http://localhost:8000/#/map
 ```
+
+`pnpm serve` rebuilds `dist/` before serving it, so what loads is never a stale build, and it refuses a missing one
+rather than serving a page of 404s. The server is esbuild's own, already a dependency for the bundle, so there is
+nothing further to install — and it prints a LAN address alongside the local one, which is what a phone on the same
+network needs to reach the page it would be installed from.
 
 Static hosting cannot list a directory, so the viewer is handed the paths in
 [`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it
