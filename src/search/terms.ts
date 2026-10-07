@@ -32,6 +32,13 @@
  * `optimise.js` folds those into the one span that covers them — `1-905` for the first eight, against the `!906-1025`
  * that the complement of a term set would write. Declaring the fact twice would only let the weaker reduction win it.
  *
+ * A term's `covers` names the terms it is the union of, which `background` is of the two backdrops and nothing else
+ * here is. It is one term's relation to two others rather than a shape of the group, and it costs that group the
+ * exclusivity above into the bargain: `background` overlaps both the terms it covers, so
+ * `background&!locationbackground` is the Event backdrops and a search a reader would want. `optimise.js` writes the
+ * union in place of the whole of what it covers on whichever side of the clause they were picked, so
+ * `locationbackground,specialbackground` goes out as `background` — ten characters rather than thirty-six.
+ *
  * A group's `hue` tints its chips, so which group a selected chip came from reads at a glance once a dozen of them are
  * on. They are hues rather than the palette's tokens because these are categories of the page's own, unrelated to what
  * --track or --city mean elsewhere; theme.css owns the colours that carry meaning across pages.
@@ -47,6 +54,7 @@ export interface Term {
   id: string;
   term: string;
   label: string;
+  covers?: readonly string[];
 }
 
 export interface Group {
@@ -226,9 +234,10 @@ export const GROUPS: readonly Group[] = [
       /**
        * `background` is the union of the two above, so as an inclusion it says nothing picking both does not. It earns
        * its chip on the other side: ruling it out is one clause where refusing both is two, and a search string has a
-       * reader typing it on a phone.
+       * reader typing it on a phone. `covers` is that union said to `optimise.js`, which writes this in place of both
+       * on whichever side they were picked — so the chip saves those characters for the reader who did click twice.
        */
-      { id: 'background', term: 'background', label: 'Any' },
+      { id: 'background', term: 'background', label: 'Any', covers: ['locationbackground', 'specialbackground'] },
     ],
   },
   {

@@ -15,7 +15,7 @@ import { expect, test } from 'vitest';
 import POKEMON from '../pokemon/pokedex.js';
 import { GENERATIONS } from '../pokemon/generations.js';
 import { GROUPS, RANGES } from './terms.js';
-import { compose, emptyState, type Bounds, type State } from './query.js';
+import { compose, emptyState, groupClause, type Bounds, type State } from './query.js';
 import { optimise } from './optimise.js';
 
 /** A state as the builder would have it, with only the parts a test is about spelled out. */
@@ -344,6 +344,83 @@ test('a group whose every term is refused keeps them, rather than writing the cl
   // Nothing has no star rating, so this matches nothing — and an empty allowed set written as an empty clause would
   // turn it into the search that matches everything, the same trap the empty intersection of two spans is kept from.
   expect(compose(optimise(chosen).state).query).toBe('!0*&!1*&!2*&!3*&!4*');
+});
+
+test('a union term covers terms of its own group, and is named more briefly than all of them', () => {
+  const unions = GROUPS.flatMap((entry) => entry.terms.filter((term) => term.covers).map((term) => ({ entry, term })));
+
+  expect(unions.map(({ term }) => term.id)).toEqual(['background']);
+
+  for (const { entry, term } of unions) {
+    const ids = entry.terms.map((other) => other.id);
+
+    // `covers` names ids, a spelling nothing else in the table checks: an id naming no term of the group would read as
+    // a term nobody picked, so the swap would go quiet rather than wrong and nothing would say which id had rotted.
+    expect(term.covers?.filter((id) => ids.includes(id) && id !== term.id)).toEqual(term.covers);
+
+    // `shortUnion` swaps whenever every covered term is there and does not weigh the two spellings, so that the swap
+    // shortens anything is this table's to keep rather than its own. Asked of the writer that composes both, and of
+    // the inclusions alone: negating each of them adds a character apiece, so that side follows by a wider margin.
+    const union = groupClause(entry, { include: new Set([term.id]), exclude: new Set() }) ?? '';
+    const spread = groupClause(entry, { include: new Set(term.covers), exclude: new Set() }) ?? '';
+
+    expect([union, union.length < spread.length]).toEqual(['background', true]);
+  }
+});
+
+test('a union term is the shorter way to write the whole of what it covers, on either side', () => {
+  const [location, special, any] = group('background').terms;
+
+  expect([location?.term, special?.term, any?.term, any?.covers]).toEqual([
+    'locationbackground',
+    'specialbackground',
+    'background',
+    ['locationbackground', 'specialbackground'],
+  ]);
+
+  const both = state({ include: new Set(['locationbackground', 'specialbackground']) });
+
+  expect(compose(both).query).toBe('locationbackground,specialbackground');
+  expect(compose(optimise(both).state).query).toBe('background');
+
+  const neither = state({ exclude: new Set(['locationbackground', 'specialbackground']) });
+
+  expect(compose(neither).query).toBe('!locationbackground&!specialbackground');
+  expect(compose(optimise(neither).state).query).toBe('!background');
+});
+
+test('one of the terms a union covers is not the union, however much shorter that is', () => {
+  // `background` is eight characters shorter and a broader search, which is the one direction a reduction must never
+  // take. The swap waits for every term the union covers rather than taking the first of them.
+  const one = state({ include: new Set(['locationbackground']) });
+
+  expect(compose(optimise(one).state).query).toBe('locationbackground');
+
+  const other = state({ exclude: new Set(['specialbackground']) });
+
+  expect(compose(optimise(other).state).query).toBe('!specialbackground');
+});
+
+test('a term beside the union that covers it says nothing the union has not', () => {
+  const chosen = state({ include: new Set(['background', 'locationbackground']) });
+
+  expect(compose(chosen).query).toBe('locationbackground,background');
+  expect(compose(optimise(chosen).state).query).toBe('background');
+});
+
+test('a union term read off the side it was picked on leaves the other side alone', () => {
+  // Either backdrop is a backdrop, so the union covering one of them does not reach across the `&`. These two are the
+  // searches that would be destroyed by a rule that read both sides at once: the Event backdrops, and the nothing at
+  // all that a Location backdrop with no backdrop is.
+  const event = state({ include: new Set(['background']), exclude: new Set(['locationbackground']) });
+
+  expect(compose(event).query).toBe('background&!locationbackground');
+  expect(compose(optimise(event).state).query).toBe('background&!locationbackground');
+
+  const nothing = state({ include: new Set(['locationbackground']), exclude: new Set(['background']) });
+
+  expect(compose(nothing).query).toBe('locationbackground&!background');
+  expect(compose(optimise(nothing).state).query).toBe('locationbackground&!background');
 });
 
 test('an exhaustive group that is not also exclusive reduces only as a whole', () => {
