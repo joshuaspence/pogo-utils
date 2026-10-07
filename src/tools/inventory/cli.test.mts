@@ -366,3 +366,33 @@ test('the progress preamble is printed only with `--verbose`', async () => {
     rmSync(cwd, { recursive: true });
   }
 });
+
+/**
+ * The one warning no `Downloading` line can lend a subject to. `cached` reads the status and not the body, so a 200
+ * carrying an error page is cached and fails in the decode past it, after the download that fetched it has finished
+ * printing — and this line is written as a continuation, two spaces and no subject of its own.
+ *
+ * Seeded rather than served, which is what makes it hermetic: the week's grace reads the file without a word, and bytes
+ * that will not parse do so whether they arrived over the network or not. It is also the whole of the path, the index
+ * being an improvement rather than a prerequisite — the run goes on to answer with no artwork narrowing anything.
+ *
+ * Matched as *a* URL rather than as the index's own, which `game-master.mts` does not export and this should not have
+ * to know: the claim is that the line names the file it is about. `iconsFor`'s icons are the other half of that claim
+ * and cannot be reached from here — `ICON_BASE` is upstream, with nowhere to point it — so they rest on the same
+ * `cachedAs`, which is what this holds.
+ */
+test('a cached file that will not decode is reported against its own URL', async () => {
+  const cwd = reads();
+
+  writeFileSync(join(cwd, '.cache', 'inventory', 'icons.json'), '<html>502 Bad Gateway</html>');
+
+  try {
+    const { stderr } = await run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd });
+    const [warning, ...rest] = stderr.split('\n').filter((line) => line.includes('narrowed by its artwork'));
+
+    expect(rest, 'the icon index was reported more than once, so the line below is one of several').toStrictEqual([]);
+    expect(warning).toMatch(/^ {2}https:\/\/\S+: .+; no form is narrowed by its artwork$/);
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});

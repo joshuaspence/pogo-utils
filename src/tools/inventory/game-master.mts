@@ -423,6 +423,33 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
   return bytes;
 }
 
+/**
+ * A download read into whatever it holds, with the URL named whichever step failed. `cached` puts it on everything it
+ * throws, and the decode past it has to do the same: `response.ok` passes a 200 carrying an error page in place of JSON
+ * or a PNG, so the bytes that will not decode are the ones already cached and the download that fetched them is over.
+ *
+ * Named here rather than at the two callers, because they are the ones that cannot. Each relays a failure as a
+ * two-space continuation rather than a crash — an icon index that could not be read costs the artwork narrowing and not
+ * the scan — and a message naming nothing says neither which of the three files nor which of ~153 icons went unread.
+ * Prefixing it at the relay instead would say the URL twice over on the commoner path, where `cached` has named it
+ * already.
+ */
+export async function cachedAs<T>(
+  dir: string,
+  file: string,
+  url: string,
+  refresh: boolean,
+  decode: (bytes: Buffer) => T,
+): Promise<T> {
+  const bytes = await cached(dir, file, url, refresh);
+
+  try {
+    return decode(bytes);
+  } catch (error) {
+    throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+}
+
 async function cachedJson(dir: string, file: string, url: string, refresh: boolean): Promise<unknown> {
-  return JSON.parse(String(await cached(dir, file, url, refresh)));
+  return cachedAs(dir, file, url, refresh, (bytes) => JSON.parse(String(bytes)));
 }
