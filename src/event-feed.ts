@@ -1,12 +1,13 @@
 /**
- * What the event feed *is*, for the three parts that read it: where it comes from, where it is kept, what is kept of
- * it, how to tell one of its times from the other, and how a route count is written out.
+ * What the event feed *is*, for the four parts that read it: where it comes from, where it is kept, what is kept of it,
+ * how to tell one of its times from the other, when one of its events is over and how a route count is written out.
  *
  * `scripts/vend-feed.mts` copies the upstream list into `VENDED_EVENTS`; `src/events.ts` merges that copy with this
  * repository's own list live in the browser and `scripts/build-ics.mts` does the same merge ahead of time, because a
- * calendar app fetches a URL and cannot run the page's JavaScript. Three consumers of one feed, so these belong in the
- * shared project for the reason `recurring-types.ts` gives: one spelling is what stops the page and the feed drifting
- * into disagreeing. `routeSummary` had been kept in step by hand, which is a comment where this is a check.
+ * calendar app fetches a URL and cannot run the page's JavaScript; `scripts/prune-events.mts` drops the entries of that
+ * own list which `prunable` says are over. Four consumers of one feed, so these belong in the shared project for the
+ * reason `recurring-types.ts` gives: one spelling is what stops the page and the feed drifting into disagreeing.
+ * `routeSummary` had been kept in step by hand, which is a comment where this is a check.
  */
 
 import type { FeedEvent, RouteCounts } from './types.js';
@@ -49,15 +50,37 @@ export const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 /**
  * Whether an event is over everywhere by `now`, which is what lets `scripts/prune-events.mts` drop it. A naive end is a
  * wall clock every timezone reaches in turn, so it has passed everywhere only once it has passed at UTC−12, the last
- * zone to get there. An event with no announced end has not ended, however long ago it started.
+ * zone to get there — which is what reading one *as* `-12:00` says, rather than reading it as UTC and adding the twelve
+ * hours back. An event with no announced end has not ended, however long ago it started.
  */
 export function ended({ end }: Pick<FeedEvent, 'end'>, now: Date) {
   if (!end) {
     return false;
   }
 
-  const LAST_ZONE_MS = 12 * 60 * 60 * 1000;
-  return HAS_ZONE.test(end) ? Date.parse(end) < now.getTime() : Date.parse(`${end}Z`) + LAST_ZONE_MS < now.getTime();
+  return Date.parse(HAS_ZONE.test(end) ? end : `${end}-12:00`) < now.getTime();
+}
+
+/**
+ * Which of `local`'s `eventID`s `scripts/prune-events.mts` may drop: the ones that are over everywhere by `now` *and*
+ * that removing would actually remove.
+ *
+ * The second half is the one a reading of `ended` alone gets wrong. `local` *overrides* a feed entry of the same ID
+ * rather than being the only source of one — see `mergeEvents` — so dropping an entry `vended` also carries does not
+ * remove the event, it uncovers upstream's copy. That copy is usually the worse of the two by then: ScrapedDuck joins
+ * an event's dates in from a feed that drops it days before the event list does, so what surfaces is the same event as
+ * an undated card with no route count. Leaving the local entry in place is the only way to keep the better one.
+ */
+export function prunable(
+  local: readonly Pick<FeedEvent, 'end' | 'eventID'>[],
+  vended: readonly Pick<FeedEvent, 'eventID'>[],
+  now: Date,
+) {
+  const carried = new Set(vended.map((event) => event.eventID));
+
+  return new Set(
+    local.filter((event) => ended(event, now) && !carried.has(event.eventID)).map((event) => event.eventID),
+  );
 }
 
 /**

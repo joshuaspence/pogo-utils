@@ -18,17 +18,17 @@
 import COUNTRIES from '../src/countries.ts';
 import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
 import { MIN_TRKPTS, PGR_FIELDS, PGR_NS } from '../src/gpx-dialect.ts';
+import { eventRefs, gpxSources, parseGpx } from '../src/gpx-source.mts';
 import type { FeedEvent, RouteCounts } from '../src/types.js';
-import { DOMParser, Node, type Document, type Element } from '@xmldom/xmldom';
-import { execFileSync } from 'node:child_process';
+import { Node, type Document, type Element } from '@xmldom/xmldom';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { validateXML } from 'xmllint-wasm';
 
 // `--write` generates the two indexes beside the checks rather than instead of them: what it writes is what passed.
 const writeIndex = process.argv.includes('--write');
 
-const files = execFileSync('git', ['ls-files', '-z', '*.gpx'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-const sources = files.map((fileName) => ({ fileName, contents: readFileSync(fileName, 'utf8') }));
+const sources = gpxSources();
+const files = sources.map(({ fileName }) => fileName);
 const problems: string[] = [];
 
 if (files.length === 0) {
@@ -66,11 +66,7 @@ const PGR_EXPECTED = [...PGR_FIELDS].join(', ').replace(/, (?=[^,]*$)/, ' or ');
 
 const EVENTS: FeedEvent[] = JSON.parse(readFileSync('data/events.json', 'utf8'));
 
-/**
- * The events an entry may point at, by `eventID` (data/events.json). An entry naming an event that is not there is the
- * same silent failure as a country missing from COUNTRIES: nothing downstream reads the field yet, so a typo or an
- * event renamed out from under it would sit in the file unnoticed.
- */
+/** The events a `<pgr:event>` may point at, by `eventID` (data/events.json). Checked against per file below. */
 const EVENT_IDS = new Set(EVENTS.map((event) => event.eventID));
 
 /**
@@ -101,16 +97,26 @@ for (const { fileName, contents } of sources) {
   let doc: Document;
 
   try {
-    doc = new DOMParser({
-      onError: (level, msg) => {
-        if (level === 'fatalError') {
-          throw new Error(msg);
-        }
-      },
-    }).parseFromString(contents, 'application/xml');
+    doc = parseGpx(contents);
   } catch {
     // Not well-formed — the schema pass above has already said so; there is nothing this pass can add.
     continue;
+  }
+
+  /**
+   * Every `<pgr:event>` names an event `data/events.json` still has. Nothing downstream reads the field yet, so a typo
+   * or an event renamed out from under it would otherwise sit in the file unnoticed — the same silent failure as a
+   * country missing from COUNTRIES.
+   *
+   * Read through `eventRefs` rather than out of the field walk below, because `scripts/prune-events.mts` cuts these
+   * elements through the same function. That is what keeps the pruner from leaving behind a reference this check then
+   * refuses, which is a Pages deploy failing on every run until the file is edited by hand. It also reaches a
+   * `<pgr:event>` outside a `<trk>` or `<wpt>`, which the walk below never visits and the pruner would still cut.
+   */
+  for (const { element, eventID } of eventRefs(doc)) {
+    if (eventID && !EVENT_IDS.has(eventID)) {
+      report(fileName, element, `<${element.tagName}> is "${eventID}" — not an eventID in data/events.json`);
+    }
   }
 
   const tracks = Array.from(doc.getElementsByTagName('trk')).map((trk) => ({
@@ -187,8 +193,6 @@ for (const { fileName, contents } of sources) {
         report(fileName, field, `<${field.tagName}> is empty`);
       } else if (name === 'variant' && !VARIANTS.has(text)) {
         report(fileName, field, `<${field.tagName}> is "${text}" — expected short or long`);
-      } else if (name === 'event' && !EVENT_IDS.has(text)) {
-        report(fileName, field, `<${field.tagName}> is "${text}" — not an eventID in data/events.json`);
       } else if (name === 'country' && !Object.hasOwn(COUNTRIES, text)) {
         /**
          * The viewer groups by continent and flags each favourite from this table (src/countries.ts); a country missing

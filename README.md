@@ -132,10 +132,13 @@ blurb, a rehosted image or a reordering upstream is not a diff here. That is wha
 differs, and the run passes without a commit when it does not. An empty list or an event with no `eventID` is refused
 rather than written, an empty list being what a broken scrape looks like.
 
-[`data/events.json`](data/events.json) is pruned instead: the [Prune workflow](.github/workflows/prune.yml) runs
-[`scripts/prune-events.mts`](scripts/prune-events.mts) daily, which removes every event that has ended everywhere — a
-naive end once it has passed at UTC−12 — along with any `<pgr:event>` naming one. An event with no announced end is
-kept.
+[`data/events.json`](data/events.json), this repository's own list, is not replaced wholesale but pruned: the
+[Prune workflow](.github/workflows/prune.yml) runs [`scripts/prune-events.mts`](scripts/prune-events.mts) daily, which
+removes every event that has ended everywhere — a naive end once it has passed at UTC−12 — along with any `<pgr:event>`
+naming one. An event with no announced end is kept, and so is one the feed also carries: that entry overrides the feed's
+rather than being the only copy of it, so removing it would uncover upstream's, which by then is usually the same event
+without its dates. The run re-checks the files with `pnpm lint:xml` before it commits, a reference left behind being one
+the build would refuse on every deploy after it.
 
 ```sh
 pnpm prune:events

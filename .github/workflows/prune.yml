@@ -8,8 +8,8 @@ on:
       - '.github/workflows/prune.yml'
       - 'scripts/prune-events.mts'
       - 'src/event-feed.ts'
+      - 'src/gpx-source.mts'
 
-  # Clear of the Vend workflow's minute, since both push to `master` and neither pulls before it does.
   schedule:
     - cron: '10 0 * * *'
 
@@ -19,8 +19,9 @@ permissions:
   actions: 'write'
   contents: 'write'
 
+# Shared with `vend.yml`: both push to `master` without pulling first, so the second of two at once is rejected.
 concurrency:
-  group: 'prune'
+  group: 'master'
   cancel-in-progress: false
 
 jobs:
@@ -34,13 +35,17 @@ jobs:
           cache: true
       - run: 'pnpm prune:events'
 
+      # `pnpm build` runs this too, so a commit that fails it fails every later deploy rather than this run. Here it
+      # still has somewhere to fail: the commit below never happens.
+      - name: 'Check what was pruned'
+        run: 'pnpm lint:xml'
+
       - name: 'Commit'
         id: 'commit'
         uses: 'stefanzweifel/git-auto-commit-action@v7'
         with:
           commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
           commit_message: 'Remove ended events'
-          file_pattern: 'data/events.json data/*.gpx'
 
       # As in `vend.yml`: a commit made with the default `GITHUB_TOKEN` raises no `push` event, so `pages.yml` would not
       # fire on its own.
