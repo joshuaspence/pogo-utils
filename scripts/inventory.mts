@@ -539,9 +539,10 @@ async function scan() {
     mkdirSync(screens, { recursive: true });
   }
 
-  const keep = (name: string, image: Image) => {
+  // `carry` for the one artifact that needs it: a stitch, whose own height is not the height the phone drew.
+  const keep = (name: string, image: Image, carry: Readonly<Record<string, string>> = {}) => {
     if (screens) {
-      writeFileSync(join(screens, `${name}.png`), encodePng(image));
+      writeFileSync(join(screens, `${name}.png`), encodePng(image, carry));
     }
   };
 
@@ -735,10 +736,12 @@ async function scan() {
         let back: number;
 
         if (options.scroll) {
-          const capture = await scrollFrames(device);
+          // The same two halves `snap` takes: the screenshot already in hand as the first frame, rather than a second
+          // photograph of a screen that has moved on, and the height it was drawn at recorded beside the stitch.
+          const capture = await scrollFrames(device, image);
           scrolled = stitch(capture.frames, capture.offsets, config.scrollBand);
           back = capture.offsets.reduce((a, b) => a + b, 0);
-          keep(`${name}${SCROLLED}`, scrolled);
+          keep(`${name}${SCROLLED}`, scrolled, { Viewport: `${image.width}x${image.height}` });
 
           if (capture.lost) {
             notes.push(`the scroll lost its place after frame ${capture.frames.length}`);
@@ -997,20 +1000,30 @@ interface Capture {
 /**
  * Every frame of the screen from here to its bottom, dragging half the scrolling band at a time — `SCROLL_STEP`, kept
  * within what `offsetBetween` looks for, where the scan's single swipe to the moves is not — and waiting for each frame
- * to settle. Stops on a frame that has not moved, which is what reaching the end looks like; on one that will not line
- * up with the one before, which is left out; or at `SCROLL_FRAMES`, so that a screen which never stops moving is a
- * short capture rather than a scan that does not come back. Every frame it answers is one `stitch` uses.
+ * it takes itself to settle. Stops on a frame that has not moved, which is what reaching the end looks like; on one
+ * that will not line up with the one before, which is left out; or at `SCROLL_FRAMES`, so that a screen which never
+ * stops moving is a short capture rather than a scan that does not come back. Every frame it answers is one `stitch`
+ * uses.
  *
  * It does not scroll back up: `scrollUp` does, by what the offsets sum to, when the caller is ready. The last drag is
  * always one that moved nothing — that being how the end of the screen announces itself — so what it dragged is no part
  * of the way back.
+ *
+ * `taken` stands in for the first frame, so that the stitch holds the screen the caller already has rather than a
+ * second photograph of it: without it the same screen is shot twice, seconds apart, and the two differ over about half
+ * their rows — the artwork animates, the clock ticks and PGSharp redraws its overlay. What it buys is one identity,
+ * `crop(stitch, 0, 0, width, bandFoot)` being that screen row for row, `stitch` taking every row down to the band's
+ * foot from frame 1 verbatim.
+ *
+ * **It is the one frame not waited for, so the caller owes it:** it has to still be what the phone is showing. `snap`
+ * takes its screenshot before `report`, which can spend minutes in `iconsFor` on a cold cache — long enough for the
+ * phone to blank the screen that was set up for it. A stale one does not corrupt the stitch quietly: `offsetBetween`
+ * refuses the pair it cannot line up, so `lost` comes back true, the capture is one frame long and `stitch` answers a
+ * copy of that frame. The caller reports the loss and exits non-zero, and the committed corpus holds such a copy to a
+ * test of its own.
  */
 async function scrollFrames(device: Device, taken?: Image): Promise<Capture> {
   const band = config.scrollBand;
-  // PROTOTYPE: the caller's own screenshot where it has one, so the stitch's first frame *is* the screen written beside
-  // it and the screen is `crop(stitch, 0, 0, width, bandFoot)` — `stitch` keeping every row above the band's foot from
-  // frame 1 verbatim. Without it `snap` photographs the same screen twice, seconds apart, and the two differ over about
-  // half their rows: the artwork animates, the clock ticks and PGSharp redraws its overlay.
   const first = taken ?? (await settled(device));
   const x = first.width / 2;
   const y = (through: number) => first.height * (band.from + (band.to - band.from) * through);
@@ -1240,10 +1253,15 @@ async function snap() {
   const capture = await scrollFrames(device, image);
   const total = capture.offsets.reduce((a, b) => a + b, 0);
   const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
-  // `Viewport` is the one thing a stitch cannot say about itself. Every reader but `parseMoves` is anchored on a
-  // fraction of the image's height, and a stitch's height is as many frames as the screen took — so a reader handed one
-  // needs the height the phone drew, and the file is the only place that travels with it. Written on the stitch alone,
-  // the screen's own height being that number already.
+  // `Viewport` is the one thing a stitch cannot say about itself: its own `IHDR` height is as many frames as the screen
+  // took, so the height the phone drew is unrecoverable from the file, and the file is the only place that travels with
+  // it. Written on the stitch alone, the screen's own height being that number already.
+  //
+  // What it is good for is narrower than it looks, and `stitch`'s layout is why: cropping to this height does not give
+  // the screen back. Rows down to the band's foot are frame 1 verbatim, the rows after it are the next frame's revealed
+  // content, and the screen's own floating buttons were appended at the far end. The crop that *is* the screen stops at
+  // the foot — 1997 rows of 2244 here — and so is still the wrong height for every reader anchored on a fraction of it.
+  // `stitch.test.mts` pins both halves of that.
   write(SCROLLED, stitch(capture.frames, capture.offsets, config.scrollBand), {
     Viewport: `${image.width}x${image.height}`,
   });
