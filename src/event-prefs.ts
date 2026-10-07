@@ -77,7 +77,7 @@ const LEGACY_SETS: readonly (keyof typeof KEYS)[] = ['hiddenTypes', 'dismissed']
  * The three extras stay out of RECURRING_TYPES because that list also says which types the trimmed calendar feed
  * (events.ics) leaves out, and each of these is a dated one-off worth keeping in a subscription.
  */
-export const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle League', 'GO Pass'];
+export const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle League', 'GO Pass', 'Twitch Drops'];
 
 /** The same list as a set, for the per-event lookups isNew() and settleSeen() do over every event on every render. */
 export const RECURRING = new Set(RECURRING_TYPES);
