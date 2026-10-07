@@ -1042,12 +1042,17 @@ const SCREEN_RATIO = 2.5;
  * Sizes rather than names in the failure, because the name is what already looked right.
  */
 test('every committed capture is one screen rather than a stitch', () => {
-  const stitched = COMMITTED.map((file) => ({
-    file,
-    image: decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))),
-  }))
-    .filter(({ image }) => image.height > image.width * SCREEN_RATIO)
-    .map(({ file, image }) => `${file} is ${image.width}x${image.height}`);
+  const stitched = COMMITTED.flatMap((file) => {
+    // Off the PNG header rather than the pixels, which the spec puts at a fixed offset: an 8-byte signature, then an
+    // IHDR chunk whose width and height are the 32-bit fields at 16 and 20. `decodePng` would inflate each capture to
+    // 9 MB of pixels to compare two numbers — 3.4s and 606 MB across the 49, and `.map` before `.filter` holds every
+    // one of them live at once, on top of the decoded corpus `read` is already keeping in the same worker.
+    const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+
+    return height > width * SCREEN_RATIO ? [`${file} is ${width}x${height}`] : [];
+  });
 
   expect(stitched).toStrictEqual([]);
 });
