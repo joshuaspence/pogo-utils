@@ -27,8 +27,9 @@
  */
 
 import { join } from 'node:path';
-import { cached, ICON_BASE, type Form, type GameData } from './game-master.mts';
+import { cachedAs, ICON_BASE, type Form, type GameData } from './game-master.mts';
 import { decodePng, rgb, type Image } from './png.mts';
+import { progress } from './progress.mts';
 
 /** How many hue bins a signature holds. Coarse on purpose: the model is lit and posed, where the icon is flat art. */
 const BINS = 12;
@@ -422,23 +423,28 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
   const signatures = new Map<Form, Signature>();
 
   if (drawn.length > 0) {
-    console.error(`Reading ${drawn.length} form icons`);
+    progress(`Reading ${drawn.length} form icons`);
   }
 
   // Per family and ahead of the download, since the index already said so: a family short of one icon is one the game
   // draws no artwork for, and reporting it per missing form would be the same sentence 72 times a scan.
   if (short.length > 0) {
     const named = short.map((family) => `${family[0]?.species ?? '?'} (${family.length})`);
-    console.error(`  no icon for every form of ${short.length} families, which stay ambiguous: ${named.join(', ')}`);
+    progress(`  no icon for every form of ${short.length} families, which stay ambiguous: ${named.join(', ')}`);
   }
 
   const signatureFor = async (form: Drawn): Promise<Signature | null> => {
     try {
-      return signatureOfIcon(decodePng(await cached(join(dir, 'icons'), form.icon, ICON_BASE + form.icon, refresh)));
+      return await cachedAs(join(dir, 'icons'), form.icon, ICON_BASE + form.icon, refresh, (bytes) =>
+        signatureOfIcon(decodePng(bytes)),
+      );
     } catch (error) {
       // An icon is an improvement rather than a prerequisite, so one that cannot be had costs an abstention and not a
       // scan. That holds as much for a network that is down with nothing cached as for a 404, a truncated download or
       // a page served in place of the image.
+      //
+      // `cachedAs` is what leaves every one of them naming the icon. This line is written as a continuation, and the
+      // batches below keep 16 downloads in flight, so the `Downloading` above it is rarely its own.
       const reason = error instanceof Error ? error.message : String(error);
       console.error(`  ${reason}; forms sharing its numbers stay ambiguous`);
 

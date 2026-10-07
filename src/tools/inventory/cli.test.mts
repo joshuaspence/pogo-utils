@@ -12,8 +12,9 @@
  * readers beside it do.
  */
 
+import { encodePng } from './png.mts';
 import { execFile } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,8 +48,17 @@ const dumpRows = (text: string) => text.split('\n').filter((line) => DUMP.test(l
  *
  * The multipliers themselves are arbitrary values over more levels than the game has, and safe to be both: no assertion
  * here reads a number derived from them, and over-supplying keeps this from pinning the scanner's highest level.
+ *
+ * `extra` is appended to those templates, for the one test below that needs a form to exist at all. It defaults to none
+ * so that every other caller keeps the emptiness the paragraph above turns into an assertion.
+ *
+ * `icons` names what the index holds, and writes each file into the cache beside it. Both halves are load-bearing
+ * and for different reasons: the index is what carries a name onto a form, so it decides whether a family counts as
+ * drawn or as short of its artwork, and the files are what keep a drawn one off the network. Their contents are
+ * arbitrary — a pixel apiece, no assertion here reading a signature — but they have to decode, an icon that does
+ * not being reported.
  */
-function reads(): string {
+function reads(extra: readonly unknown[] = [], icons: readonly string[] = []): string {
   const dir = mkdtempSync(join(tmpdir(), 'inventory-cli-'));
   const cache = join(dir, '.cache', 'inventory');
   const levels = Array.from({ length: 100 }, (_, i) => 0.1 + i / 100);
@@ -56,10 +66,23 @@ function reads(): string {
   mkdirSync(cache, { recursive: true });
   writeFileSync(
     join(cache, 'game-master.json'),
-    JSON.stringify([{ templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: levels } } }]),
+    JSON.stringify([
+      { templateId: 'PLAYER_LEVEL_SETTINGS', data: { playerLevel: { cpMultiplier: levels } } },
+      ...extra,
+    ]),
   );
   writeFileSync(join(cache, 'english.json'), JSON.stringify({ data: [] }));
-  writeFileSync(join(cache, 'icons.json'), JSON.stringify({ tree: [] }));
+  writeFileSync(join(cache, 'icons.json'), JSON.stringify({ tree: icons.map((path) => ({ path })) }));
+
+  if (icons.length > 0) {
+    mkdirSync(join(cache, 'icons'), { recursive: true });
+
+    for (const [at, name] of icons.entries()) {
+      const pixel = Uint8Array.of(at % 2 === 0 ? 255 : 0, 0, at % 2 === 0 ? 0 : 255, 255);
+
+      writeFileSync(join(cache, 'icons', name), encodePng({ width: 1, height: 1, data: pixel }));
+    }
+  }
 
   return dir;
 }
@@ -300,9 +323,127 @@ test('the OCR dump is printed only with `--verbose`', async () => {
       loud.stdout.split('\n').filter((line) => !DUMP.test(line)),
       '`--verbose` changed the report rather than only adding the dump',
     ).toStrictEqual(quiet.stdout.split('\n'));
-    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present.
+    // Nothing was downloaded, which is what says the seeded cache was read rather than merely present. Both runs carry
+    // that claim, `Downloading` being outside the `--verbose` gate: a missing file would name itself either way.
     expect(quiet.stderr).toBe('');
     expect(loud.stderr).toBe('');
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+/**
+ * Two forms the numbers cannot separate, which is the cheapest thing that makes `iconsFor` report at all: one dex, two
+ * non-costume forms identical in types and all three stats, and no icon for either in the empty index.
+ *
+ * That last part is what keeps this hermetic, and is why the pair is short of its icons rather than holding them. A
+ * family short of one can never be narrowed, so it is named ahead of any download and nothing is fetched; a family
+ * the artwork *could* settle would send the run to the network for an icon apiece.
+ */
+const AMBIGUOUS = ['SPINDA_00', 'SPINDA_01'].map((form) => ({
+  templateId: `V0327_POKEMON_${form}`,
+  data: {
+    pokemonSettings: {
+      pokemonId: 'SPINDA',
+      form,
+      type: 'POKEMON_TYPE_NORMAL',
+      stats: { baseAttack: 1, baseDefense: 1, baseStamina: 1 },
+    },
+  },
+}));
+
+/**
+ * The preamble `iconsFor` narrates before it has an answer — the form icons it is about to read, with the families no
+ * artwork settles — is printed only for `--verbose`. That is the whole of what the flag holds back; the downloads print
+ * either way, and `progress.test.mts` is where that is pinned.
+ *
+ * The `--verbose` run is asserted *first*, and on purpose. The cache `reads` seeds is otherwise empty enough that none
+ * of these lines is reached at all, so a quiet assertion standing alone would pass just as well for a gate deleted
+ * outright as for one that works: the test has to show the preamble exists before it can claim the flag holds it back.
+ *
+ * Between them the two assertions also place `showProgress`, which is why no separate test does. Progress is narrated
+ * until that call says otherwise, so one made too late — below `iconsFor` rather than above it — leaves the preamble in
+ * the quiet run, and the second assertion is what sees it.
+ */
+test('the progress preamble is printed only with `--verbose`', async () => {
+  const cwd = reads(AMBIGUOUS);
+
+  try {
+    const [quiet, loud] = await Promise.all([
+      run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd }),
+      run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
+    ]);
+
+    expect(
+      loud.stderr,
+      'the preamble was never reached, so the quiet claim below would hold for no gate at all',
+    ).toContain('Spinda (2)');
+    expect(quiet.stderr, 'the preamble was printed without the flag asking for it').toBe('');
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+/**
+ * The one warning no `Downloading` line can lend a subject to. `cached` reads the status and not the body, so a 200
+ * carrying an error page is cached and fails in the decode past it, after the download that fetched it has finished
+ * printing — and this line is written as a continuation, two spaces and no subject of its own.
+ *
+ * Seeded rather than served, which is what makes it hermetic: the week's grace reads the file without a word, and bytes
+ * that will not parse do so whether they arrived over the network or not. It is also the whole of the path, the index
+ * being an improvement rather than a prerequisite — the run goes on to answer with no artwork narrowing anything.
+ *
+ * Matched as *a* URL rather than as the index's own, which `game-master.mts` does not export and this should not have
+ * to know: the claim is that the line names the file it is about. `iconsFor`'s icons are the other half of that claim
+ * and cannot be reached from here — `ICON_BASE` is upstream, with nowhere to point it — so they rest on the same
+ * `cachedAs`, which is what this holds.
+ *
+ * That the copy is gone afterwards is the seeded half of the other claim `cachedAs` makes, and the half
+ * `progress.test.mts` cannot reach: there the bytes that will not decode are ones it downloaded, here ones it only
+ * ever read, and a fix that dropped the file on the write path alone would pass that test and leave this run reading
+ * the same HTML every day for a week.
+ */
+test('a cached file that will not decode is reported against its own URL, and not kept', async () => {
+  const cwd = reads();
+  const index = join(cwd, '.cache', 'inventory', 'icons.json');
+
+  writeFileSync(index, '<html>502 Bad Gateway</html>');
+
+  try {
+    const { stderr } = await run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd });
+    const [warning, ...rest] = stderr.split('\n').filter((line) => line.includes('narrowed by its artwork'));
+
+    expect(rest, 'the icon index was reported more than once, so the line below is one of several').toStrictEqual([]);
+    expect(warning).toMatch(/^ {2}https:\/\/\S+: .+; no form is narrowed by its artwork$/);
+    expect(existsSync(index), 'the copy that would not decode was left to be read again for the week').toBe(false);
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+/**
+ * The other half of that preamble, which the test above cannot reach. `AMBIGUOUS` on its own leaves both Spinda
+ * forms short of an icon, so the family lands in `short` rather than `drawn`, `drawn.length` is 0 and `Reading N form
+ * icons` is never printed at all — measured by reverting that one line to `console.error`, which left the whole suite
+ * green.
+ *
+ * Giving the index both icons and writing both files is what moves the family across. The week's grace reads them
+ * off disk, so the count prints with nothing fetched, and `short` is empty for the same reason — which is why this
+ * asserts a count where the test above asserts the families, the two lines being gated together and reached apart.
+ */
+test('the icon count in the preamble is printed only with `--verbose`', async () => {
+  const cwd = reads(AMBIGUOUS, ['pm327.f00.icon.png', 'pm327.f01.icon.png']);
+
+  try {
+    const [quiet, loud] = await Promise.all([
+      run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd }),
+      run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
+    ]);
+
+    expect(loud.stderr, 'the pair was not drawn, so the quiet claim below would hold for no gate at all').toContain(
+      'Reading 2 form icons',
+    );
+    expect(quiet.stderr, 'the icon count was printed without the flag asking for it').toBe('');
   } finally {
     rmSync(cwd, { recursive: true });
   }

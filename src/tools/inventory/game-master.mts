@@ -15,7 +15,7 @@
 
 import { titleise } from '../../pokemon/names.ts';
 import { fold } from './ocr.mts';
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
@@ -381,7 +381,11 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
     return readFileSync(path);
   }
 
+  // Ungated, because the week's grace above already gates it: this line is reached only where the copy is missing or
+  // out of date, so it prints on the cold or stale run and never on the warm one `--verbose` was added to quieten. That
+  // is also the run that has minutes of silence to account for, and a flag cannot be added once the wait has started.
   console.error(`Downloading ${url}`);
+
   let bytes: Buffer;
 
   try {
@@ -395,12 +399,17 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
 
     bytes = Buffer.from(await response.arrayBuffer());
   } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    // Naming the URL rather than leaning on the line above it. `iconsFor` keeps 16 downloads in flight, so the
+    // `Downloading` this reads as a continuation of is rarely the line printed before it, and a bare `fetch failed;
+    // using the copy from before` cannot say which of the three files or which of ~153 icons went stale.
     if (existsSync(path)) {
-      console.error(`  ${error instanceof Error ? error.message : String(error)}; using the copy from before`);
+      console.error(`  ${url}: ${reason}; using the copy from before`);
       return readFileSync(path);
     }
 
-    throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    throw new Error(`${url}: ${reason}`, { cause: error });
   }
 
   // Written beside the copy and renamed over it, because the week's grace above trusts any file it finds: one cut short
@@ -414,6 +423,42 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
   return bytes;
 }
 
+/**
+ * A download read into whatever it holds, with the URL named whichever step failed. `cached` puts it on everything it
+ * throws, and the decode past it has to do the same: `response.ok` passes a 200 carrying an error page in place of JSON
+ * or a PNG, so the bytes that will not decode are the ones already cached and the download that fetched them is over.
+ *
+ * Named here rather than at the two callers, because they are the ones that cannot. Each relays a failure as a
+ * two-space continuation rather than a crash — an icon index that could not be read costs the artwork narrowing and not
+ * the scan — and a message naming nothing says neither which of the three files nor which of ~153 icons went unread.
+ * Prefixing it at the relay instead would say the URL twice over on the commoner path, where `cached` has named it
+ * already.
+ *
+ * The copy is dropped rather than kept, because this is the only place that knows it is no good: `cached` would read
+ * it back for the rest of the week, past its own `Downloading` line and so without even saying where the bytes came
+ * from, and a relay that abstains rather than throwing leaves nothing to say why but one indented sentence a run.
+ * That is the same bad cache `cached` already renames over a write cut short to avoid, arriving by another route.
+ * Dropped whether it was downloaded here or read off disk, bytes that do not decode being no more use on a second
+ * reading than a first.
+ */
+export async function cachedAs<T>(
+  dir: string,
+  file: string,
+  url: string,
+  refresh: boolean,
+  decode: (bytes: Buffer) => T,
+): Promise<T> {
+  const bytes = await cached(dir, file, url, refresh);
+
+  try {
+    return decode(bytes);
+  } catch (error) {
+    rmSync(join(dir, file), { force: true });
+
+    throw new Error(`${url}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+}
+
 async function cachedJson(dir: string, file: string, url: string, refresh: boolean): Promise<unknown> {
-  return JSON.parse(String(await cached(dir, file, url, refresh)));
+  return cachedAs(dir, file, url, refresh, (bytes) => JSON.parse(String(bytes)));
 }
