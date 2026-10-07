@@ -12,6 +12,7 @@
  * readers beside it do.
  */
 
+import { encodePng } from './png.mts';
 import { execFile } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -50,8 +51,14 @@ const dumpRows = (text: string) => text.split('\n').filter((line) => DUMP.test(l
  *
  * `extra` is appended to those templates, for the one test below that needs a form to exist at all. It defaults to none
  * so that every other caller keeps the emptiness the paragraph above turns into an assertion.
+ *
+ * `icons` names what the index holds, and writes each file into the cache beside it. Both halves are load-bearing
+ * and for different reasons: the index is what carries a name onto a form, so it decides whether a family counts as
+ * drawn or as short of its artwork, and the files are what keep a drawn one off the network. Their contents are
+ * arbitrary — a pixel apiece, no assertion here reading a signature — but they have to decode, an icon that does
+ * not being reported.
  */
-function reads(extra: readonly unknown[] = []): string {
+function reads(extra: readonly unknown[] = [], icons: readonly string[] = []): string {
   const dir = mkdtempSync(join(tmpdir(), 'inventory-cli-'));
   const cache = join(dir, '.cache', 'inventory');
   const levels = Array.from({ length: 100 }, (_, i) => 0.1 + i / 100);
@@ -65,7 +72,17 @@ function reads(extra: readonly unknown[] = []): string {
     ]),
   );
   writeFileSync(join(cache, 'english.json'), JSON.stringify({ data: [] }));
-  writeFileSync(join(cache, 'icons.json'), JSON.stringify({ tree: [] }));
+  writeFileSync(join(cache, 'icons.json'), JSON.stringify({ tree: icons.map((path) => ({ path })) }));
+
+  if (icons.length > 0) {
+    mkdirSync(join(cache, 'icons'), { recursive: true });
+
+    for (const [at, name] of icons.entries()) {
+      const pixel = Uint8Array.of(at % 2 === 0 ? 255 : 0, 0, at % 2 === 0 ? 0 : 255, 255);
+
+      writeFileSync(join(cache, 'icons', name), encodePng({ width: 1, height: 1, data: pixel }));
+    }
+  }
 
   return dir;
 }
@@ -392,6 +409,34 @@ test('a cached file that will not decode is reported against its own URL', async
 
     expect(rest, 'the icon index was reported more than once, so the line below is one of several').toStrictEqual([]);
     expect(warning).toMatch(/^ {2}https:\/\/\S+: .+; no form is narrowed by its artwork$/);
+  } finally {
+    rmSync(cwd, { recursive: true });
+  }
+});
+
+/**
+ * The other half of that preamble, which the test above cannot reach. `AMBIGUOUS` on its own leaves both Spinda
+ * forms short of an icon, so the family lands in `short` rather than `drawn`, `drawn.length` is 0 and `Reading N form
+ * icons` is never printed at all — measured by reverting that one line to `console.error`, which left the whole suite
+ * green.
+ *
+ * Giving the index both icons and writing both files is what moves the family across. The week's grace reads them
+ * off disk, so the count prints with nothing fetched, and `short` is empty for the same reason — which is why this
+ * asserts a count where the test above asserts the families, the two lines being gated together and reached apart.
+ */
+test('the icon count in the preamble is printed only with `--verbose`', async () => {
+  const cwd = reads(AMBIGUOUS, ['pm327.f00.icon.png', 'pm327.f01.icon.png']);
+
+  try {
+    const [quiet, loud] = await Promise.all([
+      run(process.execPath, [SCRIPT, 'parse', CAPTURE], { cwd }),
+      run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
+    ]);
+
+    expect(loud.stderr, 'the pair was not drawn, so the quiet claim below would hold for no gate at all').toContain(
+      'Reading 2 form icons',
+    );
+    expect(quiet.stderr, 'the icon count was printed without the flag asking for it').toBe('');
   } finally {
     rmSync(cwd, { recursive: true });
   }
