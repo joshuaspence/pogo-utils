@@ -28,8 +28,8 @@ export default defineConfig({
         test: {
           ...shared,
           name: 'default',
-          exclude: [...defaultExclude, CORPUS]
-        }
+          exclude: [...defaultExclude, CORPUS],
+        },
       },
     ],
   },

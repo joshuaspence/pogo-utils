@@ -1,12 +1,12 @@
 /**
  * What the detail screen's readers make of real screens, over the corpus of captures committed beside this file.
  *
- * **This file is its own Vitest project, `corpus`, and `pnpm test` does not run it.** Reading the 49 captures spawns
- * some thousands of Tesseract processes, which is 95% of the suite's wall clock against about 7s for every other test
- * file put together — so a `pnpm test` that included it would be the one nobody runs. `pnpm test:corpus` runs it and
- * `pnpm test:coverage` runs both, CI taking each project as its own job. Nothing here asserts differently for being
- * selected separately, and nothing enforces the split either: a test slow enough to belong here can land in `fast`, and
- * only a reader will notice.
+ * **This file is its own Vitest project, `corpus`, so that a run can leave it out.** Reading the 49 captures spawns
+ * some thousands of Tesseract processes, which is 95% of the suite's wall clock against a few seconds for every other
+ * test file put together — so `pnpm test:default` is the loop to work in, where `pnpm test` runs both projects and
+ * `pnpm test:corpus` runs this one. CI takes each project as its own job. Nothing here asserts differently for being
+ * selected separately, and nothing enforces the split either: a test slow enough to belong here can land in `default`,
+ * and only a reader will notice.
  *
  * Every reader here is a pure function of a screenshot, so the only thing a test of them needs is the screenshot — no
  * phone and no network. The game master they are read against is vended beside them rather than downloaded, by
