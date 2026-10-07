@@ -51,14 +51,18 @@
  * a shadow or a purified Pokémon wears its own treatment. That is weaker, and it is why `background`, `costume`,
  * `lucky`, `purified`, `shadow` and `shiny` default to absent: a row claims one only where the capture shows it.
  *
- * **Six captures are not detail screens at all and so cannot be rows.** They are the negative cases, in `NEGATIVE`
+ * **Three captures are not detail screens at all and so cannot be rows.** They are the negative cases, in `NEGATIVE`
  * below, and they assert what the readers answer on a screen none of them was written for. `overworld.png` is the map:
- * no name, no HP, no types, no overlay, so it says only that the readers do not invent. `deerling-pokedex.png` and the
- * two Nidoran Pokédex entries are the stronger half of that, because a Pokédex entry is a screen the readers partly
- * *can* read — the type icons come back correctly and every other field is absent — so they say that reading something
- * is not enough to be a Pokémon. `no-pgsharp.png` and `pgsharp-no-overlay.png` are one Squirtle captured twice, once
- * with PGSharp not running and once with its toolbar up and no overlay drawn — which makes them a control on each
- * other, since the same screen reads `CP 330` on one and `CP 390` on the other.
+ * no name, no HP, no types, no overlay, so it says only that the readers do not invent. `no-pgsharp.png` and
+ * `pgsharp-no-overlay.png` are one Squirtle captured twice, once with PGSharp not running and once with its toolbar up
+ * and no overlay drawn — which makes them a control on each other, since the same screen reads `CP 330` on one and
+ * `CP 390` on the other.
+ *
+ * Three Pokédex entry captures used to be here too, as the stronger half of that: a screen the readers partly *can*
+ * read. They are gone, and what they held is `pokedex.test.mts` over lines built there — `dexOn` takes lines and a game
+ * master and no image, so a capture bought it nothing a line cannot state, where three of them cost three megabytes of
+ * LFS. What went with them and could not follow is `parseDetail` on an entry screen: that the type icons come back and
+ * every other field stays absent needed a real one.
  *
  * **Ten rows carry a `defects`, and six readers disagree with a screen somewhere.** A reader that disagrees is pinned
  * here rather than fixed here, a fix being a change to what the code does and so a pull request of its own, and the
@@ -1035,14 +1039,7 @@ for (const fixture of FIXTURES) {
  * The six captures that are not detail screens, which is why they are not rows: there is no Pokémon on them to state.
  * They are asserted below instead, as what the readers answer on a screen none of them was written for.
  */
-const NEGATIVE = [
-  'deerling-pokedex.png',
-  'nidoran-female-pokedex.png',
-  'nidoran-male-pokedex.png',
-  'no-pgsharp.png',
-  'overworld.png',
-  'pgsharp-no-overlay.png',
-];
+const NEGATIVE = ['no-pgsharp.png', 'overworld.png', 'pgsharp-no-overlay.png'];
 
 /**
  * How many captures to have being read at once, ahead of the tests that assert them. Vitest takes a file's tests in
@@ -1409,7 +1406,7 @@ test(
  */
 const COVERAGE = {
   rows: 43,
-  negatives: 6,
+  negatives: 3,
   answeredAsThemselves: 38,
   oneLevel: 43,
   crossCheckAgrees: 41,
@@ -1886,34 +1883,6 @@ test(
 );
 
 /**
- * The three Pokédex entries, which are the stronger half of the negative cases: a screen the readers partly *can* read.
- * The type icons come back correctly and every other field is absent, so they say that reading something is not
- * enough to be a Pokémon — no HP, no name and no CP is invented out of a page that has a species on it.
- */
-test('a Pokédex entry reads as its types and nothing else', async () => {
-  const absent = {
-    cp: null,
-    cps: [],
-    favourite: false,
-    gender: null,
-    height: null,
-    hp: null,
-    name: null,
-    size: null,
-    tags: [],
-    weight: null,
-  };
-
-  for (const [file, types] of [
-    ['deerling-pokedex.png', ['Normal', 'Grass']],
-    ['nidoran-female-pokedex.png', ['Poison']],
-    ['nidoran-male-pokedex.png', ['Poison']],
-  ] as const) {
-    expect({ ...(await readingOf(file)).detail }, file).toStrictEqual({ ...absent, types });
-  }
-});
-
-/**
  * One Squirtle captured twice, once with PGSharp not running at all and once with its toolbar up and no overlay drawn.
  * That makes the pair a control on each other rather than two similar captures: the same Pokémon on the same screen,
  * so every field of the two readings must agree, and whatever does differ is attributable to the toolbar alone.
@@ -1940,72 +1909,39 @@ test('the two Squirtle captures agree on everything but the CP each reads', asyn
 });
 
 /**
- * The three Pokédex entry screens and the species reader they are the input to. The detail screen hides a species in
- * two ways this corpus pins — a nickname printed where the name goes, and a `♀` or `♂` that OCR loses — and that
- * Pokémon's Pokédex entry is a few taps away and states the species in large flat text.
+ * That **no** capture in this corpus names a dex number, which is the half of `dexOn` a corpus of detail screens can
+ * state and the half that matters. A reader that answered a dex off a detail screen would be worse than one that
+ * answered nothing, since the walk calls it exactly when the name could not be trusted.
  *
- * **Both halves are asserted, and the second is the one that makes `dexOn` worth having.** It reads the three, and it
- * answers null on every other capture: every detail screen, the map, and the two PGSharp controls. A reader that
- * answered a dex off a detail screen would be worse than one that answered nothing, since the walk calls it exactly
- * when the name could not be trusted — so the rest are the assertion and the three are the easy half.
+ * The three Pokédex entry captures this was written against are gone, so the other half — that an entry *is* read —
+ * lives in `pokedex.test.mts` over lines built there. `dexOn` takes lines and a game master and no image, so a capture
+ * bought it nothing a line cannot state; what a capture could state, and this still does, is that Tesseract reading a
+ * real screen never hands it something it mistakes for a title.
  *
- * **What makes the rest decline is the cross-check rather than the screen being bare.** A Pokédex entry carries other
- * four-digit numbers — `SEEN 2763` and `CAUGHT 1499` on `nidoran-male-pokedex.png` alone — so the number is believed
- * only where it resolves to a species and the name printed beside it folds to that same species. `0032` reaches
- * `Nidoran♂`, the line reads `NIDORAN`, and both fold to `nidoran`; `2763` reaches no species at all.
- *
- * **The name cannot do this job, which is why the number does it.** `NIDORAN` and `NIDORAN ?` fold to one string where
- * `0032` and `0029` do not, so the two Nidoran lose their glyph on this screen exactly as they do on the detail screen
- * and the number is the only thing that tells them apart.
- *
- * Until a walk calls it, `identify` declines all three as detail screens — the readers' own half of that is the Pokédex
- * test above — because a walk must not take a Pokédex entry for a Pokémon and file a species with every number missing.
- * With no name there is no species, and the search across every species needs an IV and an HP as well as a type.
+ * What makes a capture decline is the cross-check rather than the screen being bare: a number is believed only where it
+ * resolves to a species and the name printed beside it folds to that same species. A detail screen carries four-digit
+ * numbers — a CP, a stardust count — and none of them has a species beside it.
  */
 test(
-  'the Pokédex entry names its species, and no other capture names one',
+  'no capture in the corpus names a dex number',
   async () => {
-    const entries: Record<string, [number, string]> = {
-      'deerling-pokedex.png': [585, 'Deerling'],
-      'nidoran-female-pokedex.png': [29, 'Nidoran♀'],
-      'nidoran-male-pokedex.png': [32, 'Nidoran♂'],
-    };
-
-    for (const [file, [dex, species]] of Object.entries(entries)) {
-      const { lines, identity } = await readingOf(file);
-
-      expect(dexOn(lines, DATA), `${file} no longer reads its own dex number`).toBe(dex);
-      expect(
-        DATA.forms.find((f) => f.dex === dex)?.species,
-        `${file}'s number no longer reaches its species in the vended game master`,
-      ).toBe(species);
-
-      expect({ ...identity }, `something was identified on the Pokédex entry ${file}`).toStrictEqual(DECLINED);
-    }
-
-    const elsewhere: string[] = [];
+    const named: string[] = [];
     let asked = 0;
 
     for (const file of CORPUS) {
-      if (file in entries) {
-        continue;
-      }
-
       const { lines } = await readingOf(file);
       asked++;
 
       if (dexOn(lines, DATA) !== null) {
-        elsewhere.push(file);
+        named.push(file);
       }
     }
 
-    expect(elsewhere, 'a capture that is not a Pokédex entry answered a dex number').toStrictEqual([]);
+    expect(named, 'a capture that is not a Pokédex entry answered a dex number').toStrictEqual([]);
 
     // The count, because an empty list of offenders is also what a loop that asked nothing produces — which is the
     // failure this whole test exists to rule out, one level up.
-    expect(asked, 'the reader was not asked about every other capture').toBe(
-      CORPUS.length - Object.keys(entries).length,
-    );
+    expect(asked, 'the reader was not asked about every capture').toBe(CORPUS.length);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -2033,30 +1969,6 @@ test('a species read off the Pokédex leaves the nickname alone', async () => {
   expect(identity.nickname, 'the dex override swallowed the nickname the screen prints').toBe(without.nickname);
   expect(without.nickname, 'what `ho-oh.png` reads as its nickname has changed').toBe('LUCKY POKEMON');
   expect(identity.notes, 'the Pokédex and the numbers agree, so there is nothing to report').toStrictEqual([]);
-});
-
-/**
- * The Nidoran this reader exists for, end to end: `dexOn` reads `nidoran-male-pokedex.png`'s number, and `identify`,
- * handed a detail screen whose name has lost its `♂`, answers Nidoran♂ without reporting the lost glyph as the Pokédex
- * disagreeing. `NIDORAN` reads as either Nidoran, and `closest` breaks that tie towards Nidoran♀.
- *
- * Then the title line with residue round it, varied on that capture's own lines: a glyph after the name read as a
- * letter still leads with the species, and one ahead of the number read as a digit makes five digits rather than a dex.
- */
-test('a Nidoran read off its entry is that Nidoran, glyph or no glyph', async () => {
-  const { lines, detail } = await readingOf('nidoran-male-pokedex.png');
-  const identity = identify(DATA, { ...detail, name: 'NIDORAN' }, null, undefined, dexOn(lines, DATA));
-
-  expect(identity.form && label(identity.form)).toBe('Nidoran♂');
-  expect(identity.notes, 'the lost glyph was reported as the Pokédex disagreeing').toStrictEqual([]);
-
-  const title = lines.findIndex((line) => /\b0032\b/.test(line.text));
-  assert.ok(title >= 0, 'the capture has lost the title line this varies');
-
-  const retitled = (text: string) => lines.map((line, i) => (i === title ? { ...line, text } : line));
-
-  expect(dexOn(retitled('0032 NIDORAN d'), DATA), 'residue after the name').toBe(32);
-  expect(dexOn(retitled('90032 NIDORAN'), DATA), 'a digit ahead of the number').toBe(null);
 });
 
 /**
@@ -2097,7 +2009,6 @@ test(
       'charizard-gigantamax.png': { fast: null, charged: [] },
       'cherrim-overcast.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
       'cherrim-sunshine.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
-      'deerling-pokedex.png': { fast: null, charged: [] },
       'deoxys-attack.png': { fast: 'Poison Jab', charged: ['Psycho Boost'] },
       'deoxys-defense.png': { fast: 'Counter', charged: ['Psycho Boost'] },
       'deoxys-normal.png': { fast: 'Zen Headbutt', charged: ['Hyper Beam'] },
@@ -2111,8 +2022,6 @@ test(
       'meowth-alola.png': { fast: 'Scratch', charged: ['Foul Play'] },
       'meowth-galar.png': { fast: 'Metal Sound', charged: ['Trailblaze'] },
       'meowth-kanto.png': { fast: 'Bite', charged: ['Night Slash'] },
-      'nidoran-female-pokedex.png': { fast: null, charged: [] },
-      'nidoran-male-pokedex.png': { fast: null, charged: [] },
       'no-pgsharp.png': { fast: 'Bubble', charged: [] },
       'overworld.png': { fast: null, charged: [] },
       'pgsharp-no-overlay.png': { fast: 'Bubble', charged: [] },
