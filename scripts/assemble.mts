@@ -195,6 +195,15 @@ for (const manifest of manifests) {
   const parsed: unknown = JSON.parse(readFileSync(join(DIST, manifest), 'utf8'));
 
   for (const ref of refsOf(parsed)) {
+    /*
+     * A manifest's members resolve against the manifest's own URL rather than the page's, so a bare fragment names the
+     * manifest itself: `#/events` installs an app that opens `manifest.json#/events` and shows the JSON as text.
+     * `mustResolve` passes fragments as in-page links, which is right for markup and wrong here.
+     */
+    if (ref.startsWith('#')) {
+      missing.push(`${manifest} names ${ref}, which resolves to the manifest itself`);
+    }
+
     mustResolve(manifest, ref);
   }
 }
