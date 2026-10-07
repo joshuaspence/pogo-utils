@@ -242,7 +242,7 @@ interface Row {
   name: string;
   country: string;
   dist: number;
-  event: string | undefined;
+  event: string;
   hit: boolean;
   gpx: string | null;
   coordStr: string | null;
@@ -889,8 +889,12 @@ export default function MapPage({ query: fragment }: { query: string }) {
                                  * line of its own rather than another slot at the row's right edge, which is already
                                  * carrying the distance and the Copy button. The click is stopped short of the row, which
                                  * would otherwise select the entry as the page changes under it.
+                                 *
+                                 * An entry with no event says so with an empty string, so the span has to be absent
+                                 * rather than empty: three stylesheet rules key off `:has(.eventline)`, and an empty
+                                 * one would still recolour the marker and wrap the row.
                                  */}
-                                {row.event !== undefined && (
+                                {row.event && (
                                   <span class="eventline">
                                     <a
                                       class="event"
