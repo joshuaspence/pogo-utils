@@ -333,6 +333,53 @@ test('`snap` refuses an untypeable `--search`, before it opens the phone', async
 });
 
 /**
+ * How many backspaces clear the search box, read off the source because it is a module constant in a script that cannot
+ * be imported. The bug this pins was the two numbers below disagreeing silently: the clear was 40 and the searches a
+ * re-snap sends reach 50, so ten characters survived and the next term was typed onto the end of them — and the field
+ * scrolls, so the merged term's visible tail read correctly and the only symptom was a result count quietly wrong.
+ */
+const CLEAR_KEYS = Number(/\nconst CLEAR_KEYS = (\d+);/.exec(SOURCE)?.[1] ?? 0);
+
+/**
+ * That a term the box cannot be cleared of is refused, and before the phone is opened. This is the half that makes the
+ * count safe rather than lucky: a caller cannot hand over a term longer than the clear can remove without being told.
+ *
+ * The length is taken off `CLEAR_KEYS` rather than written out, so raising or lowering the clear moves this with it. A
+ * run of `a`s because `typeable` has to pass first — the refusal under test is the length and not the characters.
+ */
+test('`snap` refuses a `--search` longer than the box can be cleared of, before it opens the phone', async () => {
+  expect(CLEAR_KEYS, 'the `CLEAR_KEYS` constant was not found, so this pins nothing').toBeGreaterThan(0);
+
+  const failure = await run(process.execPath, [SCRIPT, 'snap', '--search', 'a'.repeat(CLEAR_KEYS + 1)]).catch(
+    (error: unknown) => error,
+  );
+  const { stderr } = failure as { stderr: string };
+
+  expect(failure).toMatchObject({ code: 1 });
+  expect(stderr).toContain(`more than the ${CLEAR_KEYS} the box can be cleared of`);
+  expect(stderr, 'the phone was reached before the length was checked').not.toContain('adb');
+});
+
+/**
+ * And that the clear is longer than every search the scan itself sends, which is the arithmetic that was wrong. A flag
+ * is typed into the box as it stands — `search(flag)` — so `FLAGS` is the list of terms the scan sends, and they are
+ * short enough that this passes today with room to spare. The point is that it fails the moment a longer one is added,
+ * where before nothing related the two numbers at all.
+ */
+test('the clear is longer than every search the scan sends', () => {
+  const list = /\nconst FLAGS = \[([^\]]*)\]/.exec(SOURCE)?.[1] ?? '';
+  const terms = [...list.matchAll(/'([^']+)'/g)].map(([, term]) => term as string);
+
+  expect(terms, 'the `FLAGS` list was not found, so this pins nothing').not.toHaveLength(0);
+
+  for (const term of terms) {
+    expect(term.length, `the scan sends ${JSON.stringify(term)}, which the clear cannot remove`).toBeLessThanOrEqual(
+      CLEAR_KEYS,
+    );
+  }
+});
+
+/**
  * An empty `--search` is refused too, which `typeable` alone does not do: its pattern is `*`-quantified, so `''` passes
  * it, and spaces are stripped before the test, so a run of them passes as well. Both are terms that name nothing — an
  * empty search matches everything, and the snap would be of whatever the grid showed first under a name saying it is

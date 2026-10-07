@@ -236,6 +236,26 @@ const COLUMNS = [
 /** How many times one detail screen is read before its reading is taken as final. */
 const READ_ATTEMPTS = 3;
 
+/**
+ * How many backspaces clear the search box, and **the longest term `--search` will accept** — the two being one number
+ * on purpose, because the box has no length of its own to measure against. Typing a patterned run into it, all 234
+ * characters landed and the field showed no sign of a cap, so there is no capacity this could be set to. What bounds
+ * the box is therefore what this script types into it, and the refusal beside `--search` is what makes that true.
+ *
+ * It was 40, which is shorter than the searches a re-snap sends: `+ho-oh & cp2738 & hp152 & shiny & lucky & !costume`
+ * is 50 characters, so ten survived the clear and the next term was typed onto the end of them.
+ *
+ * The failure is silent, which is what makes a bound worth enforcing rather than hoping for. The field scrolls, so only
+ * its last 32 characters are on screen and the cursor sits among them — a merged term therefore *looks* exactly like a
+ * clean one, and the only symptom is a result count quietly wrong. Three searches welded together read back as
+ * `+cas+cas+ho-oh & clucky`, which matched nothing where the search before it had matched one.
+ *
+ * Generous because generosity is free: `device.key` sends every code in one `input keyevent`, so this is one call
+ * however large, and a backspace on an empty field does nothing. Being short costs a pass of the corpus — which is what
+ * it cost. A term typed into the box by hand can still exceed it, and that is the one case left: clear it by hand too.
+ */
+const CLEAR_KEYS = 300;
+
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
   options: {
@@ -411,6 +431,31 @@ function storage(device: Device, config: Config, data: GameData, screen: Image) 
     lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
 
   /**
+   * How many Pokémon a search matched, off the game's own counter beside the magnifier in the POKEMON tab — `(1)`, or
+   * `(0)` where it found nothing — or null where the counter did not read.
+   *
+   * This is what separates the two halves `tileLabel` cannot. A grid whose first CP label misread and a search that
+   * matched nothing both leave no label, and the counter says which: measured on a shiny Ho-Oh the search matched, the
+   * tile read as `2738,` with its `CP` lost entirely while the counter beside it read `(1)`. The label is small grey
+   * text over a pale tile where the counter is the header's own, which is why one reads and the other does not.
+   *
+   * Matched on the raw text rather than the folded, `fold` stripping the brackets that carry the meaning — `(1)` and
+   * `6/12` both fold to a bare number. Above the search box for the same reason: a tile's `96%` has no brackets, but a
+   * nickname could, where nothing above the box is a Pokémon at all.
+   */
+  const matches = (lines: readonly Line[]): number | null => {
+    for (const line of lines) {
+      const counted = /\((\d+)\)/.exec(line.text);
+
+      if (counted && line.top < (searchBox?.[1] ?? Infinity)) {
+        return Number(counted[1]);
+      }
+    }
+
+    return null;
+  };
+
+  /**
    * Launched where it is not already in front, which is the phone's answer to give rather than the user's: a game
    * running and a game showing are different states, and only the second is one `toStorage` can start from. A game in
    * the background still needs the launch to bring it forward — skipping it there taps the launcher instead, three
@@ -463,7 +508,7 @@ function storage(device: Device, config: Config, data: GameData, screen: Image) 
     let lines = await toStorage();
     searchBox ??= ((l) => (l ? centre(l) : null))(findLine(lines, /\bsearch\b/)) ?? at(config.taps.search);
     await tap(searchBox);
-    await device.key(KEY.MOVE_END, ...Array<number>(40).fill(KEY.DEL));
+    await device.key(KEY.MOVE_END, ...Array<number>(CLEAR_KEYS).fill(KEY.DEL));
 
     if (term) {
       await device.type(term);
@@ -509,7 +554,7 @@ function storage(device: Device, config: Config, data: GameData, screen: Image) 
     return label ? [at(config.taps.firstTile)[0], label.top + label.height * 2.5] : at(config.taps.firstTile);
   };
 
-  return { at, tap, swipe, search, tileLabel, firstTile };
+  return { at, tap, swipe, search, tileLabel, matches, firstTile };
 }
 
 async function scan() {
@@ -1156,6 +1201,18 @@ async function snap() {
     return;
   }
 
+  // A term longer than the box can be cleared of would be typed onto the end of whatever `CLEAR_KEYS` left behind, and
+  // a merged term is the one failure the screen does not show: the field scrolls, so its visible tail reads correctly
+  // either way. Refused rather than trusted to a count, which is how 40 backspaces cost a pass of the corpus.
+  if (options.search !== undefined && options.search.length > CLEAR_KEYS) {
+    console.error(
+      `snap: --search is ${options.search.length} characters, more than the ${CLEAR_KEYS} the box can be cleared of`,
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
   // The one term `typeable` passes and `--search` cannot use: it is `*`-quantified, so both `''` and a run of spaces
   // satisfy it. An empty search matches everything, which would snap whatever the unfiltered grid happens to show first
   // and exit 0 — a capture under a name claiming it is something else, and the unreproducible snap `--search` is here
@@ -1198,7 +1255,12 @@ async function snap() {
   // Driven to the Pokémon rather than taking what is showing, which is what makes a capture reproducible: the search
   // names what it wanted, where a screen set up by hand records nothing about which Pokémon that was.
   if (options.search !== undefined) {
-    const { tap, search, tileLabel, firstTile } = storage(device, config, await gameData(), await device.screenshot());
+    const { tap, search, tileLabel, matches, firstTile } = storage(
+      device,
+      config,
+      await gameData(),
+      await device.screenshot(),
+    );
     const grid = await search(options.search);
 
     // Checked before the grab, which is the one place something beats writing first: a grid with no Pokémon in it is
@@ -1209,10 +1271,15 @@ async function snap() {
     //
     // Which of the two it was goes unsaid, for the reason the missing HP above does: a grid whose first label misread
     // and a search that matched nothing cannot be told apart from here, and neither is a screen to snap.
-    if (!tileLabel(grid)) {
+    // The game's own count first, which says which of the two it was where `tileLabel` alone could not. A grid whose
+    // first label misread still carries the counter, so only a search that really matched nothing is refused here.
+    const found = matches(grid);
+
+    if (found === 0 || (found === null && !tileLabel(grid))) {
       refuse(
-        `--search ${JSON.stringify(options.search)} left a grid with no CP label in it, so it either matched` +
-          ' nothing or landed on a Pokémon whose label would not read',
+        found === 0
+          ? `--search ${JSON.stringify(options.search)} matched nothing, which the grid's own counter says`
+          : `--search ${JSON.stringify(options.search)} left a grid with neither a counter nor a CP label in it`,
         'nothing was written, so a snap already saved under this name is still the one that was there',
       );
 
