@@ -981,9 +981,12 @@ for (const fixture of FIXTURES) {
       );
     });
 
-    // Whether a box was found is asserted apart from what was read out of it, because the two are different defects and
-    // a reader fixed at either stage has to fail here. Nine captures carry no overlay at all, and on three of those
-    // nine PGSharp really drew one.
+    // Whether a box was found is asserted apart from what was read out of it, because the two are different defects
+    // and a reader fixed at either stage has to fail here. The corpus reaches one side only: no row has no overlay
+    // drawn on it and none needs `defects.box`, so `boxed` holds for all 43 and the false case of this test is
+    // unreachable — pinned as a hole where the counts are asserted. One row carries `defects.iv`, a box found whose
+    // triple was misread, which is what keeps the test below from being the same assertion twice. `findOverlay`
+    // answering null is covered apart from the rows, on the two Squirtle captures PGSharp drew nothing on.
     test('overlay found', async () => expect((await readingOf(fixture.file)).box !== null).toBe(boxed));
 
     test('overlay ivs', async () =>
@@ -1299,6 +1302,63 @@ test('every stitch is taller than the screen beside it, bar the one whose scroll
   expect(copies, 'which stitches assembled nothing has changed').toStrictEqual([
     'eevee-background-scrolled.png is 1008x2244',
   ]);
+});
+
+/**
+ * The `tEXt` keywords a capture carries, read off the chunk headers rather than through `decodePng` — which would
+ * inflate a stitch to 25 MB of pixels to answer a question the bytes answer at a fixed offset, the same economy the
+ * size check above makes. Keyword, a zero byte, then the value; a chunk with no separator is malformed and is named as
+ * the empty string rather than skipped, so a damaged one cannot read here as a file carrying nothing.
+ */
+const keywordsIn = (file: string): string[] => {
+  const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
+  const found: string[] = [];
+
+  for (let at = 8; at + 12 <= bytes.length;) {
+    const length = bytes.readUInt32BE(at);
+    const type = bytes.toString('latin1', at + 4, at + 8);
+
+    if (type === 'tEXt') {
+      const body = bytes.subarray(at + 8, at + 8 + length);
+      const split = body.indexOf(0);
+
+      found.push(split > 0 ? body.toString('latin1', 0, split) : '');
+    }
+
+    if (type === 'IEND') {
+      break;
+    }
+
+    at += 12 + length;
+  }
+
+  return found;
+};
+
+/**
+ * That no committed stitch carries the `Viewport` its writer now records, **which is a gap rather than a rule.** The 38
+ * companions were captured before `snap` wrote the chunk, so the first reader of `Viewport` would find nothing to read
+ * on any capture in this repository, and the invariant the writer exists to create — that a stitch's first frame is the
+ * screen committed beside it — holds for no pair here either. Retaking them on a phone is what closes both.
+ *
+ * Pinned rather than left to prose because a reader written against the chunk would otherwise be developed against a
+ * corpus that cannot exercise it, and pass. This going red is the signal that the retake has happened and that the
+ * stronger claim — every stitch carrying a `Viewport`, and matching its screen down to the band's foot — can replace
+ * it.
+ *
+ * The screens are asserted too, and for a reason that will outlive the gap: `snap` writes the chunk on the stitch
+ * alone, the screen's own `IHDR` height already being that number, so a `Viewport` appearing on a screen is a writer
+ * that has started saying something twice.
+ */
+test('no committed capture carries a `Viewport`, the stitches not yet having been retaken', () => {
+  const carrying = (files: readonly string[]) => files.filter((file) => keywordsIn(file).includes('Viewport'));
+
+  expect(
+    carrying(STITCHES),
+    'a stitch carries a `Viewport`, so the retake has begun and these can be held to their screens',
+  ).toStrictEqual([]);
+
+  expect(carrying(SCREENS), 'a screen carries a `Viewport`, which its own height already states').toStrictEqual([]);
 });
 
 /**
