@@ -10,6 +10,16 @@
     "end": "2027-04-12T02:00:00.000Z"
   },
   {
+    "eventID": "national-trust-2026",
+    "name": "Pokémon GO × National Trust",
+    "eventType": "regional-event",
+    "heading": "Regional Event",
+    "link": "https://pokemongo.com/en/news/nationaltrust-2026",
+    "image": "https://lh3.googleusercontent.com/ifoRa_VQ7CEBRn4mZRiD3dtRmWFPQ0AUbSdxQSJtIl_jNGbHf0uqnBCDs91L9nknsUNlpe-rTqL6yqeKdLZdMzj2eGbLcYGQLBUrwB2eNQ",
+    "start": "2026-07-18T00:00:00.000",
+    "end": "2026-12-31T23:59:59.000"
+  },
+  {
     "eventID": "ana-red-jet-2026",
     "name": "Red Pokémon Jet — ANA",
     "eventType": "regional-event",
@@ -100,6 +110,16 @@
     "end": "2026-11-08T23:59:59.000"
   },
   {
+    "eventID": "citysafari-boston-2026",
+    "name": "Pokémon GO City Safari: Boston",
+    "eventType": "regional-event",
+    "heading": "Regional Event",
+    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/boston",
+    "image": "https://lh3.googleusercontent.com/5SAHXmMPUCpY_TUiDA81oiN00LXrIbsOXN9CTFtZbjI4pz_0RbQr0tmSACr1JErfEvZqM131RfCU8-LA2uskPRaP7YAom1uS216jhW_JpQ=s0-e365",
+    "start": "2026-10-24T10:00:00.000",
+    "end": "2026-10-25T18:00:00.000"
+  },
+  {
     "eventID": "pokemon-run-30-kaohsiung-2026",
     "name": "Pokémon RUN 30 — Dream Mall, Kaohsiung, Taiwan",
     "eventType": "regional-event",
@@ -108,6 +128,16 @@
     "image": "https://lh3.googleusercontent.com/c7e36ASB48bmKd_kOL4e61NU9Y3EPaXd0xmQJldeDAa9zn-W9CSwx6Taf_ENgLcx8K7RE3yP62zaLqwkUSACC6GUcEua_kus5gsm_xoljQ",
     "start": "2026-10-31T00:00:00.000",
     "end": "2026-11-01T23:59:59.000"
+  },
+  {
+    "eventID": "festival-of-lights-2026",
+    "name": "Festival of Lights",
+    "eventType": "regional-event",
+    "heading": "Regional Event",
+    "link": "https://pokemongo.com/en/news/festival-of-lights-2026",
+    "image": "https://lh3.googleusercontent.com/CecgAXRzLOF4ifTP3Ufl01if11xzdVEI6R169xxEXw095LM8_lhhWydeV5VNDpXF9Ax-U8N1Zxq6SlKpwsft03DRYjsekc05qpxF8EyqcnU",
+    "start": "2026-11-06T04:30:00.000Z",
+    "end": "2026-11-08T14:30:00.000Z"
   },
   {
     "eventID": "mall-exploration-changi-2026",
@@ -278,15 +308,5 @@
     "image": "https://lh3.googleusercontent.com/dFl-bn3on9Th9YzRT-Bs14neMfLhAsomPudR7lZ0l1j-1WERlgWfMrgd-pG9Kk5sVl1L9u3viOCWpGnVSlaLwwBcDrCayaXwSkC-eex8Qg",
     "start": "2027-03-13T00:00:00.000",
     "end": "2027-03-28T23:59:59.000"
-  },
-  {
-    "eventID": "citysafari-boston-2026",
-    "name": "Pokémon GO City Safari: Boston",
-    "eventType": "regional-event",
-    "heading": "Regional Event",
-    "link": "https://pokemongo.com/en/featured-in-person-events/citysafari/boston",
-    "image": "https://lh3.googleusercontent.com/5SAHXmMPUCpY_TUiDA81oiN00LXrIbsOXN9CTFtZbjI4pz_0RbQr0tmSACr1JErfEvZqM131RfCU8-LA2uskPRaP7YAom1uS216jhW_JpQ=s0-e365",
-    "start": null,
-    "end": null
   }
 ]
