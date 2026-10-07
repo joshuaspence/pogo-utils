@@ -4,10 +4,11 @@
  * check against what the game does.
  *
  * The state is everything a chip, a box or a toggle can say: which terms are wanted, which are refused, what was typed
- * in the name box, what the numeric ranges were set to, and whether the string should be compressed on the way out.
- * Nothing here holds a node.
+ * in the name box and in the expression box, what the numeric ranges were set to, and whether the string should be
+ * compressed on the way out. Nothing here holds a node.
  */
 
+import { expand } from './expression.js';
 import { GROUPS, RANGES, TERMS_BY_ID, type Group, type Range } from './terms.js';
 
 /**
@@ -22,6 +23,13 @@ export interface Bounds {
 /** The state above, named. The two sets hold term ids rather than terms, which is what makes a link a lookup. */
 export interface State {
   text: string;
+
+  /**
+   * What the expression box holds, verbatim. It is the reader's own text rather than anything drawn from `terms.js`, so
+   * unlike the two sets it travels as itself — there are no ids to look a written expression up by.
+   */
+  expression: string;
+
   include: Set<string>;
   exclude: Set<string>;
   ranges: Map<string, Bounds>;
@@ -31,6 +39,7 @@ export interface State {
 /** An empty state, which every reader of a link starts from and the Clear button returns to. */
 export const emptyState = (): State => ({
   text: '',
+  expression: '',
   include: new Set(),
   exclude: new Set(),
   ranges: new Map(),
@@ -114,12 +123,26 @@ export function rangeClause(range: Range, state: State) {
  * mixes `,` and `&` cannot say which binds tighter, and `fire,water&shiny` is open to being read as either "Fire, or a
  * shiny Water" or "a shiny, and Fire or Water". The builder writes the clauses in a fixed order and says so when the
  * question can arise, which is better than quietly picking a reading on the reader's behalf.
+ *
+ * An expression contributes clauses here rather than a string of its own, which is what keeps it from being a second
+ * tool sharing a page. The game's search is a conjunction of clauses and `expression.js` hands back exactly that, so
+ * what a reader writes in brackets is AND'd with their chips and goes through this one composer, this one clause count
+ * and this one ambiguity check. Its clauses come last because every clause before them is written from the tables in a
+ * fixed order, and the part a reader typed is the part they can already pick out.
+ *
+ * An expression that does not parse contributes nothing and says why. The string stays the one the rest of the page
+ * describes rather than going blank, since a reader half-way through typing a bracket has not stopped meaning what
+ * their chips say — but a clause missing is a constraint missing, so what is on show matches *more* than was asked for
+ * and the page refuses to copy it.
  */
 export function compose(state: State) {
+  const expression = expand(state.expression);
+
   const clauses = [
     nameClause(state.text),
     ...GROUPS.map((group) => groupClause(group, state)),
     ...RANGES.map((range) => rangeClause(range, state)),
+    ...expression.clauses,
   ].filter(Boolean);
 
   const query = clauses.join('&');
@@ -128,6 +151,8 @@ export function compose(state: State) {
     query,
     ambiguous: query.includes(',') && query.includes('&'),
     clauses: clauses.length,
+    error: expression.error,
+    mishandled: expression.mishandled,
   };
 }
 
@@ -148,6 +173,12 @@ export function toFragment(state: State) {
 
   if (state.text.trim()) {
     parts.push(`t=${encodeURIComponent(state.text.trim())}`);
+  }
+
+  // The one part of a link that is not a choice off the tables, so it is encoded rather than listed: `&` separates the
+  // fragment's own parts and an expression is mostly made of them.
+  if (state.expression.trim()) {
+    parts.push(`e=${encodeURIComponent(state.expression.trim())}`);
   }
 
   if (state.include.size > 0) {
@@ -189,6 +220,10 @@ function bound(text: string | undefined, range: Range) {
  * The state a fragment describes. Every part is checked against the tables rather than trusted — an id that names no
  * term and a bound that is not a number are both dropped, so a link that has rotted past a renamed id or been typed by
  * hand restores the parts that still mean something instead of failing whole.
+ *
+ * The expression is the exception, there being no table to check one against. It arrives as the text it was written as
+ * and `expression.js` reads it at the moment the string is composed, so a link carrying nonsense fills the box with
+ * that nonsense and says what is wrong with it — which is what the reader would have seen typing the same thing.
  */
 export function fromFragment(fragment: string) {
   const state = emptyState();
@@ -196,6 +231,7 @@ export function fromFragment(fragment: string) {
   const ranges = new Map(RANGES.map((range) => [range.id, range]));
 
   state.text = params.get('t') ?? '';
+  state.expression = params.get('e') ?? '';
   state.optimise = params.get('s') === '1';
 
   // Keyed by the letter the fragment uses, so the pair travels as an object: an array of two-element arrays is a list

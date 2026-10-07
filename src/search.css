@@ -214,8 +214,34 @@ body[data-page='search'] {
     line-height: 1.5;
   }
 
-  .output .caveat code {
+  .output .caveat code,
+  .output .broken code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  /**
+   * The expression refusing to parse, which is the one thing on this page that stops the string being usable rather
+   * than merely worth a second look. So it borrows the caveat's shape and takes the accent that marks a refusal
+   * elsewhere on the site, against the amber the caveat uses for a reading it cannot settle.
+   */
+
+  .output .broken {
+    margin: 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    background: var(--accent-soft);
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+
+  /**
+   * Each note on its own line, there being at most a couple and each of them a sentence rather than a pair the way the
+   * optimiser's substitutions are.
+   */
+
+  .output .mishandled {
+    display: block;
   }
 
   /* Laid out as pairs rather than as a sentence, so `charmander → 4` reads as one thing and wraps as one thing. */
@@ -601,6 +627,45 @@ body[data-page='search'] {
     border-color: var(--track);
     color: var(--text);
     font-weight: 600;
+  }
+
+  /**
+   * The expression box, monospaced and wearing the output box's face: what is typed here is the same kind of thing as
+   * what comes out of there, so the brackets line up under one another and `(pikachu&shiny)` reads as a string rather
+   * than as a sentence.
+   *
+   * `field-sizing: content` grows it to whatever was pasted, with `rows` as the floor the markup sets and a ceiling
+   * here so that a distributed monster cannot push the rest of the page off screen. Where it is unsupported the
+   * element keeps its two rows and scrolls, which is what a textarea has always done.
+   */
+
+  #expression {
+    width: 100%;
+    max-height: 40vh;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    field-sizing: content;
+    resize: vertical;
+  }
+
+  #expression:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /**
+   * An expression that does not parse yet. Painted on the box as well as said beside the Copy button, so that a reader
+   * part-way through a bracket can see which box the message up under the string is about.
+   */
+
+  #expression[aria-invalid='true'] {
+    border-color: var(--accent);
   }
 
   @media (width <= 560px) {

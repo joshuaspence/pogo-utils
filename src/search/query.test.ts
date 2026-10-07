@@ -206,3 +206,82 @@ test('the caveat is earned by mixing the two operators and by nothing else', () 
 
   expect([both.query, both.ambiguous]).toEqual(['shiny&lucky', false]);
 });
+
+/*
+ * The expression box. What it converts to is `expression.test.ts`'s to prove; these are about it reaching the string
+ * the same way a chip does — one composer, one clause count, one caveat — and about surviving a link, which it does on
+ * different terms from everything else here, there being no table to read a written expression back through.
+ */
+
+test("an expression's clauses are AND'd after the ones the tables wrote", () => {
+  const built = compose(
+    state({ text: 'pikachu', expression: '(fire&shiny),(water&lucky)', include: new Set(['legendary']) }),
+  );
+
+  // Last, because every clause ahead of it is written from the tables in a fixed order and the part a reader typed is
+  // the part they can already pick out of the string.
+  expect(built.query).toBe('pikachu&legendary&fire,water&fire,lucky&shiny,water&shiny,lucky');
+  expect(built.clauses).toBe(6);
+
+  // One ampersand between the expression's clauses and the rest, which is the whole of what makes them compose: the
+  // game's search is a conjunction, and an expression in this form is a list of its terms.
+  expect(compose(state({ expression: 'shiny' })).query).toBe('shiny');
+  expect(compose(state({ include: new Set(['legendary']), expression: 'shiny' })).query).toBe('legendary&shiny');
+});
+
+test('an expression earns the caveat on the same terms a chip does', () => {
+  // The mix is what raises the question, wherever the two operators came from — and an expression is the one input
+  // that can produce both halves of it by itself.
+  expect(compose(state({ expression: '(fire&shiny),(water&lucky)' })).ambiguous).toBe(true);
+  expect(compose(state({ expression: 'fire,water' })).ambiguous).toBe(false);
+  expect(compose(state({ expression: 'fire&shiny' })).ambiguous).toBe(false);
+});
+
+test('a broken expression says so and composes nothing, rather than quietly composing less', () => {
+  const broken = compose(state({ include: new Set(['legendary']), expression: '(fire&shiny' }));
+
+  // The chips still mean what they said, so the string stays theirs — but it is not the whole of what was asked for,
+  // which is why the page reads `error` and refuses to copy it.
+  expect(broken.query).toBe('legendary');
+  expect(broken.error).not.toBeNull();
+
+  expect(compose(state({ expression: '' })).error).toBeNull();
+  expect(compose(state({ expression: 'fire&shiny' })).error).toBeNull();
+});
+
+test('an expression carries the terms the game gets wrong behind a negation', () => {
+  // `!1hp` is a term the reader never typed — the bracket is what wrote it — and the game ignores the negation on it.
+  expect(compose(state({ expression: '!(1hp,shiny)' })).mishandled).toEqual([
+    { term: '!1hp', note: expect.stringContaining('ignores a negation') },
+  ]);
+
+  expect(compose(state({ expression: '1hp&shiny' })).mishandled).toEqual([]);
+});
+
+test('an expression survives the round trip, including the characters a fragment uses for itself', () => {
+  const chosen = state({ expression: '(pikachu&shiny),(#&!xxs)' });
+
+  // `&` separates the fragment's own parts and `#` is both the game's "has any tag" and the character a fragment
+  // begins with, so an expression carrying either would end the fragment early were it written out as itself.
+  expect(toFragment(chosen)).toBe('e=(pikachu%26shiny)%2C(%23%26!xxs)');
+  expect(roundTrip(chosen)).toEqual(chosen);
+
+  // Which is what `compose` then reads, so a followed link composes what its sender was looking at.
+  expect(compose(roundTrip(chosen)).query).toBe(compose(chosen).query);
+});
+
+test('an expression is carried trimmed, and whitespace alone is carried not at all', () => {
+  expect(toFragment(state({ expression: '  shiny  ' }))).toBe('e=shiny');
+  expect(toFragment(state({ expression: '   ' }))).toBe('');
+  expect(roundTrip(state({ expression: '  shiny  ' })).expression).toBe('shiny');
+});
+
+test('a link carrying nonsense fills the box with it rather than dropping it', () => {
+  // The other half of a fragment is checked against the tables and an id naming nothing is dropped. There is no table
+  // to check an expression against, so it arrives as written and the page says what is wrong with it — which is what
+  // a reader would have seen typing the same thing, and is recoverable where an emptied box is not.
+  const restored = fromFragment('e=%28shiny');
+
+  expect(restored.expression).toBe('(shiny');
+  expect(compose(restored).error).not.toBeNull();
+});

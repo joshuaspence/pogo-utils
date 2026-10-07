@@ -10,6 +10,10 @@
  * The name half of the state is derived rather than stored. `taken` is the names already chosen and `typing` the one in
  * the box, and `state.text` is the two of them joined on every render — where the imperative page kept `text` as a third
  * copy and had one function whose job was to stop the three disagreeing.
+ *
+ * The expression box is held as itself, since there is nothing to derive it from: a chip is a choice off a table and an
+ * expression is the reader's own writing. It reaches the string the same way everything else does, `compose` taking the
+ * clauses `expression.js` makes of it, so there is still one answer on this page to what has been built.
  */
 
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -50,6 +54,14 @@ const characters = (length: number) => `${length} character${length === 1 ? '' :
 
 /** Names with the blanks and the repeats taken out: the same name twice is one clause to the game and a mistake to read. */
 const unique = (all: readonly string[]) => all.filter((name, index) => name && all.indexOf(name) === index);
+
+/**
+ * A message's backticked parts set in `<code>`, so that a sentence written in this repository's prose convention reads
+ * on screen the way the caveat beside it does rather than showing its own punctuation. Splitting on the tick leaves the
+ * plain text at the even positions and the quoted characters at the odd ones, the string having begun outside a pair.
+ */
+const ticked = (message: string) =>
+  message.split('`').map((part, index) => (index % 2 === 0 ? part : <code key={index}>{part}</code>));
 
 /**
  * A bound as the state should hold it: a number inside the range's limits, or nothing where the box is empty.
@@ -124,7 +136,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    */
   const live: State = { ...state, text: unique([...taken, typing.trim()]).join(', ') };
 
-  const { query, ambiguous, was, rewrites, lossy } = current(live);
+  const { query, ambiguous, was, rewrites, lossy, error, mishandled } = current(live);
 
   /** The fragment this state would be linked as, which is both what goes in the address bar and when to put it there. */
   const mine = toFragment(live);
@@ -333,7 +345,17 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <code id="query" ref={queryRef} class={query ? undefined : 'empty'} aria-live="polite">
               {query || 'Nothing chosen yet'}
             </code>
-            <button type="button" class={copyLabel === 'Copy' ? 'copy' : 'copy done'} disabled={!query} onClick={copy}>
+            {/*
+             * Refused while the expression is broken, the string on show then being everything *except* what the
+             * reader is part-way through writing — a broader search than they asked for, which on this page is the
+             * direction that costs a shiny its candy.
+             */}
+            <button
+              type="button"
+              class={copyLabel === 'Copy' ? 'copy' : 'copy done'}
+              disabled={!query || error !== null}
+              onClick={copy}
+            >
               {copyLabel}
             </button>
           </div>
@@ -362,6 +384,27 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           <p class="caveat" hidden={!ambiguous}>
             This mixes <code>,</code> and <code>&amp;</code>, and the game's search has no brackets to say which binds
             first. Check it matches what you meant before trusting it on a mass transfer.
+          </p>
+
+          {/*
+           * Why Copy is refused, said beside the button rather than only under the box that caused it: a reader who
+           * has scrolled the expression out of view is otherwise looking at a dead button and no reason for it.
+           */}
+          <p class="broken" hidden={error === null}>
+            {ticked(error ?? '')}
+          </p>
+
+          {/*
+           * Terms the string carries whose negation the game is on record as getting wrong. They are here rather than
+           * under the expression box because the reader may never have typed one: `!(1hp,shiny)` is where `!1hp` comes
+           * from, and what is worth warning about is what the string ended up saying.
+           */}
+          <p class="caveat" hidden={mishandled.length === 0}>
+            {mishandled.map(({ term, note }) => (
+              <span key={term} class="mishandled">
+                <code>{term}</code> — {note}.
+              </span>
+            ))}
           </p>
 
           {/*
@@ -622,6 +665,42 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             })}
           </div>
           <p class="help">A box left empty falls back to that range's own limit, so one end is enough.</p>
+        </section>
+
+        {/*
+         * Last on the page, because it is the door out of it: a reader reaches for brackets once the chips have turned
+         * out not to be able to say the thing they want, and until then this is a box to read past.
+         */}
+        <section class="panel" aria-labelledby="expressionLabel">
+          <h2 class="label" id="expressionLabel">
+            Brackets
+          </h2>
+
+          <textarea
+            id="expression"
+            value={state.expression}
+            rows={2}
+            placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
+            autocomplete="off"
+            spellcheck={false}
+            aria-label="Expression with brackets"
+            aria-invalid={error !== null}
+            // Described by its help rather than announcing the error as it is typed: every unfinished bracket is an
+            // error, so an `aria-live` here would read a failure out at every keystroke on the way to a good one.
+            aria-describedby="expressionHelp"
+            onInput={(event) => setState((was) => ({ ...was, expression: event.currentTarget.value }))}
+          />
+
+          <p class="help" id="expressionHelp">
+            The game's search box takes no brackets, so what you write here is written back out as clauses it does take:{' '}
+            <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> leaves as four of them, and the result is required
+            alongside the chips above. <code>&amp;</code> is <em>and</em>, <code>,</code> <code>:</code> and{' '}
+            <code>;</code> are all <em>or</em>, and <code>!</code> rules out whatever follows it — a whole bracket
+            included, so <code>!(shiny,lucky)</code> is neither. Writing an <em>or</em> out multiplies rather than adds,
+            so a few brackets can cost a great many characters. A comma is read as binding tighter than an ampersand,
+            which is the reading the rest of this page takes and the one the note above says the game itself cannot
+            confirm.
+          </p>
         </section>
       </main>
 

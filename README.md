@@ -218,6 +218,26 @@ alone. What it will not do is turn `+charmander` into `4,5,6`, or shorten it to 
 another of its members; both need to know which species share an evolution family, which is data this repository does
 not hold. A `+` keeps its name and gets the name shortening alone.
 
+**Brackets**, the box at the foot of the page, is for the searches the chips cannot say at all. The chips build a
+conjunction — every group AND'd with every other — so there is no clicking together an _either_ that spans two of them,
+and `(pikachu&shiny),(pumpkaboo&xxl)` is a perfectly ordinary thing to want. Typing it there is the way to ask for it.
+
+The game takes no brackets, which is why this is a conversion rather than a passthrough. What it does take is clauses
+separated by `&`, each a list of alternatives separated by `,`, `:` or `;`, each alternative a term or a term behind a
+`!` — and that shape is conjunctive normal form, which every boolean expression has one of. So
+[`src/search/expression.ts`](src/search/expression.ts) reads the expression, pushes the negations down onto its terms,
+distributes it into that form and hands back the clauses; the example above leaves as `pikachu,pumpkaboo` and three
+more, not one of which anybody would have thought to write. Those clauses join the ones the chips and the boxes wrote,
+in the same composer and under the same character count and ambiguity warning, so an expression is another input to the
+page rather than a second tool sharing it.
+
+Two costs are worth knowing before reaching for it. Writing an _either_ out multiplies where writing an _and_ adds, so a
+few brackets buy a great many characters — the converter refuses past a thousand clauses rather than build a string no
+search box could hold. And the conversion only means what it says if a comma binds tighter than an ampersand, which is
+the reading the rest of the page already takes and the one the warning above says the game will not confirm. `|` is
+refused outright for the same reason read the other way: Niantic's list groups it with `&`, other converters read it as
+`,`, and a character whose two readings are opposites is better turned away than guessed at.
+
 ## Pokédex
 
 The **Pokédex** page ([`src/pages/pokedex.tsx`](src/pages/pokedex.tsx)) is the whole national dex as a grid of cards,
