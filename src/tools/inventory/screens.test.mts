@@ -1019,12 +1019,19 @@ test('every committed capture is either a row or a negative case', () => {
 });
 
 /**
- * How tall a capture may be against its own width before it is a stitch rather than a screen. The tallest aspect ratio
- * a phone ships in is 21:9, or 2.33, and the stitches of these very screens run 2996 to 4516 rows at the same 1008 wide
- * — 2.97 to 4.48 — so this sits in the gap. Nearer the phone end of it on purpose: a stitch that slipped through is the
- * defect being guarded against, where a false failure needs a phone taller than any made.
+ * How tall a capture may be against its own width before it is a stitch rather than a screen. Bounded on both sides and
+ * thin on both, so this is measured rather than placed in the middle of the gap: the tallest aspect ratio a phone ships
+ * in is 21:9, or 2.333, and the first reader answers wrong at 2.380, where `pikachu-santa-hat.png`'s star stops reading
+ * as filled. `articuno-galar.png` follows at 2.496 and `ho-oh.png` at 2.546 — `isFavourite` crops that corner as a
+ * fraction of the height while the star stays where the phone drew it, so a taller capture slides the band down off the
+ * star and dilutes what gold is left against `FAVOURITE_GOLD`'s 1.2 points of margin.
+ *
+ * Which is why this is not the 2.5 that splits the difference up to a stitch's 2.97: two of the five favourites already
+ * read wrong below it. A ceiling cannot reach every reader — `CP_SWEEP`'s band starts at 0.055, row 123.4 of 2244, flush
+ * against the label lines at rows 123 and 127, so *any* capture taller than the phone drew pushes it off and no ceiling
+ * a real phone passes would catch that. It reaches the star, which is the tightest one it can.
  */
-const SCREEN_RATIO = 2.5;
+const SCREEN_RATIO = 2.35;
 
 /**
  * That every capture is one screen as the phone drew it rather than a stitch of several, which is the other thing about
