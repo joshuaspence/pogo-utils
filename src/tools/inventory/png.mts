@@ -12,6 +12,11 @@ import { crc32, deflateSync, inflateSync } from 'node:zlib';
  * `text` is whatever `tEXt` chunks the file carried, keyword against value, and is absent on an image built here rather
  * than read — `crop` and `scale` answer a new image whose own size is the truth about it, so there is nothing for them
  * to carry forward. Optional so that the thirty-odd places that build an `Image` by hand need say nothing about it.
+ *
+ * `encodePng` writes it back out, so a chunk survives a decode and a re-encode: cropping a stitch and saving it again
+ * would otherwise drop the `Viewport` that is the whole reason for recording one. It carries a null prototype, so
+ * `Object.hasOwn(image.text ?? {}, 'Viewport')` is the question to ask about it — `in` answers true for `constructor`,
+ * `toString` and every other name `Object.prototype` would have lent it.
  */
 export interface Image {
   width: number;
@@ -43,7 +48,9 @@ export function decodePng(bytes: Buffer): Image {
   let channels = 0;
   let ended = false;
   const idat: Buffer[] = [];
-  const text: Record<string, string> = {};
+  // Null-prototype, so a file is free to carry `__proto__` as a keyword: assigning that name on a plain object reaches
+  // the inherited setter and is a silent no-op, which would drop the keyword *beside* it from the same chunk.
+  const text: Record<string, string> = Object.create(null);
 
   for (let at = 8; at < bytes.length && !ended;) {
     if (at + 12 > bytes.length || at + 12 + bytes.readUInt32BE(at) > bytes.length) {
@@ -133,8 +140,8 @@ export function decodePng(bytes: Buffer): Image {
     }
   }
 
-  // Absent rather than empty where the file carried none, so `'Viewport' in (image.text ?? {})` is the only question a
-  // caller has to ask and an image built here reads the same as one read from a file that said nothing.
+  // Absent rather than empty where the file carried none, so an image built here reads the same as one read from a file
+  // that said nothing, and `Object.hasOwn(image.text ?? {}, 'Viewport')` is the only question a caller has to ask.
   const carried = Object.keys(text).length > 0 ? { text } : {};
 
   if (channels === 4) {
@@ -156,19 +163,50 @@ export function decodePng(bytes: Buffer): Image {
 }
 
 /**
- * Written after `IHDR` and before `IDAT`, which the spec allows anywhere between them and is where a reader of the
- * bytes would look first. Keyword and value are Latin-1 by the spec — `iTXt` is the chunk for anything wider — and a
- * keyword is 1 to 79 characters, so one outside that is a programming error rather than something to write and hope.
+ * A keyword the spec allows: 1 to 79 characters, printable Latin-1, and no space leading, trailing or doubled.
+ *
+ * Checked in full rather than for length alone, because `Buffer.from(…, 'latin1')` does not refuse what it cannot
+ * represent — it keeps the low byte, so `Nidoran♂` would be written as `NidoranB` and read back as that, in a tool
+ * whose subject prints `♂`, `♀` and `✨`. A NUL is the sharpest case: it is the chunk's own separator, so one inside a
+ * keyword moves where the value begins, and `{ 'a\0b': 'x' }` reads back as `{ a: 'b\0x' }` — a different pair, written
+ * without complaint.
  */
+const KEYWORD = /^[\x20-\x7e\xa1-\xff]{1,79}$/;
+
+/**
+ * A value is Latin-1 too, and holds no NUL, that being the separator the keyword is already terminated by. Spelled out
+ * rather than as a character class, a range from `\x01` being a control character `no-control-regex` refuses to read.
+ */
+const isLatin1 = (value: string): boolean =>
+  [...value].every((character) => {
+    const code = character.codePointAt(0) ?? 0;
+
+    return code > 0 && code <= 0xff;
+  });
+
 const text = (keyword: string, value: string): Buffer => {
-  if (keyword.length < 1 || keyword.length > 79) {
-    throw new Error(`a tEXt keyword is 1 to 79 characters, not ${keyword.length}: ${JSON.stringify(keyword)}`);
+  if (!KEYWORD.test(keyword)) {
+    throw new Error(`a tEXt keyword is 1 to 79 characters of printable Latin-1, not ${JSON.stringify(keyword)}`);
+  }
+
+  if (keyword.trim() !== keyword || keyword.includes('  ')) {
+    throw new Error(`a tEXt keyword carries no leading, trailing or doubled space, unlike ${JSON.stringify(keyword)}`);
+  }
+
+  if (!isLatin1(value)) {
+    throw new Error(`a tEXt value is Latin-1 with no NUL in it, unlike ${JSON.stringify(value)}`);
   }
 
   return chunk('tEXt', Buffer.from(`${keyword}\0${value}`, 'latin1'));
 };
 
+/**
+ * `carry` is written on top of whatever `image.text` already holds, so a file's own chunks survive being decoded and
+ * written back and a caller can still override one by keyword. Assigned onto a null prototype rather than spread into a
+ * literal, so a `__proto__` the file carried stays a key here instead of reaching a setter.
+ */
 export function encodePng(image: Image, carry: Readonly<Record<string, string>> = {}): Buffer {
+  const carried: Record<string, string> = Object.assign(Object.create(null), image.text, carry);
   const stride = image.width * 4;
   const raw = Buffer.alloc((stride + 1) * image.height);
 
@@ -184,7 +222,7 @@ export function encodePng(image: Image, carry: Readonly<Record<string, string>> 
   return Buffer.concat([
     SIGNATURE,
     chunk('IHDR', header),
-    ...Object.entries(carry).map(([keyword, value]) => text(keyword, value)),
+    ...Object.entries(carried).map(([keyword, value]) => text(keyword, value)),
     chunk('IDAT', deflateSync(raw)),
     chunk('IEND'),
   ]);

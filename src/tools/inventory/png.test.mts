@@ -46,18 +46,67 @@ test('an image survives being encoded and decoded byte for byte', () => {
 test('a `tEXt` chunk written beside an image comes back as its keyword and value', () => {
   const back = decodePng(encodePng(ramp(3, 2), { Viewport: '1008x2244', Software: 'pogo-utils' }));
 
-  expect(back.text).toStrictEqual({ Viewport: '1008x2244', Software: 'pogo-utils' });
+  expect({ ...back.text }).toStrictEqual({ Viewport: '1008x2244', Software: 'pogo-utils' });
   expect([...back.data], 'the chunk displaced a pixel').toStrictEqual([...ramp(3, 2).data]);
 });
 
 /**
- * And that a keyword the spec does not allow is refused when it is written rather than read back wrong. 1 to 79 Latin-1
- * characters is the whole of the rule, and a decoder handed a longer one has no way to tell where the value began.
+ * And that it survives a *second* trip through the codec, `encodePng` writing `image.text` back out rather than only
+ * what its caller hands it. Cropping a stitch to its viewport and saving it again is the branch's own next step, and
+ * `parse` already decodes these files — so a chunk that only ever went out through `carry` would be dropped by the
+ * first consumer to re-save one, silently and at exactly the moment the value is wanted.
  */
-test('a `tEXt` keyword outside the length the spec allows is refused', () => {
+test('a `tEXt` chunk survives being decoded and encoded again', () => {
+  const once = decodePng(encodePng(ramp(3, 2), { Viewport: '1008x2244' }));
+
+  expect({ ...decodePng(encodePng(once)).text }).toStrictEqual({ Viewport: '1008x2244' });
+
+  // And `carry` still wins, a caller correcting a keyword being the reason it is a parameter at all.
+  expect({ ...decodePng(encodePng(once, { Viewport: '720x1600' })).text }).toStrictEqual({ Viewport: '720x1600' });
+});
+
+/**
+ * A keyword the spec does not allow is refused when it is written rather than read back wrong. Length is the easy half.
+ * The rest matter because `Buffer.from(…, 'latin1')` masks to the low byte instead of refusing: `Nidoran♂` would go to
+ * the file as `NidoranB`, in a tool whose subject prints `♂`, `♀` and `✨`. A NUL is worse than lossy — it is the
+ * chunk's own separator, so `{ 'a\0b': 'x' }` was written and read back as `{ a: 'b\0x' }`, a pair nobody asked for.
+ */
+test('a `tEXt` keyword the spec does not allow is refused rather than written lossily', () => {
   expect(() => encodePng(ramp(1, 1), { '': 'x' })).toThrow(/1 to 79 characters/);
   expect(() => encodePng(ramp(1, 1), { ['k'.repeat(80)]: 'x' })).toThrow(/1 to 79 characters/);
   expect(() => encodePng(ramp(1, 1), { ['k'.repeat(79)]: 'x' })).not.toThrow();
+
+  expect(() => encodePng(ramp(1, 1), { 'Né♂me': 'x' }), 'masked to the low byte').toThrow(/printable Latin-1/);
+  expect(() => encodePng(ramp(1, 1), { 'a\0b': 'x' }), 'moves where the value begins').toThrow(/printable Latin-1/);
+  expect(() => encodePng(ramp(1, 1), { 'a\nb': 'x' })).toThrow(/printable Latin-1/);
+
+  // Spaces the spec forbids. One *inside* a keyword is allowed, which is what makes the other three worth checking.
+  expect(() => encodePng(ramp(1, 1), { ' Odd': 'x' })).toThrow(/leading, trailing or doubled space/);
+  expect(() => encodePng(ramp(1, 1), { 'Odd ': 'x' })).toThrow(/leading, trailing or doubled space/);
+  expect(() => encodePng(ramp(1, 1), { 'Odd  key': 'x' })).toThrow(/leading, trailing or doubled space/);
+  expect(() => encodePng(ramp(1, 1), { 'Odd key': 'x' })).not.toThrow();
+});
+
+/** And the value, on the same footing: Latin-1 is what the chunk holds, and the NUL is spoken for. */
+test('a `tEXt` value outside Latin-1, or carrying a NUL, is refused', () => {
+  expect(() => encodePng(ramp(1, 1), { Name: 'Nidoran♂' })).toThrow(/Latin-1 with no NUL/);
+  expect(() => encodePng(ramp(1, 1), { Name: 'a\0b' })).toThrow(/Latin-1 with no NUL/);
+  expect(() => encodePng(ramp(1, 1), { Name: 'Nidoran\xb6' }), 'Latin-1 is written as itself').not.toThrow();
+});
+
+/**
+ * That `text` carries a null prototype, so the name a caller asks about is the name the file carried and nothing else.
+ * `in` would answer true for `constructor` and `toString` on every decoded image, and `__proto__` is the sharper half:
+ * assigning that key on a plain object reaches the inherited setter, which is a silent no-op — so a file carrying it
+ * lost the keyword *beside* it from the same read, and the image came back saying `{ Ok: 'y' }` with no sign of either.
+ */
+test('a `tEXt` keyword cannot be confused with a name `Object.prototype` lends', () => {
+  const back = decodePng(encodePng(ramp(2, 2), { ['__proto__']: 'z', Ok: 'y' }));
+
+  expect(Object.getPrototypeOf(back.text), '`in` would answer for `constructor` and `toString`').toBeNull();
+  expect({ ...back.text }).toStrictEqual({ ['__proto__']: 'z', Ok: 'y' });
+  expect(Object.hasOwn(back.text ?? {}, '__proto__')).toBe(true);
+  expect(back.text?.['Ok'], 'the keyword beside `__proto__` was dropped with it').toBe('y');
 });
 
 /**
