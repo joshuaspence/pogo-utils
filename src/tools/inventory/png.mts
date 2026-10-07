@@ -6,11 +6,18 @@
 
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
-/** An image as four bytes a pixel, red, green, blue and alpha, row after row. */
+/**
+ * An image as four bytes a pixel, red, green, blue and alpha, row after row.
+ *
+ * `text` is whatever `tEXt` chunks the file carried, keyword against value, and is absent on an image built here rather
+ * than read — `crop` and `scale` answer a new image whose own size is the truth about it, so there is nothing for them
+ * to carry forward. Optional so that the thirty-odd places that build an `Image` by hand need say nothing about it.
+ */
 export interface Image {
   width: number;
   height: number;
   data: Uint8Array;
+  text?: Readonly<Record<string, string>>;
 }
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -36,6 +43,7 @@ export function decodePng(bytes: Buffer): Image {
   let channels = 0;
   let ended = false;
   const idat: Buffer[] = [];
+  const text: Record<string, string> = {};
 
   for (let at = 8; at < bytes.length && !ended;) {
     if (at + 12 > bytes.length || at + 12 + bytes.readUInt32BE(at) > bytes.length) {
@@ -65,6 +73,15 @@ export function decodePng(bytes: Buffer): Image {
       idat.push(body);
     } else if (type === 'IEND') {
       ended = true;
+    } else if (type === 'tEXt') {
+      // Keyword, a zero byte, then the value, both Latin-1. A chunk with no separator is malformed rather than empty,
+      // and is skipped: `tEXt` is ancillary — the lower-case `t` says a decoder may ignore it — so nothing a reader
+      // needs rests on it, and refusing the whole screenshot over a damaged comment would cost more than it saved.
+      const split = body.indexOf(0);
+
+      if (split > 0) {
+        text[body.toString('latin1', 0, split)] = body.toString('latin1', split + 1);
+      }
     }
   }
 
@@ -116,8 +133,12 @@ export function decodePng(bytes: Buffer): Image {
     }
   }
 
+  // Absent rather than empty where the file carried none, so `'Viewport' in (image.text ?? {})` is the only question a
+  // caller has to ask and an image built here reads the same as one read from a file that said nothing.
+  const carried = Object.keys(text).length > 0 ? { text } : {};
+
   if (channels === 4) {
-    return { width, height, data: pixels };
+    return { width, height, data: pixels, ...carried };
   }
 
   const data = new Uint8Array(width * height * 4);
@@ -131,10 +152,23 @@ export function decodePng(bytes: Buffer): Image {
     data[i * 4 + 3] = channels === 2 ? (pixels[src + 1] ?? 255) : 255;
   }
 
-  return { width, height, data };
+  return { width, height, data, ...carried };
 }
 
-export function encodePng(image: Image): Buffer {
+/**
+ * Written after `IHDR` and before `IDAT`, which the spec allows anywhere between them and is where a reader of the
+ * bytes would look first. Keyword and value are Latin-1 by the spec — `iTXt` is the chunk for anything wider — and a
+ * keyword is 1 to 79 characters, so one outside that is a programming error rather than something to write and hope.
+ */
+const text = (keyword: string, value: string): Buffer => {
+  if (keyword.length < 1 || keyword.length > 79) {
+    throw new Error(`a tEXt keyword is 1 to 79 characters, not ${keyword.length}: ${JSON.stringify(keyword)}`);
+  }
+
+  return chunk('tEXt', Buffer.from(`${keyword}\0${value}`, 'latin1'));
+};
+
+export function encodePng(image: Image, carry: Readonly<Record<string, string>> = {}): Buffer {
   const stride = image.width * 4;
   const raw = Buffer.alloc((stride + 1) * image.height);
 
@@ -147,7 +181,13 @@ export function encodePng(image: Image): Buffer {
   header.writeUInt32BE(image.height, 4);
   header.set([8, 6, 0, 0, 0], 8);
 
-  return Buffer.concat([SIGNATURE, chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND')]);
+  return Buffer.concat([
+    SIGNATURE,
+    chunk('IHDR', header),
+    ...Object.entries(carry).map(([keyword, value]) => text(keyword, value)),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND'),
+  ]);
 }
 
 function chunk(type: string, body = Buffer.alloc(0)): Buffer {

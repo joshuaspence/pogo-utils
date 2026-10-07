@@ -33,6 +33,54 @@ test('an image survives being encoded and decoded byte for byte', () => {
 
   expect([back.width, back.height]).toStrictEqual([7, 5]);
   expect([...back.data]).toStrictEqual([...image.data]);
+  expect(back.text, 'a file carrying no `tEXt` reads as carrying none, not as an empty one').toBeUndefined();
+});
+
+/**
+ * A `tEXt` chunk round-trips, which is what `snap` records a stitch's `Viewport` in: a stitch is as many frames tall as
+ * the screen took, so the height the phone drew is the one thing the file cannot say with its own `IHDR`.
+ *
+ * Asserted against `decodePng`'s own reading rather than by looking for the bytes, because what a caller depends on is
+ * the keyword coming back — and the bytes are checked anyway, the chunk's CRC being verified like every other.
+ */
+test('a `tEXt` chunk written beside an image comes back as its keyword and value', () => {
+  const back = decodePng(encodePng(ramp(3, 2), { Viewport: '1008x2244', Software: 'pogo-utils' }));
+
+  expect(back.text).toStrictEqual({ Viewport: '1008x2244', Software: 'pogo-utils' });
+  expect([...back.data], 'the chunk displaced a pixel').toStrictEqual([...ramp(3, 2).data]);
+});
+
+/**
+ * And that a keyword the spec does not allow is refused when it is written rather than read back wrong. 1 to 79 Latin-1
+ * characters is the whole of the rule, and a decoder handed a longer one has no way to tell where the value began.
+ */
+test('a `tEXt` keyword outside the length the spec allows is refused', () => {
+  expect(() => encodePng(ramp(1, 1), { '': 'x' })).toThrow(/1 to 79 characters/);
+  expect(() => encodePng(ramp(1, 1), { ['k'.repeat(80)]: 'x' })).toThrow(/1 to 79 characters/);
+  expect(() => encodePng(ramp(1, 1), { ['k'.repeat(79)]: 'x' })).not.toThrow();
+});
+
+/**
+ * An unknown ancillary chunk is skipped rather than refused, which is what makes writing a `tEXt` safe to begin with:
+ * the lower-case first letter of the type says a decoder may ignore it, so one it has never heard of must not stop it.
+ *
+ * Built by hand from a chunk the codec does not write, because the claim is about chunks it does not know — a `tEXt` it
+ * now reads could not state it.
+ */
+test('an ancillary chunk this codec does not know is skipped rather than refused', () => {
+  const png = encodePng(ramp(2, 2));
+  const body = Buffer.from('whatever', 'latin1');
+  const extra = Buffer.alloc(12 + body.length);
+  extra.writeUInt32BE(body.length, 0);
+  extra.write('mEOw', 4, 'latin1');
+  body.copy(extra, 8);
+  extra.writeUInt32BE(crc32(extra.subarray(4, 8 + body.length)), 8 + body.length);
+
+  // After the signature and the 25-byte IHDR chunk, which is where a `tEXt` goes too.
+  const back = decodePng(Buffer.concat([png.subarray(0, 8 + 25), extra, png.subarray(8 + 25)]));
+
+  expect([...back.data]).toStrictEqual([...ramp(2, 2).data]);
+  expect(back.text).toBeUndefined();
 });
 
 test('a zero-byte image is not a PNG, and nor is one whose signature is broken', () => {

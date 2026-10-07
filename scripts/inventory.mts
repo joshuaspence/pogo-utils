@@ -1005,9 +1005,13 @@ interface Capture {
  * always one that moved nothing — that being how the end of the screen announces itself — so what it dragged is no part
  * of the way back.
  */
-async function scrollFrames(device: Device): Promise<Capture> {
+async function scrollFrames(device: Device, taken?: Image): Promise<Capture> {
   const band = config.scrollBand;
-  const first = await settled(device);
+  // PROTOTYPE: the caller's own screenshot where it has one, so the stitch's first frame *is* the screen written beside
+  // it and the screen is `crop(stitch, 0, 0, width, bandFoot)` — `stitch` keeping every row above the band's foot from
+  // frame 1 verbatim. Without it `snap` photographs the same screen twice, seconds apart, and the two differ over about
+  // half their rows: the artwork animates, the clock ticks and PGSharp redraws its overlay.
+  const first = taken ?? (await settled(device));
   const x = first.width / 2;
   const y = (through: number) => first.height * (band.from + (band.to - band.from) * through);
   const frames = [first];
@@ -1155,11 +1159,11 @@ async function snap() {
   const device = new Device(options.serial);
   await device.check();
 
-  const write = (suffix: string, image: Image) => {
+  const write = (suffix: string, image: Image, carry: Readonly<Record<string, string>> = {}) => {
     const path = join(CACHE, 'snaps', `${name}${suffix}.png`);
 
     mkdirSync(join(CACHE, 'snaps'), { recursive: true });
-    writeFileSync(path, encodePng(image));
+    writeFileSync(path, encodePng(image, carry));
     console.log(`Saved ${path} (${image.width}×${image.height})`);
   };
 
@@ -1233,10 +1237,16 @@ async function snap() {
   // The whole screen stitched out of as many frames as it takes. The report above ran on the unstitched screen, the
   // readers it calls being anchored on fractions of the image's height — so a stitched image is something to look at
   // rather than something to hand them, and it is written beside that screen rather than over it.
-  const capture = await scrollFrames(device);
+  const capture = await scrollFrames(device, image);
   const total = capture.offsets.reduce((a, b) => a + b, 0);
   const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
-  write(SCROLLED, stitch(capture.frames, capture.offsets, config.scrollBand));
+  // `Viewport` is the one thing a stitch cannot say about itself. Every reader but `parseMoves` is anchored on a
+  // fraction of the image's height, and a stitch's height is as many frames as the screen took — so a reader handed one
+  // needs the height the phone drew, and the file is the only place that travels with it. Written on the stitch alone,
+  // the screen's own height being that number already.
+  write(SCROLLED, stitch(capture.frames, capture.offsets, config.scrollBand), {
+    Viewport: `${image.width}x${image.height}`,
+  });
   console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first.`);
   await scrollUp(device, image, total);
 
