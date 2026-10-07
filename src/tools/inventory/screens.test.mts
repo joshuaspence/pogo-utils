@@ -1790,6 +1790,40 @@ test('no family the artwork narrows has two forms sharing an icon', () => {
   assert.ok(short.length > 0, 'every family has an icon for every form, so nothing exercises the gap it reports');
 });
 
+/**
+ * Which families the artwork cannot reach, named rather than counted, because `ICON_DIR` once pointed at a directory
+ * `pogo_assets` had stopped filling and nothing could tell: its listing answered `truncated: false` over 3,522 valid
+ * `pm{dex}.f{FORM}.icon.png` names, every form resolved against it as before, and Mimikyu, Cramorant and Squawkabilly
+ * simply went unnarrowed for a year. A stale index fails open twice over — the assertions above pass on any listing
+ * that is neither empty nor total, and `vend-game-master.mts` refuses only the listing that resolves *nothing*.
+ *
+ * So the names are the assertion. Each is a family the game draws no full set of artwork for, and the reason differs
+ * per entry: the three beasts carry an `_S` form the game never shows, `AR_PHOTO_FEATURE_FLAGS` excluding it beside
+ * `VENUSAUR_COPY_2019`; Spinda has nine of twenty patterns released and nine icons; Scatterbug and Spewpa are drawn
+ * without their pattern, only Vivillon showing it; Minior and Magearna have no art anywhere in `pogo_assets`.
+ *
+ * Expect it to move when upstream publishes art or the game master releases a form, and read either as the vend being
+ * reviewed rather than as the suite breaking. A name **arriving** is the case worth stopping on: it says a family that
+ * was narrowable no longer is, which is what going stale looked like.
+ */
+test('the families the artwork cannot narrow are the ones upstream draws no full set for', () => {
+  const { short } = ambiguous(DATA);
+
+  expect(
+    short.map((family) => `${family[0]?.species} (${family.length})`),
+    'a name arriving means a family stopped being narrowable; re-vend and update both or neither',
+  ).toStrictEqual([
+    'Raikou (2)',
+    'Entei (2)',
+    'Suicune (2)',
+    'Spinda (20)',
+    'Scatterbug (20)',
+    'Spewpa (20)',
+    'Minior (7)',
+    'Magearna (2)',
+  ]);
+});
+
 test('the corpus reaches both sides of every attribute', () => {
   for (const flag of ['favourite', 'lucky', 'purified', 'shiny'] as const) {
     assert.ok(

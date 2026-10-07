@@ -22,11 +22,18 @@ const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/m
 const STRINGS =
   'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Texts/Latest%20APK/JSON/i18n_english.json';
 
-/** Where `pogo_assets` keeps the form icons. */
-const ICON_DIR = 'Images/Pokemon/Addressable Assets';
+/**
+ * Where `pogo_assets` keeps the form icons. The 256×256 renders rather than the smaller ones beside them, because
+ * `Images/Pokemon/Addressable Assets` stopped being filled: its last commit is 2025-10-05 against 2026-09-25 for this
+ * one, and the 270 files it is missing include every form of Mimikyu, Cramorant and Squawkabilly. Nothing distinguishes
+ * a stale listing from a current one — both answer `truncated: false` over the same `pm{dex}.f{FORM}.icon.png` names —
+ * so the forms simply went unnarrowed. A signature is a hue histogram normalised by its own pixel count, so the larger
+ * render scores the same.
+ */
+const ICON_DIR = 'Images/Pokemon - 256x256/Addressable Assets';
 
 /**
- * What `pogo_assets` holds under `ICON_DIR`, which is 3,522 names in 146 KB and the only thing that says whether a form
+ * What `pogo_assets` holds under `ICON_DIR`, which is 3,792 names in 874 KB and the only thing that says whether a form
  * has artwork at all. The contents endpoint caps at 1,000 entries and would truncate silently, where this one answers
  * `truncated: false`.
  */
@@ -126,8 +133,8 @@ const ORDINARY = /(^|_)NORMAL$/;
  * The name is the form's own rather than a number: `assetBundleValue` is not how these assets are named and is not
  * even unique, Zygarde's 50% and Complete 50% forms both carrying `1`. Two candidates for a named form, because the
  * species prefix is kept for some and dropped for others — `pm585.fSPRING.icon.png` for `DEERLING_SPRING` against
- * `pm412.fBURMY_PLANT.icon.png` for `BURMY_PLANT` — and nothing in the game master says which. Measured over 1,351
- * non-costume forms, 252 resolve trimmed and 34 full, Burmy, Unown and Wormadam being the whole of the second set, and
+ * `pm412.fBURMY_PLANT.icon.png` for `BURMY_PLANT` — and nothing in the game master says which. Measured over 1,352
+ * non-costume forms, 262 resolve trimmed and 34 full, Burmy, Unown and Wormadam being the whole of the second set, and
  * **none resolve both ways**, so asking the index settles it with no order to defend.
  *
  * The bare `pm{dex}.icon.png` is a third candidate and **only** for the ordinary form, which is 14 families' worth:
@@ -146,7 +153,7 @@ function iconName(index: ReadonlySet<string>, dex: number, suffix: string, form:
 }
 
 /**
- * The directory listing, which is what makes a form's artwork addressable without probing for it. Fetching the 153
+ * The directory listing, which is what makes a form's artwork addressable without probing for it. Fetching the 162
  * files that exist beats probing all 237 to find them, and it is also what lets a family short of one icon be reported
  * once, ahead of the download, rather than discovered as a 404 per form on every scan.
  *
@@ -403,7 +410,7 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
 
     // Naming the URL rather than leaning on the line above it. `iconsFor` keeps 16 downloads in flight, so the
     // `Downloading` this reads as a continuation of is rarely the line printed before it, and a bare `fetch failed;
-    // using the copy from before` cannot say which of the three files or which of ~153 icons went stale.
+    // using the copy from before` cannot say which of the three files or which of ~162 icons went stale.
     if (existsSync(path)) {
       console.error(`  ${url}: ${reason}; using the copy from before`);
       return readFileSync(path);
@@ -430,7 +437,7 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
  *
  * Named here rather than at the two callers, because they are the ones that cannot. Each relays a failure as a
  * two-space continuation rather than a crash — an icon index that could not be read costs the artwork narrowing and not
- * the scan — and a message naming nothing says neither which of the three files nor which of ~153 icons went unread.
+ * the scan — and a message naming nothing says neither which of the three files nor which of ~162 icons went unread.
  * Prefixing it at the relay instead would say the URL twice over on the commoner path, where `cached` has named it
  * already.
  *
