@@ -21,6 +21,17 @@
  * `shadow&purified` are searches nothing can match, where `legendary,mythical` and `shadow,purified` are two a reader
  * would actually want. A group is the whole of that decision, so the fix is where the term sits and not a new field.
  *
+ * `exclusive` and `exhaustive` are the two facts `optimise.js` shortens a group's clause by: at most one of these terms
+ * is ever true of a Pokémon, and at least one always is. Neither follows from `join` or from the other — every species
+ * has a type and Charizard has two, so Type is exhaustive and not exclusive, where Appraisal is both and Size only
+ * exclusive. Each buys a reduction of its own, which is why they are two fields rather than one: exclusive alone makes
+ * `shadow&!purified` say `shadow`, and the pair makes `0*,1*,2*,3*` say `!4*`. Left off is a group that gets no
+ * reduction, which is the right answer for one nobody has thought about.
+ *
+ * Generation carries neither, though a species is in exactly one. Its terms are dex spans rather than words, and
+ * `optimise.js` folds those into the one span that covers them — `1-905` for the first eight, against the `!906-1025`
+ * that the complement of a term set would write. Declaring the fact twice would only let the weaker reduction win it.
+ *
  * A group's `hue` tints its chips, so which group a selected chip came from reads at a glance once a dozen of them are
  * on. They are hues rather than the palette's tokens because these are categories of the page's own, unrelated to what
  * --track or --city mean elsewhere; theme.css owns the colours that carry meaning across pages.
@@ -45,6 +56,8 @@ export interface Group {
   help: string;
   terms: readonly Term[];
   join?: string;
+  exclusive?: boolean;
+  exhaustive?: boolean;
 }
 
 export interface Range {
@@ -109,6 +122,7 @@ export const GROUPS: readonly Group[] = [
     id: 'rarity',
     label: 'Rarity',
     hue: 70,
+    exclusive: true,
     help: 'A species is one of these at most, so picking several asks for anything rare.',
     terms: [
       { id: 'legendary', term: 'legendary', label: 'Legendary' },
@@ -120,6 +134,7 @@ export const GROUPS: readonly Group[] = [
     id: 'rocket',
     label: 'Team GO Rocket',
     hue: 292,
+    exclusive: true,
     help: 'Purifying a Shadow Pokémon is what makes it Purified, so nothing is both — picking both asks for either.',
     terms: [
       { id: 'shadow', term: 'shadow', label: 'Shadow' },
@@ -141,6 +156,8 @@ export const GROUPS: readonly Group[] = [
     id: 'appraisal',
     label: 'Appraisal',
     hue: 145,
+    exclusive: true,
+    exhaustive: true,
     help: 'The star rating, as the appraisal gives it. Four stars is a hundred percent.',
     terms: [
       { id: 'star0', term: '0*', label: '0 ★' },
@@ -235,6 +252,8 @@ export const GROUPS: readonly Group[] = [
     id: 'gender',
     label: 'Gender',
     hue: 344,
+    exclusive: true,
+    exhaustive: true,
     help: 'Nothing is two of these, so picking several asks for any of them.',
     terms: [
       { id: 'male', term: 'male', label: 'Male' },
@@ -246,6 +265,7 @@ export const GROUPS: readonly Group[] = [
     id: 'size',
     label: 'Size',
     hue: 52,
+    exclusive: true,
     help: 'The four sizes the game records. Most Pokémon are none of them, so ruling one out barely narrows anything.',
     terms: [
       { id: 'xxs', term: 'xxs', label: 'XXS' },
@@ -258,6 +278,7 @@ export const GROUPS: readonly Group[] = [
     id: 'form',
     label: 'Regional forms',
     hue: 320,
+    exclusive: true,
     help: 'A regional variant answers to its region.',
     terms: [
       { id: 'alola', term: 'alola', label: 'Alolan' },
@@ -270,6 +291,7 @@ export const GROUPS: readonly Group[] = [
     id: 'type',
     label: 'Type',
     hue: 175,
+    exhaustive: true,
     help: 'Picking several matches any of them.',
     terms: TYPES.map((type) => ({ id: type, term: type, label: capitalise(type) })),
   },

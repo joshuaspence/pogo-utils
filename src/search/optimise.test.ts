@@ -2,7 +2,8 @@
  * `optimise` is where a test is worth the most here: its every answer is a value rather than a rendering, and it is the
  * one module a reader is asked to trust on a mass transfer. Each case below is a defect it would have caught rather
  * than a line it covers — a reduction taken where the two readings of a partial name disagree, a family written as the
- * species it was reached through, an empty intersection written as an empty clause, a rewrite never reported.
+ * species it was reached through, an empty intersection written as an empty clause, a rewrite never reported, a group
+ * whose every term was refused written as the empty clause that matches all of them.
  *
  * Every case is built on the real dex and the real tables, which is what makes it worth asserting against and why each
  * test pins the shape of the data its case needs before asserting any behaviour. A fragment that reaches three species
@@ -13,7 +14,7 @@ import { expect, test } from 'vitest';
 
 import POKEMON from '../pokemon/pokedex.js';
 import { GENERATIONS } from '../pokemon/generations.js';
-import { RANGES } from './terms.js';
+import { GROUPS, RANGES } from './terms.js';
 import { compose, emptyState, type Bounds, type State } from './query.js';
 import { optimise } from './optimise.js';
 
@@ -47,6 +48,24 @@ function generation(number: number) {
 
   return [found.first, found.last];
 }
+
+/**
+ * One group, so a test can pin the terms and the two facts the literals it asserts were derived from. It throws on a
+ * group the table does not carry for the same reason `generation` does: a missing one is the case gone rather than a
+ * failure of anything below.
+ */
+function group(id: string) {
+  const found = GROUPS.find((entry) => entry.id === id);
+
+  if (!found) {
+    throw new Error(`\`terms.js\` carries no \`${id}\` group`);
+  }
+
+  return found;
+}
+
+/** Every term of a group chosen, which is the state each reduction over a whole group is measured from. */
+const all = (id: string) => group(id).terms.map((term) => term.id);
 
 test('a name the two readings of a partial name disagree on keeps its name', () => {
   // Three species carry `saur` and none begins with it, so the fragment reaches them under one reading and nothing
@@ -219,4 +238,126 @@ test('several spans with no name to share the text take it', () => {
   expect(short.include.has('gen1')).toBe(false);
   expect(short.ranges.has('dex')).toBe(false);
   expect(compose(short).query).toBe('1-151,252-386');
+});
+
+test('a refusal beside a choice in an exclusive group says nothing the choice has not', () => {
+  // The two are one group, and the group says at most one of them is ever true. That is the whole of what the
+  // reduction stands on: purifying a Shadow Pokémon is what makes it Purified, so Shadow has ruled Purified out.
+  expect([group('rocket').exclusive, group('rocket').terms.map((term) => term.term)]).toEqual([
+    true,
+    ['shadow', 'purified'],
+  ]);
+
+  const chosen = state({ include: new Set(['shadow']), exclude: new Set(['purified']) });
+
+  expect(compose(chosen).query).toBe('shadow&!purified');
+
+  const { state: short } = optimise(chosen);
+
+  expect(compose(short).query).toBe('shadow');
+  expect(short.exclude.has('purified')).toBe(false);
+});
+
+test('the rarity group is exclusive because no species in the dex carries two of the three', () => {
+  expect(group('rarity').terms.map((term) => term.term)).toEqual(['legendary', 'mythical', 'ultrabeast']);
+
+  // What `exclusive` claims of the group, asserted against the dex it is a claim about rather than against the help
+  // text that says the same thing. A species gaining a second marker says so here. The maximum is also the vacuity
+  // check: markers that stopped being readable would read as zero rather than as one.
+  const carried = Object.values(POKEMON).map(
+    (species) => [species.legendary, species.mythical, species.ultraBeast].filter(Boolean).length,
+  );
+
+  expect(Math.max(...carried)).toBe(1);
+
+  const { state: short } = optimise(state({ include: new Set(['legendary']), exclude: new Set(['mythical']) }));
+
+  expect(compose(short).query).toBe('legendary');
+});
+
+test('every term of an exhaustive group at once earns no clause', () => {
+  const appraisal = group('appraisal');
+
+  expect([appraisal.exclusive, appraisal.exhaustive, appraisal.terms.map((term) => term.term)]).toEqual([
+    true,
+    true,
+    ['0*', '1*', '2*', '3*', '4*'],
+  ]);
+
+  const chosen = state({ include: new Set(all('appraisal')) });
+
+  expect(compose(chosen).query).toBe('0*,1*,2*,3*,4*');
+
+  // Everything has a star rating, so asking for any of the five asks for nothing. The page declines a string this
+  // short on its own — `current` in `search.tsx` reads empty as a broken page rather than as a shorter search — so
+  // what a reader sees of this is the clause disappearing from beside the others.
+  expect(compose(optimise(chosen).state).query).toBe('');
+});
+
+test('a group that reduced to nothing leaves the clauses around it alone', () => {
+  const chosen = state({ text: 'charmander', include: new Set(all('appraisal')) });
+
+  expect(compose(chosen).query).toBe('charmander&0*,1*,2*,3*,4*');
+
+  // The name goes to its dex number as it would have anyway, and the appraisal clause that was AND'd with it is gone
+  // — which also takes the mixed `,` and `&` the caveat was for.
+  expect(compose(optimise(chosen).state)).toMatchObject({ query: '4', ambiguous: false });
+});
+
+test('all but one of an exhaustive, exclusive group is the one left out', () => {
+  const chosen = state({ include: new Set(['star0', 'star1', 'star2', 'star3']) });
+
+  expect(compose(chosen).query).toBe('0*,1*,2*,3*');
+
+  const { state: short } = optimise(chosen);
+
+  // Exactly one star rating is true of a Pokémon, so the four chosen and the one left out are the same search, and
+  // three characters beats eleven.
+  expect(compose(short).query).toBe('!4*');
+  expect([[...short.include], [...short.exclude]]).toEqual([[], ['star4']]);
+});
+
+test('all but one refused is the one left over, which is that arithmetic the other way round', () => {
+  const chosen = state({ exclude: new Set(['star0', 'star1', 'star2', 'star3']) });
+
+  expect(compose(chosen).query).toBe('!0*&!1*&!2*&!3*');
+
+  const { state: short } = optimise(chosen);
+
+  expect(compose(short).query).toBe('4*');
+  expect([[...short.include], [...short.exclude]]).toEqual([['star4'], []]);
+});
+
+test('the shorter of the two spellings wins, so a choice that is already shortest is left alone', () => {
+  const chosen = state({ include: new Set(['star3', 'star4']) });
+
+  // `!0*&!1*&!2*` says the same thing in eleven characters, so taking the complement regardless of what it costs is
+  // the defect this case is about.
+  expect(compose(optimise(chosen).state).query).toBe('3*,4*');
+});
+
+test('a group whose every term is refused keeps them, rather than writing the clause that matches them all', () => {
+  const chosen = state({ exclude: new Set(all('appraisal')) });
+
+  expect(compose(chosen).query).toBe('!0*&!1*&!2*&!3*&!4*');
+
+  // Nothing has no star rating, so this matches nothing — and an empty allowed set written as an empty clause would
+  // turn it into the search that matches everything, the same trap the empty intersection of two spans is kept from.
+  expect(compose(optimise(chosen).state).query).toBe('!0*&!1*&!2*&!3*&!4*');
+});
+
+test('an exhaustive group that is not also exclusive reduces only as a whole', () => {
+  const type = group('type');
+
+  expect([type.exclusive, type.exhaustive, type.terms.length]).toEqual([undefined, true, 18]);
+
+  // Every species has a type, so all eighteen at once says nothing.
+  expect(compose(optimise(state({ include: new Set(all('type')) })).state).query).toBe('');
+
+  // One short of all eighteen says something quite different from the one left out, though: Gyarados is Flying as
+  // well as Water, so it is among the seventeen types that are not Water and is still not `!water`.
+  const most = state({ include: new Set(all('type').slice(0, -1)) });
+  const { state: short } = optimise(most);
+
+  expect([short.include, short.exclude]).toEqual([most.include, new Set()]);
 });
