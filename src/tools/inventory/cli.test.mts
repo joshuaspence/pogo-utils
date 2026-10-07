@@ -332,6 +332,24 @@ test('`snap` refuses an untypeable `--search`, before it opens the phone', async
 });
 
 /**
+ * An empty `--search` is refused too, which `typeable` alone does not do: its pattern is `*`-quantified, so `''` passes
+ * it, and spaces are stripped before the test, so a run of them passes as well. Both are terms that name nothing — an
+ * empty search matches everything, and the snap would be of whatever the grid showed first under a name saying it is
+ * something else. `--search "$TERM"` with `TERM` unset is how either one reaches here.
+ */
+test.for([
+  ['empty', ''],
+  ['whitespace-only', '   '],
+] as const)('`snap` refuses a %s `--search`, before it opens the phone', async ([, term]) => {
+  const failure = await run(process.execPath, [SCRIPT, 'snap', '--search', term]).catch((error: unknown) => error);
+  const { stderr } = failure as { stderr: string };
+
+  expect(failure).toMatchObject({ code: 1 });
+  expect(stderr).toContain('--search needs a term');
+  expect(stderr, 'the phone was reached before the term was checked').not.toContain('adb');
+});
+
+/**
  * The dump of what OCR read is printed only for `--verbose`, and the rest of the report is the same either way.
  *
  * Asserted as the whole of the output rather than as the dump alone, because the claim worth holding is that the flag

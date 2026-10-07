@@ -389,6 +389,7 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
  */
 function storage(device: Device, config: Config, data: GameData, screen: Image) {
   let searchBox: Point | null = null;
+  let fronted: Promise<void> | null = null;
 
   const at = (p: Point): Point => [p[0] * screen.width, p[1] * screen.height];
 
@@ -409,8 +410,32 @@ function storage(device: Device, config: Config, data: GameData, screen: Image) 
   const tileLabel = (lines: readonly Line[]) =>
     lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
 
+  /**
+   * Launched where it is not already in front, which is the phone's answer to give rather than the user's: a game
+   * running and a game showing are different states, and only the second is one `toStorage` can start from. A game in
+   * the background still needs the launch to bring it forward — skipping it there taps the launcher instead, three
+   * times over, and reports that storage cannot be found. The wait goes with the launch, since thirty seconds is what a
+   * cold start costs and a game already drawn is past it; measured, a resume takes the focus back in 676ms.
+   *
+   * It belongs to `toStorage` rather than to each caller because it is `toStorage`'s own precondition, and a caller is
+   * free to forget it: every path that drives storage gets it from here whether its author thought of the backgrounded
+   * phone or not. Asked once per run rather than before every search, which is the one `adb` call `scan` spent when it
+   * owned this rather than one for each flag.
+   */
+  const foreground = async () => {
+    if ((await device.focused()) === config.package) {
+      console.error('Pokémon GO is already in front');
+    } else {
+      console.error('Launching Pokémon GO');
+      await device.launch(config.package);
+      await sleep(config.waits.launch);
+    }
+  };
+
   /** Gets to the storage grid from wherever the game is: the map, a detail screen, or the grid already. */
   const toStorage = async () => {
+    await (fronted ??= foreground());
+
     for (let attempt = 0; attempt < 3; attempt++) {
       const image = await device.screenshot();
       const lines = await readLines(image);
@@ -649,19 +674,6 @@ async function scan() {
 
     await tap(at(config.taps.closeDetail));
   };
-
-  // Launched only where it is not already in front, which is the phone's answer to give rather than the user's: a game
-  // running and a game showing are different states, and only the second is one `toStorage` can start from. A game in
-  // the background still needs the launch to bring it forward — skipping it there taps the launcher instead, three
-  // times over, and reports that storage cannot be found. The wait goes with the launch, since thirty seconds is what a
-  // cold start costs and a game already drawn is past it; measured, a resume takes the focus back in 676ms.
-  if ((await device.focused()) === config.package) {
-    console.error('Pokémon GO is already in front');
-  } else {
-    console.error('Launching Pokémon GO');
-    await device.launch(config.package);
-    await sleep(config.waits.launch);
-  }
 
   // The flag passes come first, so that the full pass can write each row complete as it goes.
   const marked = new Map<Flag, Marks>();
@@ -1090,12 +1102,20 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
  * it is had, and said out loud rather than refused where it cannot be: both files are written by then, so the status
  * goes on answering for the capture rather than for where the phone was left.
  *
+ * **`--search` drives the phone to the Pokémon** instead of taking whatever is showing, which is what makes a capture
+ * reproducible: the term says which Pokémon was wanted, where a screen set up by hand records nothing about that at
+ * all. Storage is somewhere only a game in front can be driven to, so the launch comes with it — see `toStorage`, which
+ * owns that check on behalf of every caller. A grid it lands on with no Pokémon in it is refused before anything is
+ * written, the one case that beats writing first: the capture would otherwise be of the storage grid, saved over
+ * whatever this name already held. It also brings the game master's load forward, so a `--search` run on a cold cache
+ * with no network fails having written nothing, where a plain snap cannot.
+ *
  * The screen is grabbed and written to disk first, then read, then checked. Writing first is what makes a snap of a
  * broken phone useful: the readers can throw rather than read nothing — `ocr` rejects outright where Tesseract is not
  * on the path — and a snap that saved nothing is no help on the one run that needed it. Reading before any drag is what
  * keeps a scroll capture of the wrong screen from driving the phone for nothing, and the game master is loaded after
- * the grab, `iconsFor` taking minutes on a cold cache: long enough for the phone to blank the screen set up for the
- * snap.
+ * the grab wherever nothing above wanted it sooner, `iconsFor` taking minutes on a cold cache: long enough for the
+ * phone to blank the screen set up for the snap.
  */
 async function snap() {
   const name = rest[0] ?? new Date().toISOString().replaceAll(':', '-');
@@ -1114,6 +1134,19 @@ async function snap() {
   // not send is one the phone would be driven to storage and into the search box for before anything said so.
   if (options.search !== undefined && !typeable(options.search)) {
     console.error(`snap: --search ${JSON.stringify(options.search)} has characters the phone cannot be sent`);
+    process.exitCode = 1;
+
+    return;
+  }
+
+  // The one term `typeable` passes and `--search` cannot use: it is `*`-quantified, so both `''` and a run of spaces
+  // satisfy it. An empty search matches everything, which would snap whatever the unfiltered grid happens to show first
+  // and exit 0 — a capture under a name claiming it is something else, and the unreproducible snap `--search` is here
+  // to replace. `--search "$TERM"` with `TERM` unset is how it arrives. A whitespace-only term is worse still: `search`
+  // types the space, so the `term === ''` test that closes the suggestions panel is skipped, and `firstTile` falls back
+  // to its blind tap onto the first Recent chip — opening whatever was searched for last.
+  if (options.search?.trim() === '') {
+    console.error('snap: --search needs a term; an empty one matches everything, so the capture would name nothing');
     process.exitCode = 1;
 
     return;
@@ -1148,9 +1181,28 @@ async function snap() {
   // Driven to the Pokémon rather than taking what is showing, which is what makes a capture reproducible: the search
   // names what it wanted, where a screen set up by hand records nothing about which Pokémon that was.
   if (options.search !== undefined) {
-    const { tap, search, firstTile } = storage(device, config, await gameData(), await device.screenshot());
+    const { tap, search, tileLabel, firstTile } = storage(device, config, await gameData(), await device.screenshot());
+    const grid = await search(options.search);
 
-    await tap(firstTile(await search(options.search)), config.waits.swipe);
+    // Checked before the grab, which is the one place something beats writing first: a grid with no Pokémon in it is
+    // one `firstTile` taps blind, so what would be written over `NAME.png` is a screenshot of the storage grid — and
+    // the refusals below would then blame the HP and the overlay without ever saying the search was what failed. The
+    // re-snap of a Pokémon since powered up or traded away is exactly when it happens, which is to say when the fixture
+    // being overwritten is the one still wanted.
+    //
+    // Which of the two it was goes unsaid, for the reason the missing HP above does: a grid whose first label misread
+    // and a search that matched nothing cannot be told apart from here, and neither is a screen to snap.
+    if (!tileLabel(grid)) {
+      refuse(
+        `--search ${JSON.stringify(options.search)} left a grid with no CP label in it, so it either matched` +
+          ' nothing or landed on a Pokémon whose label would not read',
+        'nothing was written, so a snap already saved under this name is still the one that was there',
+      );
+
+      return;
+    }
+
+    await tap(firstTile(grid), config.waits.swipe);
   }
 
   // Settled, so that what is read is the screen rather than the middle of an animation it was drawing.
