@@ -33,6 +33,103 @@ test('an image survives being encoded and decoded byte for byte', () => {
 
   expect([back.width, back.height]).toStrictEqual([7, 5]);
   expect([...back.data]).toStrictEqual([...image.data]);
+  expect(back.text, 'a file carrying no `tEXt` reads as carrying none, not as an empty one').toBeUndefined();
+});
+
+/**
+ * A `tEXt` chunk round-trips, which is what `snap` records a stitch's `Viewport` in: a stitch is as many frames tall as
+ * the screen took, so the height the phone drew is the one thing the file cannot say with its own `IHDR`.
+ *
+ * Asserted against `decodePng`'s own reading rather than by looking for the bytes, because what a caller depends on is
+ * the keyword coming back — and the bytes are checked anyway, the chunk's CRC being verified like every other.
+ */
+test('a `tEXt` chunk written beside an image comes back as its keyword and value', () => {
+  const back = decodePng(encodePng(ramp(3, 2), { Viewport: '1008x2244', Software: 'pogo-utils' }));
+
+  expect({ ...back.text }).toStrictEqual({ Viewport: '1008x2244', Software: 'pogo-utils' });
+  expect([...back.data], 'the chunk displaced a pixel').toStrictEqual([...ramp(3, 2).data]);
+});
+
+/**
+ * And that it survives a *second* trip through the codec, `encodePng` writing `image.text` back out rather than only
+ * what its caller hands it. Cropping a stitch to its viewport and saving it again is the branch's own next step, and
+ * `parse` already decodes these files — so a chunk that only ever went out through `carry` would be dropped by the
+ * first consumer to re-save one, silently and at exactly the moment the value is wanted.
+ */
+test('a `tEXt` chunk survives being decoded and encoded again', () => {
+  const once = decodePng(encodePng(ramp(3, 2), { Viewport: '1008x2244' }));
+
+  expect({ ...decodePng(encodePng(once)).text }).toStrictEqual({ Viewport: '1008x2244' });
+
+  // And `carry` still wins, a caller correcting a keyword being the reason it is a parameter at all.
+  expect({ ...decodePng(encodePng(once, { Viewport: '720x1600' })).text }).toStrictEqual({ Viewport: '720x1600' });
+});
+
+/**
+ * A keyword the spec does not allow is refused when it is written rather than read back wrong. Length is the easy half.
+ * The rest matter because `Buffer.from(…, 'latin1')` masks to the low byte instead of refusing: `Nidoran♂` would go to
+ * the file as `NidoranB`, in a tool whose subject prints `♂`, `♀` and `✨`. A NUL is worse than lossy — it is the
+ * chunk's own separator, so `{ 'a\0b': 'x' }` was written and read back as `{ a: 'b\0x' }`, a pair nobody asked for.
+ */
+test('a `tEXt` keyword the spec does not allow is refused rather than written lossily', () => {
+  expect(() => encodePng(ramp(1, 1), { '': 'x' })).toThrow(/1 to 79 characters/);
+  expect(() => encodePng(ramp(1, 1), { ['k'.repeat(80)]: 'x' })).toThrow(/1 to 79 characters/);
+  expect(() => encodePng(ramp(1, 1), { ['k'.repeat(79)]: 'x' })).not.toThrow();
+
+  expect(() => encodePng(ramp(1, 1), { 'Né♂me': 'x' }), 'masked to the low byte').toThrow(/printable Latin-1/);
+  expect(() => encodePng(ramp(1, 1), { 'a\0b': 'x' }), 'moves where the value begins').toThrow(/printable Latin-1/);
+  expect(() => encodePng(ramp(1, 1), { 'a\nb': 'x' })).toThrow(/printable Latin-1/);
+
+  // Spaces the spec forbids. One *inside* a keyword is allowed, which is what makes the other three worth checking.
+  expect(() => encodePng(ramp(1, 1), { ' Odd': 'x' })).toThrow(/leading, trailing or doubled space/);
+  expect(() => encodePng(ramp(1, 1), { 'Odd ': 'x' })).toThrow(/leading, trailing or doubled space/);
+  expect(() => encodePng(ramp(1, 1), { 'Odd  key': 'x' })).toThrow(/leading, trailing or doubled space/);
+  expect(() => encodePng(ramp(1, 1), { 'Odd key': 'x' })).not.toThrow();
+});
+
+/** And the value, on the same footing: Latin-1 is what the chunk holds, and the NUL is spoken for. */
+test('a `tEXt` value outside Latin-1, or carrying a NUL, is refused', () => {
+  expect(() => encodePng(ramp(1, 1), { Name: 'Nidoran♂' })).toThrow(/Latin-1 with no NUL/);
+  expect(() => encodePng(ramp(1, 1), { Name: 'a\0b' })).toThrow(/Latin-1 with no NUL/);
+  expect(() => encodePng(ramp(1, 1), { Name: 'Nidoran\xb6' }), 'Latin-1 is written as itself').not.toThrow();
+});
+
+/**
+ * That `text` carries a null prototype, so the name a caller asks about is the name the file carried and nothing else.
+ * `in` would answer true for `constructor` and `toString` on every decoded image, and `__proto__` is the sharper half:
+ * assigning that key on a plain object reaches the inherited setter, which is a silent no-op — so a file carrying it
+ * lost the keyword *beside* it from the same read, and the image came back saying `{ Ok: 'y' }` with no sign of either.
+ */
+test('a `tEXt` keyword cannot be confused with a name `Object.prototype` lends', () => {
+  const back = decodePng(encodePng(ramp(2, 2), { ['__proto__']: 'z', Ok: 'y' }));
+
+  expect(Object.getPrototypeOf(back.text), '`in` would answer for `constructor` and `toString`').toBeNull();
+  expect({ ...back.text }).toStrictEqual({ ['__proto__']: 'z', Ok: 'y' });
+  expect(Object.hasOwn(back.text ?? {}, '__proto__')).toBe(true);
+  expect(back.text?.['Ok'], 'the keyword beside `__proto__` was dropped with it').toBe('y');
+});
+
+/**
+ * An unknown ancillary chunk is skipped rather than refused, which is what makes writing a `tEXt` safe to begin with:
+ * the lower-case first letter of the type says a decoder may ignore it, so one it has never heard of must not stop it.
+ *
+ * Built by hand from a chunk the codec does not write, because the claim is about chunks it does not know — a `tEXt` it
+ * now reads could not state it.
+ */
+test('an ancillary chunk this codec does not know is skipped rather than refused', () => {
+  const png = encodePng(ramp(2, 2));
+  const body = Buffer.from('whatever', 'latin1');
+  const extra = Buffer.alloc(12 + body.length);
+  extra.writeUInt32BE(body.length, 0);
+  extra.write('mEOw', 4, 'latin1');
+  body.copy(extra, 8);
+  extra.writeUInt32BE(crc32(extra.subarray(4, 8 + body.length)), 8 + body.length);
+
+  // After the signature and the 25-byte IHDR chunk, which is where a `tEXt` goes too.
+  const back = decodePng(Buffer.concat([png.subarray(0, 8 + 25), extra, png.subarray(8 + 25)]));
+
+  expect([...back.data]).toStrictEqual([...ramp(2, 2).data]);
+  expect(back.text).toBeUndefined();
 });
 
 test('a zero-byte image is not a PNG, and nor is one whose signature is broken', () => {

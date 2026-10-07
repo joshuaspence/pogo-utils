@@ -6,11 +6,23 @@
 
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 
-/** An image as four bytes a pixel, red, green, blue and alpha, row after row. */
+/**
+ * An image as four bytes a pixel, red, green, blue and alpha, row after row.
+ *
+ * `text` is whatever `tEXt` chunks the file carried, keyword against value, and is absent on an image built here rather
+ * than read — `crop` and `scale` answer a new image whose own size is the truth about it, so there is nothing for them
+ * to carry forward. Optional so that the thirty-odd places that build an `Image` by hand need say nothing about it.
+ *
+ * `encodePng` writes it back out, so a chunk survives a decode and a re-encode: cropping a stitch and saving it again
+ * would otherwise drop the `Viewport` that is the whole reason for recording one. It carries a null prototype, so
+ * `Object.hasOwn(image.text ?? {}, 'Viewport')` is the question to ask about it — `in` answers true for `constructor`,
+ * `toString` and every other name `Object.prototype` would have lent it.
+ */
 export interface Image {
   width: number;
   height: number;
   data: Uint8Array;
+  text?: Readonly<Record<string, string>>;
 }
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -36,6 +48,9 @@ export function decodePng(bytes: Buffer): Image {
   let channels = 0;
   let ended = false;
   const idat: Buffer[] = [];
+  // Null-prototype, so a file is free to carry `__proto__` as a keyword: assigning that name on a plain object reaches
+  // the inherited setter and is a silent no-op, which would drop the keyword *beside* it from the same chunk.
+  const text: Record<string, string> = Object.create(null);
 
   for (let at = 8; at < bytes.length && !ended;) {
     if (at + 12 > bytes.length || at + 12 + bytes.readUInt32BE(at) > bytes.length) {
@@ -65,6 +80,15 @@ export function decodePng(bytes: Buffer): Image {
       idat.push(body);
     } else if (type === 'IEND') {
       ended = true;
+    } else if (type === 'tEXt') {
+      // Keyword, a zero byte, then the value, both Latin-1. A chunk with no separator is malformed rather than empty,
+      // and is skipped: `tEXt` is ancillary — the lower-case `t` says a decoder may ignore it — so nothing a reader
+      // needs rests on it, and refusing the whole screenshot over a damaged comment would cost more than it saved.
+      const split = body.indexOf(0);
+
+      if (split > 0) {
+        text[body.toString('latin1', 0, split)] = body.toString('latin1', split + 1);
+      }
     }
   }
 
@@ -116,8 +140,12 @@ export function decodePng(bytes: Buffer): Image {
     }
   }
 
+  // Absent rather than empty where the file carried none, so an image built here reads the same as one read from a file
+  // that said nothing, and `Object.hasOwn(image.text ?? {}, 'Viewport')` is the only question a caller has to ask.
+  const carried = Object.keys(text).length > 0 ? { text } : {};
+
   if (channels === 4) {
-    return { width, height, data: pixels };
+    return { width, height, data: pixels, ...carried };
   }
 
   const data = new Uint8Array(width * height * 4);
@@ -131,10 +159,54 @@ export function decodePng(bytes: Buffer): Image {
     data[i * 4 + 3] = channels === 2 ? (pixels[src + 1] ?? 255) : 255;
   }
 
-  return { width, height, data };
+  return { width, height, data, ...carried };
 }
 
-export function encodePng(image: Image): Buffer {
+/**
+ * A keyword the spec allows: 1 to 79 characters, printable Latin-1, and no space leading, trailing or doubled.
+ *
+ * Checked in full rather than for length alone, because `Buffer.from(…, 'latin1')` does not refuse what it cannot
+ * represent — it keeps the low byte, so `Nidoran♂` would be written as `NidoranB` and read back as that, in a tool
+ * whose subject prints `♂`, `♀` and `✨`. A NUL is the sharpest case: it is the chunk's own separator, so one inside a
+ * keyword moves where the value begins, and `{ 'a\0b': 'x' }` reads back as `{ a: 'b\0x' }` — a different pair, written
+ * without complaint.
+ */
+const KEYWORD = /^[\x20-\x7e\xa1-\xff]{1,79}$/;
+
+/**
+ * A value is Latin-1 too, and holds no NUL, that being the separator the keyword is already terminated by. Spelled out
+ * rather than as a character class, a range from `\x01` being a control character `no-control-regex` refuses to read.
+ */
+const isLatin1 = (value: string): boolean =>
+  [...value].every((character) => {
+    const code = character.codePointAt(0) ?? 0;
+
+    return code > 0 && code <= 0xff;
+  });
+
+const text = (keyword: string, value: string): Buffer => {
+  if (!KEYWORD.test(keyword)) {
+    throw new Error(`a tEXt keyword is 1 to 79 characters of printable Latin-1, not ${JSON.stringify(keyword)}`);
+  }
+
+  if (keyword.trim() !== keyword || keyword.includes('  ')) {
+    throw new Error(`a tEXt keyword carries no leading, trailing or doubled space, unlike ${JSON.stringify(keyword)}`);
+  }
+
+  if (!isLatin1(value)) {
+    throw new Error(`a tEXt value is Latin-1 with no NUL in it, unlike ${JSON.stringify(value)}`);
+  }
+
+  return chunk('tEXt', Buffer.from(`${keyword}\0${value}`, 'latin1'));
+};
+
+/**
+ * `carry` is written on top of whatever `image.text` already holds, so a file's own chunks survive being decoded and
+ * written back and a caller can still override one by keyword. Assigned onto a null prototype rather than spread into a
+ * literal, so a `__proto__` the file carried stays a key here instead of reaching a setter.
+ */
+export function encodePng(image: Image, carry: Readonly<Record<string, string>> = {}): Buffer {
+  const carried: Record<string, string> = Object.assign(Object.create(null), image.text, carry);
   const stride = image.width * 4;
   const raw = Buffer.alloc((stride + 1) * image.height);
 
@@ -147,7 +219,13 @@ export function encodePng(image: Image): Buffer {
   header.writeUInt32BE(image.height, 4);
   header.set([8, 6, 0, 0, 0], 8);
 
-  return Buffer.concat([SIGNATURE, chunk('IHDR', header), chunk('IDAT', deflateSync(raw)), chunk('IEND')]);
+  return Buffer.concat([
+    SIGNATURE,
+    chunk('IHDR', header),
+    ...Object.entries(carried).map(([keyword, value]) => text(keyword, value)),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND'),
+  ]);
 }
 
 function chunk(type: string, body = Buffer.alloc(0)): Buffer {

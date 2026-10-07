@@ -15,7 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from './stitch.mts';
-import { decodePng, rgb, type Image } from './png.mts';
+import { crop, decodePng, rgb, type Image } from './png.mts';
 
 /**
  * Where the frames below put their furniture, which is a fact about the screen rather than about any band. The band is
@@ -221,6 +221,52 @@ test('the fixed furniture is taken once, from the first frame and the last', () 
   expect(rgb(image, 10, tail - 1), 'the furniture starts before the content ends').toStrictEqual(
     rgb(source, 10, bottom - top + 240 - 1),
   );
+});
+
+/**
+ * What a recorded `Viewport` does and does not buy, the obvious use of it being wrong. `snap` writes the screen's own
+ * height beside the stitch so that a reader handed the tall image can find the rows the phone drew — but cropping to
+ * that height does **not** give the screen back. Rows down to the band's foot are the first frame verbatim; the rows
+ * after it are the next frame's revealed content, the screen's own footer having been appended at the far end instead.
+ *
+ * So the only crop that is the screen row for row stops at the foot, and it is shorter than the screen by the footer —
+ * which moves every reader anchored on a fraction of the height, which is all of them but `parseMoves`. Pinned because
+ * a comment claiming the viewport crop *was* the screen is what this replaces, and prose was what let it be wrong.
+ */
+test('a stitch cropped to its viewport is the screen only as far as the band foot', () => {
+  const source = content(2000);
+  const frames = [0, 120, 240].map((s) => frameAt(source, s));
+  const image = stitch(frames, [120, 120], BAND);
+  const screen = frames[0] as Image;
+  const bottom = Math.round(FRAME * BAND.to);
+
+  /** The first row at which two images disagree, over three columns, or null where they agree throughout. */
+  const divergence = (a: Image, b: Image, rows: number): number | null => {
+    for (let y = 0; y < rows; y++) {
+      for (const x of [0, 37, WIDTH - 1]) {
+        if (rgb(a, x, y).join() !== rgb(b, x, y).join()) {
+          return y;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Cropped to the band's foot, every row is the screen's own — which is the identity the `Viewport` is good for.
+  const toFoot = crop(image, 0, 0, image.width, bottom);
+
+  expect([toFoot.width, toFoot.height]).toStrictEqual([WIDTH, bottom]);
+  expect(divergence(toFoot, screen, bottom), 'the rows down to the band foot are not the screen verbatim').toBeNull();
+
+  // Cropped to the viewport, it stops being the screen at exactly that foot rather than running to the bottom.
+  expect(
+    divergence(crop(image, 0, 0, image.width, FRAME), screen, FRAME),
+    'the viewport crop is the screen past the band foot, so the furniture below it would read',
+  ).toBe(bottom);
+
+  // Because the screen's own footer sits at the far end of the tall image, not at the viewport's offset.
+  expect(rgb(image, 10, image.height - (FRAME - bottom))).toStrictEqual(rgb(screen, 10, bottom));
 });
 
 /**
