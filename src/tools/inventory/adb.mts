@@ -13,6 +13,15 @@ import { execFile } from 'node:child_process';
  */
 const TIMEOUT_MS = 30_000;
 
+/**
+ * Whether `type` would send this rather than refuse it: a space, and the characters a storage search is made of.
+ *
+ * Exported so a caller can refuse a term itself, before it has driven the phone to the box it meant to type into —
+ * `type` throwing at that point leaves storage open with the keyboard up, which is a worse answer than the same
+ * complaint before anything moved.
+ */
+export const typeable = (text: string) => /^[\w&,!@#*+-]*$/.test(text.replaceAll(' ', ''));
+
 export class Device {
   readonly #prefix: string[];
 
@@ -43,7 +52,7 @@ export class Device {
 
   /** Typed into whatever has focus. `input text` takes `%s` for a space and nothing else survives the shell. */
   async type(text: string): Promise<void> {
-    if (!/^[\w&,!@#*+-]*$/.test(text.replaceAll(' ', ''))) {
+    if (!typeable(text)) {
       throw new Error(`refusing to type ${JSON.stringify(text)}: only search-term characters are passed to the shell`);
     }
 
