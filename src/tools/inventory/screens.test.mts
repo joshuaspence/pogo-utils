@@ -999,6 +999,15 @@ const NEGATIVE = [
 const WHOLE_CORPUS_TIMEOUT = 600_000;
 
 /**
+ * Every PNG committed beside this file, which is what the two tests below check the corpus against. One list rather
+ * than two, so a change to what counts as a capture cannot leave them covering different sets and each reporting that
+ * the half it can see is accounted for.
+ */
+const COMMITTED = readdirSync(new URL('fixtures', import.meta.url))
+  .filter((file) => file.endsWith('.png'))
+  .sort();
+
+/**
  * That every committed capture is accounted for, which is the one thing about this corpus no row can say. A PNG added
  * to `fixtures/` and left out of `FIXTURES` costs nothing and reports nothing — the suite goes on passing at whatever
  * size it was, and the capture sits in the tree looking exactly like a capture that is pinned. So the directory is the
@@ -1006,11 +1015,53 @@ const WHOLE_CORPUS_TIMEOUT = 600_000;
  * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
-  const committed = readdirSync(new URL('fixtures', import.meta.url))
-    .filter((file) => file.endsWith('.png'))
-    .sort();
+  expect(COMMITTED).toStrictEqual([...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
+});
 
-  expect(committed).toStrictEqual([...FIXTURES.map((f) => f.file), ...NEGATIVE].sort());
+/**
+ * How tall a capture may be against its own width before it is a stitch rather than a screen. Bounded on both sides and
+ * thin on both, so this is measured rather than placed in the middle of the gap: the tallest aspect ratio a phone ships
+ * in is 21:9, or 2.333, and the first reader answers wrong at 2.380, where `pikachu-santa-hat.png`'s star stops reading
+ * as filled. `articuno-galar.png` follows at 2.496 and `ho-oh.png` at 2.546 — `isFavourite` crops that corner as a
+ * fraction of the height while the star stays where the phone drew it, so a taller capture slides the band down off the
+ * star and dilutes what gold is left against `FAVOURITE_GOLD`'s 1.2 points of margin.
+ *
+ * Which is why this is not the 2.5 that splits the difference up to a stitch's 2.97: two of the five favourites already
+ * read wrong below it. A ceiling cannot reach every reader — `CP_SWEEP`'s band starts at 0.055, row 123.4 of 2244, flush
+ * against the label lines at rows 123 and 127, so *any* capture taller than the phone drew pushes it off and no ceiling
+ * a real phone passes would catch that. It reaches the star, which is the tightest one it can.
+ */
+const SCREEN_RATIO = 2.35;
+
+/**
+ * That every capture is one screen as the phone drew it rather than a stitch of several, which is the other thing about
+ * this corpus no row can say. `snap --scroll` assembles a tall image out of a scroll, and it is the wrong artifact for
+ * this file: the star corner, the overlay sweep, the tag band, the artwork and the CP sweep are each anchored on a
+ * fraction of the image's height, so a capture three times taller moves every one of them off what it was measured
+ * against. `parseMoves` is the one reader that survives, being anchored on the `GYMS & RAIDS` line.
+ *
+ * It is a test because prose was not enough. `scripts/inventory.mts` says it twice, once calling it a limit rather than
+ * an oversight — and a stitch was still committed over all 43 detail captures, which reported as 76 failures: the five
+ * readers above, and everything `identify` derives from what they answered. Not one of them said the fixtures were what
+ * was wrong. The size is the cheapest thing on a capture to check and the only one that separates the two artifacts, so
+ * it is checked here rather than left to surface as a reader disagreeing somewhere else.
+ *
+ * The failure names the size beside the file, because the name is the part that already looked right.
+ */
+test('every committed capture is one screen rather than a stitch', () => {
+  const stitched = COMMITTED.flatMap((file) => {
+    // Off the PNG header rather than the pixels, which the spec puts at a fixed offset: an 8-byte signature, then an
+    // IHDR chunk whose width and height are the 32-bit fields at 16 and 20. `decodePng` would inflate each capture to
+    // 9 MB of pixels to compare two numbers — 3.4s and 606 MB across the 49, and `.map` before `.filter` holds every
+    // one of them live at once, on top of the decoded corpus `read` is already keeping in the same worker.
+    const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+
+    return height > width * SCREEN_RATIO ? [`${file} is ${width}x${height}`] : [];
+  });
+
+  expect(stitched).toStrictEqual([]);
 });
 
 /**
