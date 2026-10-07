@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   all:
-    name: 'Unit Tests'
+    name: 'Unit Test'
     needs: 'test'
     if: 'always()'
     runs-on: 'ubuntu-latest'
