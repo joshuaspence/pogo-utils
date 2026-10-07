@@ -19,7 +19,7 @@ import { byCodeUnit, HAS_ZONE, LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from 
 import { ENTRIES_BY_EVENT, EVENTS_FEED } from '../src/generated.ts';
 import RECURRING_TYPES from '../src/recurring-types.ts';
 import type { FeedEvent, RouteIndex } from '../src/types.js';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -33,8 +33,9 @@ const SITE = 'https://joshuaspence.github.io/pogo-utils';
  * copied in because nothing in the checkout holds one: it is derived from three files that are, so there is no second
  * copy to keep in step and nothing to publish from the allowlist.
  *
- * `scripts/bundle.mts` is what creates this directory — `tsconfig.json` has no `outDir`, emitting declarations alone —
- * so this runs after it and before `assemble.mts` has the artifact to check.
+ * Made below rather than taken for granted. `tsconfig.json` has no `outDir`, emitting declarations alone, so the only
+ * thing that creates `dist/` is esbuild in `scripts/bundle.mts` — which left `pnpm build:ics` on its own failing on an
+ * `ENOENT` for a directory the step before it happened to make.
  */
 const DIST = 'dist';
 
@@ -237,5 +238,6 @@ const dated = [...byId.values()]
 
 const events = dated.filter((ev) => !RECURRING.has(ev.heading));
 
+mkdirSync(DIST, { recursive: true });
 writeFileSync(FEED.file, calendar(FEED, events, index));
 console.log(`${FEED.file}: ${events.length} events`);
