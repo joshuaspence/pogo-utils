@@ -1138,7 +1138,7 @@ const COMMITTED = readdirSync(new URL('fixtures', import.meta.url))
  * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
-  expect(COMMITTED).toStrictEqual([...CORPUS].sort());
+  expect(COMMITTED).toStrictEqual(CORPUS.toSorted());
 });
 
 /**
@@ -1736,7 +1736,7 @@ test(
     const elsewhere: string[] = [];
     let asked = 0;
 
-    for (const file of [...FIXTURES.map((f) => f.file), ...NEGATIVE]) {
+    for (const file of CORPUS) {
       if (file in entries) {
         continue;
       }
@@ -1754,7 +1754,7 @@ test(
     // The count, because an empty list of offenders is also what a loop that asked nothing produces — which is the
     // failure this whole test exists to rule out, one level up.
     expect(asked, 'the reader was not asked about every other capture').toBe(
-      FIXTURES.length + NEGATIVE.length - Object.keys(entries).length,
+      CORPUS.length - Object.keys(entries).length,
     );
   },
   WHOLE_CORPUS_TIMEOUT,
@@ -1819,7 +1819,7 @@ test(
   async () => {
     const read: Record<string, Moves> = {};
 
-    for (const file of [...FIXTURES.map((f) => f.file), ...NEGATIVE].sort()) {
+    for (const file of CORPUS.toSorted()) {
       const { lines, image, identity } = await readingOf(file);
       read[file] = await parseMoves(lines, DATA, identity.form, image);
     }
