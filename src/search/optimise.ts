@@ -3,14 +3,19 @@
  * state for query.js to compose, so the shortened string goes through the same clause writer, the same clause order and
  * the same ambiguity check as the plain one. Nothing takes apart a search string that was just written.
  *
- * Two kinds of redundancy are worth removing, and both are the same thing: the reader has said which species they mean
- * at more length than the game needs.
+ * Three kinds of redundancy are worth removing. The first two are the same thing: the reader has said which species
+ * they mean at more length than the game needs.
  *
  * - **A name longer than it has to be.** `charmander` names one species, `charma` names the same one, and so does the
  *   dex number `4`. The game reads all three the same way, so the shortest of them is the one to write.
  * - **Dex numbers said twice.** The generation chips, the dex-number boxes and a name that has become a number all
  *   write spans of the same numbers, and the clauses they land in are AND'd, so they collapse into their intersection:
  *   Gen 1 with Gen 2 is `1-251`, and `charmander` inside Gen 1 is just `4`.
+ * - **A group saying what its own terms already settle.** Nothing is both Shadow and Purified, so `shadow&!purified`
+ *   is `shadow`; everything has a star rating, so all five of them at once is no clause at all, and four of them say
+ *   the fifth — `0*,1*,2*,3*` is `!4*`. One term can also be the union of others, as `background` is of the two
+ *   backdrops, and is then the shorter way to write the whole of what it covers. Which groups and terms those facts
+ *   hold of is `terms.js`'s to declare, and its `exclusive`, `exhaustive` and `covers` are all that is known here.
  *
  * What is not here is the reduction the shorthand invites most. `+charmander` is the Charmander family, so writing it
  * `4,5,6` — or shortening it to `+charm`, the same family reached through two of its members — needs to know which
@@ -21,8 +26,8 @@
  */
 
 import POKEMON from '../pokemon/pokedex.js';
-import { GROUPS, RANGES } from './terms.js';
-import { names, rangeClause, type State } from './query.js';
+import { GROUPS, RANGES, type Group, type Term } from './terms.js';
+import { groupClause, names, rangeClause, type State } from './query.js';
 
 /**
  * A run of dex numbers, inclusive at both ends, which is every shape of number the game reads: `4` is `[4, 4]`.
@@ -199,6 +204,132 @@ const everything = (spans: readonly Span[], whole: Span) =>
   spans.length === 1 && spans.every(([from, to]) => from <= whole[0] && to >= whole[1]);
 
 /**
+ * What the composer writes for a group with these terms on one side of its clause and nothing on the other, so the two
+ * spellings weighed against each other below are measured by the writer that will produce one of them rather than by a
+ * second copy of its join rules — the same reading the dex clause is put through further down.
+ */
+function clauseOf(group: Group, side: 'include' | 'exclude', ids: readonly string[]) {
+  const sides = { include: new Set<string>(), exclude: new Set<string>() };
+  sides[side] = new Set(ids);
+
+  return groupClause(group, sides) ?? '';
+}
+
+/**
+ * A union term written in place of the terms it covers, in one side of a group's clause.
+ *
+ * Which side that is never comes up, which is the whole of why there is one of these rather than two: the union says
+ * what each of its terms says, and that cuts the same way whichever way round the clause has them.
+ * `background,locationbackground` is `background` because either backdrop is a backdrop, and
+ * `!background&!locationbackground` is `!background` because neither backdrop rules out both.
+ *
+ * What it does mean is that a term is read on the side it was picked on and nowhere else, so
+ * `background&!locationbackground` — the Event backdrops — comes through here as it went in, as does the
+ * `locationbackground&!background` that matches nothing. One of those a reader wants and the other they are owed the
+ * sight of.
+ *
+ * Nothing here weighs the two spellings, because `terms.js` names a union more briefly than the terms it covers and a
+ * test holds the table to it. A union term named at more length would still be correct to swap in and would no longer
+ * be worth swapping, which wants a field of its own rather than a branch here.
+ */
+function shortUnion(group: Group, chosen: Set<string>) {
+  for (const union of group.terms) {
+    if (!union.covers) {
+      continue;
+    }
+
+    const covered = union.covers.filter((id) => chosen.has(id));
+
+    // Beside the union itself a term it covers adds nothing to that side, so it goes — however many of them are on it.
+    if (chosen.has(union.id)) {
+      for (const id of covered) {
+        chosen.delete(id);
+      }
+
+      continue;
+    }
+
+    // Short of all of them the union says more than they do, and there is nothing here to swap it for.
+    if (covered.length < union.covers.length) {
+      continue;
+    }
+
+    for (const id of covered) {
+      chosen.delete(id);
+    }
+
+    chosen.add(union.id);
+  }
+}
+
+/**
+ * One group's choices said as shortly as the group's own arithmetic allows, written back into the two sets they came
+ * from. A group whose terms `terms.js` declares nothing about has no arithmetic, and is left as the chips left it.
+ *
+ * The two group facts buy different things, which is why they are two rather than one flag. At most one term being
+ * true of a Pokémon makes a refusal beside a choice redundant, the choice having already ruled out everything it is
+ * not. At least one always being true makes the whole group redundant, since asking for any of them asks for nothing.
+ * Both at once make the terms left out say exactly what the terms chosen say, so the shorter of those two spellings is
+ * the one to write.
+ *
+ * A union term comes first, and only ever makes a side shorter. The two reductions cannot reach for the same clause: a
+ * group holding a union term overlaps itself and so cannot be exclusive, and Background — the one group holding one —
+ * declares neither fact.
+ */
+function shortGroup(group: Group, include: Set<string>, exclude: Set<string>) {
+  shortUnion(group, include);
+  shortUnion(group, exclude);
+
+  // The chips can write `shadow&!purified`, and in an exclusive group the choice has ruled the rest out already.
+  if (group.exclusive && group.terms.some((term) => include.has(term.id))) {
+    for (const term of group.terms) {
+      exclude.delete(term.id);
+    }
+  }
+
+  if (!group.exhaustive) {
+    return;
+  }
+
+  const chosen = group.terms.filter((term) => include.has(term.id));
+
+  // What a Pokémon is left free to be: the choices, narrowed by the refusals — or every term where nothing was chosen,
+  // since choosing nothing in a group rules out only what that group refuses.
+  const allowed = (chosen.length > 0 ? chosen : group.terms).filter((term) => !exclude.has(term.id));
+  const refused = group.terms.filter((term) => !allowed.includes(term));
+
+  // Every term in the group refused, which the chips can say between them. Nothing can match, and the empty clause an
+  // allowed set of nothing would write matches everything instead — the same trap the empty intersection of two spans
+  // is kept out of below.
+  if (allowed.length === 0) {
+    return;
+  }
+
+  // Several terms can be true of one Pokémon where the group is not also exclusive, so the ones left out do not say
+  // what the ones chosen say: Gyarados is Flying, which is among the seventeen types that are not Water, and it is
+  // still not `!water`. The whole set is the one case that reduces, and it reduces to nothing.
+  if (!group.exclusive && refused.length > 0) {
+    return;
+  }
+
+  const ids = (terms: readonly Term[]) => terms.map((term) => term.id);
+
+  const [set, writing]: [Set<string>, readonly Term[]] =
+    clauseOf(group, 'exclude', ids(refused)).length < clauseOf(group, 'include', ids(allowed)).length
+      ? [exclude, refused]
+      : [include, allowed];
+
+  for (const term of group.terms) {
+    include.delete(term.id);
+    exclude.delete(term.id);
+  }
+
+  for (const term of writing) {
+    set.add(term.id);
+  }
+}
+
+/**
  * The state the same choices compose to in fewer characters, and what was done to get there.
  *
  * The state handed back is for composing and nothing else. The chips, the boxes and the link go on carrying what the
@@ -218,6 +349,13 @@ export function optimise(state: State) {
     exclude: new Set(state.exclude),
     ranges: new Map([...state.ranges].map(([id, bounds]) => [id, { ...bounds }])),
   };
+
+  // Each group's own arithmetic, settled inside the group and so neither reading nor disturbing the names and the dex
+  // spans below. Generation is the one group whose terms those spans own, and it is also the one declaring neither
+  // fact, so the two reductions never reach for the same clause.
+  for (const group of GROUPS) {
+    shortGroup(group, short.include, short.exclude);
+  }
 
   const typed = [...new Set(names(state.text))];
 

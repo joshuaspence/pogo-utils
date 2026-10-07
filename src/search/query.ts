@@ -64,8 +64,12 @@ function nameClause(text: string) {
  * The refused ones are negated and AND'd whatever the group joins with, because refusing both means neither. That
  * asymmetry is not a choice — `!fire,!water` would match everything that is not Fire *or* not Water, which is
  * everything.
+ *
+ * Exported for the optimiser, which weighs a group's choices against the terms they leave out and has to measure both
+ * spellings with the writer that is going to produce one of them. It takes the two sets rather than a whole state
+ * because they are all it reads, which is what lets a caller hand it a pair it is weighing rather than a state.
  */
-function groupClause(group: Group, state: State) {
+export function groupClause(group: Group, state: Pick<State, 'include' | 'exclude'>) {
   const wanted = group.terms.filter((term) => state.include.has(term.id)).map((term) => term.term);
   const refused = group.terms.filter((term) => state.exclude.has(term.id)).map((term) => `!${term.term}`);
   const parts = [];
