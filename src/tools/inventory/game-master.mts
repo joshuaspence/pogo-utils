@@ -40,6 +40,21 @@ const ICON_DIR = 'Images/Pokemon - 256x256/Addressable Assets';
 const ICON_INDEX =
   'https://api.github.com/repos/PokeMiners/pogo_assets/git/trees/master:' + encodeURIComponent(ICON_DIR);
 
+/**
+ * Where that listing is cached, derived from `ICON_DIR` rather than written down beside it. `cached` keys on the file
+ * name and a week's grace alone, so a name held fixed across a change of directory answers the new URL with the old
+ * directory's listing until the week is out: every name in it still resolves, nothing reports a thing, and the move
+ * takes effect whenever the cache happens to expire. That is the staleness `ICON_DIR` was changed to fix, arriving
+ * through the cache instead of through upstream, and deriving the name is what makes the two unable to disagree.
+ *
+ * The previous `icons.json` is left where it is. Nothing reads a name it is not asked for, and a stale listing on disk
+ * costs a kilobyte rather than a wrong answer.
+ *
+ * Exported for `cli.test.mts`, which seeds a cache to keep itself off the network: a name transcribed there would seed
+ * a file the reader no longer asks for, and the test would pass on a download it meant to have prevented.
+ */
+export const ICON_CACHE = `icons-${ICON_DIR.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}.json`;
+
 /** Where each file the index names is fetched from. */
 export const ICON_BASE = `https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/${encodeURI(ICON_DIR)}/`;
 
@@ -162,7 +177,20 @@ function iconName(index: ReadonlySet<string>, dex: number, suffix: string, form:
  */
 async function iconIndex(dir: string, refresh: boolean): Promise<ReadonlySet<string>> {
   try {
-    const listing = (await cachedJson(dir, 'icons.json', ICON_INDEX, refresh)) as { tree?: { path: string }[] };
+    // Refused rather than read, because a truncated listing is the stale directory's failure arriving by another route:
+    // it names some of the artwork, every name it carries resolves, and the forms whose icon it dropped go unnarrowed
+    // with nothing to say so. Thrown from the decode so that `cachedAs` drops the copy — kept, it would answer for the
+    // week and the one sentence below would be the whole of the account. There is room for now, 895 KB against the
+    // 100,000 entries or 7 MB where the tree endpoint truncates, but headroom is not a guard.
+    const listing = await cachedAs(dir, ICON_CACHE, ICON_INDEX, refresh, (bytes) => {
+      const parsed = JSON.parse(String(bytes)) as { tree?: { path: string }[]; truncated?: boolean };
+
+      if (parsed.truncated) {
+        throw new Error('the listing is truncated, so it names only some of the artwork');
+      }
+
+      return parsed;
+    });
 
     return new Set((listing.tree ?? []).map((entry) => entry.path));
   } catch (error) {

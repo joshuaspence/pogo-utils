@@ -12,6 +12,7 @@
  * readers beside it do.
  */
 
+import { ICON_CACHE } from './game-master.mts';
 import { encodePng } from './png.mts';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -72,7 +73,7 @@ function reads(extra: readonly unknown[] = [], icons: readonly string[] = []): s
     ]),
   );
   writeFileSync(join(cache, 'english.json'), JSON.stringify({ data: [] }));
-  writeFileSync(join(cache, 'icons.json'), JSON.stringify({ tree: icons.map((path) => ({ path })) }));
+  writeFileSync(join(cache, ICON_CACHE), JSON.stringify({ tree: icons.map((path) => ({ path })) }));
 
   if (icons.length > 0) {
     mkdirSync(join(cache, 'icons'), { recursive: true });
@@ -405,7 +406,7 @@ test('the progress preamble is printed only with `--verbose`', async () => {
  */
 test('a cached file that will not decode is reported against its own URL, and not kept', async () => {
   const cwd = reads();
-  const index = join(cwd, '.cache', 'inventory', 'icons.json');
+  const index = join(cwd, '.cache', 'inventory', ICON_CACHE);
 
   writeFileSync(index, '<html>502 Bad Gateway</html>');
 
