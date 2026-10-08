@@ -17,7 +17,7 @@
  */
 body[data-page='search'] {
   /**
-   * Wider than the PGSharp panel's 640px: the chips are the page, and at that width the type group wraps to five rows of
+   * Wider than Integrations' 640px: the chips are the page, and at that width the type group wraps to five rows of
    * four, which reads as a list rather than as a palette.
    *
    * On the wrapper rather than on `:root`, where these three were while this sheet was alone in its document: three of

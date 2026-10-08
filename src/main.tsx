@@ -28,7 +28,7 @@ import './events.css';
 import './styles.css';
 import './search.css';
 import './pokedex.css';
-import './pgsharp.css';
+import './integrations.css';
 
 import { byId } from './dom.js';
 import { Shell } from './shell.js';

@@ -1,5 +1,5 @@
 /**
- * The PGSharp backup page. Shares the colour tokens in theme.css, the tab bar in nav.css and the heading block in
+ * The Integrations page. Shares the colour tokens in theme.css, the tab bar in nav.css and the heading block in
  * chrome.css with the other pages; the panel here builds a partial PGSData.dat entirely in the browser from the
  * repository's GPX files.
  */
@@ -12,7 +12,7 @@
  * among them — a different meaning per page. The wrapper is what keeps each sheet's meaning to its own page; `data-page`
  * is set on the body by the shell, from the same table the router validates a fragment against.
  */
-body[data-page='pgsharp'] {
+body[data-page='integrations'] {
   /**
    * The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
    * at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need.
@@ -46,6 +46,11 @@ body[data-page='pgsharp'] {
     background: var(--panel);
     box-shadow: var(--shadow);
     color: var(--text);
+  }
+
+  .backup h2 {
+    margin: 0;
+    font-size: 15px;
   }
 
   .backup p {

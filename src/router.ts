@@ -18,7 +18,7 @@ export const PAGES = [
   { name: 'map', label: 'Map', icon: '🗺️', title: 'Pokémon GO Routes' },
   { name: 'search', label: 'Search', icon: '🔎', title: 'Pokémon GO Search Strings' },
   { name: 'pokedex', label: 'Pokédex', icon: '📖', title: 'Pokémon GO Pokédex' },
-  { name: 'pgsharp', label: 'PGSharp', icon: '💾', title: 'PGSharp backup' },
+  { name: 'integrations', label: 'Integrations', icon: '🔌', title: 'Pokémon GO Integrations' },
 ] as const satisfies readonly { name: string; label: string; icon: string; title: string }[];
 
 export type Page = (typeof PAGES)[number]['name'];

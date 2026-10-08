@@ -9,7 +9,7 @@ application and reached from a shared top tab bar:
 - **Search** (`#/search`) — a builder for the strings the game's own Pokémon search box takes.
 - **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny, and which hunts
   still want it.
-- **PGSharp** (`#/pgsharp`) — a backup builder that loads those routes into PGSharp as favourites.
+- **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
@@ -322,8 +322,8 @@ keeps its number and name if one does not load.
 
 ## Import into PGSharp
 
-The **PGSharp backup** page ([`src/pages/pgsharp.tsx`](src/pages/pgsharp.tsx), reached from the top tab bar) builds a
-_partial_ `PGSData.dat` containing only every route and waypoint here — plus, if ticked, a fixed control layout
+The **Integrations** page ([`src/pages/integrations.tsx`](src/pages/integrations.tsx), reached from the top tab bar)
+builds a _partial_ `PGSData.dat` containing only every route and waypoint here — plus, if ticked, a fixed control layout
 (floating control, fast-snipe buttons, cooldown indicator, nearby radar) and the nearby feed's filter list
 (`Shiny Hunting` and `100%`). No existing backup is needed: click **Generate & download**, then import the file into
 PGSharp to add them as favourites. Because the file holds only those keys, importing it leaves the rest of your PGSharp

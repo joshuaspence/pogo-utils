@@ -133,6 +133,95 @@ test('no stylesheet gives one class name to two kinds of element', () => {
   expect(shared.sort()).toEqual([]);
 });
 
+/**
+ * The page names a sheet scopes itself to, out of its `body[data-page='…']` wrappers. Comments are stripped first, as
+ * `selectedIds` does, because the wrapper is discussed in prose in most of these sheets.
+ */
+function scopedPages(css: string) {
+  const pages = new Set<string>();
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+  for (const [, page] of bare.matchAll(/\[data-page=['"]([^'"]*)['"]\]/g)) {
+    if (page !== undefined) {
+      pages.add(page);
+    }
+  }
+
+  return pages;
+}
+
+/**
+ * The page names the router's table holds, read out of `router.ts` as text. It cannot be imported: this project is the
+ * Node half and carries no DOM lib, where `router.ts` reaches `history` — which is why `scripts/tsconfig.json` claims
+ * this file as one that reads a repository file off disk rather than importing one.
+ *
+ * A regex over source can stop matching and report nothing rather than fail, so both ways it can come up empty throw
+ * instead: a table it could not find at all, and a row whose name it missed.
+ */
+function routerPages() {
+  const table = /export const PAGES = \[([\s\S]*?)\] as const/.exec(readFileSync(join(STYLES, 'router.ts'), 'utf8'));
+  const rows = table?.[1];
+
+  if (rows === undefined) {
+    throw new Error('src/router.ts: found no `export const PAGES = [...] as const` to read the page names out of');
+  }
+
+  const names = new Set([...rows.matchAll(/\bname: '([^']+)'/g)].map(([, name]) => name));
+
+  /*
+   * Counted a second time by something that is not the name, because a name pattern that had gone stale would answer
+   * with a short set rather than an error, and every sheet would then look like it scoped to a page nobody has.
+   */
+  const titled = [...rows.matchAll(/\btitle: '/g)].length;
+
+  if (titled === 0 || names.size !== titled) {
+    throw new Error(`src/router.ts: read ${names.size} page name(s) out of ${titled} row(s)`);
+  }
+
+  return names;
+}
+
+test('every page a stylesheet scopes itself to is one the router has', () => {
+  /*
+   * `data-page` is written onto the body from `PAGES`, so a sheet scoping to a name that table no longer holds paints
+   * nothing at all. Neither check above would notice: the rules parse, the ids still resolve, the page renders — and
+   * every class in the sheet is simply unstyled.
+   *
+   * Renaming a page is what reaches this. The router entry, the chunk table and the stylesheet import are checked by
+   * `tsc`; the attribute value in the sheet is a string on both ends and was checked by nothing.
+   */
+  const named = routerPages();
+
+  const orphaned: string[] = [];
+
+  for (const sheet of sources('.css')) {
+    for (const page of scopedPages(readFileSync(sheet, 'utf8'))) {
+      if (!named.has(page)) {
+        orphaned.push(`${sheet.slice(ROOT.length + 1)} scopes to [data-page='${page}']`);
+      }
+    }
+  }
+
+  // Named rather than counted, so a failure says which sheet has stopped reaching its page, and which page it wanted.
+  expect(orphaned.sort()).toEqual([]);
+});
+
+test('the page check can tell a scoped sheet from an unscoped one', () => {
+  // The same reason the other two have one: a selector regex that matched nothing would report no orphans however many
+  // there were.
+  expect(scopedPages("body[data-page='search'] { .chip { color: red } }")).toEqual(new Set(['search']));
+  expect(scopedPages('body[data-page="map"] .sidebar { color: red }')).toEqual(new Set(['map']));
+
+  // An unscoped sheet names no page, and a wrapper quoted in prose is not one either.
+  expect(scopedPages('.backup { color: red }')).toEqual(new Set());
+  expect(scopedPages("/* body[data-page='gone'] */ .backup { color: red }")).toEqual(new Set());
+
+  // And that the router's real table is what the check reads it against, rather than a pattern matching nothing.
+  const pages = routerPages();
+
+  expect([pages.has('events'), pages.has('integrations'), pages.has('pgsharp')]).toEqual([true, true, false]);
+});
+
 test('the class check can tell a shared name from a narrowed one', () => {
   // The same reason the id check has one of these: a selector regex that matched nothing would report no collisions
   // however many there were.
