@@ -627,15 +627,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 813,
-    defects: {
-      cp: 765,
-      iv: { attack: 3, defense: 13, stamina: 3 },
-      levels: [11.5],
-      notes: [
-        'the overlay reads as level 1 or 12 or 2, none of which this HP can be',
-        'the screen reads CP 813, where this form at this level is 765',
-      ],
-    },
     file: 'rotom-wash.png',
     form: 'Wash',
     gender: null,
@@ -1246,14 +1237,14 @@ const COVERAGE = {
   negatives: 3,
   answeredAsThemselves: 40,
   oneLevel: 43,
-  crossCheckAgrees: 40,
-  crossCheckDisagrees: 3,
+  crossCheckAgrees: 41,
+  crossCheckDisagrees: 2,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 35,
+  noDefects: 36,
   noOverlayDrawn: 0,
   boxNotFound: 0,
-  overlayNotRead: 2,
+  overlayNotRead: 1,
 };
 
 test('the corpus is the shape `COVERAGE` says it is', () => {
@@ -1304,7 +1295,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
 
   // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
   // all produces — which is the trigger switched off and nothing saying so.
-  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(6);
+  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(5);
 
   expect(
     noted.filter((f) => f.defects === undefined).map((f) => f.file),

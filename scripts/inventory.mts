@@ -639,10 +639,10 @@ async function scan() {
    * *whole* and wrongly: a CP the settled form and level do not derive, a level shortlist no HP can be, a form the
    * overlay names that no species has. What says a second read of the same Pokémon is worth taking is the corpus having
    * been retaken — which captures misread their CP changed with it, three before and two after, so a misread is a
-   * property of the capture as much as of the reader. `screens.test.mts` pins which six of its 43 captures raise a
-   * note, and that every one of the six is a row carrying a `defects`.
+   * property of the capture as much as of the reader. `screens.test.mts` pins which five of its 43 captures raise a
+   * note, and that every one of the five is a row carrying a `defects`.
    *
-   * Which is six of the eight defects that file pins, and not the other two: those are the readers that answer
+   * Which is five of the seven defects that file pins, and not the other two: those are the readers that answer
    * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, and an
    * artwork match that declined Cherrim's Overcast. Nothing here can be the check for those; only a second reader of
    * the same thing could be.
