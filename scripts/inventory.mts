@@ -43,6 +43,7 @@
 
 import { Device, KEY, typeable } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
+import { bestOf } from '../src/tools/inventory/attempts.mts';
 import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { identify, type Identity } from '../src/tools/inventory/identify.mts';
@@ -652,46 +653,44 @@ async function scan() {
    * a different species, its nickname having sent the search across every species, and that note is the only one it
    * raises. Leaving the note out would leave that out with it.
    *
-   * The best of the attempts is kept rather than the last, which is what keeps the stricter test from costing a row: a
-   * second read of the same screen can come back worse, and one whose HP goes unread has no key at all — three of those
-   * in a row stop the pass. The *last* of equals, though, so that attempts of one quality come back as they always did:
-   * the screenshot handed back is the first frame of the scroll capture, and a stale frame is the very thing
-   * `scrollFrames` takes the caller's own screenshot to avoid.
+   * What the stricter test costs if the last attempt is the one taken is a row rather than a note, which is why the
+   * reading kept is `bestOf`'s and not this loop's: a reading accepted before is now read again, a second look can come
+   * back worse, and one whose HP goes unread has no key at all — three of those in a row stop the pass. That decision
+   * sits there so `attempts.test.mts` can assert it, this being the one part of the walk no test could otherwise reach:
+   * a scan needs a phone, and the one command `cli.test.mts` drives without one is `parse`, which reads a file once.
    */
-  const readDetail = async (): Promise<Reading> => {
-    let best: Reading | null = null;
+  const readDetail = (): Promise<Reading> =>
+    bestOf(
+      READ_ATTEMPTS,
+      ({ faults }) => faults,
+      async (attempt) => {
+        // Give the screen time to move on before looking again, which `settled` does not: it waits for the screen to
+        // stop moving, and an overlay PGSharp has not drawn yet is a still screen.
+        if (attempt > 0) {
+          await sleep(config.waits.swipe);
+        }
 
-    for (let attempt = 0; ; attempt++) {
-      const image = await settled(device);
-      const detail = await parseDetail(await readLines(image), data, image);
-      // Only a detail screen is worth a sweep. The sweeps are rationed, and an empty search's grid or a tile still
-      // opening would otherwise spend them all before the first Pokémon, leaving every row without IVs.
-      const overlay = detail.hp === null ? null : await overlayOf(image);
-      const key = keyOf(detail, overlay);
-      const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
+        const image = await settled(device);
+        const detail = await parseDetail(await readLines(image), data, image);
+        // Only a detail screen is worth a sweep. The sweeps are rationed, and an empty search's grid or a tile still
+        // opening would otherwise spend them all before the first Pokémon, leaving every row without IVs.
+        const overlay = detail.hp === null ? null : await overlayOf(image);
+        const key = keyOf(detail, overlay);
+        const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
 
-      // The overlay's clause is the conditional one: where no box has been found at all there is nothing to wait for,
-      // and insisting would cost three reads of every Pokémon on a phone that is not running PGSharp. A form that fits
-      // is the surest of the four, the name, the types, the HP and the IVs agreeing being what a half-read screen
-      // cannot fake.
-      const faults =
-        Number(key === null) +
-        Number(overlay === null && overlayBox !== null) +
-        Number(id.form === null) +
-        id.notes.length;
-      const reading = { detail, overlay, id, key, image, faults };
+        // The overlay's clause is the conditional one: where no box has been found at all there is nothing to wait for,
+        // and insisting would cost three reads of every Pokémon on a phone that is not running PGSharp. A form that
+        // fits is the surest of the four, the name, the types, the HP and the IVs agreeing being what a half-read
+        // screen cannot fake.
+        const faults =
+          Number(key === null) +
+          Number(overlay === null && overlayBox !== null) +
+          Number(id.form === null) +
+          id.notes.length;
 
-      if (best === null || faults <= best.faults) {
-        best = reading;
-      }
-
-      if (best.faults === 0 || attempt === READ_ATTEMPTS - 1) {
-        return best;
-      }
-
-      await sleep(config.waits.swipe);
-    }
-  };
+        return { detail, overlay, id, key, image, faults };
+      },
+    );
 
   /**
    * Opens the first Pokémon the grid shows and reads it, answering a reading with no key when there is none — a search
