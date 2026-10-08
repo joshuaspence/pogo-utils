@@ -49,7 +49,8 @@ export interface Entry {
 }
 
 /**
- * What the nearby feed can ever report: a wild spawn of something in the game, as `pgsharp/filters.js` narrows to.
+ * What a scanner can ever report: a wild spawn of something in the game, as `filters/narrow.js` narrows to. Said again
+ * here as a conjunction rather than imported as that module's predicate list, which is a duplicate worth collapsing.
  */
 const feedable: Predicate = (pokemon) => pokemon.released && pokemon.spawns;
 

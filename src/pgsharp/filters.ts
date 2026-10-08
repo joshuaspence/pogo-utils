@@ -11,65 +11,18 @@
  * appending it.
  */
 
-import { HISUI } from '../pokemon/pokedex.js';
-import Pokemon from '../pokemon/pokemon.js';
+import {
+  filterRegion,
+  filterRegional,
+  species,
+  NEARBY_FEED_FILTERS,
+  SHINY_HUNTING_FILTERS,
+} from '../filters/narrow.js';
 import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 import XXL_POKEMON from '../filters/xxl.js';
 import XXS_POKEMON from '../filters/xxs.js';
-
-/**
- * What `species` asks of an entry to decide whether it stays: the four flag predicates below, and whatever
- * `filterRegion` hands back. Named rather than written out at each of the five, so a predicate answering something
- * other than a boolean is rejected where it is declared instead of at whichever filter list first passes it along.
- */
-type Predicate = (pokemon: Pokemon) => boolean;
-
-/**
- * A filter's species list, checked, narrowed and collapsed to one entry per species. A form or region the species does
- * not have has already thrown, so what is left to catch is a name `pokemon.js` does not define at all, which reads as
- * undefined and would reach the backup as a null. The constant's name is gone by then, so the error gives the position
- * to look at — and the species are taken in the order they were written, so that position means what it says.
- *
- * Every `keep` has to hold for an entry to stay, which is how a filter drops what has no shiny to find. They run
- * before the list collapses, so a species listed twice keeps the form that survives rather than whichever came first.
- *
- * A form carries the dex number of the species it belongs to, that number being all PGSharp stores, so a list naming
- * several forms names it several times. The names say which forms the list is for; the repeats say nothing, so the
- * first of each number survives and the rest go.
- */
-function species(entries: ReadonlySet<Pokemon>, ...keep: Predicate[]) {
-  const list = [...entries];
-  const at = list.findIndex((entry) => !(entry instanceof Pokemon));
-
-  if (at !== -1) {
-    throw new Error(`species #${at + 1} is not a POKEMON constant — check it against pokedex.js`);
-  }
-
-  const kept = list.filter((entry) => keep.every((predicate) => predicate(entry)));
-
-  return [...new Map(kept.map((entry) => [Number(entry), entry])).values()];
-}
-
-// Reads as filter's predicate: `species([...], filterShinyEligible)` drops the ones with no shiny to find.
-
-const filterRegional: Predicate = (pokemon) => pokemon.regional;
-const filterShinyEligible: Predicate = (pokemon) => pokemon.shinyEligible;
-const filterWildSpawns: Predicate = (pokemon) => pokemon.spawns;
-const filterReleased: Predicate = (pokemon) => pokemon.released;
-
-/**
- * A filter for one region's own — `filterRegion(PALDEA)` keeps the Paldean variants and drops the rest. Unlike
- * `filterRegional`, which asks whether a species is a region-locked spawn at all, this asks which region a variant
- * belongs to, so it reads the region the variant carries as data through `isFrom` rather than the adjective on its
- * name. It is a factory rather than a predicate: handed a region it returns the predicate `species` runs, so it sits
- * in a filter list beside the flag ones. A form of a regional variant inherits the region, so naming the region
- * catches its forms without naming each.
- */
-const filterRegion =
-  (region: string): Predicate =>
-  (pokemon) =>
-    pokemon.isFrom(region);
+import { HISUI } from '../pokemon/pokedex.js';
 
 const baseFilter = {
   attrMode: 0,
@@ -92,16 +45,6 @@ const baseFilter = {
   priority: 1,
   size: 0,
 };
-
-// What any feed can ever show: the nearby feed reports wild spawns, so a species not in the game yet or one the wild
-// never turns up is a line PGSharp would never alert on. Every filter below starts from these.
-const NEARBY_FEED_FILTERS = [filterReleased, filterWildSpawns];
-
-// The predicates every shiny-hunting feed shares; a region or `filterRegional` is added to these per feed. Shared as a
-// list of predicates rather than a computed species list because `species` collapses to one entry per dex number: a
-// feed built off another's collapsed list would filter what the dedupe already dropped, losing a regional form whose
-// dex a plainer form had won. Each feed therefore filters `SHINY_POKEMON` afresh, collapsing last.
-const SHINY_HUNTING_FILTERS = [...NEARBY_FEED_FILTERS, filterShinyEligible];
 
 const baseShinyHuntingFilter = {
   ...baseFilter,
