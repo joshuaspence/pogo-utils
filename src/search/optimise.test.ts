@@ -1,440 +1,260 @@
 /**
- * `optimise` is where a test is worth the most here: its every answer is a value rather than a rendering, and it is the
- * one module a reader is asked to trust on a mass transfer. Each case below is a defect it would have caught rather
- * than a line it covers — a reduction taken where the two readings of a partial name disagree, a family written as the
- * species it was reached through, an empty intersection written as an empty clause, a rewrite never reported, a group
- * whose every term was refused written as the empty clause that matches all of them.
+ * The reductions, and the arrangements they are deliberately silent about.
  *
- * Every case is built on the real dex and the real tables, which is what makes it worth asserting against and why each
- * test pins the shape of the data its case needs before asserting any behaviour. A fragment that reaches three species
- * today and one tomorrow is a test that has quietly stopped being about anything, and that reads exactly like a pass.
+ * Every one of them is local to one junction node, which is what the canvas changed: the earlier builder AND'd one
+ * clause per category, so "this category's terms" and "the terms AND'd with the rest" were the same set. An
+ * arrangement can put a category's terms in two groups, or inside an `any` the rest of the query is not AND'd with, so
+ * each case below says which junction it is about — and the pair of cases per reduction, one for each junction, is
+ * where the work is.
+ *
+ * Every expectation is derived from `terms.js` and pinned against it first. A test that spells out `shadow&!purified`
+ * is asserting that two ids still exist and still sit in a category declaring exclusivity; a renamed id would leave it
+ * asserting nothing, and that reads exactly like a pass.
  */
 
 import { expect, test } from 'vitest';
 
-import POKEMON from '../pokemon/pokedex.js';
-import { GENERATIONS } from '../pokemon/generations.js';
-import { GROUPS, RANGES } from './terms.js';
-import { compose, emptyState, groupClause, type Bounds, type State } from './query.js';
+import { compose, emptyState, type State } from './query.js';
 import { optimise } from './optimise.js';
+import { GROUPS, RANGES, TERMS_BY_ID, type Group as Category } from './terms.js';
+import { group, type Leaf, type Node } from './tree.js';
 
-/** A state as the builder would have it, with only the parts a test is about spelled out. */
-const state = (parts: Partial<State>): State => ({ ...emptyState(), ...parts });
+const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });
+const no = (id: string): Leaf => ({ kind: 'term', id, negated: true });
+const named = (text: string): Leaf => ({ kind: 'name', text, negated: false });
+const span = (from: number | null, to: number | null): Leaf => ({ kind: 'range', id: 'dex', from, to, negated: false });
+const all = (...parts: Node[]) => group('all', parts);
+const any = (...parts: Node[]) => group('any', parts);
 
-/** Every species as the name a search sees, which is what both readings of a partial name are tested against. */
-const NAMES = Object.values(POKEMON).map((species) => String(species).toLowerCase());
+const state = (tree: Node): State => ({ ...emptyState(), tree });
 
-/**
- * How many species a fragment reaches under each reading of a partial name — matching anywhere, and matching from the
- * start. A reduction is refused wherever the two disagree, so these two numbers are the whole precondition of a name
- * test: pin them, and a dex that has moved says so here instead of leaving the case silently unreachable.
- */
-const reach = (fragment: string) => ({
-  contains: NAMES.filter((name) => name.includes(fragment)).length,
-  begins: NAMES.filter((name) => name.startsWith(fragment)).length,
-});
+/** The string an arrangement composes to once shortened, which is the only thing the page shows for it. */
+const short = (tree: Node) => compose(optimise(state(tree)).state).query;
 
-/**
- * One generation's bounds, so a test can pin the spans the literals it asserts were derived from. It throws on a
- * generation the table does not carry rather than narrowing, since a missing one is a precondition gone rather than a
- * failure of anything below.
- */
-function generation(number: number) {
-  const found = GENERATIONS.find((entry) => entry.number === number);
+/** The same, plus what was said about it. */
+const told = (tree: Node) => {
+  const { state: shortened, rewrites, lossy } = optimise(state(tree));
 
-  if (!found) {
-    throw new Error(`\`generations.js\` carries no generation ${number}`);
-  }
+  return { query: compose(shortened).query, rewrites, lossy };
+};
 
-  return [found.first, found.last];
-}
-
-/**
- * One group, so a test can pin the terms and the two facts the literals it asserts were derived from. It throws on a
- * group the table does not carry for the same reason `generation` does: a missing one is the case gone rather than a
- * failure of anything below.
- */
-function group(id: string) {
+/** One category by id. It throws rather than defaulting, a category gone being a precondition gone. */
+function category(id: string): Category {
   const found = GROUPS.find((entry) => entry.id === id);
 
   if (!found) {
-    throw new Error(`\`terms.js\` carries no \`${id}\` group`);
+    throw new Error(`\`terms.js\` carries no ${id} category`);
   }
 
   return found;
 }
 
-/** Every term of a group chosen, which is the state each reduction over a whole group is measured from. */
-const all = (id: string) => group(id).terms.map((term) => term.id);
+/** The term a chip writes, pinned so a case spelling it out is pinned to the table. */
+const term = (id: string) => TERMS_BY_ID.get(id)?.term;
 
-test('a name the two readings of a partial name disagree on keeps its name', () => {
-  // Three species carry `saur` and none begins with it, so the fragment reaches them under one reading and nothing
-  // under the other. Refusing it is what makes every reduction that is taken true whichever reading the game uses.
-  expect(reach('saur')).toEqual({ contains: 3, begins: 0 });
+test('a name is written as short as it goes, wherever the pill sits', () => {
+  // `charmander` names one species and so does `4`, and the game reads the two the same way.
+  expect(told(all(named('charmander')))).toEqual({ query: '4', rewrites: [['charmander', '4']], lossy: true });
 
-  const { state: short, rewrites, lossy } = optimise(state({ text: 'saur' }));
+  // The one reduction that needs to know nothing about what is around it, so it reaches a pill at any depth.
+  expect(short(any(all(named('charmander'), yes('shiny')), named('bulbasaur')))).toBe('4,1&shiny,1');
 
-  expect(short.text).toBe('saur');
-  expect(rewrites).toEqual([]);
+  // A name that resolves to nothing is passed through: a nickname, a misspelling, or a fragment landing on a species
+  // the dex cannot spell.
+  expect(told(all(named('mr snuggles')))).toEqual({ query: 'mr snuggles', rewrites: [], lossy: false });
+});
+
+test('a family keeps its name, there being no family data here to turn it into numbers', () => {
+  // `+charmander` is the Charmander family, and which species share one is not something this repository holds.
+  const { query, lossy } = told(all(named('+charmander')));
+
+  expect(query.startsWith('+')).toBe(true);
   expect(lossy).toBe(false);
 });
 
-test('a fragment reaching an underscored name under one reading alone is refused too', () => {
-  // `MR_MIME` contains the fragment where `MIME_JR` begins it, so the two sets differ by one and cannot be equal.
-  expect(reach('mime')).toEqual({ contains: 2, begins: 1 });
-
-  expect(optimise(state({ text: 'mime' })).state.text).toBe('mime');
+test('a name the game cannot spell is left alone', () => {
+  // `pokedex.js` drops the apostrophe, so `farfetchd` reads as an ordinary word where the game's name is `Farfetch'd`.
+  expect(told(all(named('farfetch')))).toEqual({ query: 'farfetch', rewrites: [], lossy: false });
 });
 
-test('a name the dex cannot spell keeps its name, however unambiguously it reaches one species', () => {
-  // Each reaches one species under both readings, so the check the two tests above exist for passes here and the
-  // spellable gate is the only thing left that can refuse them. That is what makes this case about that gate.
-  //
-  // Only that one species, too: of the 25 prefixes the three names have, not one reaches a spellable species as well,
-  // so the `every` in that gate reads like `some` until a fourth such name shares a prefix with a spellable one.
-  expect([reach('farfetchd'), reach('sirfetchd'), reach('flabebe')]).toEqual([
-    { contains: 1, begins: 1 },
-    { contains: 1, begins: 1 },
-    { contains: 1, begins: 1 },
-  ]);
+test('dex spans AND’d collapse into their overlap, and OR’d into their union', () => {
+  const gen1 = term('gen1');
+  const gen2 = term('gen2');
 
-  // An underscore stands in for the punctuation it replaced, so `mime` reaches `MR_MIME` much as the game reads it. A
-  // dropped apostrophe or accent leaves no such mark: `Farfetch'd` is `FARFETCHD` here, and a reader who types that
-  // into the game finds nothing at all. So `83` would turn a search that matches nothing into one that matches a
-  // species, which is the one direction a reduction must never take — every other spelling it writes already worked.
-  expect([Number(POKEMON.FARFETCHD), Number(POKEMON.SIRFETCHD), Number(POKEMON.FLABEBE)]).toEqual([83, 865, 669]);
+  expect([gen1, gen2]).toEqual(['1-151', '152-251']);
+  expect(category('generation').exclusive).toBeUndefined();
 
-  const kept = ['farfetchd', 'sirfetchd', 'flabebe'];
+  // An `any` of two generations is the span they cover between them, which is what the fixed builder always wrote.
+  expect(short(any(yes('gen1'), yes('gen2')))).toBe('1-251');
 
-  // Each would otherwise go to its number rather than to a fragment: `farf`, `sirf` and `flab` are the shortest leading
-  // fragments reaching one species each, and four characters is longer than all three of the numbers above.
-  expect(kept.map((name) => optimise(state({ text: name })).state.text)).toEqual(kept);
+  // An `all` of them is nothing at all — no species is in two generations — so the pills stay as the two clauses they
+  // were. Writing their overlap would be writing no clause, turning a search that finds nothing into one that finds
+  // everything.
+  expect(short(all(yes('gen1'), yes('gen2')))).toBe('1-151&152-251');
 
-  const { rewrites, lossy } = optimise(state({ text: 'farfetchd' }));
-
-  // A rewrite reported for a name that kept it would show the reader a substitution that did not happen, and the caveat
-  // belongs to the reduction rather than to the attempt: nothing here became a number, so nothing here is lossy.
-  expect([rewrites, lossy]).toEqual([[], false]);
+  // A name that became a number joins the arithmetic: Charmander inside Gen 1 is just Charmander.
+  expect(short(all(named('charmander'), yes('gen1')))).toBe('4');
+  expect(short(all(span(1, 151), yes('gen1')))).toBe('1-151');
+  expect(short(all(span(100, 400), yes('gen1')))).toBe('100-151');
 });
 
-test('a name that reaches one species is written as its dex number, and says it was', () => {
-  expect(reach('charmander')).toEqual({ contains: 1, begins: 1 });
-
-  // `charm` still reaches Charmeleon, so the shortest fragment reaching Charmander alone is the six-character
-  // `charma` — against the one character `4` costs, which is what makes the number the shorter of the two spellings
-  // rather than a preference for numbers.
-  expect(reach('charm')).toEqual({ contains: 2, begins: 2 });
-
-  const { state: short, rewrites, lossy } = optimise(state({ text: 'charmander' }));
-
-  expect(short.text).toBe('4');
-
-  // A reader who cannot see why `charmander` became `4` has been handed a string to trust with no way to check it.
-  expect(rewrites).toEqual([['charmander', '4']]);
-
-  // A name matches nicknames where a dex number matches the species alone, so this is the one reduction that is not an
-  // equivalence and the only one the page has to caveat.
-  expect(lossy).toBe(true);
-});
-
-test('a family keeps a name however short the species goes, because the family is not known', () => {
-  expect(reach('charma')).toEqual({ contains: 1, begins: 1 });
-
-  const { state: short, rewrites, lossy } = optimise(state({ text: '+charmander' }));
-
-  // `+charma` is the same family reached a shorter way, which is sound; `+4` would be a family written as the one
-  // species it was reached through, and nothing in this repository knows which species share one.
-  expect(short.text).toBe('+charma');
-  expect(rewrites).toEqual([['+charmander', '+charma']]);
-  expect(lossy).toBe(false);
-});
-
-test('a name another name begins says nothing the shorter one has not', () => {
-  // `char` reaches Charjabug and Charcadet as well, and Chimchar and Pecharunt under the other reading, so it is
-  // itself refused a reduction — which is what leaves a name rather than a number on this side of the coverage check.
-  expect(reach('char')).toEqual({ contains: 7, begins: 5 });
-
-  const { state: short, rewrites } = optimise(state({ text: 'char, charmander' }));
-
-  expect(short.text).toBe('char');
-  expect(rewrites).toEqual([['charmander', 'char']]);
-});
-
-test('two generations collapse into the one span they describe', () => {
-  // The literals below are these bounds, and they are adjacent: there is no dex number between 151 and 152, so the two
-  // spans are one rather than two that happen to touch.
-  expect([...generation(1), ...generation(2)]).toEqual([1, 151, 152, 251]);
-
-  const { state: short } = optimise(state({ include: new Set(['gen1', 'gen2']) }));
-
-  expect(short.include.has('gen1')).toBe(false);
-  expect(short.ranges.get('dex')).toEqual({ from: 1, to: 251 });
-  expect(compose(short).query).toBe('1-251');
-});
-
-test('a name that became a number is intersected with the generation it sits inside', () => {
-  expect(generation(1)).toEqual([1, 151]);
-
-  const { state: short, lossy } = optimise(state({ text: 'charmander', include: new Set(['gen1']) }));
-
-  // Charmander is in Gen 1, so saying both says `4` and the generation has earned no clause of its own.
-  expect(compose(short).query).toBe('4');
-  expect(lossy).toBe(true);
-});
-
-test('spans that cannot overlap stay separate clauses rather than becoming an empty one', () => {
-  expect(generation(1)).toEqual([1, 151]);
-
-  const chosen = state({
-    include: new Set(['gen1']),
-    ranges: new Map<string, Bounds>([['dex', { from: 200, to: 300 }]]),
-  });
-  const { state: short } = optimise(chosen);
-
-  // Their intersection is empty, and writing it would turn a search that finds nothing into one that finds everything.
-  // So both survive as they were and the query goes on matching nothing, which is what was asked for.
-  expect(compose(short).query).toBe('1-151&200-300');
-  expect(compose(short).clauses).toBe(2);
-});
-
-test('a span covering the whole dex earns no clause at all', () => {
+test('spans covering the whole dex earn no clause either way', () => {
   const dex = RANGES.find((range) => range.id === 'dex');
 
   expect([dex?.min, dex?.max]).toEqual([1, 1025]);
 
-  const { state: short } = optimise(state({ ranges: new Map<string, Bounds>([['dex', { from: 1, to: 1025 }]]) }));
+  // Every generation at once is every species, which says nothing — and in an `any` it makes the whole group say
+  // nothing, where in an `all` it is only those pills that have earned nothing.
+  const every = GROUPS.find((entry) => entry.id === 'generation')?.terms.map((one) => yes(one.id)) ?? [];
 
-  expect(short.ranges.has('dex')).toBe(false);
-  expect(compose(short).query).toBe('');
+  expect(short(any(...every))).toBe('');
+  expect(short(all(yes('shiny'), span(1, 1025), span(1, 1025)))).toBe('shiny');
 });
 
-test('a name that reaches no species is passed through untouched', () => {
-  expect(reach('sparky')).toEqual({ contains: 0, begins: 0 });
+test('a negated span is left out of the arithmetic', () => {
+  // Ruling a span out is not asking for one, so there is nothing to intersect it with.
+  const ruled: Leaf = { kind: 'range', id: 'dex', from: 1, to: 151, negated: true };
 
-  const { state: short, rewrites, lossy } = optimise(state({ text: 'sparky' }));
-
-  expect(short.text).toBe('sparky');
-  expect(rewrites).toEqual([]);
-  expect(lossy).toBe(false);
+  expect(short(all(yes('gen1'), ruled))).toBe('1-151&!1-151');
 });
 
-test('several spans beside a name are left where the chips put them', () => {
-  // Gen 1 and Gen 3 do not touch, so they stay two spans however they are written.
-  expect([...generation(1), ...generation(3)]).toEqual([1, 151, 252, 386]);
+test('an all asking for one term of an exclusive category drops the refusals beside it', () => {
+  const rocket = category('rocket');
 
-  const { state: short } = optimise(state({ text: 'saur', include: new Set(['gen1', 'gen3']) }));
+  expect(rocket.exclusive).toBe(true);
+  expect([term('shadow'), term('purified')]).toEqual(['shadow', 'purified']);
 
-  // The two spans have nowhere to go: a dex box holds one span, and in the text beside a name they would be OR'd where
-  // they have to be AND'd. So the chips keep them and the name keeps the shortening it was due, which here is none.
-  expect(short.include.has('gen1')).toBe(true);
-  expect(compose(short).query).toBe('saur&1-151,252-386');
+  // Purifying a Shadow Pokémon is what makes it Purified, so nothing is both and the refusal says nothing.
+  expect(short(all(yes('shadow'), no('purified')))).toBe('shadow');
+  expect(short(all(yes('alola'), no('galar'), no('hisui')))).toBe(term('alola'));
+
+  // A category that declares nothing gets nothing: a Pokémon can be any number of these at once.
+  expect(category('status').exclusive).toBeUndefined();
+  expect(short(all(yes('shiny'), no('lucky')))).toBe('shiny&!lucky');
 });
 
-test('several spans with no name to share the text take it', () => {
-  expect([...generation(1), ...generation(3)]).toEqual([1, 151, 252, 386]);
+test('an any of every term of an exhaustive category asks for nothing at all', () => {
+  const type = category('type');
+  const appraisal = category('appraisal');
 
-  const { state: short } = optimise(state({ include: new Set(['gen1', 'gen3']) }));
+  expect([type.exhaustive, appraisal.exhaustive]).toEqual([true, true]);
 
-  expect(short.include.has('gen1')).toBe(false);
-  expect(short.ranges.has('dex')).toBe(false);
-  expect(compose(short).query).toBe('1-151,252-386');
+  // Every species has a type and every Pokémon has a star rating, so asking for any of them asks for nothing.
+  expect(short(any(...type.terms.map((one) => yes(one.id))))).toBe('');
+  expect(short(any(...appraisal.terms.map((one) => yes(one.id))))).toBe('');
+
+  // One short of all of them is not everything, and Type is not exclusive, so there is nothing further to do: a
+  // Gyarados is Flying, which is among the seventeen types that are not Water, and it is still not `!water`.
+  const butOne = type.terms.slice(0, -1);
+
+  expect(short(any(...butOne.map((one) => yes(one.id))))).toBe(butOne.map((one) => one.term).join(','));
 });
 
-test('a refusal beside a choice in an exclusive group says nothing the choice has not', () => {
-  // The two are one group, and the group says at most one of them is ever true. That is the whole of what the
-  // reduction stands on: purifying a Shadow Pokémon is what makes it Purified, so Shadow has ruled Purified out.
-  expect([group('rocket').exclusive, group('rocket').terms.map((term) => term.term)]).toEqual([
-    true,
-    ['shadow', 'purified'],
-  ]);
+test('an any of all but some of a partition is written as the complement where that is shorter', () => {
+  const appraisal = category('appraisal');
 
-  const chosen = state({ include: new Set(['shadow']), exclude: new Set(['purified']) });
+  expect([appraisal.exclusive, appraisal.exhaustive]).toEqual([true, true]);
+  expect(appraisal.terms.map((one) => one.term)).toEqual(['0*', '1*', '2*', '3*', '4*']);
 
-  expect(compose(chosen).query).toBe('shadow&!purified');
+  // Four of the five ratings say the fifth, and `!4*` is eight characters shorter than `0*,1*,2*,3*`.
+  expect(short(any(yes('star0'), yes('star1'), yes('star2'), yes('star3')))).toBe('!4*');
 
-  const { state: short } = optimise(chosen);
+  // Two of them are not: `!0*&!1*&!2*` is longer than `3*,4*`, so the two spellings are weighed and the short one won.
+  expect(short(any(yes('star3'), yes('star4')))).toBe('3*,4*');
 
-  expect(compose(short).query).toBe('shadow');
-  expect(short.exclude.has('purified')).toBe(false);
+  // An `all` of two is a search for nothing, and the reader is owed the sight of that rather than a rewrite of it.
+  expect(short(all(yes('star3'), yes('star4')))).toBe('3*&4*');
 });
 
-test('the rarity group is exclusive because no species in the dex carries two of the three', () => {
-  expect(group('rarity').terms.map((term) => term.term)).toEqual(['legendary', 'mythical', 'ultrabeast']);
+test('a union term is written in place of the whole of what it covers, on either side', () => {
+  const background = category('background');
+  const union = background.terms.find((one) => one.covers);
 
-  // What `exclusive` claims of the group, asserted against the dex it is a claim about rather than against the help
-  // text that says the same thing. A species gaining a second marker says so here. The maximum is also the vacuity
-  // check: markers that stopped being readable would read as zero rather than as one.
-  const carried = Object.values(POKEMON).map(
-    (species) => [species.legendary, species.mythical, species.ultraBeast].filter(Boolean).length,
-  );
+  expect(union?.id).toBe('background');
+  expect(union?.covers).toEqual(['locationbackground', 'specialbackground']);
+  expect(background.exclusive).toBeUndefined();
 
-  expect(Math.max(...carried)).toBe(1);
+  // Either backdrop is a backdrop, and neither backdrop rules out both.
+  expect(short(any(yes('locationbackground'), yes('specialbackground')))).toBe('background');
+  expect(short(all(no('locationbackground'), no('specialbackground')))).toBe('!background');
 
-  const { state: short } = optimise(state({ include: new Set(['legendary']), exclude: new Set(['mythical']) }));
+  // Beside the union itself a term it covers adds nothing to that side.
+  expect(short(any(yes('background'), yes('locationbackground')))).toBe('background');
 
-  expect(compose(short).query).toBe('legendary');
+  // Short of all of them the union says more than they do, and there is nothing to swap it for. Both of these are
+  // searches a reader would want the sight of: the first is the Event backdrops, the second matches nothing.
+  expect(short(all(yes('background'), no('locationbackground')))).toBe('background&!locationbackground');
+  expect(short(any(yes('locationbackground')))).toBe('locationbackground');
 });
 
-test('every term of an exhaustive group at once earns no clause', () => {
-  const appraisal = group('appraisal');
+test('a union term is named more briefly than the terms it covers', () => {
+  /*
+   * The swap is unconditional, so this is the property the table has to hold rather than a branch in the code. A union
+   * named at more length would still be correct to swap in and would no longer be worth swapping, which wants a field
+   * of its own rather than a guard no test could reach.
+   */
+  for (const entry of GROUPS) {
+    for (const union of entry.terms.filter((one) => one.covers)) {
+      const covered = (union.covers ?? []).map((id) => entry.terms.find((one) => one.id === id));
 
-  expect([appraisal.exclusive, appraisal.exhaustive, appraisal.terms.map((term) => term.term)]).toEqual([
-    true,
-    true,
-    ['0*', '1*', '2*', '3*', '4*'],
-  ]);
+      // An id naming no term of its own category would read as a term nobody placed, so the swap would go quiet.
+      expect({ union: union.id, missing: covered.filter((one) => one === undefined).length }).toEqual({
+        union: union.id,
+        missing: 0,
+      });
 
-  const chosen = state({ include: new Set(all('appraisal')) });
+      const asUnion = union.term.length;
+      const asCovered = covered.map((one) => one?.term.length ?? 0).reduce((sum, one) => sum + one + 1, -1);
 
-  expect(compose(chosen).query).toBe('0*,1*,2*,3*,4*');
-
-  // Everything has a star rating, so asking for any of the five asks for nothing. The page declines a string this
-  // short on its own — `current` in `search.tsx` reads empty as a broken page rather than as a shorter search — so
-  // what a reader sees of this is the clause disappearing from beside the others.
-  expect(compose(optimise(chosen).state).query).toBe('');
-});
-
-test('a group that reduced to nothing leaves the clauses around it alone', () => {
-  const chosen = state({ text: 'charmander', include: new Set(all('appraisal')) });
-
-  expect(compose(chosen).query).toBe('charmander&0*,1*,2*,3*,4*');
-
-  // The name goes to its dex number as it would have anyway, and the appraisal clause that was AND'd with it is gone
-  // — which also takes the mixed `,` and `&` the caveat was for.
-  expect(compose(optimise(chosen).state)).toMatchObject({ query: '4', ambiguous: false });
-});
-
-test('all but one of an exhaustive, exclusive group is the one left out', () => {
-  const chosen = state({ include: new Set(['star0', 'star1', 'star2', 'star3']) });
-
-  expect(compose(chosen).query).toBe('0*,1*,2*,3*');
-
-  const { state: short } = optimise(chosen);
-
-  // Exactly one star rating is true of a Pokémon, so the four chosen and the one left out are the same search, and
-  // three characters beats eleven.
-  expect(compose(short).query).toBe('!4*');
-  expect([[...short.include], [...short.exclude]]).toEqual([[], ['star4']]);
-});
-
-test('all but one refused is the one left over, which is that arithmetic the other way round', () => {
-  const chosen = state({ exclude: new Set(['star0', 'star1', 'star2', 'star3']) });
-
-  expect(compose(chosen).query).toBe('!0*&!1*&!2*&!3*');
-
-  const { state: short } = optimise(chosen);
-
-  expect(compose(short).query).toBe('4*');
-  expect([[...short.include], [...short.exclude]]).toEqual([['star4'], []]);
-});
-
-test('the shorter of the two spellings wins, so a choice that is already shortest is left alone', () => {
-  const chosen = state({ include: new Set(['star3', 'star4']) });
-
-  // `!0*&!1*&!2*` says the same thing in eleven characters, so taking the complement regardless of what it costs is
-  // the defect this case is about.
-  expect(compose(optimise(chosen).state).query).toBe('3*,4*');
-});
-
-test('a group whose every term is refused keeps them, rather than writing the clause that matches them all', () => {
-  const chosen = state({ exclude: new Set(all('appraisal')) });
-
-  expect(compose(chosen).query).toBe('!0*&!1*&!2*&!3*&!4*');
-
-  // Nothing has no star rating, so this matches nothing — and an empty allowed set written as an empty clause would
-  // turn it into the search that matches everything, the same trap the empty intersection of two spans is kept from.
-  expect(compose(optimise(chosen).state).query).toBe('!0*&!1*&!2*&!3*&!4*');
-});
-
-test('a union term covers terms of its own group, and is named more briefly than all of them', () => {
-  const unions = GROUPS.flatMap((entry) => entry.terms.filter((term) => term.covers).map((term) => ({ entry, term })));
-
-  expect(unions.map(({ term }) => term.id)).toEqual(['background']);
-
-  for (const { entry, term } of unions) {
-    const ids = entry.terms.map((other) => other.id);
-
-    // `covers` names ids, a spelling nothing else in the table checks: an id naming no term of the group would read as
-    // a term nobody picked, so the swap would go quiet rather than wrong and nothing would say which id had rotted.
-    expect(term.covers?.filter((id) => ids.includes(id) && id !== term.id)).toEqual(term.covers);
-
-    // `shortUnion` swaps whenever every covered term is there and does not weigh the two spellings, so that the swap
-    // shortens anything is this table's to keep rather than its own. Asked of the writer that composes both, and of
-    // the inclusions alone: negating each of them adds a character apiece, so that side follows by a wider margin.
-    const union = groupClause(entry, { include: new Set([term.id]), exclude: new Set() }) ?? '';
-    const spread = groupClause(entry, { include: new Set(term.covers), exclude: new Set() }) ?? '';
-
-    expect([union, union.length < spread.length]).toEqual(['background', true]);
+      expect({ union: union.id, shorter: asUnion < asCovered }).toEqual({ union: union.id, shorter: true });
+    }
   }
 });
 
-test('a union term is the shorter way to write the whole of what it covers, on either side', () => {
-  const [location, special, any] = group('background').terms;
-
-  expect([location?.term, special?.term, any?.term, any?.covers]).toEqual([
-    'locationbackground',
-    'specialbackground',
-    'background',
-    ['locationbackground', 'specialbackground'],
-  ]);
-
-  const both = state({ include: new Set(['locationbackground', 'specialbackground']) });
-
-  expect(compose(both).query).toBe('locationbackground,specialbackground');
-  expect(compose(optimise(both).state).query).toBe('background');
-
-  const neither = state({ exclude: new Set(['locationbackground', 'specialbackground']) });
-
-  expect(compose(neither).query).toBe('!locationbackground&!specialbackground');
-  expect(compose(optimise(neither).state).query).toBe('!background');
+test('a category arriving at one junction with mixed polarity is left alone', () => {
+  /*
+   * `any[shadow, !purified]` really is `!purified`, shadow being inside it — but the facts in `terms.js` are stated
+   * for a category's choices arriving on one side, which is the arrangement the catalogue leads a reader to. A
+   * reduction nobody has thought about is worth less than the clause it saves.
+   */
+  expect(short(any(yes('shadow'), no('purified')))).toBe('shadow,!purified');
+  expect(short(any(yes('star0'), no('star4')))).toBe('0*,!4*');
 });
 
-test('one of the terms a union covers is not the union, however much shorter that is', () => {
-  // `background` is eight characters shorter and a broader search, which is the one direction a reduction must never
-  // take. The swap waits for every term the union covers rather than taking the first of them.
-  const one = state({ include: new Set(['locationbackground']) });
-
-  expect(compose(optimise(one).state).query).toBe('locationbackground');
-
-  const other = state({ exclude: new Set(['specialbackground']) });
-
-  expect(compose(optimise(other).state).query).toBe('!specialbackground');
+test('a category split across two groups is two separate questions', () => {
+  // The whole of what being local to one node means: a pill one group over is a pill the reduction knows nothing
+  // about, which is the only reading that cannot make a search broader than it was.
+  expect(short(all(yes('shadow'), any(no('purified'), yes('shiny'))))).toBe('shadow&!purified,shiny');
 });
 
-test('a term beside the union that covers it says nothing the union has not', () => {
-  const chosen = state({ include: new Set(['background', 'locationbackground']) });
+test('the arrangement the reader made is never the one that was shortened', () => {
+  const tree = all(named('charmander'), yes('gen1'));
+  const before = structuredClone(tree);
 
-  expect(compose(chosen).query).toBe('locationbackground,background');
-  expect(compose(optimise(chosen).state).query).toBe('background');
+  optimise(state(tree));
+
+  // The canvas and the link go on carrying what was placed, so turning the toggle off puts the long string back rather
+  // than leaving a rewrite to undo.
+  expect(tree).toEqual(before);
 });
 
-test('a union term read off the side it was picked on leaves the other side alone', () => {
-  // Either backdrop is a backdrop, so the union covering one of them does not reach across the `&`. These two are the
-  // searches that would be destroyed by a rule that read both sides at once: the Event backdrops, and the nothing at
-  // all that a Location backdrop with no backdrop is.
-  const event = state({ include: new Set(['background']), exclude: new Set(['locationbackground']) });
+test('shortening an already shortened arrangement changes nothing further', () => {
+  const cases: Node[] = [
+    all(named('charmander'), yes('gen1')),
+    any(yes('star0'), yes('star1'), yes('star2'), yes('star3')),
+    any(yes('locationbackground'), yes('specialbackground')),
+    all(yes('shadow'), no('purified')),
+    any(yes('gen1'), yes('gen2')),
+    all(yes('shiny'), any(yes('fire'), yes('water'))),
+  ];
 
-  expect(compose(event).query).toBe('background&!locationbackground');
-  expect(compose(optimise(event).state).query).toBe('background&!locationbackground');
+  for (const tree of cases) {
+    const once = optimise(state(tree)).state;
+    const twice = optimise(once).state;
 
-  const nothing = state({ include: new Set(['locationbackground']), exclude: new Set(['background']) });
-
-  expect(compose(nothing).query).toBe('locationbackground&!background');
-  expect(compose(optimise(nothing).state).query).toBe('locationbackground&!background');
-});
-
-test('an exhaustive group that is not also exclusive reduces only as a whole', () => {
-  const type = group('type');
-
-  expect([type.exclusive, type.exhaustive, type.terms.length]).toEqual([undefined, true, 18]);
-
-  // Every species has a type, so all eighteen at once says nothing.
-  expect(compose(optimise(state({ include: new Set(all('type')) })).state).query).toBe('');
-
-  // One short of all eighteen says something quite different from the one left out, though: Gyarados is Flying as
-  // well as Water, so it is among the seventeen types that are not Water and is still not `!water`.
-  const most = state({ include: new Set(all('type').slice(0, -1)) });
-  const { state: short } = optimise(most);
-
-  expect([short.include, short.exclude]).toEqual([most.include, new Set()]);
+    expect({ tree: compose(once).query, again: compose(twice).query }).toEqual({
+      tree: compose(once).query,
+      again: compose(once).query,
+    });
+  }
 });

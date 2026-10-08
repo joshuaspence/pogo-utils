@@ -45,8 +45,21 @@ body[data-page='search'] {
     --chip-l: 68%;
   }
 
+  /**
+   * The column everything on this page sits in, and the one place the space between those things is set.
+   *
+   * A `gap` rather than a `margin-bottom` on each of them, which is what it was: the gap is the column's to say, and
+   * every card forgetting to carry one is a card that cannot forget. The category grid *had* forgotten — it is a grid
+   * of panels rather than a panel of its own, so there was nothing at all between Generation and the Ranges panel
+   * where every other pair on this page was 14px apart. It also takes a rule with it, the grid no longer having to
+   * zero its items' margins to stop them doubling its own `gap`.
+   */
+
   .builder {
+    display: flex;
     max-width: var(--content-w);
+    flex-direction: column;
+    gap: 14px;
     margin: 0 auto;
     padding: 8px 22px 40px;
     font-size: 13px;
@@ -64,7 +77,6 @@ body[data-page='search'] {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 14px;
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -73,9 +85,10 @@ body[data-page='search'] {
   }
 
   /**
-   * The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
-   * as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
-   * disappear under an edge rather than surfacing for 14px first.
+   * The column's gap below this card is a band the page scrolls through on its way under it, which reads as content
+   * leaking out from behind the card. Painting the band in the page background closes it, so the panels below
+   * disappear under an edge rather than surfacing for 14px first. The height is that gap, and the two want changing
+   * together.
    */
 
   .output::after {
@@ -202,7 +215,11 @@ body[data-page='search'] {
     color: var(--accent);
   }
 
-  /* The one thing the builder cannot decide for the reader, so it is the one thing on the page painted as a warning. */
+  /**
+   * A note about the string that is worth a second look rather than a refusal — which is the `mishandled` list and
+   * nothing else, now that the precedence caveat is gone. `.broken` below borrows this shape for the refusals, and
+   * takes the accent red to tell the two apart.
+   */
 
   .output .caveat {
     margin: 0;
@@ -214,8 +231,34 @@ body[data-page='search'] {
     line-height: 1.5;
   }
 
-  .output .caveat code {
+  .output .caveat code,
+  .output .broken code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  /**
+   * The expression refusing to parse, which is the one thing on this page that stops the string being usable rather
+   * than merely worth a second look. So it borrows the caveat's shape and takes the accent that marks a refusal
+   * elsewhere on the site, against the amber the caveat uses for a reading it cannot settle.
+   */
+
+  .output .broken {
+    margin: 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    background: var(--accent-soft);
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+
+  /**
+   * Each note on its own line, there being at most a couple and each of them a sentence rather than a pair the way the
+   * optimiser's substitutions are.
+   */
+
+  .output .mishandled {
+    display: block;
   }
 
   /* Laid out as pairs rather than as a sentence, so `charmander → 4` reads as one thing and wraps as one thing. */
@@ -245,7 +288,6 @@ body[data-page='search'] {
 
   .panel,
   .group {
-    margin-bottom: 14px;
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -295,88 +337,22 @@ body[data-page='search'] {
   }
 
   /**
-   * The box the names live in. What looks like a text field is this element rather than the input inside it, so the names
-   * already chosen can sit in it as chips: the border, the padding and the background are all here, and the input is left
-   * transparent and borderless at the end of the row. Wrapping, because a reader can choose more names than fit on a
-   * line.
+   * The name box, which carries its own border now that there is no field wrapped round it: a committed name leaves
+   * for the canvas as a pill, so what is left here is one ordinary input holding at most the name being typed.
    */
 
-  .field {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
+  #text {
+    width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg);
-    cursor: text;
-  }
-
-  /* The ring goes on the box, since the thing that has the focus is drawn as part of it and not as a field of its own. */
-
-  .field:focus-within {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  #text {
-    flex: 1;
-
-    /* Enough that a name being typed is readable beside the chips, and little enough to sit on a line with several. */
-    min-width: 9ch;
-    padding: 1px 2px;
-    border: 0;
-    background: none;
     color: var(--text);
     font: inherit;
     font-size: 14px;
   }
 
   #text:focus-visible {
-    outline: none;
-  }
-
-  .range input:focus-visible {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  /**
-   * A name already chosen. Coloured on --track rather than on the accent, which on this page means a term ruled out: a
-   * name is a value the reader has set, which is what --track already says on a range box they have filled in.
-   */
-
-  .field .name {
-    display: inline-flex;
-    gap: 5px;
-    align-items: center;
-    padding: 3px 5px 3px 9px;
-    border: 1px solid var(--track);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--track) 12%, var(--panel));
-    color: var(--text);
-    font-size: 12.5px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .field .name button {
-    padding: 0 3px;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 11px;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  .field .name button:hover {
-    color: var(--accent);
-  }
-
-  .field .name button:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -484,10 +460,6 @@ body[data-page='search'] {
     align-items: start;
   }
 
-  .groups .group {
-    margin: 0;
-  }
-
   .group .chips {
     display: flex;
     flex-wrap: wrap;
@@ -495,13 +467,24 @@ body[data-page='search'] {
   }
 
   /**
-   * A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
-   * came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
-   * Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice.
+   * A catalogue chip, which holds no state of its own: it is a thing to take a copy of rather than a toggle, so the
+   * three states it used to wear belong to the pill it makes. The category's hue is still here, so which category a
+   * chip came from reads without looking up the page.
+   *
+   * `touch-action` is what lets a finger drag one off the shelf instead of scrolling the page with it.
    */
 
   .chip {
-    --chip: hsl(var(--hue) var(--chip-s) var(--chip-l));
+    /**
+     * `--hue` is set per category section, so a chip outside one has none — the eight in the Ranges panel had `--chip`
+     * invalid at computed-value time, and their required state rendered with no tint at all: a `currentcolor` border
+     * and a transparent background, the two declarations that use it both thrown away. The fallback is on the hue
+     * rather than on each use, so `--chip` is a colour wherever a chip ends up and no future one can be caught by it.
+     *
+     * 220 is `--track`'s own hue, which is what this page already means by *a value the reader has set* — and the
+     * ranges want no sixteenth entry on a wheel this sheet says is full.
+     */
+    --chip: hsl(var(--hue, 220) var(--chip-s) var(--chip-l));
 
     display: inline-flex;
     align-items: center;
@@ -513,7 +496,8 @@ body[data-page='search'] {
     color: var(--muted);
     font: inherit;
     font-size: 12px;
-    cursor: pointer;
+    cursor: grab;
+    touch-action: none;
     user-select: none;
   }
 
@@ -527,6 +511,13 @@ body[data-page='search'] {
     outline-offset: 2px;
   }
 
+  /**
+   * A chip's three states, read against the group being filled. Off is the page's own furniture; required takes the
+   * category's colour, so which category a choice came from reads without looking up the page; ruled out takes the
+   * accent red whatever the category, because refusing a Fire type and refusing a shiny mean the same thing and should
+   * not look like two different kinds of choice.
+   */
+
   .chip[data-state='in'] {
     border-color: var(--chip);
     background: color-mix(in srgb, var(--chip) 16%, var(--panel));
@@ -539,68 +530,307 @@ body[data-page='search'] {
     background: var(--accent-soft);
     color: var(--accent);
     font-weight: 600;
+  }
+
+  /**
+   * The strike goes on the label rather than on the whole chip, the same way `.pill.out .face .name` does it further
+   * down. A decoration on the button propagates to every in-flow descendant and a descendant cannot turn it off — so
+   * the `text-decoration: none` that used to sit on `.state` was inert, and the strike crossed the `!` glyph. Which is
+   * not merely untidy: a struck-through `!` reads as the `+` that means *off*, so the one thing that says what state a
+   * chip is in without relying on its colour was saying the wrong one.
+   */
+
+  .chip[data-state='out'] .name {
     text-decoration: line-through;
     text-decoration-thickness: 1px;
   }
 
   /**
-   * The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
-   * who cannot see the difference between a red chip and a teal one.
+   * The state, said in a glyph as well as in colour — the three have to be tellable apart by someone who cannot see
+   * the difference between a red chip and a teal one.
    */
 
   .chip .state {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
-    text-decoration: none;
   }
 
   .chip[data-state='off'] .state {
-    opacity: 0.35;
-  }
-
-  .ranges {
-    display: grid;
-    gap: 10px 16px;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  }
-
-  .range {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .range .name {
-    flex: 1;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .range input {
-    width: 68px;
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-    font-size: 12px;
-    text-align: right;
-  }
-
-  .range .dash {
-    color: var(--muted);
+    opacity: 0.45;
   }
 
   /**
-   * A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
-   * does but looks like an empty box until you read the numbers in it.
+   * The canvas, which is the page's subject: the catalogue below it is a shelf, and this is the thing being built. It
+   * sits in the flow rather than sticking, the output box above it already being what stays in view.
    */
 
-  .range.set input:not(:placeholder-shown) {
+  .canvas {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+
+  /**
+   * One group. Nested groups are the same element at every depth, so the indent comes from the nesting itself rather
+   * than from a rule per level — which is the only way a tree of unknown depth can be drawn at all.
+   *
+   * The dashed border says *container* against the solid ones the panels wear: a group is somewhere pills go, and a
+   * reader has to be able to see the hole they are dropping into before anything is in it.
+   */
+
+  .group-node {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .group-node.root {
+    border-style: solid;
+    background: none;
+  }
+
+  /**
+   * The group a pill would land in. Lit on the border and the background both, because a drop target a reader has to
+   * look for is a drop target they will miss — and `--start` is the one colour on this page that already means *yes*.
+   */
+
+  .group-node.target {
+    border-color: var(--start);
+    border-style: solid;
+    background: color-mix(in srgb, var(--start) 10%, var(--panel));
+  }
+
+  /* The group a pressed chip goes into, which is quieter than a drop target: it is a standing state, not a gesture. */
+
+  .group-node.current:not(.target) {
     border-color: var(--track);
+  }
+
+  .group-head {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .junction {
+    padding: 3px 10px;
+    border: 1px solid var(--track);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--track) 12%, var(--panel));
     color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+
+  .junction:hover {
+    background: color-mix(in srgb, var(--track) 22%, var(--panel));
+  }
+
+  .group-head .drop {
+    margin-left: auto;
+  }
+
+  .parts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+
+    /* Enough that an empty group is a space a pill can plainly be put into rather than a line of text. */
+    min-height: 34px;
+  }
+
+  /* A nested group takes a line of its own, a group being a block of the query rather than a word in it. */
+
+  .parts > .group-node {
+    flex: 1 0 100%;
+  }
+
+  .group-node .empty {
+    margin: 0;
+    align-self: center;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+
+  .group-node .add {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border: 1px dashed var(--border);
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .group-node .add:hover {
+    border-color: var(--track);
+    border-style: solid;
+    color: var(--track);
+  }
+
+  /**
+   * A pill: the term, its state, and the two controls that move it. Built as a row of buttons rather than one button
+   * holding others, which nothing is allowed to be — pressing the face turns the pill round, and the two beside it
+   * pick it up and take it off.
+   */
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel);
+    white-space: nowrap;
+  }
+
+  .pill .face {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 4px 4px 10px;
+    border: 0;
+    border-radius: 999px 0 0 999px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 12.5px;
     font-weight: 600;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .pill.in {
+    border-color: var(--track);
+    background: color-mix(in srgb, var(--track) 12%, var(--panel));
+  }
+
+  .pill.out {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .pill.out .face .name {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  /* The pill a keyboard has picked up, which is waiting for a group to be clicked and says so by lifting. */
+
+  .pill.carried {
+    border-color: var(--start);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .pill .state {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    text-decoration: none;
+  }
+
+  .pill .lift,
+  .pill .drop,
+  .group-head .drop {
+    padding: 0 6px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .pill .lift[aria-pressed='true'] {
+    color: var(--start);
+  }
+
+  .pill .drop:hover,
+  .group-head .drop:hover {
+    color: var(--accent);
+  }
+
+  .pill .lift:focus-visible,
+  .pill .drop:focus-visible,
+  .pill .face:focus-visible,
+  .group-head .drop:focus-visible,
+  .junction:focus-visible,
+  .group-node .add:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /* A span pill's own two boxes, narrow enough that the pill still reads as one thing. */
+
+  .pill .bounds {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    padding-right: 2px;
+  }
+
+  .pill .bounds input {
+    width: 54px;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .pill .bounds input:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  .pill .bounds .dash {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  /**
+   * The pill under the pointer. Fixed and translated off its own corner so it hangs from the grab point, and
+   * `pointer-events: none` so that `elementFromPoint` reports the group beneath rather than this element itself —
+   * which is the whole of how the drop target is found.
+   *
+   * Not `.ghost`, which it was called first: this sheet already gives that word to the Clear button beside the string,
+   * and the Pokédex gives it to a link. `.output button.ghost` outranks a bare `.ghost` on everything the two of them
+   * both set, so the colours were fine and only the one property this rule holds alone leaked — Clear went
+   * `position: fixed` and climbed into the Copy button. A class name means one thing per sheet, and the sheet's own
+   * note about five pages sharing nineteen names is about the easier half of that problem.
+   */
+
+  .dragging {
+    position: fixed;
+    z-index: 50;
+    padding: 4px 10px;
+    border: 1px solid var(--track);
+    border-radius: 999px;
+    background: var(--panel);
+    box-shadow: var(--shadow-lift);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translate(-50%, -140%);
   }
 
   @media (width <= 560px) {
