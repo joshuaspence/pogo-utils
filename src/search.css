@@ -99,10 +99,39 @@ body[data-page='search'] {
     background: var(--bg);
   }
 
+  /**
+   * The two rows of the card: a search with brackets in it, and the clauses it comes to. Laid out alike, because they
+   * are the same search said the two ways and the pairing is the whole of what the page does.
+   */
+
+  .output .import,
   .output .string {
     display: flex;
     align-items: stretch;
     gap: 10px;
+  }
+
+  /**
+   * Which of the two rows is which. A fixed column so the fields line up down the card — the labels are what tells two
+   * mono rows apart, and ragged ones would read as two unrelated boxes that happen to sit together.
+   *
+   * `9.5em` is against the 11px below rather than the column's 13px, a flex basis in `em` resolving against the
+   * element's own font size: 104.5px, where *With brackets* wants 99.4px set this way — the letter spacing counting
+   * once more after the last character, which is what made 99px wrap it. Wide enough for one line each, which is what
+   * the column is for: wrapped to two, the labels stand taller than the fields beside them and the pair stops reading
+   * as a pair.
+   */
+
+  .output .side {
+    display: flex;
+    flex: 0 0 9.5em;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+    color: var(--muted);
   }
 
   /**
@@ -132,7 +161,47 @@ body[data-page='search'] {
     user-select: none;
   }
 
+  /**
+   * The box the query is typed into, set in the same mono face as the string below it at the same size: what a reader
+   * pastes in and what they copy out are the same kind of text, and a proportional face here would read as a name box.
+   */
+
+  #typed {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  #typed:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  #typed[aria-invalid='true'] {
+    border-color: var(--accent);
+  }
+
+  /**
+   * The two buttons are one geometry, the rows being a pair, and differ only in fill: *Use it* starts the page's job
+   * and *Copy* ends it, so the outline reads as the step before the filled one rather than as a lesser action. It is
+   * the same outline the Copy button takes when it has nothing to copy, for the reason given below it.
+   *
+   * The width is held rather than left to the labels, which is what makes the rows a pair down their right edge as
+   * well as their left: *Use it* sets 71.2px against *Copy*'s 68.4, and two fields 2.9px apart read as a near miss
+   * rather than as an alignment. `5.5em` is 71.5px at the 13px below. The Copy button still grows for the clipboard
+   * fallback's longer label, as it did before there was a second row to be out of step with.
+   */
+
+  .output button.use,
   .output button.copy {
+    min-width: 5.5em;
     padding: 0 18px;
     border: 1px solid var(--accent);
     border-radius: 8px;
@@ -143,8 +212,26 @@ body[data-page='search'] {
     cursor: pointer;
   }
 
+  .output button.use {
+    background: transparent;
+    color: var(--accent);
+  }
+
+  .output button.use:hover:not(:disabled),
   .output button.copy:hover:not(:disabled) {
     filter: brightness(1.05);
+  }
+
+  .output button.use:disabled {
+    border-color: var(--border);
+    color: var(--muted);
+    font-weight: 500;
+    cursor: default;
+  }
+
+  .output button.use:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
   }
 
   /**
@@ -573,81 +660,6 @@ body[data-page='search'] {
   }
 
   /**
-   * The row a query is typed into, which fills the canvas below it rather than composing anything of its own. Laid out
-   * as one line so it reads as an instruction to the canvas and not as a second place a search could live.
-   */
-
-  .import {
-    display: flex;
-    gap: 8px;
-    align-items: stretch;
-  }
-
-  #typed {
-    flex: 1;
-    min-width: 0;
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12.5px;
-  }
-
-  #typed:focus-visible {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  #typed[aria-invalid='true'] {
-    border-color: var(--accent);
-  }
-
-  .import button {
-    padding: 0 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 12px;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .import button:hover:not(:disabled) {
-    border-color: var(--track);
-    color: var(--track);
-  }
-
-  .import button:disabled {
-    cursor: default;
-    opacity: 0.5;
-  }
-
-  .import button:focus-visible {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  /* The refusal sits where the output box's does, so a reader meets the same shape wherever a string is turned away. */
-
-  .canvas .broken {
-    margin: 0;
-    padding: 8px 10px;
-    border-left: 3px solid var(--accent);
-    border-radius: 4px;
-    background: var(--accent-soft);
-    font-size: 11.5px;
-    line-height: 1.5;
-  }
-
-  .canvas .broken code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-
-  /**
    * One group. Nested groups are the same element at every depth, so the indent comes from the nesting itself rather
    * than from a rule per level — which is the only way a tree of unknown depth can be drawn at all.
    *
@@ -915,10 +927,19 @@ body[data-page='search'] {
       padding-inline: 22px;
     }
 
+    .output .import,
     .output .string {
       flex-direction: column;
+      gap: 6px;
     }
 
+    /* Stacked, the label is a heading over its field rather than a column beside it, so it stops reserving one. */
+
+    .output .side {
+      flex-basis: auto;
+    }
+
+    .output button.use,
     .output button.copy {
       padding: 9px 18px;
     }

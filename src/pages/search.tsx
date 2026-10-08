@@ -6,7 +6,9 @@
  *
  * A query can be typed in as well, and that is an import rather than a second composer: `parse.js` reads the brackets
  * into a tree, the canvas draws it, and the one composer takes it from there. Which is the whole difference between
- * the row at the top of the canvas and the text box that used to sit beside the chips composing clauses of its own.
+ * the row at the top of the output card and the text box that used to sit beside the chips composing clauses of its
+ * own — and the reason the two share that card, a search with brackets and the clauses it comes to being one thing
+ * said twice.
  *
  * A pill reaches a group two ways, both ending in the same `commit`. Dragging is the one a pointer wants, tracked
  * through pointer capture so touch behaves like a mouse, with a few pixels of slop before a press counts as a drag.
@@ -656,8 +658,55 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       </header>
 
       <main class="builder">
-        <section class="output" aria-label="The search string">
+        <section class="output" aria-label="The search string, in and out">
+          {/*
+           * Typing a query in rather than arranging one. It fills the canvas instead of composing a string of its own,
+           * so there is still one arrangement and one output — and the pills it leaves can be dragged about like any
+           * others, which is the whole difference between this and a second box that composed beside the first.
+           *
+           * It sits above the string it turns into, in the one card that is sticky, because the two are the same
+           * search said the two ways: brackets in, clauses out. In the canvas below it was a row a reader scrolled
+           * past without seeing, which is a box nobody can use however well it reads.
+           *
+           * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error,
+           * and a canvas that emptied itself at each keystroke would be unusable.
+           */}
+          <form
+            class="import"
+            onSubmit={(event) => {
+              event.preventDefault();
+              importTyped();
+            }}
+          >
+            <label class="side" for="typed">
+              With brackets
+            </label>
+            <input
+              id="typed"
+              type="text"
+              value={typed}
+              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
+              autocomplete="off"
+              spellcheck={false}
+              aria-invalid={typedError !== null}
+              aria-describedby="importHelp"
+              onInput={(event) => {
+                setTyped(event.currentTarget.value);
+                setTypedError(null);
+              }}
+            />
+            <button type="submit" class="use" disabled={typed.trim() === ''}>
+              Use it
+            </button>
+          </form>
+
+          <p class="broken" hidden={typedError === null}>
+            {ticked(typedError ?? '')}
+          </p>
+
           <div class="string">
+            {/* Plain text, not a label: the live region reads the string out, so nothing reaches it by name. */}
+            <span class="side">For the game</span>
             <code id="query" ref={queryRef} class={query ? undefined : 'empty'} aria-live="polite">
               {query || 'Nothing arranged yet'}
             </code>
@@ -721,51 +770,12 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             The query
           </h2>
 
-          {/*
-           * Typing a query in rather than arranging one. It fills the canvas instead of writing a string of its own,
-           * so there is still one arrangement and one output — and the pills it leaves can be dragged about like any
-           * others, which is the whole difference between this and a second box that composed beside the first.
-           *
-           * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error,
-           * and a canvas that emptied itself at each keystroke would be unusable.
-           */}
-          <form
-            class="import"
-            onSubmit={(event) => {
-              event.preventDefault();
-              importTyped();
-            }}
-          >
-            <input
-              id="typed"
-              type="text"
-              value={typed}
-              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
-              autocomplete="off"
-              spellcheck={false}
-              aria-label="Type a query, brackets and all"
-              aria-invalid={typedError !== null}
-              aria-describedby="importHelp"
-              onInput={(event) => {
-                setTyped(event.currentTarget.value);
-                setTypedError(null);
-              }}
-            />
-            <button type="submit" class="ghost" disabled={typed.trim() === ''}>
-              Use it
-            </button>
-          </form>
-
-          <p class="broken" hidden={typedError === null}>
-            {ticked(typedError ?? '')}
-          </p>
-
           {renderGroup([])}
 
           <p class="help" id="importHelp">
-            Paste a search with brackets in it and this lays it out as pills — <code>&amp;</code> and <code>|</code> are{' '}
-            <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are <em>or</em>, and <code>!</code> rules out
-            whatever follows. Or arrange it yourself: a group asks for <em>all</em> of its pills or <em>any</em> of
+            The box above takes a search with brackets and lays it out as pills — <code>&amp;</code> and <code>|</code>{' '}
+            are <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are <em>or</em>, and <code>!</code> rules
+            out whatever follows. Or arrange it yourself: a group asks for <em>all</em> of its pills or <em>any</em> of
             them, and its button turns it round. Press a pill to swap <em>required</em> for <em>ruled out</em>,{' '}
             <kbd>⇅</kbd> to pick it up and then click a group to put it down, and <kbd>✕</kbd> to take it off. The game
             has no brackets, so whatever ends up here is written back out as clauses it does take — which is why an{' '}
