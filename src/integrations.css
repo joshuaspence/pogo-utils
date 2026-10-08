@@ -146,8 +146,9 @@ body[data-page='integrations'] {
   }
 
   /**
-   * Belongs to the option directly above it, so it is indented past that checkbox to sit under the label's text and pulled
-   * up out of the column's 6px gap — otherwise it floats between two options with nothing saying which one it qualifies.
+   * A note inside the options group belongs to the option directly above it, so it is indented past that checkbox to
+   * sit under the label's text and pulled up out of the column's 6px gap — otherwise it floats between two options with
+   * nothing saying which one it qualifies.
    */
 
   .backup .note {
@@ -155,6 +156,15 @@ body[data-page='integrations'] {
     font-size: 11px;
     line-height: 1.45;
     color: var(--muted);
+  }
+
+  /**
+   * A note straight in the panel heads no option, so neither the indent nor the pull-up means anything there: it would
+   * read as a footnote to the paragraph above rather than as the warning it is. The panel's own column spaces it.
+   */
+
+  .backup .body > .note {
+    margin: 0;
   }
 
   .backup button.run {

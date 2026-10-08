@@ -11,13 +11,7 @@
  * appending it.
  */
 
-import {
-  filterRegion,
-  filterRegional,
-  species,
-  NEARBY_FEED_FILTERS,
-  SHINY_HUNTING_FILTERS,
-} from '../filters/narrow.js';
+import { filterRegion, filterRegional, species, WILD_SPAWN_FILTERS, SHINY_HUNTING_FILTERS } from '../filters/narrow.js';
 import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 import XXL_POKEMON from '../filters/xxl.js';
@@ -76,18 +70,18 @@ export default [
     minIV: 100,
     notif: true,
     priority: 0,
-    pokemons: species(PERFECT_IV_POKEMON, ...NEARBY_FEED_FILTERS),
+    pokemons: species(PERFECT_IV_POKEMON, ...WILD_SPAWN_FILTERS),
   },
   {
     ...baseFilter,
     name: 'XXL',
     size: 5,
-    pokemons: species(XXL_POKEMON, ...NEARBY_FEED_FILTERS),
+    pokemons: species(XXL_POKEMON, ...WILD_SPAWN_FILTERS),
   },
   {
     ...baseFilter,
     name: 'XXS',
     size: 1,
-    pokemons: species(XXS_POKEMON, ...NEARBY_FEED_FILTERS),
+    pokemons: species(XXS_POKEMON, ...WILD_SPAWN_FILTERS),
   },
 ];

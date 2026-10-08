@@ -7,16 +7,18 @@
  * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
  * why that is the only one of the four hunts worth sending.
  *
- * The Java codec is the weight on this page and nothing else uses it, which is why it is reached through `import()`.
- * The display filter rides the same chunk — it is a few hundred bytes of JSON and splitting it again would buy nothing.
+ * The Java codec is nearly all of this chunk's 89,484 bytes and nothing else uses it, which is why the page is reached
+ * through `import()`. The display filter rides that chunk rather than taking one of its own: it emits 1,396 characters
+ * of JSON, and both panels are on this one page, so whoever opens it loads both regardless of how they are split.
  */
 
 import { useState } from 'preact/hooks';
 
+import { copyText } from '../dom.js';
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
-import { displayFilterText, shinyHuntFilter, FILE_NAME } from '../livepokemap/display-filter.js';
+import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filter.js';
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
@@ -79,8 +81,8 @@ async function buildRepoFavourites() {
  * with `Uint8Array.from`, which is an `ArrayBuffer` already, so the bare annotation is weaker than inference rather
  * than stronger.
  */
-function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string, type = 'application/octet-stream') {
-  const blob = new Blob([bytes], { type });
+function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -104,6 +106,9 @@ interface Status {
   kind?: 'ok' | 'err';
 }
 
+/** Said once because both panels have a status line, and a third would be a third copy of this expression. */
+const statusClass = (status: Status | null) => (status?.kind ? `status ${status.kind}` : 'status');
+
 export default function IntegrationsPage() {
   const [ticked, setTicked] = useState<ReadonlySet<Control>>(() => new Set(CONTROLS));
   const [status, setStatus] = useState<Status | null>(null);
@@ -111,22 +116,29 @@ export default function IntegrationsPage() {
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
 
   /**
-   * Write the display filter. No fetching and no parsing, so unlike the backup there is nothing to wait for — but
-   * `species` throws on a list holding something `pokemon.js` does not define, which is worth saying rather than
-   * swallowing. The count comes off the list that was actually written, as the backup's summary does.
+   * Put the display filter on the clipboard, which is where Live PokeMap's own filter import reads one from — it offers
+   * no file picker for this format. Nothing is caught: `species` can throw on a list holding something `pokemon.js`
+   * does not define, but `pgsharp/controls.js` has already made the identical call at module scope, so that failure
+   * arrives as a failed chunk load rather than here. Only the clipboard can fail at this point.
+   *
+   * The count comes off the list that was actually copied, as the backup's summary does.
    */
-  function runFilter() {
-    try {
-      const filter = shinyHuntFilter();
+  async function runFilter() {
+    const filter = shinyHuntFilter();
+    const listed = filter.config.speciesFilterList.length;
+    const copied = await copyText(displayFilterText(filter));
 
-      downloadBytes(new TextEncoder().encode(displayFilterText(filter)), FILE_NAME, 'application/json');
-      setFilterStatus({
-        message: `Wrote ${filter.config.speciesFilterList.length} species to ${FILE_NAME}.`,
-        kind: 'ok',
-      });
-    } catch (e) {
-      setFilterStatus({ message: `Failed to build the filter: ${said(e)}`, kind: 'err' });
-    }
+    setFilterStatus(
+      copied
+        ? {
+            message: `Copied ${listed} species. Paste into Live PokeMap's filter import.`,
+            kind: 'ok',
+          }
+        : {
+            message: 'Could not reach the clipboard. This page needs HTTPS, or a browser that permits copying.',
+            kind: 'err',
+          },
+    );
   }
 
   /**
@@ -212,29 +224,29 @@ export default function IntegrationsPage() {
             Generate &amp; download
           </button>
 
-          <div class={status?.kind ? `status ${status.kind}` : 'status'}>{status?.message ?? ''}</div>
+          <div class={statusClass(status)}>{status?.message ?? ''}</div>
         </div>
 
         <div class="body">
           <h2>Live PokeMap display filters</h2>
 
           <p>
-            Build a Live PokeMap display filter that allowlists every species still wanted for a shiny — the same list
+            Copy a Live PokeMap display filter that allowlists every species still wanted for a shiny — the same list
             the backup above hands PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are
             thresholds rather than lists, and Live PokeMap shows all three without being told which species to watch.
           </p>
 
           <p class="note">
             Importing replaces your Live PokeMap display filters entirely — anything not set here, your IV and level
-            bounds among it, goes back to its default. Open the file and paste its contents into Live PokeMap&apos;s own
-            filter import; it reads the text rather than the file.
+            bounds among it, goes back to its default. Paste it into Live PokeMap&apos;s own filter import, which takes
+            the text rather than a file.
           </p>
 
-          <button class="run" type="button" onClick={runFilter}>
-            Generate &amp; download
+          <button class="run" type="button" onClick={() => void runFilter()}>
+            Copy to clipboard
           </button>
 
-          <div class={filterStatus?.kind ? `status ${filterStatus.kind}` : 'status'}>{filterStatus?.message ?? ''}</div>
+          <div class={statusClass(filterStatus)}>{filterStatus?.message ?? ''}</div>
         </div>
       </main>
     </>

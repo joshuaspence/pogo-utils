@@ -347,9 +347,9 @@ without timezones and the page says how many were left out; PGSharp accepts entr
 ## Import into Live PokeMap
 
 The second panel on the **Integrations** page writes a [Live PokeMap](https://livepokemap.com) _display filter_: an
-allowlist of every species still wanted for a shiny, as the dex numbers its filter stores. Click **Generate &
-download**, then open `lpm-display-filter.json` and paste its contents into Live PokeMap's own filter import — that
-format has no file picker, and its importer reads the text rather than the file.
+allowlist of every species still wanted for a shiny, as the dex numbers its filter stores. Click **Copy to clipboard**,
+then paste into Live PokeMap's own filter import. A copy rather than a download because that format has no file picker:
+the import takes pasted text, so a file would only have to be opened and copied out by hand.
 
 It is the shiny list alone. XXL, XXS and 100% are thresholds rather than lists — `filterXXL`, `filterXXS` and `minIV`
 say them without naming a species, and Live PokeMap surfaces all three unprompted, its `alwaysShowSize` and

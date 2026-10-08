@@ -9,6 +9,7 @@
 
 import { fold, formNameOf, nameOf } from '../pokemon/names.js';
 import POKEMON from '../pokemon/pokedex.js';
+import type { Predicate } from '../filters/narrow.js';
 import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 import XXL_POKEMON from '../filters/xxl.js';
@@ -24,7 +25,6 @@ import type Pokemon from '../pokemon/pokemon.js';
  */
 export type Flag = { [K in keyof Pokemon]: Pokemon[K] extends boolean ? K : never }[keyof Pokemon];
 
-type Predicate = (pokemon: Pokemon) => boolean;
 type Hunt = { id: string; label: string; members: ReadonlySet<Pokemon>; watched: Predicate };
 type EntryHunt = { id: string; watched: boolean };
 type Variant = { name: string; pokemon: Pokemon; hunts: EntryHunt[] };

@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 
 import SHINY_POKEMON from '../filters/shiny.js';
-import { displayFilterText, shinyHuntFilter, FILE_NAME } from './display-filter.js';
+import { HUNTS } from '../pokedex/entries.js';
+import { displayFilterText, shinyHuntFilter } from './display-filter.js';
 
 /**
  * Live PokeMap's own validation, transcribed from the function that reads this format in
@@ -40,9 +41,8 @@ test('the transcribed reader turns away what Live PokeMap turns away', () => {
   expect(accepted(JSON.stringify({ _lpm_display_filter: true, config: {} }))).toBe(true);
 });
 
-test('the shiny hunt is written as a file Live PokeMap will read', () => {
+test('the shiny hunt is written as text Live PokeMap will read', () => {
   expect(accepted(displayFilterText(shinyHuntFilter()))).toBe(true);
-  expect(FILE_NAME.endsWith('.json')).toBe(true);
 });
 
 test('the allowlist is the shiny hunt narrowed to what the wild turns up', () => {
@@ -50,8 +50,8 @@ test('the allowlist is the shiny hunt narrowed to what the wild turns up', () =>
 
   /*
    * The rule spelled out, rather than asked of `SHINY_HUNTING_FILTERS` the way the module asks it. Reaching for the
-   * same list would assert only that the module calls what it calls; writing the three flags out means a change to
-   * that list has to be meant.
+   * same list would assert only that the module calls what it calls; writing the three flags out means a change to that
+   * list has to be meant.
    */
   const wanted = [
     ...new Set(
@@ -89,6 +89,31 @@ test('the clock is the only thing that moves between two exports', () => {
 
   expect(shinyHuntFilter(at).exported_at).toBe('2026-01-02T03:04:05.678Z');
 
-  // Which is what lets the file be diffed against the last one: given the same instant, the bytes are the same.
-  expect(displayFilterText(shinyHuntFilter(at))).toBe(displayFilterText(shinyHuntFilter(at)));
+  /*
+   * Two exports at *different* instants, since comparing one instant against itself is `f(x)` against `f(x)` on a pure
+   * function and can never go red. What is being pinned is that the timestamp is the whole of the difference — which is
+   * what lets one export be diffed against the last.
+   */
+  const later = new Date('2026-03-04T05:06:07.890Z');
+  const lines = (date: Date) => displayFilterText(shinyHuntFilter(date)).split('\n');
+  const differing = lines(at)
+    .map((line, at) => [line, lines(later)[at]])
+    .filter(([before, after]) => before !== after);
+
+  expect(differing).toEqual([
+    ['  "exported_at": "2026-01-02T03:04:05.678Z"', '  "exported_at": "2026-03-04T05:06:07.890Z"'],
+  ]);
+});
+
+test('the allowlist is the very list the Pokédex badges as a watched shiny hunt', () => {
+  /*
+   * `pokedex/entries.ts` writes the narrowing a third time, as `feedable(p) && p.shinyEligible` rather than as this
+   * module's predicate list. Until that duplicate is collapsed, this is what stops the two drifting: add a predicate to
+   * `SHINY_HUNTING_FILTERS` and the export would quietly drop species the page keeps badging as watched.
+   */
+  const hunt = HUNTS.find((entry) => entry.id === 'shiny');
+  const watched = [...new Set([...(hunt?.members ?? [])].filter((pokemon) => hunt?.watched(pokemon)).map(Number))];
+
+  expect(watched.length).toBeGreaterThan(0);
+  expect(shinyHuntFilter().config.speciesFilterList).toEqual(watched);
 });

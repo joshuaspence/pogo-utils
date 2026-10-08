@@ -2,9 +2,10 @@
  * The Live PokeMap display filter this collection's shiny hunt makes.
  *
  * Live PokeMap has two separate import formats and only this one can carry a species list. Its settings file — the
- * `{_version: 1, settings: {…}}` one its own Config export writes — honours a seven-key allowlist of UI preferences
- * and silently drops everything else, so a hunt list cannot be expressed in it at all. Display filters round-trip
- * instead as the JSON below, sentinel and all, pasted into its import box.
+ * `{_version: 1, settings: {…}}` one its own Config export writes — honours a seven-key allowlist of UI preferences and
+ * silently drops everything else, so a hunt list cannot be expressed in it at all. Display filters round-trip instead
+ * as the JSON below, sentinel and all, pasted into its import box — which is why the page copies this to the clipboard
+ * rather than offering a file: that format has no picker.
  *
  * Only the shiny hunt is written. XXL, XXS and 100% are thresholds rather than lists — `filterXXL`, `filterXXS` and
  * `minIV` say them without naming a species, and Live PokeMap surfaces all three unconditionally anyway, its
@@ -15,14 +16,11 @@
 import { species, SHINY_HUNTING_FILTERS } from '../filters/narrow.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 
-/** What a human files it under. Live PokeMap reads the text, not the name, so this is for the filesystem alone. */
-export const FILE_NAME = 'lpm-display-filter.json';
-
 /**
  * `true` exactly: the importer compares it with `===`, so a truthy stand-in is rejected along with the whole file.
  * There is no `_version` here — unlike the settings format, this one is validated by the sentinel and nothing else.
  */
-export const SENTINEL = true;
+const SENTINEL = true;
 
 export interface DisplayFilter {
   _lpm_display_filter: typeof SENTINEL;
@@ -33,8 +31,13 @@ export interface DisplayFilter {
    * is why writing the other seventeen would mean asserting values this collection knows nothing about, and why the
    * page says plainly that importing replaces the lot.
    *
-   * `shinyOnly` is deliberately absent. It shows only spawns already known to be shiny, which a scanner cannot know of
-   * a wild encounter before something checks it, so setting it would hide the very species being hunted.
+   * `shinyOnly` is deliberately absent, which is safe only because its default is `false` — `shinyOnly:!1` in the
+   * defaults object of `chunks/0211aa2db0c7372e.js`. It shows only spawns already known to be shiny, which a scanner
+   * cannot know of a wild encounter before something checks it, so a `true` here would hide the species being hunted.
+   *
+   * `speciesFilterMode` takes `off`, `blocklist` or `allowlist`: the mode switch in `chunks/f024cc8ca4c101c1.js`
+   * renders its three buttons from `["off","blocklist","allowlist"].map(…)`. `speciesFilterList` is read as numbers —
+   * the same chunk hands it to the picker grid as `selectedDexIds`, which builds it with `n.add(entry.dex)`.
    */
   config: {
     speciesFilterMode: 'allowlist';
@@ -59,5 +62,5 @@ export function shinyHuntFilter(now = new Date()): DisplayFilter {
   };
 }
 
-/** Indented two, as Live PokeMap's own export is: the file is opened and copied by hand, so it is read by someone. */
+/** Indented two, as Live PokeMap's own export is: this goes to a clipboard and may well be looked at on the way. */
 export const displayFilterText = (filter: DisplayFilter) => JSON.stringify(filter, null, 2);
