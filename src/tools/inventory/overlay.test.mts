@@ -17,7 +17,7 @@ import { assembled, confirmed } from './overlay.mts';
 import { expect, test } from 'vitest';
 
 /**
- * The two captures the real loop reaches, as the readings it hands this. `articuno-galar.png` is the case the feature
+ * The two captures this answers, as the readings the real loop hands it. `articuno-galar.png` is the case the feature
  * exists for — attack 10 or 12, stamina 13 or 3, and only `12/4/13` coming to the `64` the second pass printed.
  *
  * `dialga-origin.png` is the one the corpus cannot speak for: the second pass loses the stamina alone, so the only
@@ -25,7 +25,7 @@ import { expect, test } from 'vitest';
  * because "the fallback would have done" is a fact about these two readings rather than about the code — a change that
  * started answering something else here would pass every row in the corpus.
  */
-test('the two captures the corpus reaches assemble to what their screens read', () => {
+test('the two captures this answers assemble to what their screens read', () => {
   expect(
     assembled([
       { iv: { attack: 10, defense: 4, stamina: 13 }, before: '20 ' },
@@ -76,6 +76,19 @@ test('nothing is assembled where more than one combination checks out', () => {
       { iv: { attack: 10, defense: 4, stamina: 13 }, before: '160 ' },
       { iv: { attack: 12, defense: 4, stamina: 3 }, before: '164 ' },
     ]),
+  ).toBeNull();
+
+  // Which is how an appended treatment can cost an answer, and what `OVERLAY_TREATMENTS` says about the safety of
+  // adding one rests on: `articuno-galar.png`'s two real readings with a third that reads the near-white triple and
+  // prints a percentage for it. The assembly it had is gone, so the fallback stands and that is the triple its row
+  // denies. Here rather than only in the prose, because a paragraph is what someone reads before appending a pass.
+  expect(
+    assembled([
+      { iv: { attack: 10, defense: 4, stamina: 13 }, before: '20 ' },
+      { iv: { attack: 12, defense: 4, stamina: 3 }, before: '120 164 ' },
+      { iv: { attack: 10, defense: 4, stamina: 13 }, before: '160 ' },
+    ]),
+    'a third pass no longer costs the assembly `articuno-galar.png` depends on, so the docblock above overstates it',
   ).toBeNull();
 });
 

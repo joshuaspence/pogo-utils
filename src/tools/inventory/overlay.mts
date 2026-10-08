@@ -63,9 +63,16 @@ const OVERLAY_BRIGHTNESS_HIGH = 180;
  * Brightness is a second opinion rather than a replacement, and misses `unown-question.png`, whose level, percentage
  * and IVs run together at 120.
  *
- * Order is what makes adding one safe: the loop keeps the first reading the percentage confirms and falls back on the
- * first that read a possible triple, so a pass appended here can only turn an unconfirmed fallback into a confirmed
- * reading.
+ * Adding one is three decisions rather than two, and order protects only the first. The loop keeps the first reading
+ * the percentage confirms, so a pass appended here cannot displace a `chosen` that an earlier one earned. What it can
+ * move is `assembled` below, which an appended pass feeds twice over — a value per field to its cross product, and a
+ * `before` to the checksum every combination is put to. So it can turn an abstention into an assembly, and it can turn
+ * an assembly into an abstention by making a second combination check out, which falls back on the first pass's triple.
+ *
+ * `articuno-galar.png` is where that costs something: a fourth treatment reading the near-white `10/4/13` and printing
+ * a percentage of its own takes the assembled `12/4/13` to nothing, leaving the `10/4/13` its row denies. It is caught
+ * rather than shipped — `screens.test.mts` fails on that row the moment it happens — but a pass is worth reading
+ * `assembled` for before adding it, not just this paragraph. `overlay.test.mts` pins the mechanism.
  */
 const OVERLAY_TREATMENTS = [
   (band: Image) => isolate(band, OVERLAY_LUMINANCE, OVERLAY_CHROMA),
@@ -506,7 +513,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 
   // Where nothing confirmed itself, the three fields can still be put back together across the passes. The percentage
   // is a checksum over all three, so a triple that each pass gets wrong in a *different* place is one the percentage
-  // can recover — and that is `articuno-galar.png`, one of the two captures it reaches: near-white reads `10/4/13` and
+  // can recover — and that is `articuno-galar.png`, one of the two captures it answers: near-white reads `10/4/13` and
   // brightness at 180 reads `12/4/ 3`, so the attack is 10 or 12 and the stamina 13 or 3, and of the four combinations
   // only `12/4/13` comes to the `64` that brightness printed beside it.
   //
