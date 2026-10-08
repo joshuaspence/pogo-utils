@@ -207,12 +207,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1966,
-    defects: {
-      cp: 1951,
-      iv: { attack: 10, defense: 4, stamina: 13 },
-      levels: [20],
-      notes: ['the screen reads CP 1966, where this form at this level is 1951'],
-    },
     favourite: true,
     file: 'articuno-galar.png',
     form: 'Galarian',
@@ -1237,14 +1231,14 @@ const COVERAGE = {
   negatives: 3,
   answeredAsThemselves: 40,
   oneLevel: 43,
-  crossCheckAgrees: 41,
-  crossCheckDisagrees: 2,
+  crossCheckAgrees: 42,
+  crossCheckDisagrees: 1,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 36,
+  noDefects: 37,
   noOverlayDrawn: 0,
   boxNotFound: 0,
-  overlayNotRead: 1,
+  overlayNotRead: 0,
 };
 
 test('the corpus is the shape `COVERAGE` says it is', () => {
@@ -1280,7 +1274,7 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Five of the 43, against seven rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * Four of the 43, against six rows carrying a `defects` — so the trigger costs an extra read on a defect and on
  * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
  * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
  * raising a note without earning one fails there.
@@ -1291,13 +1285,13 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
  * scan cannot either; only a second reader of the same thing could.
  */
-test('the defects a scan can find for itself are the five captures that raise a note', () => {
+test('the defects a scan can find for itself are the four captures that raise a note', () => {
   // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
   // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
   expect(
     FIXTURES.filter((f) => notesOf(f).length > 0).length,
     'how many captures `identify` raises a note on has changed',
-  ).toBe(5);
+  ).toBe(4);
 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
@@ -2115,6 +2109,19 @@ test('the corpus reaches both sides of every attribute', () => {
     'a capture needs `defects.size` again, so `sizeOf` has started misreading a badge',
   ).toStrictEqual([]);
 
+  // And the triple and the level it carries, the fourth and fifth: `readOverlay` now reads a triple on every capture
+  // that has one — the last on the line rather than the first got `rotom-wash.png`, and assembling the fields across
+  // the passes got `articuno-galar.png`. `COVERAGE.overlayNotRead` already counts the first of these, so what the pair
+  // adds is the reader named in the failure, as for the three above.
+  expect(
+    FIXTURES.filter((f) => f.defects && 'iv' in f.defects).map((f) => f.file),
+    'a capture needs `defects.iv` again, so `readOverlay` has started misreading a triple',
+  ).toStrictEqual([]);
+  expect(
+    FIXTURES.filter((f) => f.defects && 'levels' in f.defects).map((f) => f.file),
+    'a capture needs `defects.levels` again, so `identify` has started settling on a level the row denies',
+  ).toStrictEqual([]);
+
   // And both kinds of bracketed form: some captures carry a suffix that names a form of their species, and two carry
   // one that names no form at all, those being PGSharp's `[` and `\` for Unown's two punctuation forms.
   assert.ok(
@@ -2131,7 +2138,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'notes']);
+  ).toStrictEqual(['alternatives', 'cp', 'label', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
