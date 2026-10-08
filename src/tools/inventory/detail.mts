@@ -149,9 +149,10 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
  * captures are the reason: each states a CP that separates its form from the others sharing its stamina, and each
  * reads nothing the pattern accepts.
  *
- * Unanchored and so unreliable — right 14 times, wrong twice and silent 4 over the 20 captures that reach it — which
- * is why these are candidates rather than an answer. A candidate is kept only where the arithmetic reproduces it, and
- * `19464` is no CP an Articuno can show.
+ * Unanchored and so unreliable, which is why these are candidates rather than an answer: a candidate is kept only
+ * where the arithmetic reproduces it, so a number no form can show narrows nothing. Over the 20 captures that reach it,
+ * 15 carry the CP their screen prints — two of them beside a stray — one carries only a wrong `169` for 1679, and four
+ * read nothing. The one place those figures live; `screens.test.mts` pins them capture by capture.
  */
 async function cpsIn(image: Image): Promise<number[]> {
   const band = crop(
@@ -161,9 +162,13 @@ async function cpsIn(image: Image): Promise<number[]> {
     image.width * CP_SWEEP.width,
     image.height * CP_SWEEP.height,
   );
-  const text = (await ocrLine(scale(band, 2), CP_ALPHABET)) ?? '';
+  // Every treatment, since plain alone misses what the others read: `castform-rainy.png` answers `C 2` plain and
+  // `P832` near-white, `castform-sunny.png` `P99` plain and `P979` brightened.
+  const texts = await Promise.all(
+    CP_TREATMENTS.map(async (treat) => (await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? ''),
+  );
 
-  return [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits));
+  return [...new Set(texts.flatMap((text) => [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits))))];
 }
 
 /**
