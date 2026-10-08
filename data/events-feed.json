@@ -80,16 +80,6 @@
     "end": "2026-12-01T21:00:00.000Z"
   },
   {
-    "eventID": "gbl-twilight-trails_master-league_mega-color-cup-great-league-edition",
-    "name": "Master League and Mega Color Cup: Great League Edition | Twilight Trails",
-    "eventType": "go-battle-league",
-    "heading": "GO Battle League",
-    "link": "https://leekduck.com/events/gbl-twilight-trails_master-league_mega-color-cup-great-league-edition/",
-    "image": "https://cdn.leekduck.com/assets/img/events/gobattleleague-master-key.jpg",
-    "start": null,
-    "end": null
-  },
-  {
     "eventID": "gbl-twilight-trails_master-league_mega-halloween-cup-great-league-edition",
     "name": "Master League and Mega Halloween Cup: Great League Edition | Twilight Trails",
     "eventType": "go-battle-league",
@@ -151,11 +141,11 @@
   },
   {
     "eventID": "halloween-2026-part-2",
-    "name": "Halloween 2026 Part II",
+    "name": "Pokémon GO Halloween 2026 Part II",
     "eventType": "event",
     "heading": "Event",
     "link": "https://leekduck.com/events/halloween-2026-part-2/",
-    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-11-01-halloween-2026-part-2/halloween-2026-part-2.jpg",
     "start": "2026-11-01T10:00:00.000",
     "end": "2026-11-05T20:00:00.000"
   },
@@ -228,16 +218,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
     "start": "2026-10-28T06:00:00.000",
     "end": "2026-11-03T22:00:00.000"
-  },
-  {
-    "eventID": "mega-victreebel-in-mega-raids-september-2026",
-    "name": "Mega Victreebel in Mega Raids",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/mega-victreebel-in-mega-raids-september-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
-    "start": null,
-    "end": null
   },
   {
     "eventID": "minior-showers-eta-aquariids-2027",
@@ -466,8 +446,8 @@
     "heading": "Raid Hour",
     "link": "https://leekduck.com/events/raidhour20261007/",
     "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
-    "start": "2026-10-07T18:00:00.000",
-    "end": "2026-10-07T19:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "raidhour20261014",
@@ -530,16 +510,6 @@
     "end": "2026-11-03T22:00:00.000"
   },
   {
-    "eventID": "shadow-thundurus-incarnate-forme-in-shadow-raids-september-2026",
-    "name": "Shadow Thundurus (Incarnate Forme) in Shadow Raids",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/shadow-thundurus-incarnate-forme-in-shadow-raids-september-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
-    "start": null,
-    "end": null
-  },
-  {
     "eventID": "super-mega-raid-day-november-2026",
     "name": "Super Mega Raid Day",
     "eventType": "raid-day",
@@ -568,16 +538,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-04-world-space-week-2026/world-space-week-2026.jpg",
     "start": "2026-10-04T00:00:00.000",
     "end": "2026-10-10T23:59:00.000"
-  },
-  {
-    "eventID": "xerneas-in-5-star-raid-battles-september-2026",
-    "name": "Xerneas in 5-star Raid Battles",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/xerneas-in-5-star-raid-battles-september-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/xerneas-woods.jpg",
-    "start": null,
-    "end": null
   },
   {
     "eventID": "yveltal-in-5-star-raid-battles-october-2026",
