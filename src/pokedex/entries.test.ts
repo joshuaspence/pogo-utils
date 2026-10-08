@@ -6,7 +6,16 @@
 
 import { expect, test } from 'vitest';
 
-import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, generationOf, numbered, spriteOf } from './entries.js';
+import {
+  CATEGORIES,
+  ENTRIES,
+  GENERATION_NUMBERS,
+  HUNTS,
+  generationOf,
+  numbered,
+  spriteOf,
+  type Entry,
+} from './entries.js';
 import { GENERATIONS } from '../pokemon/generations.js';
 import { fold } from '../pokemon/names.js';
 
@@ -22,7 +31,9 @@ function entry(name: string) {
 }
 
 /** Every Pokémon one row holds, the species and its forms alike, which is what the species-level answers read. */
-const parts = (name: string) => [entry(name).species, ...entry(name).variants.map(({ pokemon }) => pokemon)];
+const held = (row: Entry) => [row.species, ...row.variants.map(({ pokemon }) => pokemon)];
+
+const parts = (name: string) => held(entry(name));
 
 test('a dex number belongs to the generation whose last number it reaches, both ends included', () => {
   const lasts = GENERATIONS.map(({ last }) => last);
@@ -111,19 +122,28 @@ test('a hunt can want a species the feed will never turn up, and the row says wh
 });
 
 test('a hunt is watched where any member it wants is, not where every one of them is', () => {
-  const shiny = HUNTS.find(({ id }) => id === 'shiny');
-  const braviary = parts('Braviary');
+  // The only rows that can tell `some` from `every`: a hunt wants more than one part and the feed watches some of them
+  // but not all. Found rather than named, because which species reach the difference is a property of the hunt lists —
+  // naming one ties this test to a list that is rewritten whenever the hunt moves on.
+  const split = ENTRIES.flatMap((row) =>
+    HUNTS.flatMap((hunt) => {
+      const wanted = held(row).filter((part) => hunt.members.has(part));
+      const watched = wanted.filter((part) => hunt.watched(part));
 
-  // Both of Braviary's forms are wanted as shinies and only the Hisuian one is kept out of the wild, so a hunt needing
-  // every member watched would report this one dead while the feed was alerting on the other. Three species in the dex
-  // reach that difference at all, which is why it is the mutation a corpus misses rather than one it stumbles into.
-  expect(braviary.map((part) => shiny?.members.has(part))).toEqual([true, true]);
-  expect(braviary.map((part) => [part.released, part.spawns])).toEqual([
-    [true, true],
-    [true, false],
-  ]);
+      return watched.length > 0 && watched.length < wanted.length ? [{ row, hunt }] : [];
+    }),
+  );
 
-  expect(entry('Braviary').hunts).toContainEqual({ id: 'shiny', watched: true });
+  // A list that no longer splits leaves nothing below to assert, which is a prerequisite gone rather than a pass.
+  expect(split.length).toBeGreaterThan(0);
+
+  // Every one of them reads as watched. Under `every` the row would call the hunt dead while the feed was alerting on
+  // the part it does watch, which on the page is a checklist shown as finished.
+  const dead = split.flatMap(({ row, hunt }) =>
+    row.hunts.some(({ id, watched }) => id === hunt.id && watched) ? [] : [`${row.name} ${hunt.id}`],
+  );
+
+  expect(dead).toEqual([]);
 });
 
 test('a form of a regional variant is named by both, so it is not read as a form of the species', () => {
