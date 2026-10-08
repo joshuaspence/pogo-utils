@@ -8,8 +8,8 @@
  */
 
 import { clausesOf } from './clauses.js';
-import { emptyTree, group, isGroup, type Leaf, type Node } from './tree.js';
-import { RANGES, TERMS_BY_ID, type Preset } from './terms.js';
+import { emptyTree, group, isGroup, NESTING, type Leaf, type Node } from './tree.js';
+import { bounded, RANGES, TERMS_BY_ID, type Preset } from './terms.js';
 
 /** The state above, named. */
 export interface State {
@@ -19,14 +19,6 @@ export interface State {
 
 /** An empty state, which every reader of a link starts from and the Clear button returns to. */
 export const emptyState = (): State => ({ tree: emptyTree(), optimise: false });
-
-/**
- * How deep a link may nest. The canvas cannot realistically reach it — a reader would be clicking *add a group* sixty
- * times into its own last group — so this is about what a stranger can put in a fragment: the reader below recurses
- * once per group, and a link claiming ten thousand of them would exhaust the stack before anything could refuse it.
- * Hence the depth is checked on the way down rather than measured afterwards.
- */
-export const NESTING = 64;
 
 /**
  * The names a pasted string holds. Commas separate them, and the spaces a reader types around one are theirs rather
@@ -146,11 +138,7 @@ function bound(text: string | undefined, id: string) {
   const range = RANGES.find((entry) => entry.id === id);
   const value = Number.parseInt(text ?? '', 10);
 
-  if (!range || Number.isNaN(value)) {
-    return null;
-  }
-
-  return Math.min(Math.max(value, range.min ?? 0), range.max);
+  return !range || Number.isNaN(value) ? null : bounded(value, range);
 }
 
 /**

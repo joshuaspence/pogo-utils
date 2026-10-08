@@ -14,9 +14,9 @@
 import { expect, test } from 'vitest';
 
 import { clausesOf } from './clauses.js';
-import { NESTING, read } from './parse.js';
+import { read } from './parse.js';
 import { GROUPS, RANGES, TERMS_BY_ID } from './terms.js';
-import { group, isGroup, leafText, type Leaf, type Node } from './tree.js';
+import { group, isGroup, leafText, NESTING, type Leaf, type Node } from './tree.js';
 
 const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });
 const no = (id: string): Leaf => ({ kind: 'term', id, negated: true });
@@ -175,6 +175,28 @@ test('a bare span that a generation chip already spells arrives as that chip', (
   expect(isGroup(asRange) && asRange.parts[0]).toEqual({ kind: 'range', id: 'dex', from: 1, to: 100, negated: false });
 });
 
+test('a typed span is bounded by the range, so it is a pill the number boxes could have made', () => {
+  /*
+   * The bounds reach a `<input type="number" max="…">` and a link the page writes, so a pill outside the range's limits
+   * is one the rest of the page cannot hold — and the value then moves under the reader, `cp99999` composing itself and
+   * its own link reading back as `cp5000`. The last row is the sharp one: `Number` on a long enough digit run is a
+   * float, and `1e+21` went into the search box as a term the game cannot read at all.
+   */
+  for (const [typed, written] of [
+    ['cp99999', 'cp5000'],
+    ['cp0-99999', 'cp0-5000'],
+    ['2020', '1025'],
+    ['year5', 'year2016'],
+    ['1000000000000000000000', '1025'],
+  ] as const) {
+    expect({ typed, written: stringFor(typed), again: stringFor(stringFor(typed)) }).toEqual({
+      typed,
+      written,
+      again: written,
+    });
+  }
+});
+
 test('a family shorthand and a tag stay the text the game reads', () => {
   expect(stringFor('+charmander&@special&#')).toBe('+charmander&@special&#');
   expect(stringFor('!#')).toBe('!#');
@@ -201,12 +223,19 @@ test('a query that does not parse is refused, and says which thing is wrong', ()
   expect(read(`${'('.repeat(NESTING + 1)}shiny`).error).toContain(String(NESTING));
 });
 
-/** Every tree of up to `size` nodes over a few pills and both junctions, for the round trip below. */
+/**
+ * Every tree of up to `size` nodes over a few pills and both junctions, for the round trip below.
+ *
+ * One of the names carries punctuation, because a name is the one pill whose text a reader writes: the box splits on
+ * commas and leaves the rest alone, so a dot and a space are as ordinary in one as a letter. What none of them carries
+ * is the game's own punctuation, which is the boundary the test after the sweep draws.
+ */
 function* trees(size: number): Generator<Node> {
   if (size <= 1) {
     yield yes('shiny');
     yield no('lucky');
     yield named('pikachu');
+    yield named('Mr. Mime');
     yield { kind: 'range', id: 'cp', from: 1500, to: 3000, negated: false };
     return;
   }
@@ -220,11 +249,15 @@ function* trees(size: number): Generator<Node> {
   }
 }
 
-test('every string this page writes, it can read back into the same string', () => {
+test('every string this page writes out of readable pills, it reads back into the same string', () => {
   /*
    * The agreement that matters: the composer and the reader share one language, so a reader who copies the page's own
    * output and pastes it back gets the search they had. It is also the honest test of the precedence — the composer
    * writes on the assumption a comma binds tighter, and the reader would have to make the same assumption to agree.
+   *
+   * *Readable* pills is the whole of the qualification, and the test below is what it means: these are the pills a
+   * typed query can hand back, so the property is a fixed point rather than a promise about every tree the canvas can
+   * hold.
    */
   let swept = 0;
 
@@ -239,5 +272,36 @@ test('every string this page writes, it can read back into the same string', () 
     swept += 1;
   }
 
-  expect(swept).toBeGreaterThan(400);
+  // Derived from the generator's shape rather than transcribed, and exact rather than a floor: a tree of four nodes is
+  // either junction over a tree of three and a pill, and every pill here writes something, so `8 * pills⁴` is the whole
+  // sweep. A generator that quietly stopped yielding would otherwise read as a pass.
+  expect(swept).toBe(8 * [...trees(1)].length ** 4);
+});
+
+test('a name holding the page’s own punctuation is where the round trip stops, and it says so', () => {
+  /*
+   * The name box splits on commas and leaves the rest alone, so a reader can put anything else in a name — including
+   * the characters this page gives a meaning the game does not have. The game has no brackets at all, so `Mr. Mime
+   * (shiny)` is a perfectly good name to send it and a string this reader cannot take back; `|` is the game's own
+   * second spelling of `&`, so a name holding one comes back as the two pills it asks for.
+   *
+   * Which is why the sweep above is over the pills a typed query returns: none of them holds any of this, and the
+   * property is false of the ones that do rather than merely untested. A refusal a reader can act on is the answer
+   * here — the alternative is a quoting syntax the game would not read.
+   */
+  const trip = (text: string) => {
+    const written = clausesOf(all(named(text))).clauses.join('&');
+    const { tree, error } = read(written);
+
+    return { written, again: tree === null ? error : clausesOf(tree).clauses.join('&') };
+  };
+
+  for (const text of ['Mr. Mime', 'Farfetch’d', "Farfetch'd", 'a=b', 'a*b', '4 star', '+charmander']) {
+    expect(trip(text)).toEqual({ written: text, again: text });
+  }
+
+  expect(trip('Mr. Mime (shiny)').again).toContain('`&`');
+  expect(trip('!!!').again).toContain('where a term was expected');
+  expect(trip('a|b')).toEqual({ written: 'a|b', again: 'a&b' });
+  expect(trip('a;b')).toEqual({ written: 'a;b', again: 'a,b' });
 });

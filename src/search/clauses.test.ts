@@ -248,11 +248,12 @@ test('two groups over the same pills are not the same shared part', () => {
 
 test('a name that spells a group is not that group', () => {
   /*
-   * What a part asks for is compared as text, so a leaf and a group have to be told apart by more than what they say.
-   * A reader can type `all(shiny|lucky)` into the name box — only commas are split there, and a shared `#q=` fragment
-   * carries arbitrary text too — and that is exactly how `key` spells the subgroup beside it. Read as one shared part,
-   * the name is lifted and the subgroup thrown away: `shiny&lucky` stops being asked of the second branch and the
-   * literal text is demanded of both instead, which is a different search rather than a missed reduction.
+   * What a part asks for is compared as text, so a pill and a group have to be told apart by more than what they say.
+   * A reader can type anything into the name box — only commas are split there, and a shared `#q=` fragment carries
+   * whatever text it likes — so every character `key` builds a group out of is one a name can hold. Read as one shared
+   * part, the name is lifted out of both branches and the group's own search is dropped with it: `shiny&lucky` stops
+   * being asked at all and the literal text is demanded instead, which is a different search rather than a missed
+   * reduction.
    */
   const spelled = named('all(shiny|lucky)', false);
   const tree = any(all(spelled, yes('fire')), all(all(yes('shiny'), yes('lucky')), yes('water')));
@@ -266,6 +267,25 @@ test('a name that spells a group is not that group', () => {
     'fire,lucky',
     'fire,water',
   ]);
+
+  /*
+   * And the separator between siblings, which a first character cannot guard: each of these spells the key of the
+   * `all(a, b)` beside it under one of the schemes this has carried — the bare text, the `=` that replaced it, and the
+   * quoting that replaced that. The group of one around the name is what a reader builds by dropping a single pill
+   * into a new group, and what an `A1` token in a fragment restores.
+   */
+  for (const text of ['a|=b', '"a"|"b"']) {
+    const forged = any(
+      all(all(named(text, false)), yes('fire')),
+      all(all(named('a', false), named('b', false)), yes('water')),
+    );
+
+    agrees(forged, [text, 'a', 'b', 'fire', 'water']);
+    expect({ text, clauses: clausesFor(forged) }).toEqual({
+      text,
+      clauses: [`${text},a`, `${text},b`, `${text},water`, 'fire,a', 'fire,b', 'fire,water'],
+    });
+  }
 });
 
 test('an any with nothing in common is left as the product it is', () => {

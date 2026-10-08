@@ -17,21 +17,12 @@
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import {
-  compose,
-  emptyState,
-  fromFragment,
-  names,
-  NESTING,
-  presetTree,
-  toFragment,
-  type State,
-} from '../search/query.js';
+import { compose, emptyState, fromFragment, names, presetTree, toFragment, type State } from '../search/query.js';
 import { optimise } from '../search/optimise.js';
 import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
-import { GROUPS, PRESETS, RANGES, type Range } from '../search/terms.js';
+import { bounded, GROUPS, PRESETS, RANGES, type Range } from '../search/terms.js';
 import {
   append,
   chipState,
@@ -41,6 +32,7 @@ import {
   leafLabel,
   leafText,
   move,
+  NESTING,
   nodeAt,
   update,
   type ChipState,
@@ -81,15 +73,32 @@ const same = (one: Path, two: Path) => one.length === two.length && one.every((i
 const characters = (length: number) => `${length} character${length === 1 ? '' : 's'}`;
 
 /**
- * A sentence's backticked parts set in `<code>`, so that prose written in this repository's convention reads on screen
- * the way the caveat beside it does rather than showing its own punctuation. Splitting on the tick leaves the plain
- * text at the even positions and the quoted characters at the odd ones, the string having begun outside a pair.
+ * A sentence split on its backticks: prose at the even positions and the quoted characters at the odd ones, the string
+ * having begun outside a pair.
  *
- * Two callers: a refusal from `clauses.js`, and a category's own help in `terms.js` — which was showing its ticks as
- * ticks. `the game has no \`gen1\`` had been on the page since before the canvas.
+ * **An unpaired tick is prose rather than markup**, so the tail it opens is rejoined and left as text. One of the three
+ * callers of `ticked` below is a refusal from `parse.js` that quotes a token the reader typed, and a reader can type a
+ * tick — in a name, where the box splits on commas and leaves everything else alone. Pairing from the left and giving
+ * up on the last one is what keeps that from setting the rest of the refusal in `<code>`: `terms.test.js` holds the
+ * help table to pairs, and this holds the strings that arrive from outside any table.
+ *
+ * Exported for the test; `ticked` is the only caller.
+ */
+export function spans(message: string): string[] {
+  const parts = message.split('`');
+
+  return parts.length % 2 === 0 ? [...parts.slice(0, -2), parts.slice(-2).join('`')] : parts;
+}
+
+/**
+ * A sentence's backticked parts set in `<code>`, so that prose written in this repository's convention reads on screen
+ * the way the caveat beside it does rather than showing its own punctuation.
+ *
+ * Three callers: a refusal from `clauses.js`, a refusal from `parse.js`, and a category's own help in `terms.js` —
+ * which was showing its ticks as ticks. `the game has no \`gen1\`` had been on the page since before the canvas.
  */
 const ticked = (message: string) =>
-  message.split('`').map((part, index) => (index % 2 === 0 ? part : <code key={index}>{part}</code>));
+  spans(message).map((part, index) => (index % 2 === 0 ? part : <code key={index}>{part}</code>));
 
 /** A bound as the tree should hold it: a number inside the range's limits, or nothing where the box is empty. */
 function readBound(value: string, range: Range) {
@@ -99,7 +108,7 @@ function readBound(value: string, range: Range) {
 
   const parsed = Number.parseInt(value, 10);
 
-  return Number.isNaN(parsed) ? null : Math.min(Math.max(parsed, range.min ?? 0), range.max);
+  return Number.isNaN(parsed) ? null : bounded(parsed, range);
 }
 
 /**

@@ -268,9 +268,15 @@ Both of the game's spellings of each operator are read: `&` and `|` are _and_, `
 rules out what follows — a bracket included, which arrives as the other junction with its pills turned, De Morgan being
 applied while reading because `tree.ts` keeps negation on the pills and has no negated group.
 
-The test that matters is the round trip: **every string this page writes, it reads back into the same string.** The
-composer writes on the assumption a comma binds tighter, and the reader has to make the same assumption to agree, so
-that one property holds the two halves to one language.
+The test that matters is the round trip: **every string this page writes out of the pills a typed query returns, it
+reads back into the same string.** The composer writes on the assumption a comma binds tighter, and the reader has to
+make the same assumption to agree, so that one property holds the two halves to one language.
+
+The qualification is the name box, which splits on commas and leaves everything else a reader types alone — so a name
+can hold the punctuation this page gives a meaning the game does not have. The game has no brackets at all, so
+`Mr. Mime (shiny)` is a perfectly good name to send it and a string this reader refuses; a name holding a `|` comes back
+as the two pills that `|` asks for. A refusal the reader can act on is the better answer there than a quoting syntax the
+game would not read either, and [`src/search/parse.test.ts`](src/search/parse.test.ts) pins both sides of that line.
 
 ### Shortening
 

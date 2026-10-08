@@ -333,6 +333,15 @@ export const RANGES: readonly Range[] = [
 ];
 
 /**
+ * A number inside a range's own limits, which is the whole of what `max` above bounds.
+ *
+ * Three readers build a span pill — the number boxes, a fragment a stranger wrote and a typed query — and a pill out of
+ * any of them has to be one the other two could have made. Otherwise the bound changes under the reader: a typed
+ * `cp99999` composed `cp99999`, and the link that string wrote read back as `cp5000`.
+ */
+export const bounded = (value: number, range: Range) => Math.min(Math.max(value, range.min ?? 0), range.max);
+
+/**
  * Starting points, each a plain state the builder loads and the reader then edits — the point is to land mid-way
  * through a query rather than to hand over a finished one. `text` fills the name box, the rest name term ids.
  *

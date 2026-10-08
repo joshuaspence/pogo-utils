@@ -11,9 +11,10 @@
  *
  * **The precedence is the one assumption under all of this, and it is documented.** A clause list joined with `&`
  * only means what the canvas said if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a
- * shiny that is Fire or Water. The community reference cited below for two negation bugs says so in its storage table:
- * "Ambiguity is resolved by always considering `,`s nested inside `&`s", with `meowth,alola&vulpix,galar` as the
- * example. Niantic's own list never combines the two operators, so the community one is what settles it.
+ * shiny that is Fire or Water. The community phrase list — `https://leidwesen.github.io/SearchPhrases/`, the same
+ * reference the two negation bugs below are read off — says so in its storage table: "Ambiguity is resolved by always
+ * considering `,`s nested inside `&`s", with `meowth,alola&vulpix,galar` as the example. Niantic's own list never
+ * combines the two operators, so the community one is what settles it.
  *
  * That reference also notes that searches "do not take priority over each other", which is about its *Pokédex* table —
  * a different box with its own phrase list. This file read that as doubt about the line above for a while: a claim from
@@ -93,11 +94,14 @@ export interface Written {
  * The junction is in the key and has to be: without it `all(a, b)` and `any(a, b)` read as one shared part, and the
  * search narrows from `s and (a or b)` to `s and a and b`.
  *
- * A pill's key wears a `=` no group key can begin with, so that the two are separate namespaces. A name is whatever a
- * reader typed, and one typed as `all(shiny|lucky)` is a pill asking for that text rather than the group it spells.
+ * A pill's text is quoted, which is what makes the whole key injective rather than merely unlikely to collide. A name
+ * is whatever a reader typed and the game's own punctuation is all typeable, so a reserved first character is not
+ * enough: `(` and `)` and the `|` this joins siblings with are as much the pill's alphabet as the key's. Quoting
+ * escapes its own delimiter, so `all("a|=b")` and `all("a"|"b")` are two keys however the names are spelled — where
+ * unquoted both read as `all(=a|=b)`, and the one pill was lifted out of a branch whose own `a&b` went with it.
  */
 function key(node: Node): string {
-  return isGroup(node) ? `${node.junction}(${node.parts.map(key).join('|')})` : `=${leafText(node) ?? ''}`;
+  return isGroup(node) ? `${node.junction}(${node.parts.map(key).join('|')})` : JSON.stringify(leafText(node) ?? '');
 }
 
 /** What a part of a junction asks for, as keys: an `all`'s own parts, or the part itself where it is not one. */

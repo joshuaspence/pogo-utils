@@ -21,15 +21,8 @@
  * the canvas can draw.
  */
 
-import { GROUPS, RANGES } from './terms.js';
-import { group, type Junction, type Leaf, type Node } from './tree.js';
-
-/**
- * How deep a typed query may nest. The reader below recurses once per `!` and once per `(`, so this is the same guard
- * the fragment reader carries and for the same reason: the descent is what a pathological input exhausts, which is why
- * it is checked on the way down rather than measured afterwards.
- */
-export const NESTING = 64;
+import { bounded, GROUPS, RANGES } from './terms.js';
+import { group, NESTING, type Junction, type Leaf, type Node } from './tree.js';
 
 /** The punctuation, and what each piece of it is. Everything else is part of a term. */
 const PUNCTUATION: Record<string, Token['kind']> = {
@@ -84,8 +77,10 @@ function pill(text: string, negated: boolean): Leaf {
     const found = tail === null ? null : SPAN.exec(tail);
 
     if (found) {
-      const from = Number(found[1]);
-      const to = found[2] === undefined ? from : Number(found[2]);
+      // Bounded on the way in, so a typed span is a pill the number boxes could have made. A digit run of 22 or more
+      // is a float `String` writes in exponential form, and `1e+21` went into the search box as the term it is not.
+      const from = bounded(Number(found[1]), range);
+      const to = found[2] === undefined ? from : bounded(Number(found[2]), range);
 
       return { kind: 'range', id: range.id, from: Math.min(from, to), to: Math.max(from, to), negated };
     }
