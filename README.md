@@ -253,10 +253,13 @@ along, so it corrects its destination rather than trusting callers to.
 
 ### Typing one in
 
-A query can be pasted rather than arranged. [`src/search/parse.ts`](src/search/parse.ts) reads
-`(pikachu&shiny),(pumpkaboo&xxl)` into the tree the brackets describe and the canvas draws it, which is the inverse of
-the composer and the easy direction of the two: a reader can say what they mean with brackets, and the page writes out
-something the game will take.
+A query can be written out rather than arranged, which is the page's _Advanced_ pane against the _Builder_ the rest of
+this section describes. [`src/search/parse.ts`](src/search/parse.ts) reads `(pikachu&shiny),(pumpkaboo&xxl)` into the
+tree the brackets describe and the canvas draws it, which is the inverse of the composer and the easy direction of the
+two: a reader can say what they mean with brackets, and the page writes out something the game will take.
+
+The two panes are two views of one tree, so the output card sits above both and stays put as they swap. The pane is in
+neither the link nor storage: a link carries the arrangement, and the arrangement draws in either.
 
 It is an **import rather than a second composer**. Nothing in it writes a string — it writes a tree, the canvas draws
 it, and the one composer takes it from there, so the pills it leaves can be dragged about like any others. A word the

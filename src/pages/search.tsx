@@ -6,7 +6,7 @@
  *
  * A query can be typed in as well, and that is an import rather than a second composer: `parse.js` reads the brackets
  * into a tree, the canvas draws it, and the one composer takes it from there. Which is the whole difference between
- * the Brackets pane and the text box that used to sit beside the chips composing clauses of its own.
+ * the Advanced pane and the text box that used to sit beside the chips composing clauses of its own.
  *
  * **The two panes are two views of one state, which is why they are tabs and not pages.** Arranging and typing reach
  * the same tree, so the output card sits above both and stays put as they swap: the answer is the constant and the
@@ -68,18 +68,22 @@ const JUNCTION: Record<Junction, { label: string; said: string }> = {
 };
 
 /** Which way of writing the query is on show. Both feed the one arrangement; neither is a second state. */
-type Pane = 'builder' | 'brackets';
+type Pane = 'builder' | 'advanced';
 
 /**
  * The two panes, and what each is for.
  *
- * *Brackets* rather than *raw*: what goes in that box is the richer of the two strings, having the brackets the game
- * has none of, where the raw thing is the output above it. Naming the input *raw* would point the word at the wrong
- * half. It also matches the field's own label, so the tab and the box agree about what they hold.
+ * *Advanced* names the pane for what a reader is doing in it — writing the search out themselves — rather than for any
+ * one thing the box accepts. Brackets are the part of it the game cannot do at all, so they are what the help leads
+ * with, but a query typed in there needs none: `shiny&lucky` is this pane as much as `(a&b),(c&d)` is, and a tab that
+ * said *Brackets* turned one capability into the name of the mode.
+ *
+ * Not *raw* either, which would point the word at the wrong half: what goes in that box is the *richer* of the two
+ * strings, and the raw one is the output above it.
  */
 const PANES: readonly { id: Pane; label: string; said: string }[] = [
   { id: 'builder', label: 'Builder', said: 'Arrange pills from the catalogue' },
-  { id: 'brackets', label: 'Brackets', said: 'Type a query with brackets in it' },
+  { id: 'advanced', label: 'Advanced', said: 'Write the search out yourself, brackets and all' },
 ];
 
 /** What a term chip's tooltip says: the word the game reads, then what pressing it does. */
@@ -695,8 +699,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         <h1>Pokémon GO Search Strings</h1>
         <p class="sub">
           Build a string for the game's own search box, either way round: arrange it from the catalogue in{' '}
-          <em>Builder</em>, where a chip once requires it, twice rules it out and three times drops it, or type it with
-          brackets in <em>Brackets</em>. Both fill the one query, and the string for the game is always at the top.
+          <em>Builder</em>, where a chip once requires it, twice rules it out and three times drops it, or write it out
+          yourself in <em>Advanced</em>, brackets and all. Both fill the one query, and the string for the game is
+          always at the top.
         </p>
       </header>
 
@@ -978,24 +983,23 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         </div>
 
         {/*
-         * The other way in: a query typed with the brackets the game has none of. It fills the canvas in the pane next
-         * door rather than composing a string of its own, so there is still one arrangement and one output — and the
-         * pills it leaves can be dragged about like any others, which is the whole difference between this and a second
-         * box that composed beside the first.
+         * The other way in: the search written out, with the brackets the game has none of. It fills the canvas in the
+         * pane next door rather than composing a string of its own, so there is still one arrangement and one output —
+         * and the pills it leaves can be dragged about like any others, which is the whole difference between this and
+         * a second box that composed beside the first.
          *
          * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error, and
          * a canvas that emptied itself at each keystroke would be unusable.
-         */}
-        {/*
-         * The panel is the card, where the Builder's is a column of them. It carries no heading of its own: the field's
-         * own label says what the box holds, and a tab panel is named by the tab that opened it.
+         *
+         * The panel is the card, where the Builder's is a column of them, and it carries no heading of its own: the
+         * field's label says what the box holds, and a tab panel is named by the tab that opened it.
          */}
         <div
           class="pane panel"
           role="tabpanel"
-          id="panel-brackets"
-          aria-labelledby="pane-brackets"
-          hidden={pane !== 'brackets'}
+          id="panel-advanced"
+          aria-labelledby="pane-advanced"
+          hidden={pane !== 'advanced'}
         >
           <form
             class="import"
@@ -1004,8 +1008,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               importTyped();
             }}
           >
+            {/* Named for the string rather than for its brackets, which are one of the things it may hold. */}
             <label class="side" for="typed">
-              With brackets
+              Your query
             </label>
             <input
               id="typed"

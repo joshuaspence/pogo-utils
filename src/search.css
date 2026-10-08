@@ -116,16 +116,17 @@ body[data-page='search'] {
    * Which of the two rows is which. A fixed column so the fields line up down the card — the labels are what tells two
    * mono rows apart, and ragged ones would read as two unrelated boxes that happen to sit together.
    *
-   * `9.5em` is against the 11px below rather than the column's 13px, a flex basis in `em` resolving against the
-   * element's own font size: 104.5px, where *With brackets* wants 99.4px set this way — the letter spacing counting
-   * once more after the last character, which is what made 99px wrap it. Wide enough for one line each, which is what
-   * the column is for: wrapped to two, the labels stand taller than the fields beside them and the pair stops reading
-   * as a pair.
+   * `9em` is against the 11px below rather than the column's 13px, a flex basis in `em` resolving against the
+   * element's own font size: 99px, against the 90.94px *For the game* wants set this way and the 79.05px *Your query*
+   * does. Wide enough for one line each is the whole of what the column is for — wrapped to two, a label stands taller
+   * than the field beside it and the pair stops reading as a pair, and an earlier basis short by 0.42px did exactly
+   * that. The margin left is deliberate: these are measured in one browser's metrics for a face named in a stack of
+   * five.
    */
 
   .side {
     display: flex;
-    flex: 0 0 9.5em;
+    flex: 0 0 9em;
     align-items: center;
     font-size: 11px;
     font-weight: 700;
