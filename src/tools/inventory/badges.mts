@@ -106,6 +106,16 @@ const coloured = (r: number, g: number, b: number) => chroma(r, g, b) >= SIZE_CH
  * panel around it black too, since the panel is white as well, and hands Tesseract a black page with one white island
  * in it. Cropping first makes the pill the whole page, where the text really is dark on light.
  *
+ * **Read with no whitelist, which is what the other three letters cost.** Held to `XSL`, `smoliv.png`'s pill reads
+ * `XS` off an `XXS` badge the game's own `xxs` search confirms; read open it comes back `XXS,` and `fold` drops the
+ * comma. Narrowing the alphabet earns its place where a stray glyph could split a number in two, which is why
+ * `wholeCp` and the overlay keep theirs — a badge is two or three of one letter and has no number in it to split. The
+ * chips below are read open for the same reason, so this is the module's own habit rather than an exception to it.
+ *
+ * Measured over the corpus rather than on the capture that prompted it: four of the 43 rows wear a badge, and open is
+ * right on all four where the whitelist is right on three. The other 39 answer null under both, so dropping it buys no
+ * Pokémon a badge it does not wear — which is the risk, the band being cropped from the screen, artwork and all.
+ *
  * The saturation is the cheap test as well, since most Pokémon wear no badge and can be answered with no OCR at all. It
  * is not sufficient alone — the band is cropped from the screen, artwork and all, and artwork can be any colour — so
  * the text still has to spell one of the four.
@@ -125,7 +135,7 @@ export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
 
   const pill = extentOf(band, coloured);
   const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
-  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3), SIZE_ALPHABET)) ?? '');
+  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3))) ?? '');
 
   return SIZES.find((size) => text.includes(size.toLowerCase())) ?? null;
 }
@@ -356,11 +366,7 @@ const SIZE_SPAN = 1.6;
 const SIZE_CHROMA = 60;
 const SIZE_FILL = 0.01;
 
-/**
- * The only three letters a badge can spell, and the four words it spells with them. Longest first, so an `XXL` is not
- * answered by the `XL` inside it.
- */
-const SIZE_ALPHABET = 'XSL';
+/** The four words a badge can spell, longest first so that an `XXL` is not answered by the `XL` inside it. */
 const SIZES = ['XXL', 'XXS', 'XL', 'XS'] as const satisfies readonly Size[];
 
 /**

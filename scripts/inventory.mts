@@ -663,10 +663,10 @@ async function scan() {
    * property of the capture as much as of the reader. `screens.test.mts` pins which nine of its 43 captures raise a
    * note, and that every one of the nine is a row carrying a `defects`.
    *
-   * Which is nine of the thirteen defects that file pins, and not the other four: those are the readers that answer
-   * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, an
-   * artwork match that declined two of Burmy's cloaks, and an `XS` read off an `XXS` badge. Nothing here can be the
-   * check for those; only a second reader of the same thing could be.
+   * Which is nine of the twelve defects that file pins, and not the other three: those are the readers that answer
+   * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, and an
+   * artwork match that declined two of Burmy's cloaks. Nothing here can be the check for those; only a second reader
+   * of the same thing could be.
    *
    * `could also be …` is counted with the rest, so a form the screen cannot separate costs every attempt for nothing.
    * That is one capture of the 43, and it is a defect rather than an ambiguity: `castform-rainy.png` is
