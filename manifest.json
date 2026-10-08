@@ -16,6 +16,6 @@
     { "name": "Map", "url": "./#/map" },
     { "name": "Search", "url": "./#/search" },
     { "name": "Pokédex", "url": "./#/pokedex" },
-    { "name": "PGSharp", "url": "./#/pgsharp" }
+    { "name": "Integrations", "url": "./#/integrations" }
   ]
 }

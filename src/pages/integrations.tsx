@@ -1,8 +1,8 @@
 /**
- * Building a PGSharp backup from the repository's GPX files, ported from pgsedit. PGSData.dat is a serialized
- * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
- * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
- * rest of the profile be.
+ * The Integrations page. Its one panel builds a PGSharp backup from the repository's GPX files, ported from pgsedit.
+ * PGSData.dat is a serialized `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is
+ * Points, from `<wpt>`, and `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so
+ * importing it leaves the rest of the profile be.
  *
  * The codec is 152KB of the artifact and nothing else uses it, which is why this page is reached through `import()`.
  */
@@ -99,7 +99,7 @@ interface Status {
   kind?: 'ok' | 'err';
 }
 
-export default function PgsharpPage() {
+export default function IntegrationsPage() {
   const [ticked, setTicked] = useState<ReadonlySet<Control>>(() => new Set(CONTROLS));
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
@@ -140,11 +140,13 @@ export default function PgsharpPage() {
   return (
     <>
       <header class="page">
-        <h1>PGSharp backup</h1>
+        <h1>Integrations</h1>
       </header>
 
       <main class="backup">
         <div class="body">
+          <h2>PGSharp backup</h2>
+
           <p>
             Build a partial PGSharp backup holding every route and waypoint in this collection, plus whichever options
             below are ticked — nothing else. Importing it overwrites exactly those and leaves the rest of your PGSharp

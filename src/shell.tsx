@@ -26,7 +26,7 @@ const PAGES: Record<Page, () => Promise<{ default: PageComponent }>> = {
   map: () => import('./pages/map.js'),
   search: () => import('./pages/search.js'),
   pokedex: () => import('./pages/pokedex.js'),
-  pgsharp: () => import('./pages/pgsharp.js'),
+  integrations: () => import('./pages/integrations.js'),
 };
 
 /**
