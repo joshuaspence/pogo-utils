@@ -2104,10 +2104,15 @@ test('the corpus reaches both sides of every attribute', () => {
   // And the size, which was pinned until the badge was read with no whitelist: `smoliv.png` read `XS` off its `XXS`,
   // and all four badged captures now answer the band their row states. So this is the third key the corpus holds
   // against a reader rather than for one.
-  // And the triple and the level it carries, which `readOverlay` now reads on every capture that has one: the last
-  // triple on the line rather than the first got `rotom-wash.png`, and assembling the fields across the passes against
-  // the percentage got `articuno-galar.png`. So the reader that used to be the worst of them pins nothing at all, and
-  // these two say so rather than leaving its keys unexercised.
+  expect(
+    FIXTURES.filter((f) => f.defects && 'size' in f.defects).map((f) => f.file),
+    'a capture needs `defects.size` again, so `sizeOf` has started misreading a badge',
+  ).toStrictEqual([]);
+
+  // And the triple and the level it carries, the fourth and fifth: `readOverlay` now reads a triple on every capture
+  // that has one — the last on the line rather than the first got `rotom-wash.png`, and assembling the fields across
+  // the passes got `articuno-galar.png`. `COVERAGE.overlayNotRead` already counts the first of these, so what the pair
+  // adds is the reader named in the failure, as for the three above.
   expect(
     FIXTURES.filter((f) => f.defects && 'iv' in f.defects).map((f) => f.file),
     'a capture needs `defects.iv` again, so `readOverlay` has started misreading a triple',
@@ -2115,11 +2120,6 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     FIXTURES.filter((f) => f.defects && 'levels' in f.defects).map((f) => f.file),
     'a capture needs `defects.levels` again, so `identify` has started settling on a level the row denies',
-  ).toStrictEqual([]);
-
-  expect(
-    FIXTURES.filter((f) => f.defects && 'size' in f.defects).map((f) => f.file),
-    'a capture needs `defects.size` again, so `sizeOf` has started misreading a badge',
   ).toStrictEqual([]);
 
   // And both kinds of bracketed form: some captures carry a suffix that names a form of their species, and two carry

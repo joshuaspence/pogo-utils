@@ -89,6 +89,11 @@ const OVERLAY_TREATMENTS = [
  * that drops the coloured percentage leaves the level as the last run, and a level of 20 would confirm any triple
  * summing to 9; so it is the `L` that says which run is the level. Where the `L` reads as a `1` that cannot be told
  * apart, `120` being a level of 20 as readily as a level of 1 and a percentage of 20.
+ *
+ * Two digits of it at least, because one is no checksum: a single digit ends almost any run, so `L20` would confirm a
+ * triple summing to 0 and `182` one summing to 1 — and the `L` cannot be what rules those out, since the run carrying
+ * the digit need not be a level at all. What it gives up is the 35 triples of 4,096 that sum under 5, whose percentage
+ * is one digit; those confirm nothing and fall back, which is where they stood before any of this.
  */
 function confirmed(before: string, iv: IVs): boolean {
   const percentage = String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100));
@@ -96,7 +101,11 @@ function confirmed(before: string, iv: IVs): boolean {
   const last = runs.at(-1) ?? '';
   const lastIsLevel = /L\d+\D*$/.test(before);
 
-  return last.endsWith(percentage) && (last.length > percentage.length || (runs.length > 1 && !lastIsLevel));
+  return (
+    percentage.length > 1 &&
+    last.endsWith(percentage) &&
+    (last.length > percentage.length || (runs.length > 1 && !lastIsLevel))
+  );
 }
 
 /**
@@ -104,9 +113,11 @@ function confirmed(before: string, iv: IVs): boolean {
  * value per field, every combination of them is checked against each reading's percentage, and the answer is the one
  * that checks out — or nothing, where none does or more than one does.
  *
- * It can only reach a capture no pass confirmed, and it reaches one: `articuno-galar.png`, whose attack is 10 or 12 and
- * stamina 13 or 3 across two passes, where only `12/4/13` comes to the `64` one of them printed. The other 42 either
- * confirm a pass outright or leave this with nothing unique to say, and the corpus asserts which.
+ * It can only reach a capture no pass confirmed, and it reaches two of the 43. `articuno-galar.png` is the one it
+ * changes: its attack is 10 or 12 and its stamina 13 or 3 across two passes, and only `12/4/13` comes to the `64` one
+ * of them printed. On `dialga-origin.png` it answers the `10/13/13` the first pass read anyway, the second having lost
+ * only the stamina — so the row cannot tell this apart from the fallback there, and `overlay.test.mts` asserts both
+ * off the readings the real loop hands this, which a row by itself cannot say.
  *
  * Checked with `confirmed` rather than against the percentage directly, so that what counts as the percentage is one
  * definition and not two — it is the tail of a run of digits, and which run is itself a judgement that function makes.
@@ -116,7 +127,7 @@ function confirmed(before: string, iv: IVs): boolean {
  * the screen rather than about the reader — and what makes it safe to be wrong is that `identify` still has to fit the
  * HP and the printed CP to the answer.
  */
-function assembled(readings: readonly { iv: IVs; before: string }[]): IVs | null {
+export function assembled(readings: readonly { iv: IVs; before: string }[]): IVs | null {
   const perField = (['attack', 'defense', 'stamina'] as const).map((field) => [
     ...new Set(readings.map((reading) => reading.iv[field])),
   ]);
@@ -487,9 +498,9 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 
   // Where nothing confirmed itself, the three fields can still be put back together across the passes. The percentage
   // is a checksum over all three, so a triple that each pass gets wrong in a *different* place is one the percentage
-  // can recover — and that is `articuno-galar.png`, the only capture in the corpus it reaches: near-white reads
-  // `10/4/13` and brightness at 180 reads `12/4/ 3`, so the attack is 10 or 12 and the stamina 13 or 3, and of the four
-  // combinations only `12/4/13` comes to the `64` that brightness printed beside it.
+  // can recover — and that is `articuno-galar.png`, one of the two captures it reaches: near-white reads `10/4/13` and
+  // brightness at 180 reads `12/4/ 3`, so the attack is 10 or 12 and the stamina 13 or 3, and of the four combinations
+  // only `12/4/13` comes to the `64` that brightness printed beside it.
   //
   // Behind `chosen` rather than beside it, so a pass that read the whole line and checks out is never second-guessed,
   // and only where exactly one combination checks out, two being a guess between them rather than a reading.
