@@ -33,11 +33,15 @@ const any = (...parts: Node[]) => group('any', parts);
 /**
  * The question a tree asks of one Pokémon, which is the set of terms that are true of it. A group with nothing in it
  * asks nothing, and so does a pill with nothing written in it yet — both of which read as true here, since a search
- * for everything is what no constraint means.
+ * for everything is what no constraint means. A name is one of the terms as much as a chip is, the game drawing no
+ * distinction between a word the catalogue owns and the same word typed in; a span is the one kind no case here asks
+ * about.
  */
 function holds(node: Node, on: ReadonlySet<string>): boolean {
   if (node.kind !== 'group') {
-    return node.kind === 'term' ? on.has(node.id) !== node.negated : true;
+    const asked = node.kind === 'term' ? node.id : node.kind === 'name' ? node.text.trim() : '';
+
+    return asked === '' || on.has(asked) !== node.negated;
   }
 
   if (node.parts.length === 0) {
@@ -162,6 +166,17 @@ test('a pill repeated within one clause is one alternative', () => {
 test('the clauses keep the order the pills were arranged in', () => {
   expect(clausesFor(all(yes('lucky'), yes('shiny'), yes('costume')))).toEqual(['lucky', 'shiny', 'costume']);
   expect(clausesFor(all(yes('costume'), yes('shiny'), yes('lucky')))).toEqual(['costume', 'shiny', 'lucky']);
+
+  // Including a pill lifted out of an `any`, which takes the place of the first pill the parts did not share rather
+  // than the front of the string: a shared pill arranged last is written last.
+  expect(clausesFor(any(all(yes('shiny'), yes('fire')), all(yes('shiny'), yes('water'))))).toEqual([
+    'shiny',
+    'fire,water',
+  ]);
+  expect(clausesFor(any(all(yes('fire'), yes('shiny')), all(yes('water'), yes('shiny'))))).toEqual([
+    'fire,water',
+    'shiny',
+  ]);
 });
 
 test('an empty canvas is a query for everything rather than a broken one', () => {
@@ -231,16 +246,37 @@ test('two groups over the same pills are not the same shared part', () => {
   expect(clausesFor(tree)).toEqual(['shiny', 'fire,water']);
 });
 
+test('a name that spells a group is not that group', () => {
+  /*
+   * What a part asks for is compared as text, so a leaf and a group have to be told apart by more than what they say.
+   * A reader can type `all(shiny|lucky)` into the name box — only commas are split there, and a shared `#q=` fragment
+   * carries arbitrary text too — and that is exactly how `key` spells the subgroup beside it. Read as one shared part,
+   * the name is lifted and the subgroup thrown away: `shiny&lucky` stops being asked of the second branch and the
+   * literal text is demanded of both instead, which is a different search rather than a missed reduction.
+   */
+  const spelled = named('all(shiny|lucky)', false);
+  const tree = any(all(spelled, yes('fire')), all(all(yes('shiny'), yes('lucky')), yes('water')));
+
+  agrees(tree, ['all(shiny|lucky)', 'shiny', 'lucky', 'fire', 'water']);
+  expect(clausesFor(tree)).toEqual([
+    'all(shiny|lucky),shiny',
+    'all(shiny|lucky),lucky',
+    'all(shiny|lucky),water',
+    'fire,shiny',
+    'fire,lucky',
+    'fire,water',
+  ]);
+});
+
 test('an any with nothing in common is left as the product it is', () => {
-  // Nothing to lift, so these are the clauses they always were — and the cap still refuses what is genuinely wide.
+  // Nothing to lift, so these are the clauses they always were. That the cap still refuses an `any` this wide is the
+  // two tests below, over the OR'd pairs of distinct pills `pairs` builds for exactly that.
   expect(clausesFor(any(all(yes('shiny'), yes('fire')), all(yes('lucky'), yes('water'))))).toEqual([
     'shiny,lucky',
     'shiny,water',
     'fire,lucky',
     'fire,water',
   ]);
-
-  expect(clausesOf(pairs(UNDER + 1)).error).toContain(String(CLAUSES));
 });
 
 test('factoring never changes the answer, over every arrangement the sweep can build', () => {

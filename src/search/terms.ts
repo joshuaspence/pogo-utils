@@ -187,12 +187,14 @@ export const GROUPS: readonly Group[] = [
     /*
      * Three of these the game does not answer the way the label reads, per the community phrase list. They keep their
      * chips — the game takes all three terms — but the help says so, this page's output being what a mass transfer is
-     * run from.
+     * run from, and says whose claim it is: none of the three was checked against the game, and `primalraid` is a bug
+     * Niantic can fix out from under the sentence.
      */
     help:
-      'Where it came from, which the game records on the Pokémon itself. Three come with a caveat: `EX raid` returns ' +
-      'nothing now, the raids being long past the dates it looks at; `Primal raid` is not working; and `From Team GO ' +
-      'Rocket` misses shadows that came from a raid or from research, which `Shadow` or `Purified` will find.',
+      'Where it came from, which the game records on the Pokémon itself. Three come with a caveat the community ' +
+      'phrase list reports: `EX raid` returns nothing now, the raids being long past the dates it looks at; `Primal ' +
+      'raid` is not working; and `From Team GO Rocket` misses shadows that came from a raid or from research, which ' +
+      '`Shadow` or `Purified` will find.',
     terms: [
       { id: 'traded', term: 'traded', label: 'Traded' },
       { id: 'hatched', term: 'hatched', label: 'Hatched' },

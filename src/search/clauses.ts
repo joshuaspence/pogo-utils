@@ -55,18 +55,6 @@ export const CLAUSES = 1000;
  * Neither is this page's doing — nothing between here and the string manufactures a negation. They are named because
  * this page's output ends up in a mass transfer, where a term that means its own opposite is worth a sentence.
  */
-/*
- * Nothing here reorders a clause for `+{name}`, and the same reference argues it should: its storage table records
- * that a family shorthand "returns no results if put before `@` or `#`". Taken at face value that condemns
- * `+charmander&@special`, which this page writes whenever a family pill is placed ahead of an Exclusive-move one — and
- * which the factoring above writes unprompted. A pass putting every `+` after every `@` and `#` was written and then
- * taken out again: typed into the game, both that and the spaced `+charmander & @special` return what they should.
- *
- * The note is older than the build it was read against. A line from a reference that would cost something to act on is
- * worth checking against the game first; one that costs nothing — like the two below, which are notes beside a string
- * — is worth acting on without.
- */
-
 const MISHANDLED = [
   {
     pattern: /^(?:[0-4]|[0-4]-[0-4]?|-[0-4])(?:attack|defense|hp)$/,
@@ -104,9 +92,12 @@ export interface Written {
  *
  * The junction is in the key and has to be: without it `all(a, b)` and `any(a, b)` read as one shared part, and the
  * search narrows from `s and (a or b)` to `s and a and b`.
+ *
+ * A pill's key wears a `=` no group key can begin with, so that the two are separate namespaces. A name is whatever a
+ * reader typed, and one typed as `all(shiny|lucky)` is a pill asking for that text rather than the group it spells.
  */
 function key(node: Node): string {
-  return isGroup(node) ? `${node.junction}(${node.parts.map(key).join('|')})` : (leafText(node) ?? '');
+  return isGroup(node) ? `${node.junction}(${node.parts.map(key).join('|')})` : `=${leafText(node) ?? ''}`;
 }
 
 /** What a part of a junction asks for, as keys: an `all`'s own parts, or the part itself where it is not one. */
@@ -149,20 +140,26 @@ function factored(node: Node): Node {
   }
 
   const within = (part: Node) => (isGroup(part) && part.junction === 'all' ? part.parts : [part]);
-  const lifted = within(parts[0] ?? node).filter((part) => shared.includes(key(part)));
+  const own = within(parts[0] ?? node);
+  const lifted = own.filter((part) => shared.includes(key(part)));
   const left = parts.map((part) => within(part).filter((one) => !shared.includes(key(one))));
 
   // Each remainder is wrapped whatever its length: an `all` of one part spreads to exactly what that part does, and an
   // `all` of none is the search for everything, which is what a part asking only for the shared pills has become.
-  return group('all', [
-    ...lifted,
-    factored(
-      group(
-        'any',
-        left.map((rest) => group('all', rest)),
-      ),
+  const rest = factored(
+    group(
+      'any',
+      left.map((one) => group('all', one)),
     ),
-  ]);
+  );
+
+  // The alternatives stand where the first unshared pill stood, rather than after everything lifted, so that a shared
+  // pill arranged last is still written last — the order `clausesOf` promises. Every pill before that one was shared,
+  // which is what makes the index into `own` an index into `lifted` as well.
+  const unshared = own.findIndex((part) => !shared.includes(key(part)));
+  const at = unshared < 0 ? lifted.length : unshared;
+
+  return group('all', [...lifted.slice(0, at), rest, ...lifted.slice(at)]);
 }
 
 /**
@@ -310,8 +307,11 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
  * The clauses a query comes to, and whatever is worth saying about it. An empty canvas is a query for everything rather
  * than a broken one, that being the state the page spends most of its life in.
  *
- * The clauses keep the order the pills were arranged in. Nothing is sorted, because the arrangement is the reader's
- * own and a string they can still recognise is a string they can check.
+ * The clauses follow the order the pills were arranged in, nothing here being sorted: the arrangement is the reader's
+ * own, and a string they can still recognise is a string they can check. A pill lifted out of an `any` is written
+ * where the reader had it rather than at the front, which is as far as that carries — factoring changes which
+ * intermediate clauses the absorption above sees, so two of them surviving a nested `any` can come out the other way
+ * round than they would unfactored.
  *
  * The negations are read off the clauses that survived rather than off everything the distribution produced. A clause
  * dropped for asking nothing takes its pills with it, so a query can spread a `!1hp` and then write no clause holding
