@@ -264,7 +264,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 196,
-    defects: { label: 'Burmy (Plant)' },
     file: 'burmy-sandy.png',
     form: 'Sandy',
     gender: 'female',
@@ -277,7 +276,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 47,
-    defects: { label: 'Burmy (Plant)' },
     file: 'burmy-trash.png',
     form: 'Trash',
     gender: 'male',
@@ -375,6 +373,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1025,
+    defects: { label: 'Cherrim (Sunny)' },
     file: 'cherrim-overcast.png',
     form: 'Overcast',
     gender: 'male',
@@ -1250,13 +1249,13 @@ test('every stitch carries a `Viewport` smaller than itself, and no screen carri
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 39,
+  answeredAsThemselves: 40,
   oneLevel: 43,
   crossCheckAgrees: 40,
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 31,
+  noDefects: 32,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1299,11 +1298,11 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * trigger therefore costs an extra read on a defect and on nothing else. A capture that starts raising a note without
  * earning a `defects` entry fails here instead of quietly tripling that Pokémon's reads for ever.
  *
- * The three it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it.
- * Each is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses
- * Basculin's two stripes, no icon signature recorded for either, and the artwork declines two of Burmy's three cloaks
- * so the fold collapses those as well — an abstention costing nothing and fixing nothing. No number of further reads
- * can find those, so a scan cannot either; only a second reader of the same thing could.
+ * The two it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it. Each
+ * is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses Basculin's
+ * two stripes, no icon signature recorded for either, and the artwork declines Cherrim's Overcast so the fold collapses
+ * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
+ * scan cannot either; only a second reader of the same thing could.
  */
 test('the defects a scan can find for itself are the nine captures that raise a note', () => {
   const noted = FIXTURES.filter((f) => notesOf(f).length > 0);
@@ -1320,7 +1319,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
     'a pinned defect that raises no note is one a scan cannot read again on',
-  ).toStrictEqual(['basculin-blue.png', 'burmy-sandy.png', 'burmy-trash.png']);
+  ).toStrictEqual(['basculin-blue.png', 'cherrim-overcast.png']);
 });
 
 /**
@@ -1854,14 +1853,15 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * another, nothing `parseDetail` or the overlay reads being able to separate them. The whole map, so a reader that
  * gained one answer and lost another cannot come out even.
  *
- * Three answered and two declined, which is both halves rather than one: `MARGIN` mattering is something this would
- * now notice, where on a corpus that answered every one the margin could have been 0 unremarked. The declines are the
- * match's own doing rather than stale data — `ARTWORK` holds signatures of the game's icons, which no capture can
- * move — and their rows carry `defects.label` for what `identify` answers: `Burmy (Plant)` for both,
- * the fold's first cloak, with nothing beside it saying that was a choice.
+ * Four answered and one declined, which is both halves rather than one: `MARGIN` mattering is something this would
+ * now notice, where on a corpus that answered every one the margin could have been 0 unremarked. The decline is
+ * Cherrim's Overcast, whose nearest icon is **Sunny** by 0.229, so `MARGIN` is the whole of what stands between this
+ * and a confidently wrong answer. It is the match's own doing rather than stale data — `ARTWORK` holds signatures of
+ * the game's icons, which no capture can move — and the row carries `defects.label` for what `identify` answers:
+ * `Cherrim (Sunny)`, the fold's shorter name, with nothing beside it saying that was a choice.
  */
 test(
-  'the artwork settles three of five forms the numbers cannot, and declines two',
+  'the artwork settles four of five forms the numbers cannot, and declines one',
   async () => {
     const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
@@ -1895,9 +1895,9 @@ test(
 
     expect(Object.fromEntries(answers)).toStrictEqual({
       'burmy-plant.png': 'Burmy (Plant)',
-      'burmy-sandy.png': 'declined',
-      'burmy-trash.png': 'declined',
-      'cherrim-overcast.png': 'Cherrim (Overcast)',
+      'burmy-sandy.png': 'Burmy (Sandy)',
+      'burmy-trash.png': 'Burmy (Trash)',
+      'cherrim-overcast.png': 'declined',
       'cherrim-sunny.png': 'Cherrim (Sunny)',
     });
   },
