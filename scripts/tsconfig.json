@@ -9,7 +9,12 @@
 
     "noEmit": true,
 
-    // `tsc -b` in `lint:types` builds both projects from one command, and build mode requires this of each of them.
+    // Beside the other two projects' caches, which is what `tsconfig.json` already says of its own: one `pnpm clean`
+    // clears everything this repository writes. Unset, this is the one of the three whose default lands in the source
+    // tree — `scripts/tsconfig.tsbuildinfo`, a cache among the files it is a cache of.
+    "tsBuildInfoFile": "../.types/scripts.tsbuildinfo",
+
+    // `tsc -b` in `build:types` builds both projects from one command, and build mode requires this of each of them.
     "composite": true,
 
     "strict": true,
@@ -33,8 +38,8 @@
   // alone: the browser project's `src/**/*.ts` does not match one, so an `.mts` under `src/` belongs to whichever of the
   // two claims it and would otherwise be checked by neither. What is there now is the inventory library — it reaches
   // `node:child_process` for `adb` and the Tesseract CLI, so it needs Node's lib and must not have the DOM's —
-  // `src/gpx-source.mts`, which reaches the same for `git ls-files`, and `src/styles.test.mts`, which reads the
-  // stylesheets off disk for the same reason.
+  // `src/gpx-source.mts`, which reaches the same for `git ls-files`, and the two tests that read a repository file off
+  // disk rather than importing one: `src/styles.test.mts` the stylesheets, `src/build.test.mts` the `package.json`.
   "include": ["*.mts", "../src/**/*.mts"],
 
   // These scripts import the files `tsconfig.shared.json` lists — `src/countries.ts`, `src/event-feed.ts`,

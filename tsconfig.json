@@ -21,13 +21,15 @@
     "declarationDir": ".types",
     "rootDir": "src",
 
-    // Beside the declarations, so that one `rm -rf .types` clears everything this project writes. The default is
-    // derived from `outDir` when there is one, which put the cache at `dist/tsconfig.tsbuildinfo` and deployed it to
-    // the live site — the allowlist in `scripts/assemble.mts` cannot catch that, since it governs what is copied in and
-    // this is written before it runs.
+    // Beside the declarations, so that one `pnpm clean` clears everything this project writes. `build` clears `dist/`
+    // alone, the cache being the difference between a 0.14s `tsc -b` and a 7.06s one, which leaves `pnpm clean` the way
+    // to drop a declaration `tsc -b` has stopped emitting and never removes itself. The default is derived from
+    // `outDir` when there is one, which put the cache at `dist/tsconfig.tsbuildinfo` and deployed it to the live site —
+    // the allowlist in `scripts/assemble.mts` cannot catch that, since it governs what is copied in and this is written
+    // before it runs.
     "tsBuildInfoFile": ".types/tsconfig.tsbuildinfo",
 
-    // `tsc -b` in `lint:types` builds both projects from one command, and build mode requires this of each of them.
+    // `tsc -b` in `build:types` builds both projects from one command, and build mode requires this of each of them.
     "composite": true,
 
     "strict": true,
