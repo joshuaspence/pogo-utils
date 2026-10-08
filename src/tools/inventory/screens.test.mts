@@ -1227,9 +1227,9 @@ test('every committed capture is either a row or a negative case', () => {
  * it.
  *
  * Only one direction: a screen needs no companion. The three negatives have none, `snap` refusing to scroll a screen
- * PGSharp's overlay cannot vouch for, and three detail screens have none either, those being the captures still waiting
- * for the right Pokémon to be found — a companion of the Pokémon that was found instead would sit beside a screen of a
- * different one, which is worse than no companion at all.
+ * PGSharp's overlay cannot vouch for, and `unown-question.png` has none either, being the last capture still waiting
+ * for the right Pokémon — a companion of the Unown that was found instead would sit beside a screen of a different one,
+ * which is worse than no companion at all.
  */
 test('every stitch is a stitch of a screen the corpus holds', () => {
   const orphans = STITCHES.filter((file) => !SCREENS.includes(`${file.slice(0, -SCROLLED.length)}.png`));
@@ -2178,6 +2178,7 @@ test(
       'meowth-kanto-scrolled.png': { fast: 'Bite', charged: ['Night Slash'] },
       'pikachu-ash-hat-scrolled.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
       'pikachu-santa-hat-scrolled.png': { fast: 'Present', charged: ['Wild Charge'] },
+      'pikachu-willows-assistant-scrolled.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
       'pikachu-scrolled.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
       'pikachu-witch-hat-scrolled.png': { fast: 'Quick Attack', charged: ['Discharge'] },
       'rotom-wash-scrolled.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
