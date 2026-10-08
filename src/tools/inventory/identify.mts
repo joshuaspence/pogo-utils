@@ -14,11 +14,10 @@ import { type Detail } from './detail.mts';
 import { type Overlay } from './overlay.mts';
 
 /**
- * The two suffixes PGSharp draws that are not the form's name. It labels a form by its index from `A`, which works for
- * Unown's 26 letters and runs off the end of the alphabet for the other two: `'A'.charCodeAt(0) + 26` is `[` and `+ 27`
- * is `\\`, where the game master spells them out. Nothing else in the game is labelled this way, so this is a table of
- * two rather than arithmetic — and it has to be applied before the form is matched, since `identify` compares a suffix
- * against a form name exactly and `[` is no form of anything.
+ * The two suffixes PGSharp draws that are not the form's name. It labels a form by its index from `A`, which runs off
+ * the end of the alphabet for Unown's last two: `'A'.charCodeAt(0) + 26` is `[` and `+ 27` is `\\`, where the game
+ * master spells them out. Applied before the form is matched, `identify` comparing a suffix against a form name
+ * exactly.
  */
 const PGSHARP_FORMS = new Map([
   ['[', 'Exclamation Point'],
@@ -26,11 +25,8 @@ const PGSHARP_FORMS = new Map([
 ]);
 
 /**
- * The artwork, for the forms whose numbers are identical — Deerling's four, Burmy's three, Genesect's five. `signature`
- * is the capture's own, from `signatureOf`, and `icons` is one per candidate form, from the game's own art.
- *
- * Handed in rather than fetched here so that `identify` stays a pure function of what it is given: the scan builds the
- * map by downloading icons, and the test records them, which is the same division the game master already has.
+ * The artwork, for the forms whose numbers are identical. Handed in rather than fetched so `identify` stays a pure
+ * function of what it is given: the scan builds the map by downloading icons and the test records them.
  */
 export interface Artwork {
   signature: Signature;
@@ -52,26 +48,17 @@ export interface Identity {
 }
 
 /**
- * Which species and form this is, and at what level. The name narrows the candidates when it is a species' name, the
- * types narrow them further, and the overlay's IVs against the HP settle the rest — which is also what identifies a
- * Pokémon whose nickname has hidden its species. Costumes share their base form's stats, so they are folded into it
- * here and left to the `costume` search to report.
+ * Which species and form this is, and at what level. The name narrows the candidates where it is a species' name, the
+ * types narrow further, and the overlay's IVs against the HP settle the rest — which is also what identifies a Pokémon
+ * whose nickname has hidden its species. Costumes share their base form's stats, so they are folded into it here.
  *
- * The overlay's level is taken as a proposal rather than as a fact. It is the one field of the three that OCR gets
- * wrong with any regularity, because the `IV` label beside it reads as a `1` and runs into the digits, so it is kept
- * only where the HP agrees that the Pokémon can be that level and reported as a disagreement where it does not.
+ * The overlay's level is a proposal rather than a fact, being the one field OCR gets wrong with any regularity: it is
+ * kept only where the HP agrees the Pokémon can be that level, and reported as a disagreement where it does not.
  *
- * The form PGSharp appends is the one thing here that the game's own screen cannot say, and it is needed for exactly
- * the species the numbers cannot separate: Unown's 28 letters are one set of base stats, one type and one move pool, so
- * HP, IVs and types narrow them to 28 and stop. Where the overlay carries no suffix the numbers were enough — an Alolan
- * Geodude's reads `L20 ɪᴠ91 13/13/15` with nothing appended, because its stats and types already say Alola.
- *
- * `dex` is a species the walk went and read off that Pokémon's Pokédex entry, from `dexOn`, for the two cases where the
- * detail screen's own name cannot give one: a nickname printed where the species goes, and the `♀` or `♂` OCR loses.
- * It outranks the name rather than joining it, the entry stating the species outright where the name is the reading
- * that already failed — but the name is still what decides whether there is a **nickname**, so a Ho-Oh called `96%`
- * comes back as a Ho-Oh with its nickname intact. It says nothing about the form: an entry opened from a Pokémon does
- * not preselect that Pokémon's form.
+ * `dex` is a species read off the Pokémon's own Pokédex entry, for the two cases the detail screen's name cannot
+ * give: a nickname printed where the species goes, and the `♀` or `♂` OCR loses. It outranks the name rather than
+ * joining it, but the name still decides whether there is a **nickname**, so a Ho-Oh called `96%` keeps it. It says
+ * nothing about the form.
  */
 export function identify(
   data: GameData,
@@ -83,16 +70,14 @@ export function identify(
   const notes: string[] = [];
   const iv = overlay?.iv ?? null;
 
-  // What the name read as, kept apart from what the species is, because the two answer different questions once a
-  // Pokédex entry is in play: the species narrows the candidates and the name is what says whether this Pokémon is
-  // nicknamed. With no `dex` they are the same value.
+  // Kept apart, because once a Pokédex entry is in play the species narrows the candidates and the name says whether
+  // this Pokémon is nicknamed. With no `dex` they are the same value.
   const matched = detail.name ? closest(detail.name, data.species, (s) => s) : null;
   const entry = dex === null ? null : (data.forms.find((f) => f.dex === dex)?.species ?? null);
   const species = entry ?? matched;
 
-  // A disagreement only where the name does not read as the entry's species at all. Both Nidoran fold to `nidoran`, so
-  // `closest` breaks their tie by list order and `matched` is Nidoran♀ for either; compared directly, a Nidoran♂ entry
-  // would report the very glyph loss it was opened to settle.
+  // Only where the name does not read as the entry's species at all. Both Nidoran fold to `nidoran`, so `matched` is
+  // Nidoran♀ for either; compared directly, a Nidoran♂ entry would report the glyph loss it was opened to settle.
   if (entry !== null && matched !== null && detail.name && closest(detail.name, [entry], (s) => s) === null) {
     notes.push(`the Pokédex says ${entry}, where the name on the screen reads as ${matched}`);
   }
@@ -117,12 +102,10 @@ export function identify(
     searched = null;
   }
 
-  // `fits` asks whether *some* level reproduces the HP, which is a weaker question than the screen can answer: the
-  // overlay states a level too, and a form only really fits if one of the levels its HP admits is one of those. Applied
-  // as a narrowing rather than inside `fits` because the stated shortlist is a reading and can be wrong — on
-  // `pikachu-witch-hat.png` it names no level the HP can be — and a hard filter there would empty the list and send the
-  // search off across every species. This is what settles `ho-oh.png`: five forms fit Fire/Flying at 152 HP, and only
-  // Ho-Oh shows 152 at the `L25` the capture states.
+  // `fits` asks whether *some* level reproduces the HP, which is weaker than the screen can answer: the overlay states
+  // a level too. A narrowing rather than part of `fits`, because the stated shortlist is a reading and can be wrong —
+  // on `pikachu-witch-hat.png` it names no level the HP can be — where a hard filter would empty the list and send the
+  // search across every species.
   const stated = overlay?.levels ?? [];
 
   // The shortlist where some candidate agreed with it, and empty where none did: a shortlist no form can be at was
@@ -140,23 +123,18 @@ export function identify(
     }
   }
 
-  // The printed CP, which is the only thing on the screen that separates forms differing in attack or defense alone. HP
-  // is a function of `stamina`, so every test above is blind to Deoxys' four, Dialga's two and Thundurus' two — each
-  // family one stamina across all its forms — where CP is a function of the whole triple and so says which.
+  // The printed CP, the only thing on the screen separating forms that differ in attack or defense alone: HP is a
+  // function of `stamina`, so every test above is blind to Deoxys' four and Dialga's two, where CP is a function of the
+  // whole triple.
   //
-  // A narrowing rather than a filter inside `fits`, and only where it leaves something, for the reason the stated
-  // levels are: the CP is white text over the artwork and the hardest thing here to read, so a misread must not empty a
-  // list the numbers had narrowed correctly. Where no candidate reproduces it the disagreement is still reported below,
-  // since that is what a wrong form or a wrong level looks like.
+  // A narrowing rather than a filter, and only where it leaves something, for the reason the stated levels are — the CP
+  // is the hardest thing here to read, so a misread must not empty a list the numbers had narrowed correctly.
+  // Restricted to the levels the shortlist admits where it was trusted, so this asks the same question the levels
+  // narrowing did; where it was not, every level the HP admits is asked instead.
   //
-  // Restricted to the levels the stated shortlist admits where it was trusted, so this asks the same question the levels
-  // narrowing did rather than a weaker one — a form reproducing the CP at a level the overlay rules out has not fitted.
-  // Where it was not, every level the HP admits is asked instead, or a misread level would switch this off entirely.
-  //
-  // `detail.cps` is here on the same footing as the single read and is why this reaches the captures whose label went
-  // unrecognised: an unanchored band read of the CP region, right 19 times of 27 and wrong 3, handed over as candidates
-  // rather than as an answer. Requiring the arithmetic to reproduce one exactly is what makes the wrong ones inert —
-  // `19464`, `540` and `5141` are no form's CP at any level, so they narrow nothing and leave the row as it was.
+  // `detail.cps` is on the same footing as the single read, which is what reaches the captures whose label went
+  // unrecognised. Requiring the arithmetic to reproduce one exactly is what makes the wrong ones inert, `19464` being
+  // no form's CP at any level.
   const printed = [detail.cp, ...detail.cps].filter((n): n is number => n !== null);
 
   const shows = (f: Form, level: number) => {
@@ -178,10 +156,9 @@ export function identify(
     }
   }
 
-  // PGSharp's own label, which is the only thing that can separate Unown's 28 letters: they share one set of base
-  // stats, one type and one move pool, so nothing the game's own screen shows tells them apart. Applied ahead of the
-  // fold below, which is otherwise what collapses them to one — and only where it matches something, since a suffix
-  // read off the artwork must not empty a candidate list the numbers had narrowed correctly.
+  // PGSharp's own label, the only thing that can separate Unown's 28 letters, which share one set of base stats, one
+  // type and one move pool. Ahead of the fold below, which otherwise collapses them to one, and only where it matches
+  // something — a suffix read off the artwork must not empty a list the numbers had narrowed correctly.
   const drawn = overlay?.form ?? null;
   const labelled = drawn === null ? null : (PGSHARP_FORMS.get(drawn) ?? drawn);
   const named = labelled === null ? [] : candidates.filter((f) => fold(f.form) === fold(labelled));
@@ -192,23 +169,16 @@ export function identify(
     notes.push(`the overlay says form "${labelled}", which is no form of ${searched ?? 'any species that fits'}`);
   }
 
-  // The artwork, which is all that is left where the numbers are identical: Deerling's four seasons share
-  // `115/100/155 Normal+Grass` exactly, so nothing read off the panel can separate them and the fold below would keep
-  // whichever has the shorter name. Ahead of that fold for the same reason PGSharp's label is.
+  // The artwork, all that is left where the numbers are identical: Deerling's four seasons share
+  // `115/100/155 Normal+Grass` exactly, so the fold below would keep whichever has the shorter name.
   //
-  // Every candidate has to carry a signature, not just two of them, or a form the game draws no icon for would be
-  // dropped for having no artwork rather than for losing on its colours — which is Spinda, nine of whose twenty
-  // patterns the game has released, and is why Spinda is never narrowed here. Costumes are left out: they repeat their
-  // form's numbers with no icon of their own and the fold below collapses them anyway, so counting them would keep
-  // Pikachu's 67 from ever letting the clone be told from the original.
+  // Every candidate has to carry a signature, or a form the game draws no icon for would be dropped for having no
+  // artwork rather than for losing on its colours — which is why Spinda is never narrowed here. Costumes are left out:
+  // they repeat their form's numbers with no icon of their own, so counting them would keep Pikachu's 67 from ever
+  // letting the clone be told from the original.
   //
   // And only within one `(dex, stats, types)` group, the one `ambiguous` signs: between different numbers it is the
-  // numbers that separate the forms, and a nicknamed Pokémon's search across every species must not be settled on hue.
-  //
-  // An abstention costs nothing and fixes nothing: the fold below removes the rivals rather than demoting them, so a
-  // declined call still comes back as one form with no alternatives and no note — `shellos-west.png` is answered as
-  // East Sea either way. That is the pre-existing gap rather than one this opens, and closing it means `identify`
-  // reporting the fold it performed, which is a change to what every row of the CSV says.
+  // numbers that separate the forms, and a nicknamed Pokémon's search must not be settled on hue.
   const uncostumed = candidates.filter((f) => !f.costume);
   const [first] = uncostumed;
 
@@ -235,10 +205,9 @@ export function identify(
 
   const [form = null, ...alternatives] = distinct;
 
-  // A nickname is a name that does not read as the species answered, which is not the same as one that reads as no
-  // species at all: a Vaporeon called `Eevee` matches a species and is still nicknamed. Read against the answer rather
-  // than compared with `matched`, so a Nidoran whose `♀` OCR lost is not taken for a nickname once the Pokédex has said
-  // which Nidoran it is.
+  // A name that does not read as the species answered, which is not the same as one reading as no species at all: a
+  // Vaporeon called `Eevee` matches a species and is still nicknamed. Read against the answer rather than against
+  // `matched`, so a Nidoran whose `♀` OCR lost is not taken for a nickname once the Pokédex has said which it is.
   const nickname =
     detail.name && (form ? closest(detail.name, [form.species], (s) => s) : matched) === null ? detail.name : null;
 
@@ -271,8 +240,8 @@ export function identify(
   const multiplier = settled === null ? null : multiplierOf(data, settled);
   const cp = form && iv && multiplier !== null ? cpOf(form, iv, multiplier) : null;
 
-  // Where OCR did read the CP it is worth saying so, since the two disagreeing means the level or the form is wrong
-  // rather than that the arithmetic is: CP is a pure function of the three things above it.
+  // The two disagreeing means the level or the form is wrong rather than the arithmetic, CP being a pure function of
+  // the three things above it.
   if (cp !== null && detail.cp !== null && cp !== detail.cp) {
     notes.push(`the screen reads CP ${detail.cp}, where this form at this level is ${cp}`);
   }

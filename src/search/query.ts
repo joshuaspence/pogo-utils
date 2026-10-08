@@ -3,11 +3,8 @@
  * string means is readable without the DOM around it — this is the part that has to be right, and it is the part a
  * reader will check against what the game does.
  *
- * The state is the tree and one toggle. Everything a pill, a group, a name or a bound can say lives in the tree, which
- * is why there is no longer a set of wanted ids, a set of refused ones, a map of bounds and a box of text beside each
- * other: those were four descriptions of one fixed arrangement, and the arrangement is now the reader's.
- *
- * Nothing here holds a node of the document.
+ * The state is the tree and one toggle: everything a pill, a group, a name or a bound can say lives in the tree, the
+ * arrangement now being the reader's. Nothing here holds a node of the document.
  */
 
 import { clausesOf } from './clauses.js';

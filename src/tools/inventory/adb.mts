@@ -15,10 +15,8 @@ const TIMEOUT_MS = 30_000;
 
 /**
  * Whether `type` would send this rather than refuse it: a space, and the characters a storage search is made of.
- *
- * Exported so a caller can refuse a term itself, before it has driven the phone to the box it meant to type into —
- * `type` throwing at that point leaves storage open with the keyboard up, which is a worse answer than the same
- * complaint before anything moved.
+ * Exported so a caller can refuse a term before it has driven the phone to the box it meant to type into, `type`
+ * throwing there leaving storage open with the keyboard up.
  */
 export const typeable = (text: string) => /^[\w&,!@#*+-]*$/.test(text.replaceAll(' ', ''));
 

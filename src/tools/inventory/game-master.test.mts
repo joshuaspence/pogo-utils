@@ -1,15 +1,11 @@
 /**
- * The arithmetic and the fuzzy matching, against the vended game master rather than the live one — a test of a reader
- * must not reach the network, and `loadGameData` caches for a week, so even a committed cache would have this fetching
- * again every eighth day.
+ * The arithmetic and the fuzzy matching, against the vended game master rather than the live one, a test of a reader
+ * not being allowed to reach the network. `loadGameData` is therefore untested here; everything downstream of it is,
+ * which is where the pipeline's claims live — CP and HP are pure functions of a form, three IVs and a level's
+ * multiplier, and identifying a Pokémon is running them backwards.
  *
- * `loadGameData` itself is therefore not tested here. What is tested is everything downstream of it, which is where
- * the pipeline's claims actually live: CP and HP are pure functions of a form, three IVs and a level's multiplier, and
- * the whole of identifying a Pokémon is running them backwards.
- *
- * **Every expectation is derived from the formula and checked against a number the game printed**, rather than
- * recorded from a run of the code. A table of what the code answered would pass whatever the code did; these pass only
- * if the arithmetic is the game's.
+ * **Every expectation is derived from the formula and checked against a number the game printed** rather than recorded
+ * from a run of the code, which would pass whatever the code did.
  */
 
 import { readFileSync } from 'node:fs';

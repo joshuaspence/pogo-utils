@@ -1,18 +1,13 @@
 /**
- * The ids the stylesheets select on, against the ids the markup actually renders.
+ * The ids the stylesheets select on, against the ids the markup actually renders. A page is a component, so an id is
+ * written in a `.tsx` rather than in the markup `html-validate` reads, and a rule whose selector matches nothing is an
+ * error to nobody: the build succeeds, the page renders, and the only sign is that something looks wrong.
  *
- * This is the one kind of CSS mistake the move onto one document made easy and nothing else here can see. A page is a
- * component now, so an element's id is written in a `.tsx` file rather than in the markup `html-validate` reads, and a
- * stylesheet rule whose selector matches nothing is not an error to anybody: the build succeeds, the page renders, and the
- * only sign is that something looks wrong.
+ * It has happened once. Porting the search builder replaced `<code id="query">` with a ref and took
+ * `.output code#query` with it, which carried the `user-select: all` the Copy button's clipboard fallback depends on.
  *
- * It has already happened once. Porting the search builder replaced `<code id="query">` with a ref, because the script no
- * longer needed to find the element by id — and took `.output code#query` with it, which was carrying the mono face, the
- * bordered box, the `white-space: pre` and the `user-select: all` that the Copy button's clipboard fallback depends on.
- *
- * Ids only, deliberately. Every id a stylesheet here selects is written out as a literal in some component, so the check
- * is exact rather than a heuristic; classes are built from data in a dozen places (`typeClass`, the chip tables, the
- * status kinds) and asking the same question of them would answer with noise.
+ * Ids only, deliberately: every one a stylesheet selects is a literal in some component, where classes are built from
+ * data in a dozen places and asking the same question of them would answer with noise.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';

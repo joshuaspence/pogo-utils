@@ -1,11 +1,10 @@
 /**
- * The Pokédex as the page reads it: every species in `pokedex.js`, with its name, its generation, what is true of it
- * and of each of its forms, and which of the hunt lists in `filters/` still want it. Kept out of the page for the
- * reason `search/query.js` is — what an entry says is worth being able to check without a DOM around it.
+ * The Pokédex as the page reads it: every species in `pokedex.js`, with its name, generation, what is true of it and
+ * its forms, and which hunt lists in `filters/` still want it. Kept out of the page so what an entry says is readable
+ * without a DOM around it.
  *
- * Nothing here is a second copy. The flags are the ones the PGSharp filters are built from, the names are the ones the
- * search builder offers, and the hunts are the very Sets the backup is fed, so a species crossed off `filters/xxl.js`
- * drops off the page's XXL filter with no other edit.
+ * Nothing here is a second copy — the flags, names and hunts are the very ones the filters and the backup read, so a
+ * species crossed off `filters/xxl.js` drops off the page's XXL filter with no other edit.
  */
 
 import { fold, formNameOf, nameOf } from '../pokemon/names.js';
@@ -19,11 +18,9 @@ import type Pokemon from '../pokemon/pokemon.js';
 
 /**
  * A key of `Pokemon` answering a boolean, which is all a category or a hunt asks about one. Derived rather than written
- * out, because the class carries a builder method beside almost every flag — `isRegional` and `region` either side of
- * `regional` — and a method is truthy for every species, so a category naming one would file the whole dex under it.
- * Both of those are a `TS2820` suggesting `regional` against this and both are silent against `keyof Pokemon`. The
- * union is the eight boolean getters rather than the five categories, since nothing in `Pokemon` says which of them
- * this page shows as one.
+ * out, because the class carries a builder method beside almost every flag and a method is truthy for every species —
+ * so a category naming one would file the whole dex under it. Against this both are a `TS2820`; against
+ * `keyof Pokemon` both are silent.
  */
 export type Flag = { [K in keyof Pokemon]: Pokemon[K] extends boolean ? K : never }[keyof Pokemon];
 
@@ -33,8 +30,8 @@ type EntryHunt = { id: string; watched: boolean };
 type Variant = { name: string; pokemon: Pokemon; hunts: EntryHunt[] };
 
 /**
- * One row of the dex as the page reads it. Exported for `page.js`, which filters and renders these and has no other
- * source for what an entry carries.
+ * One row of the dex as the page reads it. Exported for `pages/pokedex.tsx` and `pokedex/state.ts`, which render and
+ * filter these and have no other source for what an entry carries.
  */
 export interface Entry {
   constant: string;
@@ -57,12 +54,12 @@ export interface Entry {
 const feedable: Predicate = (pokemon) => pokemon.released && pokemon.spawns;
 
 /**
- * The hunt lists, in the order the page shows them. A list names a species or one of its forms — the shiny hunt wants
- * Galarian Ponyta and not the Kantonian one — so an entry is on a hunt when anything it holds is a member.
+ * The hunt lists, in the order the page shows them. A list names a species or one of its forms, so an entry is on a
+ * hunt when anything it holds is a member.
  *
- * A list is a checklist of what is still wanted, and the feed PGSharp is handed is that list narrowed to what it can
- * actually alert on. `watched` is that narrowing, so the page can tell "wanted, and the feed is looking" apart from
- * "wanted, but only a raid or an egg will turn one up".
+ * A list is a checklist of what is still wanted, where the feed PGSharp is handed is that list narrowed to what it can
+ * alert on. `watched` is that narrowing, so the page can tell "wanted, and the feed is looking" from "wanted, but only
+ * a raid or an egg will turn one up".
  */
 export const HUNTS: readonly Hunt[] = [
   {
@@ -161,9 +158,9 @@ export const ENTRIES: readonly Entry[] = Object.entries(POKEMON).map(([constant,
 export const numbered = (dex: number) => `#${String(dex).padStart(4, '0')}`;
 
 /**
- * Where a species' picture comes from: PokeAPI's sprite set, which covers the whole national dex by number and has a
- * shiny beside each. Hotlinked rather than vendored, since 2050 images would be most of this repository's weight; a
- * sprite that fails to load leaves the card its number and name, which is the part that matters.
+ * Where a species' picture comes from: PokeAPI's sprite set, which covers the national dex by number with a shiny
+ * beside each. Hotlinked rather than vendored, 2050 images being most of this repository's weight; one that fails to
+ * load leaves the card its number and name.
  */
 export const spriteOf = (dex: number, shiny = false) =>
   `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${shiny ? 'shiny/' : ''}${dex}.png`;

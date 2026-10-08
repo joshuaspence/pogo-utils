@@ -1,12 +1,10 @@
 /**
- * Building a PGSharp backup from the repository's GPX files, ported from the pgsedit tool. PGSData.dat is a serialized
- * java.util.HashMap<String,Object>; two of its favourite keys hold JSON — "hlfavor" is Points (one coordinate each,
- * from <wpt>) and "hlfavorRoute" is Routes (a whole path, from <trk>). This synthesizes a partial backup from scratch,
- * holding only those two keys plus whichever controls and filters are ticked, and serializes it with the codec in
- * java-serialization.js — nothing is read from an existing backup, so importing it leaves the rest of the profile be.
+ * Building a PGSharp backup from the repository's GPX files, ported from pgsedit. PGSData.dat is a serialized
+ * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
+ * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
+ * rest of the profile be.
  *
- * The codec is 152KB of the artifact and nothing else uses it, which is why this page is reached through `import()` from
- * the shell rather than imported alongside it.
+ * The codec is 152KB of the artifact and nothing else uses it, which is why this page is reached through `import()`.
  */
 
 import { useState } from 'preact/hooks';

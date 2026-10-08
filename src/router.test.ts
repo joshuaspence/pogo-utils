@@ -1,15 +1,13 @@
 /**
- * The fragment the whole site is now addressed by, and the two things about it that fail silently.
+ * The fragment the whole site is addressed by, and the two things about it that fail silently.
  *
- * The round trip is the contract every page depends on without being able to see it. A page hands the router a query
- * string built by its own `toFragment`, and is handed one back to give its own `fromFragment` — so a splitter that ate a
- * character, or a formatter that emitted one the splitter reads as a boundary, loses filter state rather than failing:
- * the page renders, with controls set to something nobody asked for. `search/query.js` and `pokedex/state.js` both drop
- * the parts of a fragment they do not recognise by design, which is exactly what makes the loss quiet.
+ * The round trip is the contract every page depends on without being able to see it: a splitter that ate a character,
+ * or a formatter that emitted one the splitter reads as a boundary, loses filter state rather than failing — the page
+ * renders with controls set to something nobody asked for. Both state modules drop the parts of a fragment they do not
+ * recognise by design, which is what makes the loss quiet.
  *
- * The other is the query surviving an unrecognised page name. `q` is a text filter on the Pokédex and nothing at all on
- * the Events page, so carrying one across a fallback is how a typo'd link arrives somewhere real with foreign state
- * attached.
+ * The other is the query surviving an unrecognised page name: `q` is a text filter on the Pokédex and nothing on the
+ * Events page, so carrying one across a fallback is how a typo'd link arrives somewhere real with foreign state.
  */
 
 import { expect, test } from 'vitest';

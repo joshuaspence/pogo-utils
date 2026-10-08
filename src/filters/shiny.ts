@@ -1,15 +1,8 @@
 /**
- * The species worth hunting for a shiny. This is the roll `pgsharp/filters.js` feeds to its "Shiny Hunting" filter, and
- * the same one its "Regional Shiny Hunting" filter narrows to the region-locked members — so the regionals are not a
- * second list to keep in step but a slice of this one. Kept apart from the filters so each reads as its settings rather
- * than being buried under the species.
+ * The species worth hunting for a shiny — the roll fed to the "Shiny Hunting" filter, and the one "Regional Shiny
+ * Hunting" narrows to the region-locked members, so the regionals are a slice of this rather than a second list.
  *
- * It is a Set so a constant named twice by accident is simply the same member, not a repeat to trip over. That guards
- * only against listing the very same constant twice — two different forms sharing a dex number are distinct members
- * still, and collapsing those to one entry stays `pgsharp/filters.js`'s job.
- *
- * The list is grouped by generation and often names several species to a line, so `// prettier-ignore` holds that
- * hand-set shape rather than letting one entry per line stretch it out.
+ * Two forms sharing a dex number are distinct members here, and collapsing them stays `pgsharp/filters.js`'s job.
  */
 
 import type Pokemon from '../pokemon/pokemon.js';

@@ -16,21 +16,17 @@ export interface Moves {
 }
 
 /**
- * The moves, read out of the rows beneath the `GYMS & RAIDS` tabs. That tab row is the anchor because it is the one
- * thing that sits immediately above the moves and nothing else does, and a screen without it is read as showing no
- * moves at all: `charizard-gigantamax.png` is scrolled to its Mega Evolution, and reading down from anything else there
- * takes a line of it for Fire Spin. Bounding the region below matters as much: `CAUGHT IN THE WILD` and the rest are
- * ordinary prose that a fuzzy match will happily take for a short move.
+ * The moves, read out of the rows beneath the `GYMS & RAIDS` tabs — the one thing that sits immediately above them, so
+ * a screen without it is read as showing no moves at all. Bounding the region below matters as much: `CAUGHT IN THE
+ * WILD` and the rest are ordinary prose a fuzzy match will take for a short move.
  *
- * Each row is matched against the moves that form can actually hold before the whole list is considered — every trim
- * of it, so a row the pool can answer is never first answered by an unrelated move from the list. That is a choice
- * among a median of seven rather than among 328 and so affords far more slack: `oO Tackle`, where the type icon has
- * come through as two letters, is two edits from `Tackle` and is rejected outright against the full list. A row that
- * still does not match is cropped and read again on its own, and that rescue answers only to the pool, since it is the
- * reading least worth trusting against everything.
+ * Each row is matched against the moves that form can hold before the whole list is considered, which is a choice
+ * among a median of seven rather than 328 and affords far more slack: `oO Tackle`, where the type icon came through as
+ * two letters, is two edits from `Tackle` and is rejected outright against the full list. A row that still does not
+ * match is cropped and read again on its own, and that rescue answers only to the pool.
  *
- * A move is the fast one or a charged one by the game master's say, not by the row it sits in. The rows are where OCR
- * is unreliable — a row lost, split or read twice moves every row below it — where a move's own kind is a fact.
+ * A move is the fast one or a charged one by the game master's say rather than by the row it sits in. The rows are
+ * where OCR is unreliable — one lost, split or read twice moves every row below it — where a move's kind is a fact.
  */
 export async function parseMoves(
   lines: readonly Line[],

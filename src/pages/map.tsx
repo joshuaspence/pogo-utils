@@ -2,16 +2,13 @@
  * The GPX route map: every track and waypoint in the repository, drawn on Leaflet and listed in a sidebar grouped by
  * continent and country.
  *
- * Leaflet is imported by name rather than by member, which is what leaves all the `L.` references and the `L.Polyline`-
- * style annotations exactly as the UMD global left them. Its stylesheet is not imported here, though this is the only
- * module that needs it: a sheet imported from a dynamically imported page lands in that page's own CSS file, which
- * esbuild emits and ships no runtime to fetch — see `src/main.tsx`, which imports all seven.
+ * Leaflet's stylesheet is not imported here, though this is the only module that needs it: a sheet imported from a
+ * dynamically imported page lands in that page's own CSS file, which esbuild emits and ships no runtime to fetch — see
+ * `src/main.tsx`, which imports them all.
  *
- * The split between what is state here and what stays imperative follows who owns the object. The sidebar — which rows
- * exist, which are filtered out, which groups are open, what is selected — is this component's, and is rendered from
- * state; that is the half the imperative page spent `entry.el`, `rowOf`, `classList.toggle` and a `groups` array on. The
- * layers are Leaflet's: it owns their styling, their popups and the viewport, so they are created once and then told
- * about selection from an effect rather than rebuilt by a render.
+ * The split between state and imperative code follows who owns the object. The sidebar is this component's and is
+ * rendered from state; the layers are Leaflet's, which owns their styling, popups and viewport, so they are created
+ * once and then told about selection from an effect rather than rebuilt by a render.
  */
 
 import * as L from 'leaflet';
@@ -30,12 +27,10 @@ import { toHash } from '../router.js';
 const cssVar = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /**
- * A route once the page has it: the layer drawn for it and the distance measured off it. Its `gpx` comes from `Route`,
- * written for the one track rather than taken off the country file it was read from.
+ * A route once the page has it: the layer drawn for it and the distance measured off it.
  *
- * `id` is assigned as the entries are made, because the sidebar's selection and its refs are keyed by something and a
- * name is not unique — two countries can both have a Central Park. It is what the row and the layer are joined by now
- * that neither holds a pointer to the other.
+ * `id` is assigned as the entries are made, a name not being unique — two countries can both have a Central Park — and
+ * is what the row and the layer are joined by, neither holding a pointer to the other.
  */
 type RouteEntry = Route & { id: string; line: L.Polyline; distance: number };
 
@@ -84,12 +79,11 @@ async function loadGpxFile(file: string): Promise<{ routes: Route[]; waypoints: 
 }
 
 /**
- * The name to show for a `<pgr:event>`, which the files record only by `eventID`. data/events.json is where that name
- * lives — the same file validate-gpx.mts checks those IDs against.
+ * The name to show for a `<pgr:event>`, which the files record only by `eventID`. `data/events.json` is where that name
+ * lives — the same file `validate-gpx.mts` checks those IDs against.
  *
- * A fetch that fails leaves every entry naming its event by ID. That reads well enough
- * (`pokemon-fossil-museum-chicago-2026`) and the link still goes to the right place, so a missing calendar is not worth
- * withholding a page of routes over.
+ * A fetch that fails leaves every entry naming its event by ID, which reads well enough and still links to the right
+ * place, so a missing calendar is not worth withholding a page of routes over.
  */
 async function loadEventNames(): Promise<ReadonlyMap<string, string>> {
   const names = new Map<string, string>();
@@ -113,9 +107,8 @@ async function loadEventNames(): Promise<ReadonlyMap<string, string>> {
 
 /**
  * How an unselected line and dot are drawn. Both the layer's creation and the deselect that returns it here read these,
- * so the two cannot come to disagree about what "not selected" looks like — which matters now that the colour is a
- * decision rather than a constant: an entry added for an event is drawn in --event, and the sidebar row mirrors it (see
- * `.route::before` in styles.css).
+ * so the two cannot disagree about what "not selected" looks like — which matters because the colour is a decision
+ * rather than a constant: an entry added for an event is drawn in `--event`, and the sidebar row mirrors it.
  */
 function routeStyle(route: Route): L.PolylineOptions {
   return { color: cssVar(route.event ? '--event' : '--track'), weight: 2, opacity: 0.55 };
@@ -163,10 +156,9 @@ async function copyText(text: string): Promise<boolean> {
 /**
  * A map popup: a bold title, a detail line, and a copy button.
  *
- * Built with the DOM rather than rendered, and the one place in this file that still is. A popup belongs to Leaflet — it
- * decides when the element is attached, moved and thrown away — so handing it a node it owns outright is less machinery
- * than keeping a second Preact root alive inside someone else's lifecycle. The button's own flash is the same reason it
- * is written out here rather than being the component the sidebar's copy button is.
+ * Built with the DOM rather than rendered, and the one place in this file that is. A popup belongs to Leaflet, which
+ * decides when the element is attached, moved and thrown away, so handing it a node it owns outright is less machinery
+ * than keeping a second Preact root alive inside someone else's lifecycle.
  */
 function buildPopup(name: string, detail: string, copyLabel: string, text: string, onCopied: (ok: boolean) => void) {
   const popup = el('div');
@@ -252,10 +244,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
 
   /**
-   * The same entries, reachable from a closure made before they arrived. A Leaflet layer's `click` handler is attached as
-   * the layer is created, and `focusEvent` runs from the same pass — both inside the load effect, whose closure captured
-   * the render where `loaded` was still null. Reading the ref is what lets one `select` serve those callers and the
-   * sidebar's rows alike, rather than each being handed the entries it happens to have in scope.
+   * The same entries, reachable from a closure made before they arrived: a Leaflet layer's `click` handler is attached
+   * as the layer is created, inside the load effect, whose closure captured the render where `loaded` was still null.
+   * Reading the ref is what lets one `select` serve those callers and the sidebar's rows alike.
    */
   const loadedRef = useRef<Loaded | null>(null);
 
@@ -267,8 +258,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
   const [filter, setFilter] = useState('');
 
   /**
-   * What is selected, as a list rather than one of each: a link from the Events page names an event, not an entry, and an
-   * event can have been given several routes and waypoints — all of which are selected together.
+   * What is selected, as a list rather than one of each: a link from the Events page names an event rather than an
+   * entry, and an event can have been given several routes and waypoints, all selected together.
    */
   const [selected, setSelected] = useState<readonly string[]>([]);
 
@@ -375,10 +366,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
       // otherwise queue behind this one.
       const names = loadEventNames();
 
-      /**
-       * One bad file does not hide the others, but it is still reported. Each file's outcome is caught inside its own
-       * callback rather than read back out of `Promise.allSettled` by index: the file and what went wrong then travel
-       * together, where two arrays joined by number is a pairing nothing can state.
+      /*
+       * One bad file does not hide the others, but it is still reported. Each outcome is caught inside its own callback
+       * rather than read out of `Promise.allSettled` by index, so the file and what went wrong travel together.
        */
       const results = await Promise.all(
         files.map(async (file) => {
@@ -437,11 +427,10 @@ export default function MapPage({ query: fragment }: { query: string }) {
         return;
       }
 
-      /**
+      /*
        * One fit or the other, never both. Leaflet animates a zoom of less than `zoomAnimationThreshold` levels as a CSS
-       * transition and defers the move itself to its end, so fitting the world first and the event second left the
-       * transition to finish afterwards and restore the world. Ordering cannot fix that, so only fit everything when no
-       * event asked for a view.
+       * transition and defers the move to its end, so fitting the world first and the event second left the transition
+       * to finish afterwards and restore the world. Ordering cannot fix it.
        */
       if (!focusEvent(read)) {
         const all = L.featureGroup([...routes.map((r) => r.line), ...cities.map((c) => c.marker)]);
@@ -456,9 +445,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
   }, []);
 
   /**
-   * Tell the layers what is selected. An effect rather than part of the click, because selection is state and several
-   * entries can hold it at once — so every layer is either in the set or returned to its resting style, which is also
-   * what deselects whatever the last selection held without anything having to remember it.
+   * Tell the layers what is selected. An effect rather than part of the click, selection being state several entries
+   * can hold at once: every layer is either in the set or returned to its resting style, which is also what deselects
+   * whatever the last selection held without anything having to remember it.
    */
   useEffect(() => {
     const map = mapRef.current;
@@ -486,10 +475,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
       route.line.setStyle({ color: cssVar('--accent'), weight: 4, opacity: 1 });
       route.line.bringToFront();
 
-      /**
-       * The two ends, read as slots rather than assumed. `loadGpxFile` rejects a `<trk>` with fewer than two usable
-       * `<trkpt>`, so neither can miss — but nothing carries that length from there to here, and a route that arrived
-       * with no points is a defect rather than a case to draw around.
+      /*
+       * Read as slots rather than assumed: `loadGpxFile` rejects a `<trk>` with fewer than two usable `<trkpt>`, but
+       * nothing carries that length from there to here.
        */
       const a = route.latlngs[0];
       const b = route.latlngs[route.latlngs.length - 1];
@@ -534,9 +522,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
   }, [selected, loaded]);
 
   /**
-   * Select a set of entries, opening the groups above their rows and scrolling the first into view. Several rows can be
-   * selected at once and only one place can be scrolled to, so the first stands for the rest — which the groups now being
-   * open is what makes reachable, rather than leaving the reader to guess which countries to expand.
+   * Select a set of entries, opening the groups above their rows and scrolling the first into view. Only one place can
+   * be scrolled to, so the first stands for the rest — which the groups being open is what makes reachable.
    */
   function select(ids: readonly string[], { pan = true }: { pan?: boolean } = {}) {
     setSelected(ids);
@@ -591,13 +578,12 @@ export default function MapPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * A link from the Events page arrives as `#/map?event=<eventID>`, and this is what lands it on that event's entries —
-   * every route and waypoint added for it, not one of them. All are selected together: highlighted on the map, their rows
-   * marked and the groups above them opened, with the map fitted to the whole set.
+   * A link from the Events page arrives as `#/map?event=<eventID>` and lands on every route and waypoint added for
+   * that event, not one of them: all highlighted, their rows marked, the groups opened and the map fitted to the set.
    *
-   * Nothing is hidden. Filtering the sidebar down to the event would read as the search box having been used, leaving the
-   * reader to work out how to get the other 79 rows back; selecting is enough to answer "which ones are they" and leaves
-   * the page in a state they already know how to leave.
+   * Nothing is hidden. Filtering the sidebar down would read as the search box having been used, leaving the reader to
+   * work out how to get the other rows back, where selecting answers "which ones are they" and leaves the page in a
+   * state they already know how to leave.
    *
    * Returns whether it moved the map, which is what lets the initial fit happen only when no event claimed the view.
    */
@@ -623,10 +609,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
     const ids = [...routes.map((route) => route.id), ...places.map((city) => city.id)];
 
-    /**
-     * A lone entry is selected exactly as clicking its row would select it, tight fit and popup included. Only a set
-     * needs what follows, where no one of them can own the view or be the one the popup names.
-     */
+    // A lone entry is selected exactly as clicking its row would, tight fit and popup included. Only a set needs what
+    // follows, where no one of them can own the view or be the one the popup names.
     if (ids.length === 1) {
       select(ids);
 
@@ -635,10 +619,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
     select(ids, { pan: false });
 
-    /**
-     * One fit, not two. Leaflet animates a zoom of fewer than `zoomAnimationThreshold` levels as a CSS transition and
-     * applies the move at its end, from the view captured when it began — so selecting an entry with its own pan and then
-     * widening to the set landed the wide view and had it silently undone a moment later.
+    /*
+     * One fit, not two, for the reason the load effect gives: selecting an entry with its own pan and then widening to
+     * the set landed the wide view and had it silently undone a moment later.
      */
     const layers = [...routes.map((route) => route.line), ...places.map((city) => city.marker)];
 
@@ -661,11 +644,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
   }, [fragment, loaded]);
 
   /**
-   * The rows, grouped the way the sidebar draws them, with the filter already applied to each.
-   *
-   * Matched against the entries rather than against attributes written onto their rows: the store already holds both
-   * strings, so stringifying them into the DOM and reading them back was the page asking itself a question it was
-   * holding the answer to.
+   * The rows, grouped the way the sidebar draws them, with the filter already applied. Matched against the entries
+   * rather than attributes written onto their rows, the store already holding both strings.
    */
   const term = filter.trim().toLowerCase();
 
@@ -723,11 +703,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
   const continents = [...byContinent].sort(byKey);
 
   /**
-   * Every group reopened for the rows the filter leaves, and everything closed again when the box is emptied.
-   *
-   * A reader's own collapsing therefore lasts until the next keystroke, which is what the imperative page did too — it
-   * rewrote every group's `collapsed` class on each pass of the filter. Keyed on the term so it is the filter changing
-   * that resets them, not any of the other reasons this component renders.
+   * Every group reopened for the rows the filter leaves, and everything closed again when the box is emptied, so a
+   * reader's own collapsing lasts until the next keystroke. Keyed on the term, so it is the filter changing that
+   * resets them rather than any of the other reasons this component renders.
    */
   useEffect(() => {
     if (term === '') {
@@ -885,14 +863,12 @@ export default function MapPage({ query: fragment }: { query: string }) {
                                 </span>
 
                                 {/*
-                                 * The event an entry was added for, as a link through to it on the Events page. It takes a
-                                 * line of its own rather than another slot at the row's right edge, which is already
-                                 * carrying the distance and the Copy button. The click is stopped short of the row, which
-                                 * would otherwise select the entry as the page changes under it.
+                                 * A link through to the event on the Events page. The click is stopped short of the
+                                 * row, which would otherwise select the entry as the page changes under it.
                                  *
-                                 * An entry with no event says so with an empty string, so the span has to be absent
-                                 * rather than empty: three stylesheet rules key off `:has(.eventline)`, and an empty
-                                 * one would still recolour the marker and wrap the row.
+                                 * The span has to be absent rather than empty: three stylesheet rules key off
+                                 * `:has(.eventline)`, and an empty one would still recolour the marker and wrap the
+                                 * row.
                                  */}
                                 {row.event && (
                                   <span class="eventline">
@@ -945,10 +921,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
           )}
 
           {/*
-           * Name every file that could not be read, and why, under a heading that says what kind of failure it was — the
-           * two kinds want opposite things from the reader, so a server that is down must not read as metadata to go and
-           * correct. The banner stays up for both: a defect is there to fix, and a file that never arrived is not
-           * something the map can show a placeholder for either.
+           * Name every file that could not be read, and why, under a heading saying what kind of failure it was: the
+           * two want opposite things from the reader, so a server that is down must not read as metadata to correct.
            */}
           {(
             [

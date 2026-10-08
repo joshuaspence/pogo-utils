@@ -1,14 +1,11 @@
 /**
- * The values a page and a calendar both read, and the defects that follow from reading them differently. A naive
- * datetime misread as carrying a zone moves a local event by whatever offset the machine building the calendar happens
- * to sit at, a route line that writes the kinds an event has none of advertises routes it does not have, and a vend
- * that carries a field it was not asked for churns a committed file on every scrape.
+ * The values a page and a calendar both read, and the defects that follow from reading them differently: a naive
+ * datetime misread as zoned moves a local event by whatever offset the build machine sits at, and a vend carrying a
+ * field it was not asked for churns a committed file on every scrape.
  *
- * The zone cases are written out rather than read from `data/events.json`, which does carry both kinds — this file is
- * compiled by the browser project, where `resolveJsonModule` is unset and `node:fs` is the import the empty `types`
- * exists to keep out. The feed's own two shapes are in the module's comment either way, and the cases that discriminate
- * the pattern are near-misses the real feed cannot produce. `vendable` is reached the same way: its input is the shape
- * upstream sends rather than the file itself, which this project cannot open.
+ * The cases are written out rather than read from `data/events.json`, which this project cannot open —
+ * `resolveJsonModule` is unset here and `node:fs` is what the empty `types` keeps out. The cases that discriminate the
+ * pattern are near-misses the real feed cannot produce anyway.
  */
 
 import { expect, test } from 'vitest';
@@ -45,12 +42,9 @@ test('a string that is not a datetime at all reads as naive rather than as zoned
   // digit counts keep it out. A date read as zoned is the expensive direction — the event stops being 10am where the
   // reader is and becomes 10am where the build ran.
   //
-  // What no case here can show is the `$` on the offset alternative. The only `-` in an ISO datetime are the two date
-  // separators, and each is followed by exactly two digits and then a `-`, a `T` or the end — never by two more digits
-  // nor by a colon and two digits — so the pattern cannot match inside the date part at all, anchored or not. The two
-  // readings disagree on one shape only, `…+10:00[Australia/Sydney]`, which this feed does not emit and on which the
-  // unanchored reading is the right one. So that is a break unreachable here rather than one a wider corpus would
-  // catch.
+  // No case here can show the `$` on the offset alternative: the only `-` in an ISO datetime are the date separators,
+  // each followed by exactly two digits, so the pattern cannot match inside the date part anchored or not. The two
+  // readings disagree on `…+10:00[Australia/Sydney]` alone, which this feed does not emit.
   expect(HAS_ZONE.test('2026-09-21')).toBe(false);
   expect(HAS_ZONE.test('2026-09-21T06:00')).toBe(false);
   expect(HAS_ZONE.test('')).toBe(false);
@@ -146,10 +140,8 @@ test('the list comes out ordered by eventID, whatever order upstream sent it in'
 test('the order is by code unit, which is where localeCompare would have differed', () => {
   /*
    * A case difference is the one thing the two orderings disagree on among the characters an eventID can hold:
-   * `'B' < 'a'` by code unit, where `'B'.localeCompare('a')` is 1. So this is a near-miss the real feed cannot produce
-   * — every eventID in `data/events.json` is lowercase — and it is here for the reason the zone near-misses above are:
-   * it is the only case that can fail if the comparison is swapped for one whose answer moves with the ICU build, and a
-   * committed file reordered by a runner's Node is a diff nobody can read.
+   * `'B' < 'a'` by code unit, where `'B'.localeCompare('a')` is 1. A near-miss the real feed cannot produce, and the
+   * only case that fails if the comparison is swapped for one whose answer moves with the ICU build.
    */
   expect(vendable([upstream('apple'), upstream('Banana')]).map((ev) => ev.eventID)).toEqual(['Banana', 'apple']);
 });
@@ -179,10 +171,10 @@ test('a zoned end has passed once its instant has', () => {
 testEveryZone('a naive end has passed only once it has passed at UTC−12, the last zone to reach it', () => {
   /*
    * Built inside the body, as a swept test must. Read as UTC this end would drop a local event while the Americas were
-   * still playing it, and the sweep is what reaches the other misreading: `Date.parse(end)` on a naive datetime answers
-   * the *machine's* zone, so `Date.parse(end) + 12h` is this same assertion in UTC and nothing like it anywhere else.
-   * In `Australia/Sydney`, eleven hours ahead in October, that reading calls the event over a day early and the first
-   * expectation below fails — where CI runs in UTC and would never have said so.
+   * still playing it, and the sweep reaches the other misreading: `Date.parse(end)` on a naive datetime answers the
+   * *machine's* zone, so `Date.parse(end) + 12h` is this assertion in UTC and nothing like it elsewhere. In
+   * `Australia/Sydney` that reading calls the event over a day early, where CI runs in UTC and never would have said
+   * so.
    */
   const end = '2026-10-02T20:00:00.000';
 
@@ -198,11 +190,8 @@ test('an event with no announced end has not ended', () => {
 test('an end that is a date with no time is refused rather than read as not over', () => {
   /*
    * The case that separates "no end announced" from "an end this cannot read", which a `NaN` would have merged: both
-   * compare as not over, and `data/events.json` is hand-written, so `"end": "2026-12-31"` for an all-day event would
-   * have sat in the list permanently with nothing to say why the daily prune never touched it.
-   *
-   * It carries no zone, so it is read as naive — and `Date.parse('2026-12-31-12:00')` is `NaN`, where the `${end}Z`
-   * this replaced parsed it as midnight, which is the wrong end of the day in any case.
+   * compare as not over, and `data/events.json` is hand-written, so `"end": "2026-12-31"` would have sat in the list
+   * permanently with nothing to say why the daily prune never touched it.
    */
   expect(() => ended({ end: '2026-12-31' }, new Date('2099-01-01T00:00:00.000Z'))).toThrow(/not a datetime/);
 
@@ -223,10 +212,8 @@ test('an ended entry the feed does not carry is prunable, and an unended one is 
 test('an ended entry the feed also carries is kept, removing it being no removal', () => {
   /*
    * `patterns-of-the-wild-2026` was this case on 2026-10-06: dated locally, `start: null, end: null` upstream. Both
-   * merges key a Map by `eventID` with the local list last, so dropping the local entry does not drop the event — it
-   * uncovers upstream's dateless copy, and the card comes back without its dates or its route count.
-   *
-   * Asserted empty rather than by absence, so a `prunable` that returned everything could not pass it.
+   * merges key a Map by `eventID` with the local list last, so dropping the local entry uncovers upstream's dateless
+   * copy rather than dropping the event. Asserted empty, so a `prunable` returning everything could not pass it.
    */
   const over = { eventID: 'patterns-of-the-wild-2026', end: '2026-10-02T20:00:00.000' };
 

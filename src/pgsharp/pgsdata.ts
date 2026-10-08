@@ -8,8 +8,8 @@
  * two modules can make — and each of them is a backup PGSharp reads wrongly rather than refuses, so none of them
  * surfaces as an error.
  *
- * It was the body of `backup.ts`'s click handler, which is a page entry point and so reachable only by opening the
- * page: both halves could sit fully tested while nothing checked that they were wired together the right way round.
+ * Here rather than in the page's click handler, which is reachable only by opening the page: both halves could sit
+ * fully tested while nothing checked that they were wired together the right way round.
  */
 
 import { said } from '../errors.js';
@@ -55,23 +55,16 @@ type JavaValue = Parameters<typeof JavaSer.dumps>[0];
 
 /**
  * Synthesize a partial PGSData.dat from scratch — a HashMap holding only the keys we set. Nothing is read from an
- * existing backup; every other preference is omitted, so importing this leaves the rest of the profile as PGSharp had
- * it.
+ * existing backup, so importing this leaves the rest of the profile as PGSharp had it.
  *
- * One of the four steps is ordered and the other three are free, which is worth saying because the free ones look like
- * they would not be. `encodePoints` has to run after `applyTimezones`, the `tz` the one writes being a field the other
- * emits — reversed, every favourite lands in PGSharp without a timezone, which it accepts in silence.
+ * One of the four steps is ordered and the other three are free. `encodePoints` has to run after `applyTimezones`, the
+ * `tz` the one writes being a field the other emits — reversed, every favourite lands in PGSharp without a timezone,
+ * which it accepts in silence. The dedupe looks as though it had to precede the sort, keeping the *first* of a
+ * repeated name, but `byName` answers 0 for two identical names and `Array#sort` has been stable since ES2019.
  *
- * The dedupe reads as though it had to precede the sort, since it keeps the *first* of a repeated name and a sort would
- * seem to decide which that is. It does not: `byName` answers 0 for two identical names and `Array#sort` has been
- * required to be stable since ES2019, so a tie cannot be reordered and either order keeps the entry the manifest listed
- * first. Measured both ways rather than assumed. `applyTimezones` is free of the sort for its own reason — it writes
- * onto each point it is handed, so the order they arrive in reaches nothing. Only the points are timezoned at all,
- * routes having no `tz` field.
- *
- * `ticked` is the ids of the controls to include rather than the controls themselves, so this does the `CONTROL_RESETS`
- * lookup and the page only reads a checkbox. Iteration is over that table and not over `ticked`, which is what makes
- * the key order the one PGSharp wrote whatever order the reader clicked in.
+ * `ticked` is the ids of the controls rather than the controls themselves, so the page only reads a checkbox.
+ * Iteration is over `CONTROL_RESETS` and not over `ticked`, which is what makes the key order the one PGSharp wrote
+ * whatever order the reader clicked in.
  */
 export function buildBackup(repo: RepoFavourites, ticked: ReadonlySet<string>): Backup {
   const notes: string[] = [];

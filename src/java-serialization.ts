@@ -1,16 +1,12 @@
 /**
- * A minimal codec for Java's Object Serialization Stream Protocol — just the slice PGSData.dat uses — ported from the
- * pgsedit tool. `loads` reads a stream into a live object graph and `dumps` writes one back; `box` wraps a JS value as
- * a boxed Java primitive (an Integer, Long, Float or Boolean) for the map values that are not strings.
+ * A minimal codec for Java's Object Serialization Stream Protocol — the slice PGSData.dat uses — ported from pgsedit.
  *
  * A value here is one of four things and nothing else — `null`, a string, a boxed primitive or a `Map` — so the tags
- * `content` reads and the shapes `value` writes cover the same ground from either end. Block data is not among them: it
- * appears only in the annotations `skipAnnotation` discards, and is consumed there rather than handed back as a value
- * nothing could hold.
+ * `content` reads and the shapes `value` writes cover the same ground from either end. Block data is not among them,
+ * appearing only in the annotations `skipAnnotation` discards.
  *
  * The whole stream is re-emitted from scratch rather than patched in place: back-references are positional handles, so
- * changing one value shifts every handle after it, and only a full re-serialization keeps them consistent. See the
- * pgsedit README for the wire format this mirrors.
+ * changing one value shifts every handle after it. See the pgsedit README for the wire format this mirrors.
  */
 export const JavaSer = (() => {
   // ObjectStreamConstants.
@@ -87,9 +83,9 @@ export const JavaSer = (() => {
 
   /**
    * A boxed primitive, the one value shape that is neither a string nor a map. A class rather than a `{box, value}`
-   * literal so that reader and writer share one representation and `instanceof` separates it from a `Map` — where a
-   * property test would have to be guarded, since `'box' in v` throws on the very primitives `dumps` exists to reject.
-   * The field type is checked here so that an unsupported one fails at the call that named it.
+   * literal so reader and writer share one representation and `instanceof` separates it from a `Map`, where `'box' in
+   * v` throws on the very primitives `dumps` exists to reject. The field type is checked here so an unsupported one
+   * fails at the call that named it.
    */
   class Box {
     code: BoxCode;
@@ -173,10 +169,9 @@ export const JavaSer = (() => {
     p = 0;
 
     /**
-     * The back-reference table. Handles are positional and both kinds share the one sequence, so a classdesc reference
-     * and a value reference read the same four bytes — only the caller knows which the stream should have put there.
-     * Tagging the entries is what lets it say so, instead of a string travelling as a class descriptor until something
-     * reads a `fields` off it.
+     * The back-reference table. Handles are positional and both kinds share one sequence, so a classdesc reference and
+     * a value reference read the same four bytes — only the caller knows which the stream should have put there, and
+     * tagging the entries is what lets it say so.
      */
     handles: Handle[] = [];
 
@@ -445,11 +440,9 @@ export const JavaSer = (() => {
 
       chain.reverse(); // superclass fields come first
 
-      /**
+      /*
        * Both belong to the instance being read rather than to the descriptor, which every instance of the class shares
-       * through its handle. Holding them there was correct only by adjacency — each written and read back with no other
-       * instance of the same class in between, a nested HashMap included — which the shape never said and nothing held
-       * it to. Locals say it.
+       * through its handle. Holding them there was correct only by adjacency, which the shape never said.
        */
       let own: Record<string, FieldValue> = {};
 

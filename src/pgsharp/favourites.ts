@@ -1,11 +1,9 @@
 /**
- * The two favourite lists a PGSharp backup carries, and how a GPX tree turns into them — everything `backup.ts` does to
- * a file between parsing it and handing the result to the serializer, ported from pgsedit.
+ * The two favourite lists a PGSharp backup carries, and how a GPX tree turns into them — everything `pgsdata.ts` does
+ * to a file between parsing it and handing the result to the serializer, ported from pgsedit.
  *
- * Apart from `src/backup.ts`'s own fetching and download, this is the whole of what the Build button computes: a
- * `<wpt>` becomes a Point and a `<trk>` a Route, duplicates go, the rest is sorted and timezoned, and each list is
- * written out as the JSON string its key holds. None of it touches the DOM beyond the `Document` it is handed, which is
- * what lets a test drive the real encoders over a real tree rather than the page having to be opened to reach them.
+ * None of it touches the DOM beyond the `Document` it is handed, which is what lets a test drive the real encoders
+ * over a real tree rather than the page having to be opened to reach them.
  */
 
 import tzlookup from 'tz-lookup';
@@ -33,14 +31,12 @@ const newRouteState = () => ({
 });
 
 /**
- * The two favourite schemas, one per key. `src/types.d.ts` holds the wire formats with no owner, and these have one —
- * nothing outside the PGSharp page reads or writes either, since the map viewer reads the GPX files themselves and
- * never sees a backup.
+ * The two favourite schemas, one per key. Here rather than in `src/types.d.ts` because these have an owner: nothing
+ * outside the PGSharp page reads or writes either.
  *
- * Three fields are optional because the code as written allows each. `tz` is written by `applyTimezones` onto points
- * `gpxFavourites` built without one, and `mode` and `state` are what `encodeRoutes` falls back for. A route point is a
- * fixed triple rather than a list of numbers — latitude, longitude and `ROUTE_POINT_FLAG` — which is what
- * `encodeRoutes` re-emits positionally, and `state` is read off `newRouteState` rather than transcribed beside it.
+ * Three fields are optional because the code allows each — `tz` is written by `applyTimezones`, and `mode` and `state`
+ * are what `encodeRoutes` falls back for. A route point is a fixed triple rather than a list of numbers, which is what
+ * `encodeRoutes` re-emits positionally.
  */
 type RoutePoint = [number, number, number];
 export type Point = { name: string; lat: number; lng: number; tz?: string };
@@ -82,10 +78,9 @@ export function encodeRoutes(entries: readonly Route[]) {
 }
 
 /**
- * A favourite's whole name — the sidebar's "<name>, <locality>" plus the country and, for one of a short/long pair, the
- * variant: "Kings Park, Perth, Western Australia, Australia (long)". PGSharp lists and deletes favourites by name, so
- * this is the only identity a favourite has, which is why every part of it comes from the file rather than the path —
- * this mirrors pgsedit's entry_name.
+ * A favourite's whole name — "Kings Park, Perth, Western Australia, Australia (long)". PGSharp lists and deletes
+ * favourites by name, so this is the only identity one has, which is why every part comes from the file rather than
+ * the path. Mirrors pgsedit's `entry_name`.
  */
 function entryName(el: Element) {
   const label = `${placeName(el)}, ${entryCountry(el)}`;
@@ -103,14 +98,9 @@ const REGIONAL_INDICATOR_A = 0x1f1e6,
 const BLACK_FLAG = '\u{1F3F4}';
 
 /**
- * The emoji flag for a country, derived from its alpha-2 code in COUNTRIES.
- *
- * PGSharp's own hot places carry a country flag at the front of the name — "🇺🇸 Pier 39, California, USA" — in the
- * same {name,lat,lng,tz} schema our waypoints use. The format has no icon field, so the flag is simply the first
- * characters of the name, and both favourite kinds here follow that convention.
- *
- * The country comes from a <pgr:country>, so it must have an entry in COUNTRIES; one that does not errors rather than
- * importing without a flag.
+ * The emoji flag for a country, derived from its alpha-2 code in `COUNTRIES`. PGSharp's own hot places carry one at
+ * the front of the name — "🇺🇸 Pier 39, California, USA" — the format having no icon field, and both favourite kinds
+ * follow that convention. A country with no entry in `COUNTRIES` errors rather than importing without a flag.
  */
 function countryFlag(country: string) {
   const code = COUNTRIES[country]?.code;
@@ -140,8 +130,7 @@ function flaggedName(el: Element) {
  * empty <trk> is skipped (gpx.studio writes one for a cleared track) rather than treated as a route. Both kinds are
  * flagged, so the two lists read alike in the app even though PGSharp shows them on separate tabs.
  *
- * It takes the parsed tree rather than the file's text so that the one call a browser is needed for — `DOMParser`, and
- * the `parsererror` it answers a malformed file with — stays at the caller rather than sitting in the middle of this.
+ * It takes the parsed tree rather than the file's text, so the one call a browser is needed for stays at the caller.
  */
 export function gpxFavourites(doc: Document) {
   const points: Point[] = [];
@@ -181,12 +170,11 @@ function zoneOf(lat: number, lng: number) {
 }
 
 /**
- * Fill in each Point's IANA timezone from its coordinates, mirroring pgsedit's apply_timezones. The name is a property
- * of a boundary polygon rather than anything a formula can derive from a coordinate — Melbourne and Sydney share a UTC
- * offset but not a zone name, and Missouri is America/Chicago, not America/New_York — so it comes from the boundary
- * data tz-lookup carries. Routes have no tz field, so nothing is looked up for them. A point whose zone cannot be found
- * is left without one; the count is returned so the caller can say so once rather than per point. PGSharp accepts
- * entries with no tz.
+ * Fill in each Point's IANA timezone from its coordinates, mirroring pgsedit's `apply_timezones`. The name is a
+ * property of a boundary polygon rather than anything a formula derives from a coordinate — Melbourne and Sydney share
+ * a UTC offset but not a zone name — so it comes from the boundary data tz-lookup carries. Routes have no `tz` field.
+ * A point whose zone cannot be found is left without one, PGSharp accepting that; the count is returned so the caller
+ * can say so once.
  */
 export function applyTimezones(points: Point[]) {
   let unknown = 0;

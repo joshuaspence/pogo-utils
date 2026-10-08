@@ -3,23 +3,13 @@
  * costume, shiny, lucky, size, CP, HP, level, IVs and moves. Pokémon GO has no export, so this reads the screen the way
  * a person would — open the first Pokémon, read it, swipe to the next — with Tesseract doing the reading.
  *
- * The screen does not say everything outright, and each field comes from wherever it can be got most reliably:
- *
- * - **CP, HP, name, weight, height and types** are read off the detail screen, and **moves** off the same screen
- *   scrolled down.
- * - **Level and the three IVs** are read off PGSharp's own overlay, which states them outright over the artwork. The
- *   scanner therefore needs PGSharp rather than the stock client; nothing else on the screen gives the IVs without
- *   walking the appraisal dialogue for every Pokémon.
- * - **Form** is worked out rather than read: HP is fixed by base stamina, the stamina IV and the level, so given the
- *   overlay's numbers only some forms make it come out. See `inventory/game-master.mts`.
- * - **Gender, whether it is a favourite and whether it is XXL or XXS** are read off the detail screen: the symbol
- *   beside the HP, the star at the top right, and the gold badge above the height.
- * - **Tags** are chips under the HP, read off the same screen; `--tags` names the ones to expect so that what is read
- *   can be matched to them.
- * - **Shiny, lucky and costume** say nothing on the detail screen at all, so each one is a search instead. A pass with
- *   the game's own `shiny` search reads just the matching Pokémon, and the full pass marks the ones it recognises from
- *   that list. Searches keep the sort order, and a Pokémon is recognised by its name, HP, weight, height and IVs
- *   together, which in practice nothing else in storage shares.
+ * Each field comes from wherever it can be got most reliably. The CP, HP, name, weight, height, types, gender, size
+ * badge, favourite star and tag chips are read off the detail screen, and the moves off the same screen scrolled down.
+ * The level and the three IVs come off PGSharp's own overlay, which is why the scanner needs PGSharp rather than the
+ * stock client — nothing else gives the IVs without walking the appraisal dialogue every time. The form is worked out
+ * rather than read, HP being fixed by base stamina, the stamina IV and the level; see `inventory/game-master.mts`.
+ * Shiny, lucky and costume say nothing on the screen at all, so each is a search pass instead, whose matches the full
+ * pass recognises by name, HP, weight, height and IVs together.
  *
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
@@ -35,32 +25,17 @@
  *                       `--search '+burmy & cp196'` rather than a screen set up by hand
  *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
- *   Each line lists the flags that command acts on, and a flag handed to a command whose line omits it is refused
- *   rather than ignored. Why a flag is on the lines it is on belongs with `HONOURED` below, not here.
+ *   A flag handed to a command whose line omits it is refused rather than ignored — see `HONOURED`.
  *
- * A scroll capture keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames
- * into one tall image, which is how a screen longer than the phone is seen whole. `snap` always takes one and leaves it
- * as `NAME.png`; a scan takes one where `--scroll` asks for it, reading the moves from it rather than from a single
- * screenshot taken part way down. The stitched image is **not** given to the other readers here, and that is a limit
- * rather than an oversight — the star corner, the overlay sweep, the tag band and the artwork are each anchored on a
- * fraction of the image's height, so a frame three times taller moves every one of them. `parseMoves` is the one reader
- * that is not, being anchored on the `GYMS & RAIDS` line.
+ * A scroll capture drags the screen up until it stops moving and stitches the frames into one tall image, which is how
+ * a screen longer than the phone is seen whole. The stitch is **not** given to the other readers, and that is a limit
+ * rather than an oversight: the star corner, the overlay sweep, the tag band and the artwork are each anchored on a
+ * fraction of the image's height. `parseMoves` is the one reader that is not, being anchored on `GYMS & RAIDS`.
  *
- * `snap` and `parse` are the tools for fixing a misread: every tap position, swipe and delay the scan uses is in
- * `DEFAULTS` below and can be overridden from a JSON file passed as `--config`, with positions as fractions of the
- * screen so that one file suits any phone of the same shape. Both print what each reader made of the screen, and
- * `--verbose` adds the lines OCR found with their boxes — which is what separates a field left empty because no text
- * was read there from one left empty because a reader anchored on the wrong line.
- *
- * `--verbose` also un-silences the preamble every command narrates before it has an answer: the form icons it is about
- * to read, with the families no artwork settles. That is the same two lines on every run of a warm cache, and the
- * ambiguous families are a property of the game master rather than of the run — worth reading when a form comes out
- * wrong, and worth nothing in front of the answer the other nine runs in ten are after.
- *
- * A download says so either way, there being no warm run for it to be noise on: a file already in date is read without
- * a word, so `Downloading` prints on exactly the cold or stale run, the one with minutes of waiting to account for.
- * Neither is what went *wrong* ever held back — a stale copy read because the download failed, an icon index that could
- * not be had, an icon that 404s — those being what say why an answer came out degraded.
+ * `snap` and `parse` are the tools for fixing a misread. Every tap position, swipe and delay is in `DEFAULTS` and can
+ * be overridden from a JSON file passed as `--config`, with positions as fractions of the screen so one file suits any
+ * phone of the same shape. `--verbose` adds the lines OCR found with their boxes, which is what separates a field left
+ * empty because no text was read there from one left empty because a reader anchored on the wrong line.
  *
  * Automating input breaks Niantic's terms of service. This only reads, and moves at a person's pace, but the risk to
  * the account is the user's to weigh.
@@ -232,22 +207,16 @@ const COLUMNS = [
 const READ_ATTEMPTS = 3;
 
 /**
- * How many backspaces clear the search box, and **the longest term `--search` will accept** — the two being one number
- * on purpose, because the box has no length of its own to measure against. Typing a patterned run into it, all 234
- * characters landed and the field showed no sign of a cap, so there is no capacity this could be set to. What bounds
- * the box is therefore what this script types into it, and the refusal beside `--search` is what makes that true.
+ * How many backspaces clear the search box, and **the longest term `--search` will accept** — one number on purpose,
+ * the box having no length of its own: all 234 characters of a patterned run landed with no sign of a cap, so what
+ * bounds it is what this script types into it.
  *
- * It was 40, which is shorter than the searches a re-snap sends: `+ho-oh & cp2738 & hp152 & shiny & lucky & !costume`
- * is 50 characters, so ten survived the clear and the next term was typed onto the end of them.
+ * It was 40, shorter than the 50 characters a re-snap sends, so ten survived the clear and the next term was typed
+ * onto the end of them. The failure is silent, which is what makes the bound worth enforcing: the field scrolls, so a
+ * merged term looks exactly like a clean one and the only symptom is a result count quietly wrong.
  *
- * The failure is silent, which is what makes a bound worth enforcing rather than hoping for. The field scrolls, so only
- * its last 32 characters are on screen and the cursor sits among them — a merged term therefore *looks* exactly like a
- * clean one, and the only symptom is a result count quietly wrong. Three searches welded together read back as
- * `+cas+cas+ho-oh & clucky`, which matched nothing where the search before it had matched one.
- *
- * Generous because generosity is free: `device.key` sends every code in one `input keyevent`, so this is one call
- * however large, and a backspace on an empty field does nothing. Being short costs a pass of the corpus — which is what
- * it cost. A term typed into the box by hand can still exceed it, and that is the one case left: clear it by hand too.
+ * Generous because generosity is free — `device.key` sends every code in one `input keyevent`, and a backspace on an
+ * empty field does nothing. A term typed into the box by hand can still exceed it; clear it by hand too.
  */
 const CLEAR_KEYS = 300;
 
@@ -281,25 +250,14 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
   .replace(/^ \* ?/gm, '');
 
 /**
- * Which flags each command acts on. `parseArgs` takes one flat set of options, so nothing else in the code says where a
- * flag belongs: `parse --out inventory.csv` wrote no CSV and said nothing about it, and the synopsis had no way to be
- * checked against anything. Stated once here, so the rejection below and the usage block above cannot drift apart
- * without a test noticing.
+ * Which flags each command acts on. `parseArgs` takes one flat set of options, so nothing else says where a flag
+ * belongs: `parse --out inventory.csv` wrote no CSV and said nothing about it. Stated once here, so the rejection
+ * below and the usage block above cannot drift apart without a test noticing.
  *
- * `--config` is on all three, and splits two ways rather than three: `scan` and `snap` both drive the phone out of it,
- * reading `swipes`, `waits` and `scrollBand`, where `parse` reaches `overlay` alone and only through `report`. The
- * fields are named so the claim can be checked by grepping for them, this sentence having been wrong twice already.
- * `--serial` stops at `snap` because `parse` opens no device.
- *
- * `--scroll` is the scan's alone, where it decides what the moves are read off. A `snap` takes a scroll capture every
- * time, so the flag has nothing left to ask it for, and one that read as accepted would be remembered after the phone
- * had gone back to the map.
- *
- * `--verbose` is on all three for two different reasons, and reaches `scan` only for the second: it adds the OCR dump
- * that `report` prints, which `scan` never calls, and it un-silences the preamble `iconsFor` narrates, which all three
- * reach. That second reason is the narrow one — a quiet `scan` still names the app it launches and counts off each flag
- * it reads, those not being progress to be waited through — so what the flag buys here is the icon count and the
- * families no artwork settles, and not the difference between a silent scan and a talking one.
+ * `--config` is on all three but splits two ways: `scan` and `snap` drive the phone out of it, reading `swipes`,
+ * `waits` and `scrollBand`, where `parse` reaches `overlay` alone and only through `report`. The fields are named so
+ * the claim can be grepped for, this sentence having been wrong twice already. `--serial` stops at `snap` because
+ * `parse` opens no device. `--scroll` is the scan's alone, a `snap` taking a scroll capture every time.
  */
 const HONOURED: Record<string, readonly string[]> = {
   scan: [
@@ -362,16 +320,14 @@ function artworkIn(image: Image, box: OverlayBox | null, icons: ReadonlyMap<Form
 /**
  * Everything each reader makes of one screenshot, for tuning.
  *
- * **A stitch is read twice, because the readers do not want the same image.** Every one but `parseMoves` is anchored on
- * a fraction of the height, so each needs the screen the stitch records rather than the tall file — `screenIn` crops to
- * the `Viewport` written on it. `parseMoves` wants the whole thing: it anchors on the `GYMS & RAIDS` line, and the
- * moves below the phone's foot are the only reason a stitch is taken at all. Measured on the committed corpus, the two
- * readings really do disagree in both directions — `ho-oh.png` answers `tags: []` whole against `['Shiny', 'Lucky Me']`
- * cropped, and `applin.png` and `charizard-gigantamax.png` answer no move at all cropped against the right pair whole.
+ * **A stitch is read twice, because the readers do not want the same image.** Every one but `parseMoves` is anchored
+ * on a fraction of the height and so needs the screen the stitch records, which `screenIn` crops to; `parseMoves`
+ * anchors on `GYMS & RAIDS` and wants the whole thing. Measured on the corpus the two disagree in both directions —
+ * `ho-oh.png` answers `tags: []` whole against `['Shiny', 'Lucky Me']` cropped, and two captures answer no move at all
+ * cropped against the right pair whole.
  *
- * So one pass each, which costs a second Tesseract run on a stitch and nothing at all on a screen: `screenIn` hands
- * back the very image it was given where there is no `Viewport` to crop to, and that identity is what `===` tests here.
- * Every plain screenshot takes that branch, which is `snap`'s own call — it reports before anything is stitched.
+ * So one pass each, which costs a second Tesseract run on a stitch and nothing on a screen: `screenIn` hands back the
+ * very image it was given where there is no `Viewport`, and that identity is what `===` tests here.
  */
 async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Signature>) {
   const screen = screenIn(image);
@@ -1071,28 +1027,20 @@ interface Capture {
 
 /**
  * Every frame of the screen from here to its bottom, dragging half the scrolling band at a time — `SCROLL_STEP`, kept
- * within what `offsetBetween` looks for, where the scan's single swipe to the moves is not — and waiting for each frame
- * it takes itself to settle. Stops on a frame that has not moved, which is what reaching the end looks like; on one
- * that will not line up with the one before, which is left out; or at `SCROLL_FRAMES`, so that a screen which never
- * stops moving is a short capture rather than a scan that does not come back. Every frame it answers is one `stitch`
- * uses.
+ * within what `offsetBetween` looks for — and waiting for each frame to settle. Stops on a frame that has not moved,
+ * which is what reaching the end looks like; on one that will not line up, which is left out; or at `SCROLL_FRAMES`,
+ * so a screen that never stops moving is a short capture rather than a scan that does not come back.
  *
- * It does not scroll back up: `scrollUp` does, by what the offsets sum to, when the caller is ready. The last drag is
- * always one that moved nothing — that being how the end of the screen announces itself — so what it dragged is no part
- * of the way back.
+ * It does not scroll back up: `scrollUp` does, by what the offsets sum to. The last drag always moved nothing, so what
+ * it dragged is no part of the way back.
  *
- * `taken` stands in for the first frame, so that the stitch holds the screen the caller already has rather than a
- * second photograph of it: without it the same screen is shot twice, seconds apart, and the two differ over about half
- * their rows — the artwork animates, the clock ticks and PGSharp redraws its overlay. What it buys is one identity,
- * `crop(stitch, 0, 0, width, bandFoot)` being that screen row for row, `stitch` taking every row down to the band's
- * foot from frame 1 verbatim.
+ * `taken` stands in for the first frame, so the stitch holds the screen the caller already has rather than a second
+ * photograph of it — shot twice seconds apart, the two differ over about half their rows as the artwork animates and
+ * PGSharp redraws. What it buys is one identity: `crop(stitch, 0, 0, width, bandFoot)` is that screen row for row.
  *
- * **It is the one frame not waited for, so the caller owes it:** it has to still be what the phone is showing. `snap`
- * takes its screenshot before `report`, which can spend minutes in `iconsFor` on a cold cache — long enough for the
- * phone to blank the screen that was set up for it. A stale one does not corrupt the stitch quietly: `offsetBetween`
- * refuses the pair it cannot line up, so `lost` comes back true, the capture is one frame long and `stitch` answers a
- * copy of that frame. The caller reports the loss and exits non-zero, and the committed corpus holds such a copy to a
- * test of its own.
+ * **It is the one frame not waited for, so the caller owes it** still being what the phone is showing. A stale one
+ * does not corrupt the stitch quietly: `offsetBetween` refuses the pair, so `lost` comes back true and the capture is
+ * one frame long.
  */
 async function scrollFrames(device: Device, taken?: Image): Promise<Capture> {
   const band = config.scrollBand;
@@ -1126,15 +1074,14 @@ async function scrollFrames(device: Device, taken?: Image): Promise<Capture> {
  * Back up the screen by `pixels`, which is the distance it was measured to have scrolled. `screen` is any screenshot,
  * for its size.
  *
- * **A drag longer than the screen has scrolled does not stop at the top.** Once the content is there the game reads the
- * rest of the finger's travel as a swipe to dismiss and closes the panel, so asking for more than was scrolled ends on
- * the map rather than on the Pokémon the scan opened — and the swipe to the next Pokémon then lands on nothing, three
- * unreadable screens stopping the pass. One drag of the configured swipe covers 0.55 of the height where a detail
- * screen scrolls 711 pixels of 2244, so a swipe per drag the capture made asked for roughly three times too much.
+ * **A drag longer than the screen has scrolled does not stop at the top.** Once the content is there the game reads
+ * the rest of the finger's travel as a swipe to dismiss and closes the panel, so asking for more than was scrolled
+ * ends on the map and the swipe to the next Pokémon lands on nothing. One drag covers 0.55 of the height where a
+ * detail screen scrolls 711 pixels of 2244, so a swipe per drag asked for roughly three times too much.
  *
- * Undershooting is the safe direction: the panel resets to its top when the game draws the next Pokémon, so a few rows
- * left unscrolled cost nothing where a few too many close the screen. That is the scan's invariant and not every
- * caller's — a caller with no next Pokémon to draw has to measure what is left and ask again, as `snap` does.
+ * Undershooting is the safe direction, the panel resetting when the game draws the next Pokémon. That is the scan's
+ * invariant and not every caller's — one with no next Pokémon has to measure what is left and ask again, as `snap`
+ * does.
  */
 async function scrollUp(device: Device, screen: Image, pixels: number) {
   if (pixels <= 0) {
@@ -1164,58 +1111,40 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
  * A screenshot of whatever the phone is showing, read out field by field and saved, which is the tool for working out
  * why a scan misread something.
  *
- * **It refuses a capture a scan could not have used** rather than printing a page of nulls and exiting 0. A snap is
- * taken to be looked at later or committed as a fixture, and one of the map, one of a Pokémon with PGSharp's overlay
- * switched off, and one the scroll lost its place part way through are none of them that. Nothing beyond those three is
- * checked: the exit status says the capture is worth keeping, not that every field came out.
+ * It **refuses a capture a scan could not have used** rather than printing a page of nulls and exiting 0: the map, a
+ * Pokémon with PGSharp's overlay off, and a scroll that lost its place. Nothing beyond those three is checked, so the
+ * exit status says the capture is worth keeping rather than that every field came out. A missing HP is reported as a
+ * missing HP and not as a screen that is not a detail screen, the two being indistinguishable from here.
  *
- * **What it says is what it saw.** A missing HP is reported as a missing HP and not as a screen that is not a detail
- * screen: the two cannot be told apart from here, and the case `snap` exists to serve is the detail screen whose fields
- * do not read. Guessing which it was would put a claim nothing checked in front of whoever is debugging.
+ * It takes a **scroll capture of every screen it can confirm**, and that stitch is what `NAME.png` is left holding.
+ * The foot of a detail screen is below the phone, so the moves a misread was looking at are in no plain screenshot.
+ * One file rather than two, the screen being recoverable from the stitch: `screenIn` crops to the `Viewport` written
+ * on it. The plain screenshot keeps the name only where the overlay did not read, which is how the corpus's three
+ * negatives were taken — so `NAME.png` is the best capture that could be had, and a fixture is committed unchanged.
  *
- * **It takes a scroll capture of every screen it can confirm is a detail screen**, and that stitch is what `NAME.png`
- * is left holding. The foot of a detail screen is below the phone, so the moves a misread was looking at are in no
- * plain screenshot of it, and a flag to ask for them is one remembered after the phone has gone back to the map.
+ * **A name that already holds a capture is left alone** where this run cannot better it, which is the whole of why
+ * the screen is not written up front; `held` says why.
  *
- * One file rather than the stitch beside the screen, because the screen is recoverable from the stitch and nothing is
- * served by writing both: `screenIn` crops to the `Viewport` written on it, so the stitch is the whole screen to look
- * at *and* the one every reader above can be given — `report` does exactly that, and reads the moves off the whole.
+ * What confirms a detail screen is the overlay rather than the HP — three numbers separated by slashes are a thing
+ * only PGSharp draws — so the HP misreading, which is the case a snap is taken for, does not withhold the stitch.
+ * Where the overlay did not read, the map and a detail screen cannot be told apart, and scrolling the map drags the
+ * phone for nothing.
  *
- * The plain screenshot keeps the name only where the overlay did not read, which is where nothing is scrolled at all,
- * and that is how the corpus's three negatives were taken. So `NAME.png` is the best capture of the screen that could
- * be had, and a fixture is committed under that name unchanged. **A name that already holds one is left alone** where
- * this run cannot better it; see `held` below, which is the whole of why the screen is not written up front.
- *
- * What it confirms a detail screen by is the overlay rather than the HP, which is why a refusal does not stop it. Three
- * small numbers separated by slashes are a thing only PGSharp's overlay puts on the screen, so a screen it read one on
- * is a detail screen whatever the HP made of itself — and the detail screen whose HP misreads is the case a snap is
- * taken for, so refusing it the stitch would withhold the capture from the run that needed it most. Where the overlay
- * did not read, the map and a detail screen cannot be told apart, and a scroll of the map drags the phone for nothing.
- *
- * **It puts the panel back where it found it**, which `--scroll` left to the scan. See `scrollUp`: its undershoot is
- * safe only for a caller the game will draw another Pokémon for, and nothing redraws the panel after a snap, so a panel
- * left part way down is what the next snap of that screen captures. The way back is measured and asked for again until
- * it is had, and said out loud rather than refused where it cannot be: the capture is written by then, so the status
- * goes on answering for it rather than for where the phone was left.
+ * It **puts the panel back where it found it**, which `--scroll` leaves to the scan: `scrollUp`'s undershoot is safe
+ * only for a caller the game will draw another Pokémon for, and nothing redraws the panel after a snap. The way back
+ * is asked for again until it is had, and said out loud rather than refused where it cannot be.
  *
  * **`--search` drives the phone to the Pokémon** instead of taking whatever is showing, which is what makes a capture
- * reproducible: the term says which Pokémon was wanted, where a screen set up by hand records nothing about that at
- * all. Storage is somewhere only a game in front can be driven to, so the launch comes with it — see `toStorage`, which
- * owns that check on behalf of every caller. A grid it lands on with no Pokémon in it is refused before anything is
- * written, which beats writing first for the same reason `held` does: the capture would otherwise be of the storage
- * grid, saved over whatever this name already held. It also brings the game master's load forward, so a `--search` run
- * on a cold cache with no network fails having written nothing, which a plain snap only manages on a name that was
- * already taken.
+ * reproducible. Storage is somewhere only a game in front can be driven to, so the launch comes with it — see
+ * `toStorage`. An empty grid is refused before anything is written, for the reason `held` gives, and the game master's
+ * load comes forward so a cold-cache run with no network fails having written nothing.
  *
- * On a free name the screen is grabbed and written to disk first, then read, then checked. Writing first is what makes
- * a snap of a broken phone useful: the readers can throw rather than read nothing — `ocr` rejects outright where
- * Tesseract is not on the path — and a snap that saved nothing is no help on the one run that needed it. That write is
- * a floor rather than an artifact of its own, the stitch going over it wherever one can be had. On a name that already
- * holds a capture it is held back instead, since there the floor would be a demolition; `held` says why.
+ * On a free name the screen is grabbed and written first, then read, then checked. Writing first is what makes a snap
+ * of a broken phone useful, the readers being able to throw rather than read nothing. That write is a floor rather
+ * than an artifact of its own, the stitch going over it wherever one can be had.
  *
- * Reading before any drag is what keeps a scroll capture of the wrong screen from driving the phone for nothing, and
- * the game master is loaded after the grab wherever nothing above wanted it sooner, `iconsFor` taking minutes on a cold
- * cache: long enough for the phone to blank the screen set up for the snap.
+ * Reading before any drag keeps a scroll capture of the wrong screen from driving the phone for nothing, and the game
+ * master is loaded after the grab, `iconsFor` taking long enough on a cold cache for the phone to blank the screen.
  */
 async function snap() {
   const name = rest[0] ?? new Date().toISOString().replaceAll(':', '-');

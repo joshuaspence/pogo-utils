@@ -1,23 +1,18 @@
 /**
- * The control on the sweep itself, which is the one thing the swept tests cannot report. A `testEveryZone` that failed
- * to change the zone would run four green cases in whatever zone the machine is in, which reads exactly like a sweep.
- * So each case asserts the offset the zone it was handed actually has.
+ * The control on the sweep itself, which the swept tests cannot report: a `testEveryZone` that failed to change the
+ * zone would run four green cases in whatever zone the machine is in, reading exactly like a sweep.
  *
- * It asserts the offset rather than `Intl.DateTimeFormat().resolvedOptions().timeZone`, which answers ICU's own
- * spelling and so reads `Asia/Katmandu`, without the `h`, for the entry `ZONES` names `Asia/Kathmandu`. A name
- * comparison would fail on the one zone that is there for its odd offset, which is the trap this way round avoids.
+ * It asserts the offset rather than `resolvedOptions().timeZone`, which answers ICU's own spelling — `Asia/Katmandu`,
+ * without the `h` — so a name comparison would fail on the one zone that is there for its odd offset.
  */
 import { expect, test } from 'vitest';
 
 import { testEveryZone, ZONES, type Zone } from './zones.js';
 
 /**
- * Minutes *behind* UTC, which is the sign `getTimezoneOffset` uses — positive west of Greenwich. January and July
- * because a zone that changes its clocks reads differently in the two whichever hemisphere it is in, so the pair says
- * both what the zone is and whether it moves.
- *
- * `Record<Zone, …>` rather than an index signature, so a zone added to `ZONES` with no reading written here is a
- * `TS2741` rather than a case that asserts nothing.
+ * Minutes *behind* UTC, the sign `getTimezoneOffset` uses. January and July because a zone that changes its clocks
+ * reads differently in the two whichever hemisphere it is in, so the pair says both what the zone is and whether it
+ * moves. `Record<Zone, …>` rather than an index signature, so a zone added to `ZONES` with no reading is a `TS2741`.
  */
 const OFFSETS: Record<Zone, readonly [number, number]> = {
   'America/New_York': [300, 240],

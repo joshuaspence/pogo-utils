@@ -1,18 +1,14 @@
 /**
- * Renders the installed-app icons from `favicon.svg`, the only icon this repository keeps, into the `dist/` the rest of
- * `pnpm build` is assembling rather than into the checkout — so none of them is a file anyone has to ignore, and the
- * `rm -rf dist` a build opens with is what clears an icon that a renamed manifest entry left behind.
+ * Renders the installed-app icons from `favicon.svg` into the `dist/` the rest of `pnpm build` is assembling, so none
+ * of them is a file anyone has to ignore and the `rm -rf dist` a build opens with clears one a renamed manifest entry
+ * left behind.
  *
- * `manifest.json` is the authority on what to draw rather than a list of sizes here: an icon it names is rendered at the
- * size it declares, on the plate colour it already gives as `background_color`, so a size changed there cannot disagree
- * with the file published under it. `scripts/assemble.mts` copies nothing into `dist/icons/`, which leaves this the one
- * producer of that directory, and checks every path the manifest names resolves inside the artifact — which is what
- * catches an icon this failed to write.
+ * `manifest.json` is the authority on what to draw rather than a list of sizes here, so a size changed there cannot
+ * disagree with the file published under it. `scripts/assemble.mts` copies nothing into `dist/icons/`, leaving this
+ * the one producer, and checks every path the manifest names resolves — which catches an icon this failed to write.
  *
- * Nothing here honours `prefers-color-scheme`, and that is the point. `favicon.svg` gives its rim the tab bar's own
- * colour, dark by default and light inside a media query; a launcher paints an icon once rather than per theme, and a
- * renderer with no concept of a theme takes the default — which is the rim an icon wants. Rendering these by hand in a
- * browser is what made that a step to remember rather than a property of the source.
+ * Nothing honours `prefers-color-scheme`, and that is the point: a launcher paints an icon once rather than per theme,
+ * and a renderer with no concept of a theme takes `favicon.svg`'s default rim, which is the one an icon wants.
  */
 
 import { Resvg } from '@resvg/resvg-js';

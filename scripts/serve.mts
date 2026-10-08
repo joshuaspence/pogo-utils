@@ -1,26 +1,22 @@
 /**
  * Serves the built site over HTTP, which is how it is run locally: the pages reach `data/*.gpx` and the events feed
- * through `fetch`, and a browser denies a `file://` document those requests rather than answering them.
+ * through `fetch`, and a browser denies a `file://` document those requests.
  *
- * A handler of its own rather than esbuild's `servedir`, which this replaces. esbuild knows the types of the web
- * assets it bundles and nothing else, and offers no way to extend the table — `ServeOptions` has no field for it, and
- * `onRequest` is handed a request already answered — so `events.ics` came out `text/plain` and the Events page's
- * Subscribe link opened as a text page instead of reaching a calendar client, which made it the one part of that page
- * a local run could not check.
+ * A handler of its own rather than esbuild's `servedir`, which knows the types of the assets it bundles and offers no
+ * way to extend the table: `events.ics` came out `text/plain`, so the Events page's Subscribe link opened as a text
+ * page instead of reaching a calendar client — the one part of that page a local run could not check.
  *
- * Taking that over means taking on surviving a bad request, which `servedir` did for nothing. A `throw` inside a
- * `createServer` listener is an uncaught exception rather than a failed request, so it ends the process and every
- * later request is refused by a port with nothing behind it: `/%` on its own used to kill the server through
- * `decodeURIComponent`, and `/%00.html` through `statSync`. So everything that reads a request or the filesystem is
- * inside `locate` and returns a value instead, and everything that reads a file is behind a stream whose `'error'` is
- * handled, `pipe` not forwarding one to the destination.
+ * Taking that over means taking on surviving a bad request. A `throw` inside a `createServer` listener is an uncaught
+ * exception rather than a failed request, so it ends the process and every later request is refused by a port with
+ * nothing behind it: `/%` used to kill the server through `decodeURIComponent`, and `/%00.html` through `statSync`. So
+ * everything that reads a request or the filesystem answers with a value instead, and every file read sits behind a
+ * stream whose `'error'` is handled.
  *
  * Only an extension in `scripts/served-types.mts` is served at all. A file in `dist/` with any other is not part of
  * the site — `scripts/assemble.mts` fails the build over one, against that same table — so 404 is both the true answer
  * and the only one that never has to guess a type.
  *
- * No `fallback` for deep links, because the site wants none: `src/router.ts` reads the route out of the fragment, so
- * `#/map` is a request for `/` and the server is never asked for a path it has no file for.
+ * No `fallback` for deep links: `src/router.ts` reads the route out of the fragment, so `#/map` is a request for `/`.
  */
 
 import { createReadStream, existsSync, statSync } from 'node:fs';

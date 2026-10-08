@@ -136,17 +136,16 @@ function group(tsv: string): Line[] {
 /**
  * Tesseract's TSV for an image, in page segmentation mode `psm`.
  *
- * TSV is asked for with `tessedit_create_tsv` rather than the `tsv` config file, which a `TESSDATA_PREFIX` pointing at
- * a models-only download lacks, and without which Tesseract writes plain text and still exits 0. OpenMP is held to one
+ * Asked for with `tessedit_create_tsv` rather than the `tsv` config file, which a `TESSDATA_PREFIX` pointing at a
+ * models-only download lacks and without which Tesseract writes plain text and still exits 0. OpenMP is held to one
  * thread, as `man tesseract` advises, because callers run reads side by side and each one's threads spin-wait against
  * the others': pinned to four cores, a pair of full-screen reads took a median 12 seconds against 0.3.
  *
- * A floating-point exception counts as reading nothing, because it is the image rather than the machine that causes it:
- * Tesseract 5.3.4 dies of one every time on some whitelisted bands, such as `pikachu-ash-hat.png`'s at y=400 brightened
- * and read for a CP.
+ * A floating-point exception counts as reading nothing, it being the image rather than the machine that causes it:
+ * Tesseract 5.3.4 dies of one every time on some whitelisted bands.
  *
- * An empty image reads as nothing without asking, since a crop wholly off the edge is one and libpng refuses a PNG
- * with no width or height as `Invalid IHDR data` — which would fail a scan over a band that held no text anyway.
+ * An empty image reads as nothing without asking — a crop wholly off the edge is one, and libpng refuses a PNG with no
+ * width or height as `Invalid IHDR data`.
  */
 function tesseract(image: Image, psm: number, ...options: string[]): Promise<string> {
   if (image.width === 0 || image.height === 0) {

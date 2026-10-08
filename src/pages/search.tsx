@@ -1,15 +1,13 @@
 /**
  * The search-string builder page: a catalogue of pills on one side and the query you arrange them into on the other.
  *
- * The arrangement *is* the state. Where the earlier page kept a set of wanted term ids, a set of refused ones, a map
- * of numeric bounds and a box of text — four descriptions of one fixed shape, every group AND'd with every other — the
- * canvas holds a tree, and `query.js` composes whatever is in it. That is the whole of why the brackets no longer need
- * a text box of their own: a bracket is a group, and a group is a thing on screen you can drop a pill into.
+ * The arrangement *is* the state: the canvas holds a tree and `query.js` composes whatever is in it, which is why the
+ * brackets need no text box of their own — a bracket is a group, and a group is a thing on screen you drop a pill
+ * into.
  *
- * A pill reaches a group two ways, and both end in the same `commit`. Dragging is the one a pointer wants, tracked
- * through pointer capture so touch behaves like a mouse, with a few pixels of slop before a press counts as a drag so
- * a tap is still a tap. Picking a pill up and putting it down is the one a keyboard wants, since both halves are
- * ordinary buttons; it is also what a reader with a trackpad they dislike will reach for.
+ * A pill reaches a group two ways, both ending in the same `commit`. Dragging is the one a pointer wants, tracked
+ * through pointer capture so touch behaves like a mouse, with a few pixels of slop before a press counts as a drag.
+ * Picking a pill up and putting it down is the one a keyboard wants, both halves being ordinary buttons.
  *
  * Nothing here knows how a clause is written. The page asks `compose` what the query says and draws what it answers.
  */

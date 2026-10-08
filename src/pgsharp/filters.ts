@@ -26,21 +26,17 @@ import XXS_POKEMON from '../filters/xxs.js';
 type Predicate = (pokemon: Pokemon) => boolean;
 
 /**
- * A filter's species list, checked, narrowed and collapsed to one entry per species. A form or a region the species
- * does not have has already thrown by the time we are called, so what is left to catch is a name pokemon.js does not
- * define at all, which reads as undefined and would reach the backup as a null where a species should be. The value is
- * all we are handed — the constant's name is gone by then — so the error gives the position to look at. The species
- * arrive as a Set, taken here in the order they were written so the position and the first-survivor rule below mean
- * what they say.
+ * A filter's species list, checked, narrowed and collapsed to one entry per species. A form or region the species does
+ * not have has already thrown, so what is left to catch is a name `pokemon.js` does not define at all, which reads as
+ * undefined and would reach the backup as a null. The constant's name is gone by then, so the error gives the position
+ * to look at — and the species are taken in the order they were written, so that position means what it says.
  *
- * Every `keep` given has to hold for an entry to stay, which is how a filter drops what has no shiny to find or what
- * the wild never turns up. They run before the list collapses, so a species listed twice — once as a form that
- * survives them and once as one that does not — keeps the form that survives rather than whichever came first.
+ * Every `keep` has to hold for an entry to stay, which is how a filter drops what has no shiny to find. They run
+ * before the list collapses, so a species listed twice keeps the form that survives rather than whichever came first.
  *
- * A form is a Pokemon of its own carrying the dex number of the species it belongs to, since that number is all
- * PGSharp stores, so a list naming several forms of one species names that number several times. The names are worth
- * keeping — they say which forms the list is for — but the repeats are not, so the first of each number survives and
- * the rest go, leaving the list PGSharp itself would write.
+ * A form carries the dex number of the species it belongs to, that number being all PGSharp stores, so a list naming
+ * several forms names it several times. The names say which forms the list is for; the repeats say nothing, so the
+ * first of each number survives and the rest go.
  */
 function species(entries: ReadonlySet<Pokemon>, ...keep: Predicate[]) {
   const list = [...entries];

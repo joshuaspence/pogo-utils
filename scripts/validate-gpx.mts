@@ -1,18 +1,14 @@
 /**
- * Checks the GPX files in the repository are in order: that each one is well-formed and really is GPX 1.1 against the
- * schema (resources/gpx.xsd), and that its `pgr` extension fields are the ones the viewer reads and its country is one
- * the viewer knows, with nothing in that table the files never name (src/countries.ts). Then the two requirements the
- * viewer adds on top of the schema: every entry names itself, and every track has points enough to draw.
+ * Checks the GPX files in the repository are in order: well-formed and really GPX 1.1 against `resources/gpx.xsd`,
+ * with `pgr` extension fields the viewer reads and a country it knows, nothing in `src/countries.ts` the files never
+ * name, every entry naming itself and every track carrying points enough to draw.
  *
- * `--write` adds the two files that tell the pages what the repository holds, data/gpx-paths.json and
- * data/entries-by-event.json, each derived from the same pass that just checked the files rather than from a reading of
- * its own. Neither is in version control, so there is nothing to compare one against and nothing to keep in step: the
- * flag is which caller wants them rather than a mode. `pnpm build` is that caller, and `pnpm lint:xml` is the checks on
- * their own — which is what keeps a parallel `pnpm lint` from putting two writers on one file, `lint:types` being the
- * build.
+ * `--write` adds the two files that tell the pages what the repository holds, each derived from the same pass that
+ * just checked the files. Neither is in version control, so the flag is which caller wants them rather than a mode:
+ * `pnpm build` is that caller and `pnpm lint:xml` is the checks on their own, which keeps a parallel `pnpm lint` from
+ * putting two writers on one file.
  *
- * The schema is vendored rather than fetched. GPX 1.1 has not moved since 2004 and the file is 26 KB, so there is
- * nothing to gain by making this check depend on a twenty-year-old site staying up.
+ * The schema is vendored rather than fetched, GPX 1.1 not having moved since 2004.
  */
 
 import COUNTRIES from '../src/countries.ts';
@@ -44,10 +40,8 @@ const { valid, errors } = await validateXML({
 if (valid) {
   console.log(`${files.length} files validate against GPX 1.1.`);
 } else {
-  /**
-   * A malformed file reports the offending source line with no position to hang it on, so the location is printed
-   * only when there is one.
-   */
+  // A malformed file reports the offending source line with no position to hang it on, so the location is printed only
+  // when there is one.
   for (const { loc, message } of errors) {
     problems.push(loc ? `${loc.fileName}:${loc.lineNumber}: ${message}` : message);
   }
@@ -104,14 +98,13 @@ for (const { fileName, contents } of sources) {
   }
 
   /**
-   * Every `<pgr:event>` names an event `data/events.json` still has. Nothing downstream reads the field yet, so a typo
-   * or an event renamed out from under it would otherwise sit in the file unnoticed — the same silent failure as a
-   * country missing from COUNTRIES.
+   * Every `<pgr:event>` names an event `data/events.json` still has, since a typo or an event renamed out from under
+   * it would otherwise sit in the file unnoticed.
    *
-   * Read through `eventRefs` rather than out of the field walk below, because `scripts/prune-events.mts` cuts these
-   * elements through the same function. That is what keeps the pruner from leaving behind a reference this check then
-   * refuses, which is a Pages deploy failing on every run until the file is edited by hand. It also reaches a
-   * `<pgr:event>` outside a `<trk>` or `<wpt>`, which the walk below never visits and the pruner would still cut.
+   * Read through `eventRefs` rather than the field walk below, because `scripts/prune-events.mts` cuts these elements
+   * through the same function — which is what keeps the pruner from leaving behind a reference this check then refuses,
+   * failing every Pages deploy until the file is edited by hand. It also reaches a `<pgr:event>` outside a `<trk>` or
+   * `<wpt>`, which the walk never visits and the pruner would still cut.
    */
   for (const { element, eventID } of eventRefs(doc)) {
     if (eventID && !EVENT_IDS.has(eventID)) {
@@ -145,8 +138,7 @@ for (const { fileName, contents } of sources) {
 
   /**
    * A file with neither is the other half of that gap: `gpxEntries` throws rather than drawing an empty map, and the
-   * file reaches the viewer because GPX_PATHS is every `.gpx` in the repository. A cleared track is this case, its
-   * `<trk>` having been dropped as an entry above.
+   * file reaches the viewer because `GPX_PATHS` is every `.gpx` in the repository.
    */
   if (entries.length === 0) {
     report(fileName, undefined, 'has no <trk> or <wpt>');
@@ -159,16 +151,12 @@ for (const { fileName, contents } of sources) {
     let eventId = null;
 
     for (const field of ext ? elementChildren(ext) : []) {
-      /**
-       * xmldom types `localName` as nullable on every node rather than narrowing it on `Element`, though an element
-       * always has one. `''` stands in because it is in no branch below, exactly as `null` would be.
-       */
+      // xmldom types `localName` as nullable on every node rather than narrowing it on `Element`. `''` stands in
+      // because it is in no branch below, exactly as `null` would be.
       const name = field.localName ?? '';
 
-      /**
-       * A `pgr`-namespace element the viewer has no field for is a misspelling. A foreign element from another tool
-       * is not ours to judge — the viewer leaves it be, and so does this.
-       */
+      // A `pgr`-namespace element the viewer has no field for is a misspelling. A foreign element from another tool is
+      // not ours to judge — the viewer leaves it be, and so does this.
       if (field.namespaceURI === PGR_NS && !PGR_FIELD_NAMES.has(name)) {
         report(fileName, field, `<${field.tagName}> is not a pgr field — expected ${PGR_EXPECTED}`);
         continue;
@@ -194,18 +182,14 @@ for (const { fileName, contents } of sources) {
       } else if (name === 'variant' && !VARIANTS.has(text)) {
         report(fileName, field, `<${field.tagName}> is "${text}" — expected short or long`);
       } else if (name === 'country' && !Object.hasOwn(COUNTRIES, text)) {
-        /**
-         * The viewer groups by continent and flags each favourite from this table (src/countries.ts); a country missing
-         * from it has no continent and no flag, so the backup build throws rather than importing it. Catch it here.
-         */
+        // The viewer groups by continent and flags each favourite from `src/countries.ts`, so a country missing from
+        // it has no continent and no flag and the backup build throws rather than importing it.
         report(fileName, field, `<${field.tagName}> is "${text}" — not a country in COUNTRIES (src/countries.ts)`);
       }
     }
 
-    /**
-     * Each field is one value, not a list: a second `<pgr:country>` is a silent contradiction, since the viewer keeps
-     * only the first and ignores the rest.
-     */
+    // Each field is one value rather than a list: a second `<pgr:country>` is a silent contradiction, the viewer
+    // keeping only the first.
     for (const name of PGR_FIELDS) {
       const seen = counts[name] ?? 0;
 
@@ -232,10 +216,8 @@ for (const { fileName, contents } of sources) {
       report(fileName, entry, '<trk> has fewer than two <trkpt> — too few to draw');
     }
 
-    /**
-     * Tally the entry against its event, splitting the two kinds by element the way the viewer does — the events page
-     * counts routes and waypoints separately, so an index that merged them could not label a card.
-     */
+    // Split by element the way the viewer does: the events page counts routes and waypoints separately, so an index
+    // that merged them could not label a card.
     if (eventId) {
       const tally = eventIndex.get(eventId) || { routes: 0, waypoints: 0 };
       tally[entry.localName === 'trk' ? 'routes' : 'waypoints'] += 1;

@@ -1,12 +1,10 @@
 /**
- * What a GPX file says to the Routes page, and how far a track goes.
+ * What a GPX file says to the Routes page, and how far a track goes. `src/pages/map.tsx` holds the Leaflet map and so
+ * cannot be reached outside a browser, where nothing here wants more than an XML tree.
  *
- * `src/app.ts` holds the Leaflet map and the sidebar and so cannot be reached outside a browser; nothing here wants
- * more of one than an XML tree and the `XMLSerializer` `entryGpx` writes one back out with, both of which
- * `@xmldom/xmldom` answers for under Node (src/testing/xml.ts). The shapes are the viewer's rather than the format's —
- * a `<trk>` becomes something with a `latlngs` Leaflet will draw, where the backup builder's `gpxFavourites` turns the
- * same element into a list of triples PGSharp stores — which is why the two readers are separate and both sit on the
- * primitives in `gpx.ts`.
+ * The shapes are the viewer's rather than the format's — a `<trk>` becomes something with a `latlngs` Leaflet will
+ * draw, where the backup builder's `gpxFavourites` turns the same element into a list of triples PGSharp stores —
+ * which is why the two readers are separate and both sit on the primitives in `gpx.ts`.
  */
 
 import { MIN_TRKPTS } from './gpx-dialect.js';
@@ -91,19 +89,14 @@ export function byKey(a: readonly [string, unknown], b: readonly [string, unknow
 }
 
 /**
- * One file's routes and waypoints, split by element rather than by where it sits: a `<trk>` is a path to walk, a
- * `<wpt>` is one place to stand, and a file may hold either or both.
+ * One file's routes and waypoints, split by element: a `<trk>` is a path to walk, a `<wpt>` one place to stand, and a
+ * file may hold either or both.
  *
- * Name, locality, country, variant and event all come from the file's own metadata; an entry missing what it needs is
- * rejected rather than guessed at, so the gap shows up in the banner instead of quietly reading back the path. Variant
- * and event stay optional — empty for a route with no short/long counterpart and for a place that stands on its own.
+ * Everything comes from the file's own metadata, and an entry missing what it needs is rejected rather than guessed at,
+ * so the gap shows up in the banner instead of quietly reading back the path. Variant and event stay optional.
  *
- * A route also carries itself back out as GPX, which a waypoint does not: the one hands the clipboard a file and the
- * other a coordinate pair, so only the first has a document to write.
- *
- * It takes the parsed tree rather than the file's text for the reason `gpxFavourites` does: `DOMParser` and the
- * `parsererror` it answers a malformed file with are the one part a browser is genuinely needed for, so `loadGpxFile`
- * fetches and parses and this reads.
+ * A route carries itself back out as GPX where a waypoint does not, the one handing the clipboard a file and the other
+ * a coordinate pair. It takes the parsed tree rather than the file's text for the reason `gpxFavourites` does.
  */
 export function gpxEntries(doc: Document): { routes: Route[]; waypoints: Waypoint[] } {
   const routes: Route[] = [];

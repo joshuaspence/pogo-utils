@@ -1,11 +1,9 @@
 /**
- * The detail screen's own text, scrolled to the top: the CP above the artwork, the name or nickname, the HP, the
- * weight, the height and the two type labels. Every field is located by what sits beside it rather than by a
+ * The detail screen's own text, scrolled to the top. Every field is located by what sits beside it rather than by a
  * coordinate, which is what holds across phones of different resolutions.
  *
- * `parseDetail` fills one `Detail` from these text readers and `badges.mts`'s pixel readers, so the two halves of that
- * record are assembled here; and `wholeCp` isolates the CP band against the overlay's near-white thresholds, the CP
- * being white text over artwork exactly as PGSharp's digits are.
+ * `parseDetail` fills one `Detail` from these text readers and `badges.mts`'s pixel readers. `wholeCp` isolates the CP
+ * band against the overlay's near-white thresholds, the CP being white text over artwork as PGSharp's digits are.
  */
 
 import { closest, cpOf, type GameData } from './game-master.mts';
@@ -17,11 +15,9 @@ export interface Detail {
   /** What OCR made of the CP, which is white over the artwork and read on about half the captures. */
   cp: number | null;
   /**
-   * What the CP region reads where no line carrying the label was recognised at all, which is where `cp` is null and
-   * something is on the screen regardless. Not a reading to be trusted — measured over the captures that reach it, it
-   * is right 14 times and wrong twice — so it is never `cp`. It is for narrowing a choice of forms, and only where the
-   * arithmetic reproduces one of these exactly, which is a test both wrong reads fail: `19464` and `5141` are no CP an
-   * Articuno or a Spinda can show.
+   * What the CP region reads where no line carrying the label was recognised at all. Not to be trusted — right 14
+   * times and wrong twice over the captures that reach it — so never `cp`. It is for narrowing a choice of forms, and
+   * only where the arithmetic reproduces one exactly, a test both wrong reads fail.
    */
   cps: number[];
   name: string | null;
@@ -30,8 +26,8 @@ export interface Detail {
   height: number | null;
   types: string[];
   /**
-   * Null where the species has no gender, and where there was no HP line to find the symbol beside: `genderOf` reads no
-   * symbol as no gender, but nothing looks without the HP. A null `hp` beside it says which.
+   * Null where the species has no gender, and where there was no HP line to find the symbol beside. A null `hp` beside
+   * it says which.
    */
   gender: Gender | null;
   favourite: boolean;
@@ -54,14 +50,11 @@ export async function readLines(image: Image): Promise<Line[]> {
 
 /**
  * The small `CP` beside the number is often read with a stray letter after it (`cPe518`), as `GP`, or — the one that
- * cost a capture its whole form — as `ce`. `deoxys-attack.png`'s line reads `ce1441`, with the digits perfectly
- * right and the label's `P` taken for an `e`, so the pattern rejected the one line on the screen that had the CP in
- * it. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
+ * cost a capture its whole form — as `ce`: `deoxys-attack.png` reads `ce1441`, digits perfectly right and the `P`
+ * taken for an `e`. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
  *
- * What it admits is 23 captures, 18 of them reading the CP exactly — and the other five matter, so widening this
- * alone is not the change. `articuno-kanto.png` reads `170` for 1705, `castform-snowy.png` `46` for 746 and
- * `deoxys-defense.png` `15` for 1569, and `wholeCp` recovers all five, `articuno-kanto.png` only at the widest of its
- * pads. The two go together: the label says which line, and the band says the whole number.
+ * It admits 23 captures, 18 reading the CP exactly, and `wholeCp` recovers the other five. The two go together: the
+ * label says which line, the band says the whole number.
  */
 export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
 
@@ -75,16 +68,10 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   const hpLine = lines.find((l) => /hp/i.test(l.text) && hpPattern.test(l.text));
   const hp = hpLine ? Number(hpPattern.exec(hpLine.text)?.[2]) : null;
 
-  // The name is the nearest line above the HP bar; a nickname reads here as readily as a species does, and a player can
-  // set one that is no words at all. Three letters alone is not enough, which is what a species has and `96%` has not:
-  // on the two captures nicknamed that, the nearest line that does is hundreds of pixels back up the screen, PGSharp's
-  // own overlay. Two digits is the other way to be readable.
-  //
-  // Two characters of *anything* is too loose, and the measurement says why rather than the guess: the name sits 117 to
-  // 173 pixels above the HP across the corpus, and what sits nearer than that is the bar's own furniture, read as `os`
-  // or `oy` on five captures at a gap of 57 to 62. Two letters admits those and they win for being nearest. Neither
-  // three letters nor two digits does, and the far wrong answers stay beaten by distance — `96%` at a gap of 173
-  // against `aals/15 +` at 618.
+  // The nearest line above the HP bar; a nickname reads here as readily as a species, and a player can set one that is
+  // no words at all. Three letters or two digits, measured rather than guessed: the name sits 117 to 173 pixels above
+  // the HP across the corpus, and what sits nearer is the bar's own furniture, read as `os` or `oy` on five captures
+  // at a gap of 57 to 62. Two characters of anything admits those and they win for being nearest.
   const nameLine = hpLine
     ? lines
         .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}|\p{N}{2}/u.test(l.text))
@@ -93,15 +80,11 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
     : undefined;
   const name = nameLine ? sanitise(nameLine.text) : null;
 
-  // The name again, off its own band, where what the pass found is no species. A rescue in the sense `wholeCp` is one:
-  // taken only where the band itself names a species, so it can turn a missed name into the name and never one species
-  // into another. `articuno-kanto.png` is the whole of why — no name line is detected there at all, so the nearest
-  // three letters above the HP are a fragment of the artwork 487 pixels up, read as `ate` and filed as a nickname.
-  //
-  // Both halves of that guard are load-bearing, and `ho-oh.png` is what shows the second: its band reads `LUCKY
-  // POKEMON`, the green line the game draws under a lucky Pokémon's nickname, which `closest` rejects as no species.
-  // Without it the rescue would replace a real nickname with that. Measured over the corpus, 40 captures name a species
-  // and never reach this, three do, and of those one is rescued and two keep the nickname they have.
+  // The name again off its own band, where what the pass found is no species. Taken only where the band itself names
+  // one, so it can turn a missed name into the name and never one species into another: `articuno-kanto.png` detects
+  // no name line at all and files a fragment of artwork 487 pixels up as a nickname, where `ho-oh.png`'s band reads
+  // the green `LUCKY POKEMON` line, which `closest` rejects. Over the corpus three captures reach this, one is rescued
+  // and two keep the nickname they have.
   const rescued =
     hpLine && (name === null || closest(name, data.species, (s) => s) === null)
       ? named(image, hpLine, data.species)
@@ -115,20 +98,17 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
 
   const row = lines.find((l) => measurement(l.text));
   // The size badge sits over the height in particular, so that line is found on its own rather than taken from the row
-  // the two share — which is the weight as often as not, since they are read as separate lines at the same height.
+  // the two share — which is the weight as often as not.
   const heightLine = lines.find((l) => HEIGHT.test(l.text));
   const weight = number(WEIGHT) ?? (row ? measured(image, row, 0) : null);
   const height = number(HEIGHT) ?? (row ? measured(image, row, 1 - MEASURE_WIDTH) : null);
 
-  // A badged height is suspect where an unbadged one is not, because the pill's tail descends into the digits it is
-  // drawn over: `spoink.png` renders `1.1m` and the whole-screen pass reads `1.4m`, the tail closing the second `1`
-  // into a `4`. Reading that line on its own answers `1.1m`, which is the same thing that rescues every other field
-  // here — a line read knows it is looking at a line, where the sparse pass is hunting small text among artwork.
+  // A badged height is suspect where an unbadged one is not, the pill's tail descending into the digits it is drawn
+  // over: `spoink.png` renders `1.1m` and the whole-screen pass reads `1.4m`. Reading that line on its own answers
+  // `1.1m`.
   //
-  // Gated on the badge rather than run on every capture, though the measurement says either would be safe: over the 43
-  // captures that state a height, the cropped read agrees with all 43, `spoink.png` among them. Five wear a badge, so
-  // this is five more OCR passes rather than 43. `xurkitree.png` is the control, wearing the same gold `XXL` and
-  // reading correctly either way because there the tail lands in the gap above its `8`.
+  // Gated on the badge rather than run on every capture, though either would be safe — the cropped read agrees with
+  // all 43 heights. Five wear a badge, so this is five more OCR passes rather than 43.
   const badged = heightLine
     ? sizeOf(image, heightLine).then(async (size) => ({
         size,
@@ -136,8 +116,8 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
       }))
     : null;
 
-  // None of these reads waits on another, and `ocr.mts` holds each Tesseract process to one thread so that they can run
-  // side by side, which a screen reaching every rescue, a dozen reads, is the case for.
+  // None of these reads waits on another, and `ocr.mts` holds each Tesseract process to one thread so they can run
+  // side by side — a screen reaching every rescue is a dozen reads.
   const [cpWhole, nameRescued, weightRead, heightRead, sized, cps, types, tags] = await Promise.all([
     whole,
     rescued,
@@ -165,15 +145,13 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
 }
 
 /**
- * Every number the CP region reads where no line carrying the label was found to anchor on, which `wholeCp` needs and
- * these captures cannot give it. `deoxys-normal.png`, `deoxys-speed.png` and `dialga-origin.png` are the reason: each
- * states a CP that separates its form from the others sharing its stamina, and each reads nothing the pattern accepts —
- * `cpe1//2`, nothing at all, and `cp2`.
+ * Every number the CP region reads where no line carrying the label was found to anchor on. Three Deoxys and Dialga
+ * captures are the reason: each states a CP that separates its form from the others sharing its stamina, and each
+ * reads nothing the pattern accepts.
  *
- * Unanchored, so unreliable, and it is handed over as candidates rather than as an answer for exactly that reason: over
- * the 20 captures that reach it this read is right 14 times, wrong twice and silent 4. What makes the wrong two
- * harmless is that a candidate is kept only where the arithmetic reproduces one of these numbers, and `19464` and
- * `5141` are no CP an Articuno or a Spinda can show.
+ * Unanchored and so unreliable — right 14 times, wrong twice and silent 4 over the 20 captures that reach it — which
+ * is why these are candidates rather than an answer. A candidate is kept only where the arithmetic reproduces it, and
+ * `19464` is no CP an Articuno can show.
  */
 async function cpsIn(image: Image): Promise<number[]> {
   const band = crop(
@@ -190,16 +168,12 @@ async function cpsIn(image: Image): Promise<number[]> {
 
 /**
  * The CP again, out of a band round the line the whole-screen pass found, where that pass lost a digit or two off one
- * end of it. White over the artwork is the hardest text on the screen: `castform-snowy.png` reads `46` for 746,
- * `growlithe-nickname.png` `38` for 738, `unown-b.png` `48` for 487, `deoxys-defense.png` `15` for 1569 and
- * `articuno-kanto.png` `170` for 1705.
+ * end. White over the artwork is the hardest text on the screen: five captures read `46` for 746, `38` for 738, `48`
+ * for 487, `15` for 1569 and `170` for 1705.
  *
- * Accepted only where the band's number **begins or ends with** the line's and is longer, which is what makes this a
- * rescue rather than a second opinion: it says the band found more of the same number, not a different one, so a band
- * that misreads outright is rejected for disagreeing. Where the digits are lost is the front or the back, never the
- * middle, and no longer than a CP can be — so a `15` is not rescued into a `2150` or a five-digit `15691`. The line's
- * own answer has to stand otherwise — `castform-sunny.png` reads `979` on the line and nothing at all out of any
- * treatment of its band.
+ * Accepted only where the band's number **begins or ends with** the line's and is longer, which makes this a rescue
+ * rather than a second opinion: it says the band found more of the same number, so a band that misreads outright is
+ * rejected for disagreeing. Bounded by a CP's own length, so a `15` is not rescued into a five-digit `15691`.
  */
 async function wholeCp(image: Image, line: Line, read: string, longest: number): Promise<string | null> {
   for (const reach of CP_PADS) {
@@ -235,13 +209,12 @@ const MEASURE_WIDTH = 0.38;
 
 /**
  * A weight and a height, which the game always writes with a decimal point. Requiring one is what makes these safe to
- * search the whole screen for, and a bare `\d\s*(kg|m)` is not: `09:00` in the status bar reads as `0900 M © Os` and
- * PGSharp's overlay separates three IVs the same way a measurement separates its decimals, so `L16 ɪᴠ53 m 0/7 (B`
- * offers a `53 m`. Both sit above the panel, so a bare pattern matching either puts the size band off the top of the
+ * search the whole screen for, where a bare `\d\s*(kg|m)` is not: the status bar's `09:00` reads as `0900 M © Os` and
+ * PGSharp's overlay offers a `53 m`. Both sit above the panel, so a bare pattern puts the size band off the top of the
  * screen and reports no badge over a gold `XXL`.
  *
- * They are separate because the two are read as separate lines at the same height — `0.97kg` at x 131 and `0.15m` at
- * x 759 — so a caller wanting one of them in particular cannot take it from whichever the row happened to be.
+ * Separate because the two are read as separate lines at the same height — `0.97kg` at x 131 and `0.15m` at x 759 — so
+ * a caller wanting one cannot take it from whichever the row happened to be.
  */
 const WEIGHT = /(\d+[.,]\d+)\s*kg\b/i;
 export const HEIGHT = /(\d+[.,]\d+)\s*m\b/i;
@@ -255,10 +228,10 @@ export const measurement = (text: string) => WEIGHT.test(text) || HEIGHT.test(te
 const sanitise = (text: string) => text.replace(/[^\p{L}\p{N} .'%♀♂:-]/gu, '').trim() || null;
 
 /**
- * The name read off the band between the artwork and the HP bar, and answered only where it is a species' name — which
- * is what makes this safe to prefer over what the whole-screen pass found. The band is measured in the HP's own height
- * rather than in a fraction of the screen, since that is what holds across phones: the name sits 117 to 173 pixels
- * above the HP across the corpus, against an HP line Tesseract reports as 37 to 45 tall, so five of those covers it.
+ * The name read off the band between the artwork and the HP bar, answered only where it is a species' name, which is
+ * what makes it safe to prefer over the whole-screen pass. Measured in the HP's own height rather than a fraction of
+ * the screen, since that is what holds across phones: the name sits 117 to 173 pixels above an HP line Tesseract
+ * reports as 37 to 45 tall, so five of those covers it.
  */
 async function named(image: Image, hp: Line, species: readonly string[]): Promise<string | null> {
   const band = crop(
@@ -274,13 +247,11 @@ async function named(image: Image, hp: Line, species: readonly string[]): Promis
 }
 
 /**
- * A height read off its own line, for when the whole-screen pass read one the size badge had corrupted rather than
- * missing it. Anchored on the line Tesseract already found rather than on a fraction of the screen, and reaching a
- * character's height either side of it so that a leading digit cannot be clipped — the failure
- * `OVERLAY_SUFFIX_CHARACTERS` is there to prevent, one reader along.
+ * A height read off its own line, for when the whole-screen pass read one the size badge had corrupted. Anchored on
+ * the line Tesseract already found and reaching a character's height either side so a leading digit cannot be clipped.
  *
- * `m` is required here where `measured` takes a bare decimal, because this is only ever asked about a height and the
- * crop is wide enough to catch the weight's own digits at the other end of the row.
+ * `m` is required here where `measured` takes a bare decimal, this being only ever asked about a height and the crop
+ * wide enough to catch the weight's digits at the other end of the row.
  */
 async function remeasured(image: Image, line: Line): Promise<number | null> {
   const band = crop(
@@ -298,9 +269,9 @@ async function remeasured(image: Image, line: Line): Promise<number | null> {
 
 /**
  * The weight or the height read off its own end of the row they share, for when the whole-screen pass missed it. The
- * number rather than the unit is what is matched, because the unit is the part that goes: a Cyndaquil's `5.42kg` came
- * back as `5.42k` and was rejected for want of a `g`. A decimal point is what makes a bare number safe to take — every
- * weight and height the game shows carries one, and the stray digits this crop picks up out of the artwork do not.
+ * number rather than the unit, the unit being the part that goes: a Cyndaquil's `5.42kg` came back `5.42k`. A decimal
+ * point is what makes a bare number safe to take, every weight and height carrying one where stray artwork digits do
+ * not.
  */
 async function measured(image: Image, row: Line, from: number): Promise<number | null> {
   const band = crop(
@@ -321,22 +292,19 @@ const TYPE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ/ ';
 
 /**
  * The types, read off the row of labels under the weight rather than out of the whole-screen pass. That row is small
- * grey capitals and the sparse pass mangles it — `WEIGHT` comes back as `EI` and a `T`, and the type between them
- * usually not at all, which measured **6 of 25** on a corpus of real screens. Found by the weight and read on its own
- * at double size it measured **24 of 25**, and it recovers the second type as well, where the whole-screen pass had
- * been reporting `ice` for a Pokémon that is `Ice / Flying`.
+ * grey capitals and the sparse pass mangles it, measuring **6 of 25** on real screens; found by the weight and read on
+ * its own at double size it measured **24 of 25**, and recovers the second type where the pass had been reporting
+ * `ice` for a Pokémon that is `Ice / Flying`.
  *
- * This is worth more than one column: the types are what narrow a species' candidates to a form, so a missing pair is
- * the difference between naming a form and answering `could also be Meganium, Sunkern, Treecko, …`.
+ * Worth more than one column: the types are what narrow a species' candidates to a form.
  */
 async function typesOf(lines: readonly Line[], data: GameData, image: Image): Promise<string[]> {
   const names = new Map(data.types.map((t) => [fold(t), t]));
 
-  // A type name matched across whatever spaces Tesseract put inside it, but only where it begins at a word boundary. An
-  // exact word match loses a name the reader split: a type band read as `IT POISO N`, where neither `poiso` nor `n` is
-  // a type and the pair plainly is, would read as no type at all. The word boundary is what keeps this from being a
-  // free substring search, since `WEIGH TICE` would otherwise invent an `ice` out of the label beside them. No type
-  // name prefixes another, so the first that fits a given start is the only one that can.
+  // Matched across whatever spaces Tesseract put inside a name, but only where it begins at a word boundary. An exact
+  // word match loses a name the reader split, as `IT POISO N` is; the boundary is what keeps this from being a free
+  // substring search, `WEIGH TICE` otherwise inventing an `ice`. No type name prefixes another, so the first that fits
+  // a given start is the only one that can.
   const found = (text: string) => {
     const words = fold(text).split(' ').filter(Boolean);
 
@@ -353,9 +321,9 @@ async function typesOf(lines: readonly Line[], data: GameData, image: Image): Pr
   const beside = lines.find((l) => measurement(l.text));
 
   if (beside) {
-    // Generous, because the band is measured in the anchor's own height and the two anchors do not report the same
-    // one: `0.44m` came back 45 tall where `5.42kg` beside it came back 58, and a band sized off the shorter of them
-    // ended six pixels into the labels and lost a Cyndaquil's `FIRE`. The alphabet keeps the digits above out of it.
+    // Generous, because the band is measured in the anchor's own height and the two anchors disagree: `0.44m` came
+    // back 45 tall where `5.42kg` beside it came back 58, and a band sized off the shorter ended six pixels into the
+    // labels and lost a Cyndaquil's `FIRE`. The alphabet keeps the digits above out of it.
     const band = crop(
       image,
       image.width * 0.25,
@@ -391,21 +359,17 @@ const cpDigits = (data: GameData) => {
 };
 
 /**
- * Where the CP sits when no line carrying its label was recognised, as fractions of the screen — the one place here
- * that has no anchor to measure from, because what would anchor it is the label the pass failed to read. It is inside
- * the top fifth `readLines` already inverts for this text, so it is the region that pass covers rather than a new claim
- * about a phone, and the numbers come from where the label-bearing lines on the captures that do read one are found:
+ * Where the CP sits when no line carrying its label was recognised — the one place here with no anchor to measure
+ * from, what would anchor it being the label the pass failed to read. Inside the top fifth `readLines` already inverts
+ * for this text, and the numbers come from where the label-bearing lines are found on the captures that do read one:
  * top 123 and 127 of 2244, against a band spanning 0.055 to 0.09.
  */
 const CP_SWEEP = { x: 0.3, y: 0.055, width: 0.4, height: 0.035 };
 
 /**
- * How far round the line the CP band reaches, in that line's own heights, in the order to try. Two rather than one
- * because neither suits every capture, and the acceptance rule in `wholeCp` makes trying both safe.
- *
- * 0.35 is what four of the corpus's five rescues read at, and 0.6 is what reaches a digit lost off the *back* of a
- * longer number: `articuno-kanto.png` reads `170` for 1705 at 0.35 and `1705` only at 0.6. A single wider pad will not
- * do instead, because `deoxys-defense.png` reads `1569` at 0.35 and loses it at 0.6 — so this is a list, like the
- * treatments it multiplies, and the first reading that extends the line's own wins.
+ * How far round the line the CP band reaches, in that line's own heights, in the order to try. Two because neither
+ * suits every capture, and `wholeCp`'s acceptance rule makes trying both safe: 0.35 is what four of the five rescues
+ * read at, where `articuno-kanto.png` needs 0.6 to reach a digit lost off the back. A single wider pad will not do,
+ * `deoxys-defense.png` reading `1569` at 0.35 and losing it at 0.6.
  */
 const CP_PADS = [0.35, 0.6];

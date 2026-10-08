@@ -5,22 +5,17 @@
  */
 
 /**
- * The species whose name its constant cannot be spelled back out of. A constant drops the punctuation the games write a
- * name with or turns it into an underscore, and that underscore stands for something different every time: a space in
- * `IRON_HANDS`, a hyphen in `HO_OH`, a full stop and a space in `MR_MIME`, a colon and one in `TYPE_NULL`, and in
- * `NIDORAN_F` a symbol no keyboard has. `FARFETCHD` and `FLABEBE` lost a character outright. Nothing can derive those
- * back, so these eighteen are written out and every other name is derived from its constant.
+ * The species whose name its constant cannot be spelled back out of. An underscore stands for something different
+ * every time — a space in `IRON_HANDS`, a hyphen in `HO_OH`, a full stop and a space in `MR_MIME`, a symbol no
+ * keyboard has in `NIDORAN_F` — and `FARFETCHD` and `FLABEBE` lost a character outright. So these eighteen are written
+ * out and every other name is derived from its constant.
  *
- * Each is the name the game itself displays, from PokeMiners' string table — `pokemon_name_0250` is `Ho-Oh` — checked
- * against pokemondb's GO Pokédex, which agrees on all eighteen except for writing that one `Ho-oh` in one of the two
- * attributes it carries the name in.
+ * Each is the name the game displays, from PokeMiners' string table, checked against pokemondb's GO Pokédex. An entry
+ * whose constant `pokedex.js` has since renamed leaves that species named the way its constant reads, which is a name
+ * looking odd rather than a page that fails.
  *
- * An entry whose constant `pokedex.js` has since renamed leaves that species named the way its constant reads, which is
- * a name looking odd rather than a page that fails — worth knowing when one here looks wrong.
- *
- * Keyed by `string` rather than by the constants it holds, so that `nameOf` takes any constant and answers from the
- * table or from `titleise`. Naming them would make the fallback unreachable to the checker and every correction here a
- * type edit, where the point of the `??` is that a constant absent from this table is the ordinary case.
+ * Keyed by `string` rather than by the constants it holds, so `nameOf` takes any constant and answers from the table
+ * or from `titleise`; naming them would make the fallback unreachable to the checker.
  */
 const SPELLINGS: Record<string, string> = {
   NIDORAN_F: 'Nidoran♀',
@@ -96,7 +91,7 @@ export const formNameOf = (form: string): string => FORM_SPELLINGS[form] ?? titl
  * Separators go the same way as the punctuation rather than becoming spaces, because a hyphen is read both ways and one
  * fold has to answer both: `Porygon-Z` is typed `porygon z` as readily as `porygonz`, and `Ho-Oh` as `ho oh` or `hooh`.
  * Both consumers only ask whether the folded name contains the folded query — `indexOf` for whether it is a prefix in
- * `search/species.ts`, `includes` in `pokedex/page.ts` — so nothing reads an offset back into the unfolded name and
+ * `search/species.ts`, `includes` in `pokedex/state.ts` — so nothing reads an offset back into the unfolded name and
  * dropping a character cannot misplace anything.
  */
 export const fold = (name: string): string =>

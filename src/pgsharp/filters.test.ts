@@ -1,14 +1,11 @@
 /**
- * What PGSharp's nearby feed is told to look for. Each of these objects becomes one JSON string inside the backup, so
- * the contract is the string: the field *order* is as much a part of it as the values, and `JSON.stringify` writes keys
- * in insertion order. That makes the spreads load-bearing — an override sets a field's value where the base put it,
- * while a field declared only in an override appends itself — and nothing about getting that wrong surfaces as an
- * error. The backup writes, the device reads it, and a feed goes quiet.
+ * What PGSharp's nearby feed is told to look for. Each object becomes one JSON string inside the backup, so the field
+ * *order* is as much the contract as the values, `JSON.stringify` writing keys in insertion order. That makes the
+ * spreads load-bearing, and nothing about getting it wrong surfaces as an error: the backup writes, the device reads
+ * it, and a feed goes quiet.
  *
- * The species lists are the other half, and they fail the same way round: a filter naming a species the wild never
- * turns up is a feed that will never alert, which is indistinguishable from one that is simply waiting. So the tests
- * below weigh every filter rather than sampling, and each pins the shape of the data its case needs — `filters/*.ts`
- * lands on `master` as data, so a case about a particular form says which form and fails loudly when it moves.
+ * The species lists fail the same way round — a filter naming a species the wild never turns up is a feed that will
+ * never alert, indistinguishable from one simply waiting. So these weigh every filter rather than sampling.
  */
 
 import { expect, test } from 'vitest';
