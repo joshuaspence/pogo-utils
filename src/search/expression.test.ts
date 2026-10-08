@@ -18,7 +18,7 @@
 
 import { expect, test } from 'vitest';
 
-import { CLAUSES, expand } from './expression.js';
+import { CLAUSES, NESTING, expand } from './expression.js';
 
 /** A search as the test means it, before either of the two ways of writing it below. */
 type Tree = string | { all: readonly Tree[] } | { any: readonly Tree[] } | { not: Tree };
@@ -233,6 +233,36 @@ test('an unclosed bracket and an unopened one are told apart', () => {
   expect(expand('shiny)').error).toContain('`)`');
 });
 
+test('a token with nowhere to go is named for what it is, rather than blamed on a bracket', () => {
+  // Every parenthesis in `(shiny,lucky)(fire,water)` is paired. What is missing is the operator between the two groups,
+  // and a reader expecting one group beside another to mean AND — as several search syntaxes do — was being pointed at
+  // a `)` that was perfectly fine and told nothing about the `&`.
+  for (const text of ['(shiny,lucky)(fire,water)', '(shiny)lucky', 'shiny!lucky']) {
+    expect({ text, error: expand(text).error }).toEqual({ text, error: expect.stringContaining('`&`') });
+  }
+
+  expect(expand('(shiny)lucky').error).toContain('`lucky`');
+  expect(expand('shiny!lucky').error).toContain('`!`');
+
+  // The stray closing bracket keeps the message that is true of it, which is the case the pair above tells apart.
+  expect(expand('shiny)').error).not.toContain('`&`');
+});
+
+test('a tree deeper than the limit is refused in words rather than by the stack', () => {
+  // A `!` and a `(` each turn through `literal`, so each counts. Ten thousand of either came back as V8's own
+  // `Maximum call stack size exceeded`, which was then rendered to the reader as the reason Copy was refused.
+  const nested = (count: number) => '('.repeat(count) + 'shiny' + ')'.repeat(count);
+
+  for (const text of ['!'.repeat(NESTING + 1) + 'shiny', nested(NESTING + 1), '!'.repeat(10_000) + 'shiny']) {
+    expect(expand(text).error).toContain(String(NESTING));
+  }
+
+  // One shy of the limit still reads, so it is not quietly refusing anything a reader could have meant. An even number
+  // of negations is none, which is the same cancelling the double negative above is tested on.
+  expect(clausesOf('!'.repeat(NESTING) + 'shiny')).toEqual(['shiny']);
+  expect(clausesOf(nested(NESTING))).toEqual(['shiny']);
+});
+
 test('`|` is refused rather than read as either of the two things it is taken for', () => {
   const { clauses, error } = expand('shiny|lucky');
 
@@ -240,13 +270,32 @@ test('`|` is refused rather than read as either of the two things it is taken fo
   expect(error).toContain('`|`');
 });
 
-test('an expression that spreads past the cap is refused rather than built', () => {
-  // The smallest number of OR'd pairs whose product is past the cap, so a cap moved either way moves these two with it.
-  const over = Math.floor(Math.log2(CLAUSES)) + 1;
-  const pairs = (count: number) => Array.from({ length: count }, (_, index) => `(a${index}&b${index})`).join(',');
+/** `count` OR'd pairs of terms unique to `group`, which spread to two to the power of `count` clauses between them. */
+const pairs = (count: number, group = 0) =>
+  Array.from({ length: count }, (_, index) => `(g${group}a${index}&g${group}b${index})`).join(',');
 
-  expect(expand(pairs(over)).error).toContain(String(CLAUSES));
-  expect(clausesOf(pairs(over - 1))).toHaveLength(2 ** (over - 1));
+/** The most OR'd pairs that still fit inside the cap, and so the largest building block a test can lay end to end. */
+const UNDER = Math.floor(Math.log2(CLAUSES));
+
+test('an expression that spreads past the cap is refused rather than built', () => {
+  // Derived from the cap rather than transcribed, so a cap moved either way moves both of these with it.
+  expect(expand(pairs(UNDER + 1)).error).toContain(String(CLAUSES));
+  expect(clausesOf(pairs(UNDER))).toHaveLength(2 ** UNDER);
+});
+
+test('the cap bounds the whole tree rather than the one node it is checked in', () => {
+  // An `any` multiplies and an `all` sums, so a check inside the product could only ever bound one group. Two groups
+  // each inside the cap are over it between them, and twenty of them spread to 10,240 clauses and half a megabyte of
+  // query with nothing said about it.
+  const groups = (count: number) => Array.from({ length: count }, (_, group) => `(${pairs(UNDER, group)})`).join('&');
+
+  expect(clausesOf(groups(1))).toHaveLength(2 ** UNDER);
+
+  for (const count of [2, 20]) {
+    const { clauses, error } = expand(groups(count));
+
+    expect({ count, clauses, says: error?.includes(String(CLAUSES)) }).toEqual({ count, clauses: [], says: true });
+  }
 });
 
 /*
@@ -283,4 +332,20 @@ test('a term the game reads properly is not named, negated or otherwise', () => 
 test('a negation turned over twice is no negation and is not named', () => {
   expect(expand('!(!1hp)').mishandled).toEqual([]);
   expect(clausesOf('!(!1hp)')).toEqual(['1hp']);
+});
+
+test('a negation the composed string does not carry is not named', () => {
+  /*
+   * The distribution writes a `!1hp` in both of these and then throws away the clause holding it — the first as a
+   * clause true of everything, the second as one `shiny` already covers. Naming it anyway put "`!1hp` — the game
+   * ignores a negation on an IV term" beside a string with no `!1hp` anywhere in it, which is the opposite of what
+   * `search.tsx` says these notes are for: *what is worth warning about is what the string ended up saying*.
+   */
+  expect(expand('legendary,!(legendary&1hp)')).toEqual({ clauses: [], error: null, mishandled: [] });
+  expect(expand('shiny&(shiny,!1hp)')).toEqual({ clauses: ['shiny'], error: null, mishandled: [] });
+
+  // The same term in a clause that does survive is still named, so this has not simply turned the warning off.
+  expect(expand('shiny&(lucky,!1hp)').mishandled).toEqual([
+    { term: '!1hp', note: expect.stringContaining('ignores a negation') },
+  ]);
 });
