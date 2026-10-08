@@ -577,6 +577,12 @@ async function scan() {
     id: Identity;
     key: string | null;
     image: Image;
+    /**
+     * How much of this reading is in doubt, as a count to be got to zero. Recorded with the reading rather than worked
+     * out again when two are compared: `overlayBox` is found part way through a pass, and a score that moved with it
+     * would rank an earlier attempt differently for what a later one went on to learn.
+     */
+    faults: number;
   }
 
   /**
@@ -627,8 +633,34 @@ async function scan() {
    * — a single bad read costs a whole member of a flag pass, and a member missed there is a Pokémon the full pass will
    * never learn was in the search. An `xxl` pass over a search the game said held five marked four, and the one it
    * dropped was the only one of them the full pass went on to read.
+   *
+   * A note `identify` raised is worth another look as well, and it is the only one of them that says the screen read
+   * *whole* and wrongly: a CP the settled form and level do not derive, a level shortlist no HP can be, a form the
+   * overlay names that no species has. What says a second read of the same Pokémon is worth taking is the corpus having
+   * been retaken — which captures misread their CP changed with it, three before and two after, so a misread is a
+   * property of the capture as much as of the reader. `screens.test.mts` pins which nine of its 43 captures raise a
+   * note, and that every one of the nine is a row carrying a `defects`.
+   *
+   * Which is nine of the thirteen defects that file pins, and not the other four: those are the readers that answer
+   * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, an
+   * artwork match that declined two of Burmy's cloaks, and an `XS` read off an `XXS` badge. Nothing here can be the
+   * check for those; only a second reader of the same thing could be.
+   *
+   * `could also be …` is counted with the rest, so a form the screen cannot separate costs every attempt for nothing.
+   * That is one capture of the 43, and it is a defect rather than an ambiguity: `castform-rainy.png` is
+   * answered as **Inteleon**, deriving CP 1512 for the 832 on its screen — the one wrong label in the corpus that names
+   * a different species, its nickname having sent the search across every species, and that note is the only one it
+   * raises. Leaving the note out would leave that out with it.
+   *
+   * The best of the attempts is kept rather than the last, which is what keeps the stricter test from costing a row: a
+   * second read of the same screen can come back worse, and one whose HP goes unread has no key at all — three of those
+   * in a row stop the pass. The *last* of equals, though, so that attempts of one quality come back as they always did:
+   * the screenshot handed back is the first frame of the scroll capture, and a stale frame is the very thing
+   * `scrollFrames` takes the caller's own screenshot to avoid.
    */
   const readDetail = async (): Promise<Reading> => {
+    let best: Reading | null = null;
+
     for (let attempt = 0; ; attempt++) {
       const image = await settled(device);
       const detail = await parseDetail(await readLines(image), data, image);
@@ -637,13 +669,24 @@ async function scan() {
       const overlay = detail.hp === null ? null : await overlayOf(image);
       const key = keyOf(detail, overlay);
       const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
-      // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
-      // every Pokémon on a phone that is not running PGSharp. A form that fits is the other half: the name, the types,
-      // the HP and the IVs agreeing is what a half-read screen cannot fake, and is a surer test than any one of them.
-      const whole = key !== null && (overlay !== null || overlayBox === null) && id.form !== null;
 
-      if (whole || attempt === READ_ATTEMPTS - 1) {
-        return { detail, overlay, id, key, image };
+      // The overlay's clause is the conditional one: where no box has been found at all there is nothing to wait for,
+      // and insisting would cost three reads of every Pokémon on a phone that is not running PGSharp. A form that fits
+      // is the surest of the four, the name, the types, the HP and the IVs agreeing being what a half-read screen
+      // cannot fake.
+      const faults =
+        Number(key === null) +
+        Number(overlay === null && overlayBox !== null) +
+        Number(id.form === null) +
+        id.notes.length;
+      const reading = { detail, overlay, id, key, image, faults };
+
+      if (best === null || faults <= best.faults) {
+        best = reading;
+      }
+
+      if (best.faults === 0 || attempt === READ_ATTEMPTS - 1) {
+        return best;
       }
 
       await sleep(config.waits.swipe);

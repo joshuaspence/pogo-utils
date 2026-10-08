@@ -846,6 +846,17 @@ const overlayOf = (fixture: Fixture) => {
   return { boxed, legible, levels: defects.levels ?? (legible ? [legible.level] : []) };
 };
 
+/**
+ * The notes a row claims `identify` answers: the ones it pins, or the `could also be …` one derived from its
+ * alternatives where it pins none. A function for the reason `overlayOf` is one — the test naming which captures a
+ * scan would read again counts the same thing, and two copies would be free to disagree about what the corpus holds.
+ */
+const notesOf = (fixture: Fixture) => {
+  const alternatives = fixture.defects?.alternatives ?? [];
+
+  return fixture.defects?.notes ?? (alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []);
+};
+
 for (const fixture of FIXTURES) {
   const defects = fixture.defects ?? {};
 
@@ -860,7 +871,7 @@ for (const fixture of FIXTURES) {
 
   const { boxed, legible, levels } = overlayOf(fixture);
   const alternatives = defects.alternatives ?? [];
-  const notes = defects.notes ?? (alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []);
+  const notes = notesOf(fixture);
 
   // A `describe` rather than one test with eighteen subtests inside it, because Vitest collects a file's tests
   // synchronously and so cannot be handed a test registered after an `await`. Each attribute therefore reads the
@@ -1277,6 +1288,41 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
   // rows another has already claimed and the three could all be right while summing to the wrong thing.
   expect(COVERAGE.oneLevel + COVERAGE.severalLevels + COVERAGE.noLevel).toBe(COVERAGE.rows);
   expect(COVERAGE.crossCheckAgrees + COVERAGE.crossCheckDisagrees).toBe(COVERAGE.oneLevel);
+});
+
+/**
+ * Which of the pinned defects a scan can find for itself, which is what `scripts/inventory.mts` reads a screen again
+ * on: a note is the readers contradicting each other, and a scanner with the phone still on the Pokémon takes another
+ * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
+ * phone says what the Pokémon was.
+ *
+ * Nine of the 43, and the claim is not the count but that every one of the nine is a row carrying a `defects`: the
+ * trigger therefore costs an extra read on a defect and on nothing else. A capture that starts raising a note without
+ * earning a `defects` entry fails here instead of quietly tripling that Pokémon's reads for ever.
+ *
+ * The four it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it.
+ * Each is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses
+ * Basculin's two stripes, no icon signature recorded for either; the artwork declines two of Burmy's three cloaks and
+ * the fold collapses those as well, an abstention costing nothing and fixing nothing; and `smoliv.png`'s `XXS` badge
+ * reads `XS` against nothing at all, the size pill being the one field here no other reader derives. No number of
+ * further reads can find those, so a scan cannot either — only a second reader of the same thing could.
+ */
+test('the defects a scan can find for itself are the nine captures that raise a note', () => {
+  const noted = FIXTURES.filter((f) => notesOf(f).length > 0);
+
+  // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
+  // all produces — which is the trigger switched off and nothing saying so.
+  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(9);
+
+  expect(
+    noted.filter((f) => f.defects === undefined).map((f) => f.file),
+    'a capture raises a note and pins no defect, so a scan would read it again for nothing',
+  ).toStrictEqual([]);
+
+  expect(
+    FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
+    'a pinned defect that raises no note is one a scan cannot read again on',
+  ).toStrictEqual(['basculin-blue.png', 'burmy-sandy.png', 'burmy-trash.png', 'smoliv.png']);
 });
 
 /**
