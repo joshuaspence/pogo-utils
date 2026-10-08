@@ -64,20 +64,21 @@
  * LFS. What went with them and could not follow is `parseDetail` on an entry screen: that the type icons come back and
  * every other field stays absent needed a real one.
  *
- * **Twelve rows carry a `defects`, over four readers.** A reader that disagrees is pinned here rather than fixed here,
+ * **Eleven rows carry a `defects`, over four readers.** A reader that disagrees is pinned here rather than fixed here,
  * a fix being a change to what the code does and so a pull request of its own, and the corpus test asserts which keys
  * are in use, so a disagreement arriving or leaving is reported.
  *
- * One of the twelve is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
+ * One of the eleven is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
  * screen cannot separate at all, Basculin's stripes sharing their stats, types and moves with no icon signature
  * recorded, so the fold answers `Basculin (Red Striped)` with nothing beside it saying that was a choice.
  *
- * The other eleven are readers answering something the screen does not say, and each is a capture away from being a bug
+ * The other ten are readers answering something the screen does not say, and each is a capture away from being a bug
  * report. `readOverlay` is the worst of them: it reads `10/4/13` for `articuno-galar.png`'s `12/4/13` and `3/13/3` for
  * `rotom-wash.png`'s `13/3/1`, and a wrong triple carries a wrong level and a wrong derived CP behind it, which is why
- * those two rows pin four keys apiece. The artwork match declines the Sandy and Trash cloaks, so `identify` folds
- * `Burmy (Plant)` for both. `levelsOf` offers a shortlist containing no level the HP can be on four captures, each
- * reporting it as a note it need not have raised. `wholeCp` loses the leading digit on `growlithe-nickname.png`, `38`
+ * those two rows pin four keys apiece. The artwork match declines Cherrim's Overcast, so `identify` folds
+ * `Cherrim (Sunny)` for it — and its nearest icon is the Sunny one, so `MARGIN` is all that keeps that a fold rather
+ * than an answer. `levelsOf` offers a shortlist containing no level the HP can be on four captures, each reporting it
+ * as a note it need not have raised. `wholeCp` loses the leading digit on `growlithe-nickname.png`, `38`
  * for 738, where the band rescue recovers such a line everywhere else. And `castform-rainy.png` is answered as
  * **`Inteleon`**, deriving CP 1512 for the 832 on its screen — the severe one, and the shape the Charizard that read as
  * Ho-Oh had before the corpus was taken again.
@@ -366,7 +367,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 196,
-    defects: { label: 'Burmy (Plant)' },
     file: 'burmy-sandy.png',
     form: 'Sandy',
     gender: 'female',
@@ -379,7 +379,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 47,
-    defects: { label: 'Burmy (Plant)' },
     file: 'burmy-trash.png',
     form: 'Trash',
     gender: 'male',
@@ -477,6 +476,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1025,
+    defects: { label: 'Cherrim (Sunny)' },
     file: 'cherrim-overcast.png',
     form: 'Overcast',
     gender: 'male',
@@ -1431,13 +1431,13 @@ test('every stitch carries a `Viewport` smaller than itself, and no screen carri
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 39,
+  answeredAsThemselves: 40,
   oneLevel: 43,
   crossCheckAgrees: 40,
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 31,
+  noDefects: 32,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1480,11 +1480,11 @@ test('the corpus is the shape the docblock says it is', () => {
  * trigger therefore costs an extra read on a defect and on nothing else. A capture that starts raising a note without
  * earning a `defects` entry fails here instead of quietly tripling that Pokémon's reads for ever.
  *
- * The three it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it.
- * Each is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses
- * Basculin's two stripes, no icon signature recorded for either, and the artwork declines two of Burmy's three cloaks
- * so the fold collapses those as well — an abstention costing nothing and fixing nothing. No number of further reads
- * can find those, so a scan cannot either; only a second reader of the same thing could.
+ * The two it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it. Each
+ * is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses Basculin's
+ * two stripes, no icon signature recorded for either, and the artwork declines Cherrim's Overcast so the fold collapses
+ * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
+ * scan cannot either; only a second reader of the same thing could.
  */
 test('the defects a scan can find for itself are the nine captures that raise a note', () => {
   const noted = FIXTURES.filter((f) => notesOf(f).length > 0);
@@ -1501,7 +1501,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
     'a pinned defect that raises no note is one a scan cannot read again on',
-  ).toStrictEqual(['basculin-blue.png', 'burmy-sandy.png', 'burmy-trash.png']);
+  ).toStrictEqual(['basculin-blue.png', 'cherrim-overcast.png']);
 });
 
 /**
@@ -2055,17 +2055,21 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * that gained one answer and lost another cannot come out even, and one that answered wrong fails it as surely as one
  * that answered nothing.
  *
- * Three of the five are answered and two are declined, which is both halves rather than one: `MARGIN` mattering is now
+ * Four of the five are answered and one is declined, which is both halves rather than one: `MARGIN` mattering is
  * something this would notice, where on the captures it was first written against every one was answered and the margin
  * could have been 0 unremarked.
  *
- * The two that decline are the Sandy and Trash cloaks, and the decline is the match's own doing rather than stale data
- * here — `ARTWORK` holds signatures of the game's icons, which no capture can move, so what changed is the signature
- * the capture yields. Their rows carry `defects.label` saying what `identify` then answers: `Burmy (Plant)` for both,
- * the fold's first cloak, with nothing beside it saying that was a choice.
+ * The one that declines is Cherrim's Overcast, and what it declines over is worth more than the count: its nearest icon
+ * is **Sunny**, the wrong one, leading by 0.229. So `MARGIN` is the whole of what stands between this and a confidently
+ * wrong answer, and the headroom it has is 0.058 — the gap to `ho-oh.png`'s 0.171, which is the widest lead a wrong
+ * icon takes anywhere in the corpus. The row carries `defects.label` saying what `identify` then answers:
+ * `Cherrim (Sunny)`, the fold's shorter name, with nothing beside it saying that was a choice.
+ *
+ * `ARTWORK` holds signatures of the game's own icons, which no capture can move, so what decides an answer here is the
+ * signature the capture yields — and that is what `panelTop` moved when it stopped running past the panel.
  */
 test(
-  'the artwork settles three of five forms the numbers cannot, and declines two',
+  'the artwork settles four of five forms the numbers cannot, and declines one',
   async () => {
     const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
@@ -2099,9 +2103,9 @@ test(
 
     expect(Object.fromEntries(answers)).toStrictEqual({
       'burmy-plant.png': 'Burmy (Plant)',
-      'burmy-sandy.png': 'declined',
-      'burmy-trash.png': 'declined',
-      'cherrim-overcast.png': 'Cherrim (Overcast)',
+      'burmy-sandy.png': 'Burmy (Sandy)',
+      'burmy-trash.png': 'Burmy (Trash)',
+      'cherrim-overcast.png': 'declined',
       'cherrim-sunshine.png': 'Cherrim (Sunny)',
     });
   },

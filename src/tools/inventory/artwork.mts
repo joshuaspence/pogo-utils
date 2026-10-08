@@ -18,12 +18,12 @@
  * the mask from them would flood it with the backdrop's colour.
  *
  * **Judge it on the margin.** Seventeen committed captures fall in a family the artwork can reach, and at `MARGIN` the
- * match answers five of them — the three Burmy and the two Cherrim — and is right on all five. Ten of the twelve it
- * declines are nearest an icon that is not their own: the four Unown nearest `D` by 0.049, `ho-oh.png` nearest the `S`
- * form by 0.171, and four Pikachu and `charizard-gigantamax.png` nearest their clone's icon by 0.005 or less. So the
- * margin is what stands between the match and being confidently wrong ten times. An abstention costs nothing and fixes
- * nothing: `identify`'s fold still collapses the rivals silently, so a declined call is exactly as wrong as it was
- * before and no louder.
+ * match answers four of them — the three Burmy cloaks and Cherrim's Sunny — and is right on all four. Eleven of the
+ * thirteen it declines are nearest an icon that is not their own: the four Unown nearest `D` by 0.049 to 0.053,
+ * `cherrim-overcast.png` nearest the Sunny cloak by 0.229, `ho-oh.png` nearest the `S` form by 0.190, and four Pikachu
+ * and `charizard-gigantamax.png` nearest their clone's icon by 0.005 or less. So the margin is what stands between the
+ * match and being confidently wrong eleven times. An abstention costs nothing and fixes nothing: `identify`'s fold
+ * still collapses the rivals silently, so a declined call is exactly as wrong as it was before and no louder.
  */
 
 import { join } from 'node:path';
@@ -42,9 +42,14 @@ const BINS = 12;
 const SATURATION = 0.35;
 const VALUE = 0.2;
 
-/** The flat grey the game draws its panel in, which is what the artwork stands on and where it stops. */
-const PANEL = 224;
-const PANEL_TOLERANCE = 12;
+/**
+ * What the game's panel is, as the two things that hold whatever it is drawn in: neutral, and brighter than the scene
+ * behind the artwork. A level written down instead does not hold — `genderOf` says the same thing about the same panel
+ * and for the same reason. Written down as 224 it matched no row of any capture in the corpus, the panel being
+ * rgb(255,255,255) on all 43, and `panelTop` then ran on past it to a grey divider 600 rows into the panel.
+ */
+const PANEL_FLOOR = 200;
+const PANEL_SPREAD = 6;
 
 /** How much of a row has to be panel for that row to be the top of it, and where to look for it. */
 const PANEL_FILL = 0.9;
@@ -66,10 +71,13 @@ const GROW = 6;
 
 /**
  * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
- * captures anything from 0.18 to 0.48 is right wherever it answers: the widest lead a wrong icon takes is `ho-oh.png`'s
- * 0.171, and the narrowest right answers lead by 0.19 (`basculin-blue.png`) and 0.49 (`burmy-sandy.png`). This sits
- * above the first at the cost of declining `basculin-blue.png`, because abstaining is cheap and being confidently wrong
- * is not.
+ * captures anything above 0.229 and at or below 0.531 is right wherever it answers: the widest lead a wrong icon takes
+ * is `cherrim-overcast.png`'s 0.229 for the Sunny cloak, and the narrowest right answer leads by 0.531
+ * (`burmy-sandy.png`). 0.3 sits inside that window with 0.071 of headroom over the first, which is the figure to watch
+ * — it was 0.129 against `ho-oh.png`'s 0.171 before the Cherrim wrong answer appeared.
+ *
+ * What no margin reaches any more is `basculin-blue.png`, whose own stripe leads by 0.142: that is under three of the
+ * wrong leads above it, so admitting it would admit them. Its row pins the fold's answer instead.
  */
 export const MARGIN = 0.3;
 
@@ -77,7 +85,7 @@ export const MARGIN = 0.3;
  * How many pixels have to carry a hue before the signature is worth comparing. Sampling alone moves a twelve-bin
  * histogram of a thousand pixels by about 0.08 from the colours they were drawn from, and one of a hundred by about
  * 0.27, which is most of `MARGIN`: a few stray pixels would lead by a margin they had not earned. The fewest any
- * capture is answered on is `burmy-trash.png`'s 4,115.
+ * capture is answered on is `burmy-trash.png`'s 4,858.
  */
 const COUNTED = 1000;
 
@@ -96,11 +104,7 @@ function panelTop(image: Image): number {
     for (let x = from; x < to; x += 4) {
       const [r, g, b] = rgb(image, x, y);
 
-      if (
-        Math.abs(r - PANEL) <= PANEL_TOLERANCE &&
-        Math.abs(g - PANEL) <= PANEL_TOLERANCE &&
-        Math.abs(b - PANEL) <= PANEL_TOLERANCE
-      ) {
+      if (r >= PANEL_FLOOR && Math.abs(r - g) <= PANEL_SPREAD && Math.abs(g - b) <= PANEL_SPREAD) {
         flat++;
       }
     }
