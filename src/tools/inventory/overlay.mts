@@ -72,10 +72,14 @@ const OVERLAY_BRIGHTNESS_HIGH = 180;
  * three are here and why the percentage below arbitrates between them.
  *
  * Near-white first, because that is what every reading was measured against. What it costs is the thin strokes: the
- * chroma ceiling clips the anti-aliased edge of a leading `1`, so `articuno-galar.png` reads `2/4/13` for `12/4/13`,
- * `xurkitree.png` loses its attack entirely at `/2/14`, and `cherrim-overcast.png` yields nothing at any band at all.
- * Brightness alone reads all three correctly — and misses `unown-question.png`, whose level, percentage and IVs run
- * together at 120 as `657412/1001`, and which near-white reads. So it is a second opinion rather than a replacement.
+ * chroma ceiling clips the anti-aliased edge of a leading `1`, so `articuno-galar.png` reads `10/4/13` for its
+ * `12/4/13`. Brightness is a second opinion rather than a replacement — it misses `unown-question.png`, whose level,
+ * percentage and IVs run together at 120 as `657412/1001`, and which near-white reads.
+ *
+ * The two captures that used to stand beside Articuno here, `xurkitree.png` at `/2/14` and `cherrim-overcast.png`
+ * yielding nothing, both read correctly under near-white on the corpus as retaken: `L201 11/12/14` and `L18 13/15/9`.
+ * They are recorded as gone rather than quietly dropped, because what they were evidence for is the cost of going
+ * near-white first, and one capture is thinner evidence than three.
  *
  * Order is what makes adding one safe. The loop keeps the first reading the percentage confirms and falls back on the
  * first that read a possible triple at all, so a pass appended here cannot displace a confirmed answer and cannot
@@ -91,8 +95,13 @@ const OVERLAY_TREATMENTS = [
 /**
  * Whether the IV percentage PGSharp prints beside the triple agrees with it. It is `floor((a + d + s) / 45 * 100)`, so
  * it is redundant — and redundancy is exactly what makes it a checksum, which is what settles which treatment to
- * believe where two of them read different triples and both are possible. `articuno-galar.png` is the case: near-white
- * says `2/4/13`, which would be 42%, and brightness says `12/4/13` and prints `64`.
+ * believe where two of them read different triples and both are possible. `deoxys-attack.png` is the live case:
+ * near-white says `20 14/13/14` with no percentage to check it by, and brightness at 180 says `00 9114/13/14`, whose
+ * `91` is what 14/13/14 comes to — so the second is believed and the first is not.
+ *
+ * `articuno-galar.png` used to be the case quoted here and is now the shape of what this *cannot* settle: near-white
+ * says `10/4/13`, brightness at 180 says `12/4/ 3` and prints the right `164`, and neither triple comes to the
+ * percentage beside it. So nothing is confirmed, the fallback stands, and the row pins the near-white answer.
  *
  * It is the end of the last run of digits ahead of the triple rather than a whole word, since it runs into what is
  * beside it — `xurkitree.png`'s `82` arrives as `182`, and `burmy-plant.png`'s level and percentage as one `015197`.
@@ -155,6 +164,39 @@ export const OVERLAY_LUMINANCE = 150;
 export const OVERLAY_CHROMA = 55;
 
 const TRIPLE = /(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{1,2})/;
+
+/** The same pattern anchored, so `tripleIn` can ask it *at* an offset rather than from one. Derived, not retyped. */
+const TRIPLE_AT = new RegExp(TRIPLE.source, 'y');
+
+/**
+ * Where the three IVs are on a line of overlay text: the **last** triple on it rather than the first.
+ *
+ * PGSharp draws the level and the percentage ahead of the IVs, and a percentage whose second digit reads as a slash
+ * opens a triple of its own. `rotom-wash.png`'s band reads `L12 3/ 13/3/1` — its `ɪᴠ37` came out as `3/` — so
+ * `3/ 13/3` matches ahead of the `13/3/1` the screen shows, and the first match is a triple of the percentage's tail
+ * and the first two IVs. Taking the last instead reads the screen.
+ *
+ * The longest of those ending together, which is the other half: `articuno-galar.png`'s `10/4/ 13` and the `0/4/ 13`
+ * inside it end at the same place, and the one that starts earlier is the one with the whole leading digit.
+ *
+ * Scanned from every offset rather than with `matchAll`, which steps past each match and so cannot see one that starts
+ * inside it — and a stray digit ahead of a real triple is exactly that case.
+ */
+function tripleIn(text: string): RegExpExecArray | null {
+  let best: RegExpExecArray | null = null;
+  const endOf = (match: RegExpExecArray) => match.index + match[0].length;
+
+  for (let at = 0; at < text.length; at++) {
+    TRIPLE_AT.lastIndex = at;
+    const match = TRIPLE_AT.exec(text);
+
+    if (match && (best === null || endOf(match) > endOf(best))) {
+      best = match;
+    }
+  }
+
+  return best;
+}
 
 /**
  * How far left of the three IVs the box reaches, in characters, which is what it is measured in. `L25 IV86 14/13/12`
@@ -411,7 +453,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 
   // Every treatment, keeping the first whose percentage confirms its own triple, and falling back on the first that
   // read a possible one at all. Without that arbitration the order alone decides, and the first pass is wrong about
-  // `articuno-galar.png` in a way nothing downstream could notice: `2/4/13` is a perfectly possible triple.
+  // `articuno-galar.png` in a way nothing downstream could notice: `10/4/13` is a perfectly possible triple.
   let fallback: { iv: IVs; before: string } | null = null;
   let chosen: { iv: IVs; before: string } | null = null;
 
@@ -428,7 +470,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
 
   for (const treat of OVERLAY_TREATMENTS) {
     const text = (await ocrLine(scale(treat(raw), OVERLAY_SCALE), OVERLAY_ALPHABET)) ?? '';
-    const triple = TRIPLE.exec(text);
+    const triple = tripleIn(text);
 
     if (!triple) {
       continue;

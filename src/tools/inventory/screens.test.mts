@@ -64,20 +64,20 @@
  * LFS. What went with them and could not follow is `parseDetail` on an entry screen: that the type icons come back and
  * every other field stays absent needed a real one.
  *
- * **Eight rows carry a `defects`, over four readers.** A reader that disagrees is pinned here rather than fixed here,
+ * **Seven rows carry a `defects`, over four readers.** A reader that disagrees is pinned here rather than fixed here,
  * a fix being a change to what the code does and so a pull request of its own, and the corpus test asserts which keys
  * are in use, so a disagreement arriving or leaving is reported.
  *
- * One of the eight is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
+ * One of the seven is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
  * screen cannot separate at all, Basculin's stripes sharing their stats, types and moves with no icon signature
  * recorded, so the fold answers `Basculin (Red Striped)` with nothing beside it saying that was a choice.
  *
- * The other seven are readers answering something the screen does not say, and each is a capture away from being a bug
- * report. `readOverlay` is the worst of them: it reads `10/4/13` for `articuno-galar.png`'s `12/4/13` and `3/13/3` for
- * `rotom-wash.png`'s `13/3/1`, and a wrong triple carries a wrong level and a wrong derived CP behind it, which is why
- * those two rows pin four keys apiece. The artwork match declines Cherrim's Overcast, so `identify` folds
- * `Cherrim (Sunny)` for it — and its nearest icon is the Sunny one, so `MARGIN` is all that keeps that a fold rather
- * than an answer. `levelsOf` offers a shortlist containing no level the HP can be on `charizard-gigantamax.png` alone,
+ * The other six are readers answering something the screen does not say, and each is a capture away from being a bug
+ * report. `readOverlay` is the worst of them: it reads `10/4/13` for `articuno-galar.png`'s `12/4/13`, the chroma
+ * ceiling clipping the anti-aliased edge of the leading `1`, and a wrong triple carries a wrong level and a wrong
+ * derived CP behind it, which is why that row pins four keys on its own. The artwork match declines Cherrim's Overcast,
+ * so `identify` folds `Cherrim (Sunny)` for it — and its nearest icon is the Sunny one, so `MARGIN` is all that keeps
+ * that a fold rather than an answer. `levelsOf` offers no level the HP can be on `charizard-gigantamax.png` alone,
  * reporting it as a note it need not have raised. `wholeCp` loses the leading digit on `growlithe-nickname.png`, `38`
  * for 738, where the band rescue recovers such a line everywhere else. And `castform-rainy.png` is answered as
  * **`Inteleon`**, deriving CP 1512 for the 832 on its screen — the severe one, and the shape the Charizard that read as
@@ -730,15 +730,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 813,
-    defects: {
-      cp: 765,
-      iv: { attack: 3, defense: 13, stamina: 3 },
-      levels: [11.5],
-      notes: [
-        'the overlay reads as level 1 or 12 or 2, none of which this HP can be',
-        'the screen reads CP 813, where this form at this level is 765',
-      ],
-    },
     file: 'rotom-wash.png',
     form: 'Wash',
     gender: null,
@@ -1428,14 +1419,14 @@ const COVERAGE = {
   negatives: 3,
   answeredAsThemselves: 40,
   oneLevel: 43,
-  crossCheckAgrees: 40,
-  crossCheckDisagrees: 3,
+  crossCheckAgrees: 41,
+  crossCheckDisagrees: 2,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 35,
+  noDefects: 36,
   noOverlayDrawn: 0,
   boxNotFound: 0,
-  overlayNotRead: 2,
+  overlayNotRead: 1,
 };
 
 test('the corpus is the shape the docblock says it is', () => {
@@ -1486,7 +1477,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
 
   // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
   // all produces — which is the trigger switched off and nothing saying so.
-  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(6);
+  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(5);
 
   expect(
     noted.filter((f) => f.defects === undefined).map((f) => f.file),
