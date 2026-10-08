@@ -1,15 +1,12 @@
 /**
- * The bytes `dumps` writes are this module's whole contract: a JVM reads them or it does not, and nothing in between
- * reports a problem. So the small streams below are written out as literal bytes derived from Java's own
- * ObjectStreamConstants and the modified-UTF-8 rules, not read back out of this module — a test that asserts whatever
- * the writer currently emits agrees with a defect as readily as with a fix.
+ * The bytes `dumps` writes are this module's whole contract: a JVM reads them or it does not. So the small streams
+ * below are written out as literal bytes derived from Java's own `ObjectStreamConstants` and the modified-UTF-8 rules
+ * rather than read back out of this module, a test asserting whatever the writer emits agreeing with a defect as
+ * readily as with a fix.
  *
- * The larger shapes go through `loads` instead, which is the one check that reaches the handle table: back-references
- * are positional, so a value written at the wrong size shifts every handle after it and the failure surfaces as some
- * later object being read as the wrong one. A round trip is what notices.
- *
- * What a round trip cannot see is anything the reader recomputes rather than reads, the map's capacity being exactly
- * that — so that one is asserted in the bytes.
+ * The larger shapes go through `loads`, which is the one check that reaches the handle table: back-references are
+ * positional, so a value written at the wrong size shifts every handle after it. What a round trip cannot see is
+ * anything the reader recomputes rather than reads — the map's capacity — so that one is asserted in the bytes.
  */
 
 import { expect, test } from 'vitest';
@@ -241,10 +238,9 @@ test("the map's capacity follows HashMap's own growth rather than its entry coun
 
 /**
  * Everything below reaches a path `dumps` does not take, by patching a stream it wrote rather than writing bytes by
- * hand: a hand-built stream tests the bytes someone typed, where a patched one differs from a working stream in exactly
- * the thing the case is about. Each patch finds its own offset and asserts the match was unique, because the obvious
- * offset is wrong often enough to matter — the four bytes of a boxed value are not the last four, HashMap's own
- * `TC_ENDBLOCKDATA` following them.
+ * hand: a patched stream differs from a working one in exactly the thing the case is about. Each patch finds its own
+ * offset and asserts the match was unique, the obvious offset being wrong often enough to matter — the four bytes of a
+ * boxed value are not the last four, HashMap's own `TC_ENDBLOCKDATA` following them.
  */
 
 const TC_NULL = 0x70,
@@ -455,14 +451,10 @@ test.for([
 });
 
 /**
- * Every width a declared field can have, reached by rewriting an Integer's own declaration and its payload together —
- * so what each case says is that the reader advanced by exactly the bytes that width takes, which the trailing-bytes
- * check at the end of `loads` is what proves. The writer declares only `I`, `J`, `F` and `Z`, the first three of which
- * the round trips above already cover.
- *
- * `C` and `L` are the two that read something a box cannot hold — a character and an object reference — so each lands
- * on the value-field guard rather than coming back as a box. That is the right end for both: a `java.lang.Integer`
- * whose `value` is a string is a stream no JVM wrote.
+ * Every width a declared field can have, reached by rewriting an Integer's declaration and its payload together, so
+ * each case says the reader advanced by exactly the bytes that width takes — which `loads`'s trailing-bytes check
+ * proves. `C` and `L` read something a box cannot hold, so each lands on the value-field guard rather than coming back
+ * as a box, which is the right end for both: a `java.lang.Integer` whose `value` is a string is a stream no JVM wrote.
  */
 test.for([
   { width: 'a double', tcode: 'D', payload: [0x3f, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], reads: box('I', 0.5) },
@@ -515,12 +507,11 @@ test('a field declared at a width nothing reads is refused', () => {
 
 /**
  * What `dumps` refuses outright. A number is the near miss worth naming: a map value that should have been boxed and
- * was not is a `typeof number` reaching the writer, which has no width to write it at and would otherwise fall through
- * every branch to no bytes at all.
+ * was not reaches the writer with no width to write it at, and would otherwise fall through to no bytes at all.
  *
- * The writer's own `no encoding for boxed field type` default is unreachable rather than uncovered: every code `BOX`
- * carries has a case in that switch, and `box` refuses any other code before a `Box` can exist. It earns its place by
- * being what fails if a fifth entry is added to `BOX` and not encoded — which is a future edit, not a case.
+ * The writer's own `no encoding for boxed field type` default is unreachable rather than uncovered — every code `BOX`
+ * carries has a case, and `box` refuses any other before a `Box` can exist — and earns its place by being what fails
+ * if a fifth entry is added to `BOX` and not encoded.
  */
 test('a value that is none of the four things a stream can hold is refused', () => {
   // @ts-expect-error -- a bare number is no `JavaValue`, which is the compile-time half of this check

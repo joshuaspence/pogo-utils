@@ -1,14 +1,13 @@
 /**
  * The entry point, and the only module the markup names.
  *
- * Every stylesheet is imported here rather than each page importing its own, which is the one thing about this that is
- * esbuild's decision rather than a preference. A page is reached through `import()`, so a stylesheet imported from one
- * lands in that chunk's own CSS file — and esbuild ships no runtime to fetch it, so the five page sheets were emitted
- * into `dist/src/` and nothing ever loaded them. Every page rendered unstyled.
+ * Every stylesheet is imported here rather than by each page, which is esbuild's decision rather than a preference: a
+ * page is reached through `import()`, so a stylesheet imported from one lands in that chunk's own CSS file — and
+ * esbuild ships no runtime to fetch it, so the five page sheets were emitted and nothing ever loaded them.
  *
- * Importing them from the entry puts the lot in the one `main.css` that `index.html` links. What makes that safe is the
- * scoping: each page sheet is wrapped in `body[data-page='…']`, because between them they give nineteen class names a
- * different meaning per page. Loading all five at once was impossible before that and is the plain reading now.
+ * Importing them from the entry puts the lot in the one `main.css` that `index.html` links. What makes that safe is
+ * the scoping: each page sheet is wrapped in `body[data-page='…']`, between them giving nineteen class names a
+ * different meaning per page.
  */
 
 import { render } from 'preact';
@@ -19,9 +18,8 @@ import './nav.css';
 import './chrome.css';
 
 /*
- * Leaflet's, ahead of the page sheets because `styles.css` overrides its popup rules — the order `map.html` linked the
- * two in. The scoping makes those overrides win on specificity alone now, so this is belt and braces rather than the
- * thing holding them up.
+ * Leaflet's, ahead of the page sheets because `styles.css` overrides its popup rules. The scoping makes those
+ * overrides win on specificity alone, so the order is belt and braces rather than the thing holding them up.
  */
 import 'leaflet/dist/leaflet.css';
 

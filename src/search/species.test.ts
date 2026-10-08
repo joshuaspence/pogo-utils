@@ -1,15 +1,10 @@
 /**
- * The rows the name box offers, which exist to close a gap nothing else here can: `pokedex.js` names a species by a
- * constant with its punctuation dropped, so a reader can type `farfetchd` where the game answers to `Farfetch'd`. The
- * fold is on the matching side and the row writes the game's own spelling back — the same gap `optimise.js` refuses to
- * cross, having only the constant to go on.
+ * The rows the name box offers, which close a gap nothing else here can: `pokedex.js` names a species by a constant
+ * with its punctuation dropped, so a reader can type `farfetchd` where the game answers to `Farfetch'd`. The fold is
+ * on the matching side and the row writes the game's own spelling back.
  *
- * So every failure here is a query that looks right and finds the wrong thing, or nothing: a species the game has not
- * released, a form it has no name for, a name written as the reader typed it rather than as the game spells it. A row
- * is taken on trust and pasted into a search that drives a mass transfer, so none of that surfaces as an error.
- *
- * Each case is built on the real dex, so each pins the shape of the data it needs first — a fragment reaching six
- * species today and two tomorrow is a test that has quietly stopped being about anything.
+ * So every failure here is a query that looks right and finds the wrong thing, or nothing — and a row is taken on
+ * trust and pasted into a search that drives a mass transfer, so none of it surfaces as an error.
  */
 
 import { expect, test } from 'vitest';

@@ -1,15 +1,14 @@
 /**
- * What the stitcher does to frames it is handed, built here rather than captured: the whole of a scroll capture is a
- * pure function of a list of images, so a test of it needs no phone and no screenshots.
+ * What the stitcher does to frames it is handed, built here rather than captured: a scroll capture is a pure function
+ * of a list of images, so a test of it needs no phone.
  *
- * **Every case starts from a tall image and cuts frames out of it**, which is what makes the assertion the strong one —
- * the stitch has to reproduce the source it was sliced from, pixel for pixel, rather than merely come back the right
- * size. A test that asserted dimensions would pass on an image assembled at entirely the wrong offsets.
+ * **Every case starts from a tall image and cuts frames out of it**, which is what makes the assertion strong — the
+ * stitch has to reproduce the source it was sliced from pixel for pixel, where a test of dimensions would pass on an
+ * image assembled at entirely the wrong offsets.
  *
- * The fixed furniture is in every fixture here on purpose. A status bar that ticks, an overlay drawn over the app and
- * the game's own floating buttons are what a naive concatenation repeats once per frame, and they are also what makes a
- * whole-screen correlation answer zero — so a band that excludes them is the thing under test as much as the stitching
- * is.
+ * The fixed furniture is in every fixture on purpose: a ticking status bar, an overlay and the floating buttons are
+ * what a naive concatenation repeats once per frame and what makes a whole-screen correlation answer zero, so a band
+ * that excludes them is as much under test as the stitching.
  */
 
 import { readFileSync } from 'node:fs';
@@ -72,12 +71,12 @@ const content = (height: number): Image => {
 
 /**
  * One frame of a scroll: the content from `source` starting at `scrolled`, with furniture above and below it that is
- * identical on every frame. The furniture is what a correlation over the whole frame would lock on to.
+ * identical on every frame, which is what a correlation over the whole frame would lock on to.
  *
- * Each row of furniture is seeded by where it is rather than by which end it belongs to, so that a row placed twice is
- * a row that can be found twice; seeded alike, a stitch that repeated the whole of the furniture would read the same as
- * one that took it once. The seeds stay clear of `content`'s, which start at 1000, so a furniture row standing where a
- * content row belongs is wrong rather than merely unlucky.
+ * Each row of furniture is seeded by where it is rather than which end it belongs to, so a row placed twice can be
+ * found twice — seeded alike, a stitch repeating the whole furniture would read the same as one that took it once. The
+ * seeds stay clear of `content`'s, so a furniture row standing where a content row belongs is wrong rather than
+ * unlucky.
  */
 const frameAt = (source: Image, scrolled: number): Image => {
   const image = blank(WIDTH, FRAME);
@@ -109,13 +108,12 @@ test('the shift between two frames is the number of pixels the content moved', (
 });
 
 /**
- * A screen that did not move, which is how a scroll says it has reached the end. It answers **zero** rather than null,
- * and the difference is the point: zero is a measurement — the content is where it was — where null is this reader
- * saying it cannot tell. A capture stops on either, but only one of them is a fact about the screen.
+ * A screen that did not move, which is how a scroll says it has reached the end. **Zero** rather than null, and the
+ * difference is the point: zero is a measurement where null is this reader saying it cannot tell.
  *
- * It might be expected to be refused, identical frames seeming to score alike everywhere. They do not: a shift of zero
- * scores exactly nought and everything else scores the full width of the content, so it stands out further than any
- * real scroll does.
+ * It might be expected to be refused, identical frames seeming to score alike everywhere. They do not — a shift of
+ * zero scores exactly nought and everything else the full width of the content — so it stands out further than any
+ * real scroll.
  */
 test('two identical frames have not moved, which is a shift of zero', () => {
   const frame = frameAt(content(2000), 40);
@@ -224,14 +222,13 @@ test('the fixed furniture is taken once, from the first frame and the last', () 
 });
 
 /**
- * What a recorded `Viewport` does and does not buy, the obvious use of it being wrong. `snap` writes the screen's own
- * height onto the stitch so that a reader handed the tall image can find the rows the phone drew — but cropping to
- * that height does **not** give the screen back. Rows down to the band's foot are the first frame verbatim; the rows
- * after it are the next frame's revealed content, the screen's own footer having been appended at the far end instead.
+ * What a recorded `Viewport` does and does not buy, the obvious use of it being wrong: cropping to that height does
+ * **not** give the screen back. Rows down to the band's foot are the first frame verbatim, the rows after it are the
+ * next frame's revealed content, and the footer was appended at the far end.
  *
- * So the only crop that is the screen row for row stops at the foot, and it is shorter than the screen by the footer —
- * which moves every reader anchored on a fraction of the height, which is all of them but `parseMoves`. Pinned because
- * a comment claiming the viewport crop *was* the screen is what this replaces, and prose was what let it be wrong.
+ * So the only crop that is the screen row for row stops at the foot, shorter than the screen by the footer, which
+ * moves every reader anchored on a fraction of the height. Pinned because a comment claiming the viewport crop *was*
+ * the screen is what this replaces, and prose was what let it be wrong.
  */
 test('a stitch cropped to its viewport is the screen only as far as the band foot', () => {
   const source = content(2000);
@@ -270,14 +267,12 @@ test('a stitch cropped to its viewport is the screen only as far as the band foo
 });
 
 /**
- * The band's bottom edge against the furniture's top, which is the measurement a stitch cannot recover from getting
- * wrong. Rows above the band come from the first frame and rows below it from the last, so each is taken once however
- * wide the band is — but the **tail** of the band is the one part of it every frame contributes, being exactly the rows
- * that frame revealed. A band reaching into the floating buttons repeats their top once per frame, each copy cut off at
- * the band's own bottom edge.
+ * The band's bottom edge against the furniture's top, which a stitch cannot recover from getting wrong. Rows above the
+ * band come from the first frame and rows below from the last, each taken once — but the **tail** of the band is the
+ * one part every frame contributes, so a band reaching into the floating buttons repeats their top once per frame.
  *
- * `offsetBetween` says nothing about it, and that is why this has to be asserted here rather than left to the shifts
- * being right: the rows it lines up on are the content either way, and they line up either way.
+ * `offsetBetween` says nothing about it, which is why this is asserted here rather than left to the shifts being
+ * right: the rows it lines up on are the content either way.
  */
 test('a band reaching past the furniture repeats it once per frame, where one clear of it does not', () => {
   const source = content(2000);
@@ -316,19 +311,17 @@ test('stitching nothing, or frames without a shift between each pair, is a mista
 });
 
 /**
- * Captures of real detail screens, against `SCREEN_BAND` itself rather than a band written out again here — which is
- * the half the built fixtures above cannot reach, because what they lack is a **layout**. Every detail screen has the
- * same panel, the same rows of labels and the same buttons, and that is enough for one screen's row summaries to line
- * up against another's.
+ * Captures of real detail screens, against `SCREEN_BAND` itself rather than a band written out again — the half the
+ * built fixtures cannot reach, because what they lack is a **layout**. Every detail screen has the same panel, labels
+ * and buttons, which is enough for one screen's row summaries to line up against another's.
  *
  * `pikachu.png` against `smoliv.png` is that case: their summaries line up at a shift of 114, which would be two
- * Pokémon assembled into one image. It is refused by how **close** the match is rather than by how far it stands out —
- * a true scroll costs 0.00 where these two cost 16.82 at their best, the band being 70% flat panel grey.
+ * Pokémon assembled into one image. It is refused by how **close** the match is rather than how far it stands out — a
+ * true scroll costs 0.00 where these two cost 16.82 at their best, the band being 70% flat panel grey.
  *
- * Read out of the stitch each is committed as, the corpus keeping one file per capture rather than a screen beside a
- * stitch. `screenIn` crops to the `Viewport` the stitch records, and the band this exercises — 0.34 to 0.89 of the
- * screen, rows 763 to 1997 — lies entirely in the rows `stitch` keeps from its first frame verbatim. So these frames
- * are the screens the phone drew, to the pixel, over every row anything below reads.
+ * Read out of the stitch each is committed as. `screenIn` crops to the recorded `Viewport`, and the band this
+ * exercises lies entirely in the rows `stitch` keeps from its first frame verbatim, so these frames are the screens
+ * the phone drew to the pixel over every row anything below reads.
  */
 const capture = (file: string) => screenIn(decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))));
 

@@ -2,15 +2,15 @@
  * What the game itself knows about every species, form and move, from PokeMiners' decoded game master and the English
  * string table beside it.
  *
- * The screen says a Pokémon's form only by implication, but it follows from numbers that are shown. HP is a pure
- * function of the base stamina, the stamina IV and the level's CP multiplier, so once PGSharp's overlay has given the
- * IVs and the level, a form is whichever base stats reproduce the HP. HP separates only forms that differ in stamina,
- * where CP would also catch a difference in Attack or Defense, but CP is the one number on the detail screen that does
- * not survive OCR, and a CP read wrongly rules out the form that is right rather than merely failing to choose. Types
- * carry most of the rest, and whatever is left over is an alternative to report rather than one to pick.
+ * The screen says a Pokémon's form only by implication, but it follows from numbers that are shown: HP is a pure
+ * function of the base stamina, the stamina IV and the level's CP multiplier, so given PGSharp's overlay a form is
+ * whichever base stats reproduce the HP. That separates only forms differing in stamina, where CP would also catch a
+ * difference in Attack or Defense — but CP is the one number that does not survive OCR, and read wrongly it rules out
+ * the right form rather than merely failing to choose. Types carry most of the rest, and what is left is an
+ * alternative to report rather than one to pick.
  *
- * Every download is cached for a week under `.cache/inventory/`, since the game master is 20 MB and a scan of a few
- * thousand Pokémon is not the moment to discover the network is down.
+ * Every download is cached for a week, the game master being 20 MB and a scan of a few thousand Pokémon not the moment
+ * to discover the network is down.
  */
 
 import { titleise } from '../../pokemon/names.ts';
@@ -24,11 +24,10 @@ const STRINGS =
 
 /**
  * Where `pogo_assets` keeps the form icons. The 256×256 renders rather than the smaller ones beside them, because
- * `Images/Pokemon/Addressable Assets` stopped being filled: its last commit is 2025-10-05 against 2026-09-25 for this
- * one, and the 270 files it is missing include every form of Mimikyu, Cramorant and Squawkabilly. Nothing distinguishes
- * a stale listing from a current one — both answer `truncated: false` over the same `pm{dex}.f{FORM}.icon.png` names —
- * so the forms simply went unnarrowed. A signature is a hue histogram normalised by its own pixel count, so the larger
- * render scores the same.
+ * `Images/Pokemon/Addressable Assets` stopped being filled — last commit 2025-10-05 against 2026-09-25 — and the 270
+ * files it is missing include every form of Mimikyu, Cramorant and Squawkabilly. Nothing distinguishes a stale listing
+ * from a current one, both answering `truncated: false`, so those forms simply went unnarrowed. A signature is a hue
+ * histogram normalised by its own pixel count, so the larger render scores the same.
  */
 const ICON_DIR = 'Images/Pokemon - 256x256/Addressable Assets';
 
@@ -42,13 +41,9 @@ const ICON_INDEX =
 
 /**
  * Where that listing is cached, derived from `ICON_DIR` rather than written down beside it. `cached` keys on the file
- * name and a week's grace alone, so a name held fixed across a change of directory answers the new URL with the old
- * directory's listing until the week is out: every name in it still resolves, nothing reports a thing, and the move
- * takes effect whenever the cache happens to expire. That is the staleness `ICON_DIR` was changed to fix, arriving
- * through the cache instead of through upstream, and deriving the name is what makes the two unable to disagree.
- *
- * The previous `icons.json` is left where it is. Nothing reads a name it is not asked for, and a stale listing on disk
- * costs a kilobyte rather than a wrong answer.
+ * name and a week's grace alone, so a fixed name across a change of directory answers the new URL with the old
+ * directory's listing until the week is out — the same staleness `ICON_DIR` was changed to fix, arriving through the
+ * cache instead of upstream.
  *
  * Exported for `cli.test.mts`, which seeds a cache to keep itself off the network: a name transcribed there would seed
  * a file the reader no longer asks for, and the test would pass on a download it meant to have prevented.
@@ -77,19 +72,18 @@ export interface Form {
   defense: number;
   stamina: number;
   /**
-   * The file `pogo_assets` holds this form's artwork under — `pm585.fAUTUMN.icon.png` is the Autumn Deerling — or null
-   * where it holds none. It is the only thing that separates the forms whose stats and types are identical.
+   * The file `pogo_assets` holds this form's artwork under, or null where it holds none — the only thing that
+   * separates forms whose stats and types are identical.
    *
    * A null is a statement about the game rather than a gap in the data: the game master lists every form Niantic's
-   * data knows, where the directory holds the ones the game draws. Nine of Spinda's twenty patterns are released and
-   * nine have an icon; Scatterbug and Spewpa have none, only Vivillon showing the pattern. So a form with no icon is
-   * one no artwork could ever have narrowed.
+   * data knows where the directory holds the ones the game draws, so a form with no icon is one no artwork could ever
+   * have narrowed.
    */
   icon: string | null;
   /**
-   * Every move this form can hold: the ordinary pools, the elite ones a legacy Pokémon may still carry, Rayquaza's
+   * Every move this form can hold: the ordinary pools, the elite ones a legacy Pokémon may carry, Rayquaza's
    * untradeable Dragon Ascent, and the Frustration and Return a shadow or purified one has. Reading a move against
-   * this rather than against all 328 is the difference between choosing among three and choosing among hundreds.
+   * this rather than all 328 is the difference between choosing among three and among hundreds.
    */
   moves: readonly Move[];
 }
@@ -145,19 +139,15 @@ const ORDINARY = /(^|_)NORMAL$/;
 /**
  * Which file holds a form's artwork, or null where the directory holds none.
  *
- * The name is the form's own rather than a number: `assetBundleValue` is not how these assets are named and is not
- * even unique, Zygarde's 50% and Complete 50% forms both carrying `1`. Two candidates for a named form, because the
- * species prefix is kept for some and dropped for others — `pm585.fSPRING.icon.png` for `DEERLING_SPRING` against
- * `pm412.fBURMY_PLANT.icon.png` for `BURMY_PLANT` — and nothing in the game master says which. Measured over 1,352
- * non-costume forms, 262 resolve trimmed and 34 full, Burmy, Unown and Wormadam being the whole of the second set, and
- * **none resolve both ways**, so asking the index settles it with no order to defend.
+ * The name is the form's own rather than a number: `assetBundleValue` is not how these assets are named and is not even
+ * unique, Zygarde's 50% and Complete 50% both carrying `1`. Two candidates for a named form, the species prefix being
+ * kept for some and dropped for others with nothing in the game master saying which. Measured over 1,352 non-costume
+ * forms, 262 resolve trimmed and 34 full, and **none resolve both ways**, so asking the index settles it.
  *
- * The bare `pm{dex}.icon.png` is a third candidate and **only** for the ordinary form, which is 14 families' worth:
- * no `fNORMAL` exists for Frillish, so its male would be the one member of its pair with no icon and the artwork
- * would decline a blue against a pink for want of a file that is there. Only for the ordinary one, because the bare
- * name is that form's own artwork — offered to `RAIKOU_S` as a fallback it would hand two forms one icon and so one
- * signature, which is the indecision `assetBundleValue` caused, silently. And a fallback rather than a replacement,
- * since `GENESECT_NORMAL` has an `fNORMAL` and no bare name at all.
+ * The bare `pm{dex}.icon.png` is a third candidate and **only** for the ordinary form, 14 families' worth: no
+ * `fNORMAL` exists for Frillish, so its male would be the one member of its pair with no icon. Only the ordinary one,
+ * because offered to `RAIKOU_S` it would hand two forms one signature — the indecision `assetBundleValue` caused. And
+ * a fallback rather than a replacement, `GENESECT_NORMAL` having an `fNORMAL` and no bare name at all.
  */
 function iconName(index: ReadonlySet<string>, dex: number, suffix: string, form: string | undefined): string | null {
   const named = form === undefined ? [] : [`pm${dex}.f${suffix}.icon.png`, `pm${dex}.f${form}.icon.png`];
@@ -168,20 +158,17 @@ function iconName(index: ReadonlySet<string>, dex: number, suffix: string, form:
 }
 
 /**
- * The directory listing, which is what makes a form's artwork addressable without probing for it. Fetching the 162
- * files that exist beats probing all 237 to find them, and it is also what lets a family short of one icon be reported
- * once, ahead of the download, rather than discovered as a 404 per form on every scan.
- *
- * An index is an improvement rather than a prerequisite, exactly as an icon is, so failing to read one costs the
- * artwork narrowing and not the scan.
+ * The directory listing, which makes a form's artwork addressable without probing for it: fetching the 162 files that
+ * exist beats probing all 237, and it is what lets a family short of one icon be reported once ahead of the download
+ * rather than discovered as a 404 per form on every scan. An improvement rather than a prerequisite, so failing to
+ * read one costs the artwork narrowing and not the scan.
  */
 async function iconIndex(dir: string, refresh: boolean): Promise<ReadonlySet<string>> {
   try {
-    // Refused rather than read, because a truncated listing is the stale directory's failure arriving by another route:
-    // it names some of the artwork, every name it carries resolves, and the forms whose icon it dropped go unnarrowed
-    // with nothing to say so. Thrown from the decode so that `cachedAs` drops the copy — kept, it would answer for the
-    // week and the one sentence below would be the whole of the account. There is room for now, 895 KB against the
-    // 100,000 entries or 7 MB where the tree endpoint truncates, but headroom is not a guard.
+    // Refused rather than read: a truncated listing is the stale directory's failure by another route — every name it
+    // carries resolves, and the forms whose icon it dropped go unnarrowed with nothing to say so. Thrown from the
+    // decode so `cachedAs` drops the copy, which kept would answer for the week. There is room for now, 895 KB against
+    // the tree endpoint's 7 MB, but headroom is not a guard.
     const listing = await cachedAs(dir, ICON_CACHE, ICON_INDEX, refresh, (bytes) => {
       const parsed = JSON.parse(String(bytes)) as { tree?: { path: string }[]; truncated?: boolean };
 
@@ -459,22 +446,17 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
 }
 
 /**
- * A download read into whatever it holds, with the URL named whichever step failed. `cached` puts it on everything it
- * throws, and the decode past it has to do the same: `response.ok` passes a 200 carrying an error page in place of JSON
- * or a PNG, so the bytes that will not decode are the ones already cached and the download that fetched them is over.
+ * A download read into whatever it holds, with the URL named whichever step failed. `response.ok` passes a 200
+ * carrying an error page in place of JSON or a PNG, so the bytes that will not decode are the ones already cached and
+ * the download that fetched them is over.
  *
- * Named here rather than at the two callers, because they are the ones that cannot. Each relays a failure as a
- * two-space continuation rather than a crash — an icon index that could not be read costs the artwork narrowing and not
- * the scan — and a message naming nothing says neither which of the three files nor which of ~162 icons went unread.
- * Prefixing it at the relay instead would say the URL twice over on the commoner path, where `cached` has named it
- * already.
+ * Named here rather than at the two callers, because they are the ones that cannot: each relays a failure as a
+ * two-space continuation rather than a crash, and a message naming nothing says neither which of the three files nor
+ * which of ~162 icons went unread.
  *
- * The copy is dropped rather than kept, because this is the only place that knows it is no good: `cached` would read
- * it back for the rest of the week, past its own `Downloading` line and so without even saying where the bytes came
- * from, and a relay that abstains rather than throwing leaves nothing to say why but one indented sentence a run.
- * That is the same bad cache `cached` already renames over a write cut short to avoid, arriving by another route.
- * Dropped whether it was downloaded here or read off disk, bytes that do not decode being no more use on a second
- * reading than a first.
+ * The copy is dropped rather than kept, this being the only place that knows it is no good — `cached` would read it
+ * back for the rest of the week, past its own `Downloading` line. Dropped whether it was downloaded here or read off
+ * disk, bytes that do not decode being no more use on a second reading than a first.
  */
 export async function cachedAs<T>(
   dir: string,

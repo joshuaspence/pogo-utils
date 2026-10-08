@@ -2,50 +2,28 @@
  * Every term the builder can put in a search string, grouped the way the page lays them out. One table, so a term is
  * added, corrected or relabelled in a single place and the page, the query writer and the shareable link all follow.
  *
- * `term` is what goes in the string, verbatim and lowercased, because that is what the game reads. `label` is what the
- * chip says. The two are kept apart rather than derived from each other: `4*` is a term no label would spell that way,
- * and "Can evolve" is a label no term would.
+ * `term` is what goes in the string, verbatim and lowercased, because that is what the game reads, where `label` is
+ * what the chip says: `4*` is a term no label would spell that way. `id` is what a link carries (`#i=shiny.evolve`),
+ * so it is stable in a way a label is not, and defaults to the term where that is already a plain word.
  *
- * `id` is what a link carries (`#i=shiny.evolve`), so it is stable in a way a label is not — renaming a chip leaves
- * every shared link working, while renaming an id breaks them. It defaults to the term where the term is already a
- * plain word, and is spelled out where the term has punctuation a fragment would have to escape.
+ * A group's `join` defaults to `,`, most of these groups describing one slot on a Pokémon — nothing is two generations
+ * or two star ratings. `status` and `moves` are the exceptions, a Pokémon being any number of those at once. Which is
+ * why a pair that is one slot gets a group of its own rather than a place among the statuses: grouped there,
+ * `legendary&mythical` and `shadow&purified` would match nothing where a reader wanted the comma.
  *
- * A group's `join` is what goes between the terms picked within it, and defaults to `,` because most of these groups
- * describe one slot on a Pokémon: nothing is two generations or two star ratings, so picking several can only mean
- * either. `status` and `moves` are the exceptions, since a Pokémon is any number of those at once and the combinations
- * are the point of searching for them — a lucky shiny, a shiny in a costume, an exclusive move on something the weather
- * is boosting.
+ * `exclusive` and `exhaustive` are the two facts `optimise.js` shortens a clause by: at most one term is ever true, and
+ * at least one always is. Neither follows from `join` or from the other — Type is exhaustive and not exclusive, where
+ * Appraisal is both and Size only exclusive — and each buys a reduction of its own, which is why they are two fields.
+ * Generation carries neither, though a species is in exactly one: its terms are dex spans, which `optimise.js` folds
+ * into the one span covering them, and declaring the fact would only let the weaker reduction win.
  *
- * Which is why a pair that is one slot gets a group of its own rather than a place among the statuses. Rarity is one
- * slot and so is whatever Team GO Rocket did, so grouped with the statuses they would AND: `legendary&mythical` and
- * `shadow&purified` are searches nothing can match, where `legendary,mythical` and `shadow,purified` are two a reader
- * would actually want. A group is the whole of that decision, so the fix is where the term sits and not a new field.
+ * A term's `covers` names the terms it is the union of, which `background` is of the two backdrops. It costs that group
+ * the exclusivity above, `background` overlapping both the terms it covers, so `background&!locationbackground` is the
+ * Event backdrops and a search a reader would want.
  *
- * `exclusive` and `exhaustive` are the two facts `optimise.js` shortens a group's clause by: at most one of these terms
- * is ever true of a Pokémon, and at least one always is. Neither follows from `join` or from the other — every species
- * has a type and Charizard has two, so Type is exhaustive and not exclusive, where Appraisal is both and Size only
- * exclusive. Each buys a reduction of its own, which is why they are two fields rather than one: exclusive alone makes
- * `shadow&!purified` say `shadow`, and the pair makes `0*,1*,2*,3*` say `!4*`. Left off is a group that gets no
- * reduction, which is the right answer for one nobody has thought about.
- *
- * Generation carries neither, though a species is in exactly one. Its terms are dex spans rather than words, and
- * `optimise.js` folds those into the one span that covers them — `1-905` for the first eight, against the `!906-1025`
- * that the complement of a term set would write. Declaring the fact twice would only let the weaker reduction win it.
- *
- * A term's `covers` names the terms it is the union of, which `background` is of the two backdrops and nothing else
- * here is. It is one term's relation to two others rather than a shape of the group, and it costs that group the
- * exclusivity above into the bargain: `background` overlaps both the terms it covers, so
- * `background&!locationbackground` is the Event backdrops and a search a reader would want. `optimise.js` writes the
- * union in place of the whole of what it covers on whichever side of the clause they were picked, so
- * `locationbackground,specialbackground` goes out as `background` — ten characters rather than thirty-six.
- *
- * A group's `hue` tints its chips, so which group a selected chip came from reads at a glance once a dozen of them are
- * on. They are hues rather than the palette's tokens because these are categories of the page's own, unrelated to what
- * --track or --city mean elsewhere; theme.css owns the colours that carry meaning across pages.
- *
- * Fifteen groups is as far as that carries. The widest gap left on the wheel was 35°, and splitting it is what put Size
- * at 52° — 17° from Kept aside and 18° from Rarity, three yellows, with no better placement available. So a sixteenth
- * group wants a second cue rather than another hue.
+ * A group's `hue` tints its chips. Hues rather than the palette's tokens, these being categories of the page's own;
+ * `theme.css` owns the colours that carry meaning across pages. Fifteen groups is as far as that carries — the widest
+ * gap left on the wheel was 35°, so a sixteenth group wants a second cue rather than another hue.
  */
 
 import { GENERATIONS } from '../pokemon/generations.js';

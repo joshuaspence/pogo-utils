@@ -1,15 +1,13 @@
 /**
- * What `cached` says while downloading, and what it leaves behind — both of which `cli.test.mts` cannot reach: the
- * cache it seeds is in date, so no run there takes the download path at all.
+ * What `cached` says while downloading, and what it leaves behind — neither of which `cli.test.mts` can reach, the
+ * cache it seeds being in date.
  *
- * Reached here against a server on the loopback interface, which is hermetic in the way upstream is not and is also the
- * only way to fail a download on demand. A `file:` URL will not stand in for one: Node's `fetch` answers
- * `TypeError: fetch failed`, caused by `Error: not implemented... yet...`.
+ * Reached against a server on the loopback interface, which is hermetic in the way upstream is not and the only way to
+ * fail a download on demand. A `file:` URL will not stand in: Node's `fetch` answers `TypeError: fetch failed`.
  *
- * Both lines below are outside the `--verbose` gate, and each for its own reason — the `Downloading` one because the
- * week's grace above it already decides the only runs it prints on, the warning because a degraded answer is worth
- * saying however quietly the run was asked to go about it. So these are the assertions that would notice either being
- * swept into `progress`, which is what `progress.mts` sets out and nothing else holds.
+ * Both lines below are outside the `--verbose` gate — the `Downloading` one because the week's grace already decides
+ * which runs it prints on, the warning because a degraded answer is worth saying however quietly the run was asked to
+ * go about it. So these are the assertions that would notice either being swept into `progress`.
  */
 
 import { cached, cachedAs } from './game-master.mts';
@@ -51,12 +49,9 @@ async function stderrOf<T>(body: () => Promise<T>): Promise<[T, string[]]> {
 }
 
 /**
- * A module nobody has spoken to narrates, which is the half of the default no caller is left to hold: every consumer of
- * `iconsFor` today goes through `scripts/inventory.mts`, which always calls `showProgress`, so the one that would
- * notice this is the one not written yet. Rounded this way it inherits the louder half.
- *
- * Imported afresh rather than read off the instance the tests below set, so that this is the module's own starting
- * state rather than whatever ran last.
+ * A module nobody has spoken to narrates. Every consumer of `iconsFor` today calls `showProgress`, so the caller that
+ * would notice this is the one not written yet. Imported afresh rather than read off the instance the tests below set,
+ * so this is the module's own starting state rather than whatever ran last.
  */
 test('progress is narrated until a caller asks for quiet', async () => {
   vi.resetModules();
@@ -116,12 +111,9 @@ test('`cached` says nothing where the copy it has is in date', async () => {
  * The warning under a failed download names what went stale on a quiet run too, which is the split `progress.mts`
  * claims: progress is held back and a degraded answer is not.
  *
- * It names the URL rather than reading as a continuation of the line above, which is why the assertion takes both lines
- * and the whole of each: `iconsFor` keeps 16 downloads in flight, so a bare `fetch failed; using the copy from before`
- * could sit under any of 16 `Downloading` lines and name none of them. Under `showProgress(false)`, which is what makes
- * this the quiet run, both print anyway.
- *
- * Back-dated by hand rather than by `cached`'s own `WEEK`, which it does not export: eight days is past any week.
+ * It names the URL rather than reading as a continuation, which is why the assertion takes both lines whole:
+ * `iconsFor` keeps 16 downloads in flight, so a bare `fetch failed; using the copy from before` could sit under any of
+ * them and name none. Back-dated by hand rather than by `cached`'s own `WEEK`, which it does not export.
  */
 test('a stale copy read because the download failed names the file, quietly or not', async () => {
   answer = (response) => {
@@ -152,14 +144,11 @@ test('a stale copy read because the download failed names the file, quietly or n
 
 /**
  * A body that will not decode is not left behind to be read for the week. `cached` writes and renames before it
- * returns, so a 200 carrying an error page is cached before anything has tried to parse it — and the week's grace
- * would then read that HTML off disk on every run for seven days, past the `Downloading` line and so without even
- * saying where it came from, until someone thought to pass `--refresh`.
+ * returns, so a 200 carrying an error page is cached before anything has parsed it — and the week's grace would read
+ * that HTML off disk for seven days, past the `Downloading` line, until someone passed `--refresh`.
  *
- * Driven as two calls with the server mended between them, which asserts the consequence rather than the mechanism: the
- * second answers from upstream where it would otherwise answer from the poisoned copy. `cached` guards the sibling case
- * already, renaming over the file so a write cut short cannot be read back "until the week was out", and a body that
- * parses no better than a truncated one is the same bad cache arriving by another route.
+ * Driven as two calls with the server mended between them, which asserts the consequence rather than the mechanism:
+ * the second answers from upstream where it would otherwise answer from the poisoned copy.
  */
 test('a download that will not decode is not left to be read for the week', async () => {
   const dir = cacheDir();

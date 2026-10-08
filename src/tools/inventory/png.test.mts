@@ -1,11 +1,10 @@
 /**
  * What the codec does with images it builds itself, which is the whole of what a test of it needs: every function here
- * is a pure transformation of a pixel buffer, so there is no phone, no screenshot and no Tesseract anywhere below.
+ * is a pure transformation of a pixel buffer.
  *
- * The round trip is the one that matters. `encodePng` writes colour type 6 and filter 0 on every row, and `decodePng`
- * reads the four colour types a phone produces through the four filters PNG defines, so encoding and decoding back
- * exercises only the narrowest path either way. A fixture encoded elsewhere is what would reach the rest, and the
- * captures that do that arrive with the readers rather than here.
+ * `encodePng` writes colour type 6 and filter 0 on every row where `decodePng` reads four colour types through four
+ * filters, so a round trip exercises only the narrowest path either way. A fixture encoded elsewhere is what would
+ * reach the rest, and the captures that do arrive with the readers rather than here.
  */
 
 import { crc32, deflateSync } from 'node:zlib';

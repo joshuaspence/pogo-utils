@@ -1,13 +1,8 @@
 /**
- * The country table, whose row *set* is already checked better than a test could manage: `validate-gpx.mts` reads it
- * against the `<pgr:country>` of every GPX file in both directions, so a country added ahead of its first route fails
- * `pnpm lint` as surely as one that was never added. What nothing checks is the two fields on each row.
- *
- * Both fail silently, and differently. The flag is derived from the code rather than pasted in, so a code that is not
- * alpha-2 draws the wrong flag or none — and a backup build errors on a country with no code at all, which is the one
- * loud failure here. A continent is not validated anywhere: the sidebar groups by whatever string it finds and files an
- * unknown one under "Other", so a `Euorpe` is a country that vanishes from its own continent on a page that renders
- * perfectly.
+ * The country table, whose row *set* `validate-gpx.mts` already checks in both directions. What nothing checks is the
+ * two fields on each row, and both fail silently: the flag is derived from the code, so one that is not alpha-2 draws
+ * the wrong flag or none, and a continent is validated nowhere — the sidebar files an unknown one under "Other", so a
+ * `Euorpe` is a country that vanishes from its own continent on a page that renders perfectly.
  */
 
 import { expect, test } from 'vitest';

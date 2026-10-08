@@ -3,40 +3,25 @@
  * tree for `query.js` to compose, so the shortened string goes through the same distribution and the same clause
  * writer as the plain one. Nothing takes apart a search string that was just written.
  *
- * Three kinds of redundancy are worth removing. The first two are the same thing: the reader has said which species
- * they mean at more length than the game needs.
+ * Three kinds of redundancy are worth removing. A **name longer than it has to be**, since the game reads
+ * `charmander`, `charma` and `4` alike — a pill is shortened wherever it sits, this being the one reduction that needs
+ * to know nothing about what is around it. **Dex numbers said twice**, the AND'd spans collapsing into their
+ * intersection. And **a category saying what its own terms already settle**, which `terms.js` declares through
+ * `exclusive`, `exhaustive` and `covers`.
  *
- * - **A name longer than it has to be.** `charmander` names one species, `charma` names the same one, and so does the
- *   dex number `4`. The game reads all three the same way, so the shortest of them is the one to write. A pill is
- *   shortened wherever it sits, this being the one reduction that needs to know nothing about what is around it.
- * - **Dex numbers said twice.** The generation pills, a dex-number pill and a name that has become a number all write
- *   spans of the same numbers, so where they are AND'd they collapse into their intersection: Gen 1 with Gen 2 is
- *   `1-251`, and `charmander` inside Gen 1 is just `4`.
- * - **A category saying what its own terms already settle.** Nothing is both Shadow and Purified, so an `all` holding
- *   `shadow` and `!purified` is `shadow`; everything has a star rating, so an `any` of all five is no clause at all,
- *   and four of them say the fifth — `0*,1*,2*,3*` is `!4*`. One term can also be the union of others, as `background`
- *   is of the two backdrops, and is then the shorter way to write the whole of what it covers. Which categories and
- *   terms those facts hold of is `terms.js`'s to declare, and its `exclusive`, `exhaustive` and `covers` are all that
- *   is known here.
- *
- * **Every one of the three is local to one node.** That is the whole of what the canvas changed. The earlier builder
- * AND'd one clause per category, so "the terms of this category" and "the terms AND'd with everything else" were the
- * same set and a reduction could be written once against it. An arrangement can put a category's terms in two
- * different groups, or inside an `any` the rest of the query is not AND'd with, so each reduction asks only about one
- * junction node's own parts and leaves the rest of the tree to its own pass. A pill one group over is a pill this
- * knows nothing about, which is the only reading that cannot make a search broader than it was.
+ * **Every one of the three is local to one node**, which is what the canvas changed: the earlier builder AND'd one
+ * clause per category, so "this category's terms" and "the terms AND'd with everything else" were the same set. An
+ * arrangement can put a category's terms in two groups, or inside an `any` the rest of the query is not AND'd with, so
+ * each reduction asks only about one junction's own parts. A pill one group over is a pill this knows nothing about,
+ * which is the only reading that cannot make a search broader than it was.
  *
  * What is *not* reduced is a category's terms arriving at one junction with mixed polarity — an `any` holding `shadow`
- * beside `!purified` is `!purified`, and goes out as it came in. The arrangements a reader builds put a category's
- * choices on one side, the facts in `terms.js` are stated for that reading, and a reduction nobody has thought about
- * is worth less than the clause it saves.
+ * beside `!purified` is `!purified`, and goes out as it came in. The facts in `terms.js` are stated for the reading
+ * where a category's choices sit on one side.
  *
- * What is not here at all is the reduction the shorthand invites most. `+charmander` is the Charmander family, so
- * writing it `4,5,6` — or shortening it to `+charm`, the same family reached through two of its members — needs to
- * know which species share a family, and nothing in this repository holds that: `pokedex.js` carries forms, regions
- * and rarity but no evolution links, and the families in `filters/xxs.js` are a line break for a human reading the
- * list rather than data. So a `+` keeps its name and gets the name shortening alone, which is sound for the reason
- * that the same species reached a shorter way are the same families.
+ * What is not here at all is folding `+charmander` into `4,5,6`, which needs to know which species share a family —
+ * nothing in this repository holds that. So a `+` keeps its name and gets the name shortening alone, which is sound
+ * because the same species reached a shorter way are the same families.
  */
 
 import POKEMON from '../pokemon/pokedex.js';
@@ -171,13 +156,8 @@ function dexOf(fragment: string): number[] | null {
  * One name written as short as it goes. The name itself, the shortest leading fragment of it that still reaches the
  * same species, and those species as dex numbers are three spellings of one search.
  *
- * The candidates are leading fragments rather than fragments from anywhere, for the reason `dexOf` gives: `rman`
- * reaches Charmander under one reading of a partial name and nothing under the other, where `charma` reaches it under
- * both. It also keeps what is written recognisable as the name it came from.
- *
- * A name that resolves to nothing is passed through untouched — a nickname, a misspelling, or a fragment landing on a
- * species the dex cannot spell. There is nothing to prove about a word that names no species, and the reductions here
- * are only for what can be proved.
+ * Leading fragments rather than fragments from anywhere, for the reason `dexOf` gives, which also keeps what is
+ * written recognisable as the name it came from. A name resolving to nothing is passed through untouched.
  *
  * `spans` is the dex numbers the text stands for, or null where it stands for a name the arithmetic cannot join.
  */
@@ -335,18 +315,15 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
 /**
  * The dex spans among one junction's own parts, collapsed into the one thing they say between them.
  *
- * The pills that write spans are the generation terms, a dex-number pill and a name that has become a number. Which
- * way they collapse is the junction's to say, and this is the place the canvas changed the arithmetic rather than just
- * where it is applied: the earlier builder OR'd the generation chips within their own category and AND'd that with
- * everything else, so the two operations were fixed by the table. Here an `all` of spans is their overlap — Gen 1 with
- * Gen 2 is nothing, because no species is in both — and an `any` of them is their union, which is what `1-251` was.
+ * Which way they collapse is the junction's to say, and this is where the canvas changed the arithmetic rather than
+ * just where it is applied: an `all` of spans is their overlap — Gen 1 with Gen 2 is nothing, no species being in
+ * both — where an `any` of them is their union.
  *
- * A negated pill is left out of the arithmetic, ruling a span out not being asking for one, and so is a span inside a
- * nested group, whose own pass will have seen it.
+ * A negated pill is left out, ruling a span out not being asking for one, and so is a span inside a nested group,
+ * whose own pass will have seen it.
  *
- * An empty overlap is the one case left alone. Writing it would be writing no clause at all, turning a search that
- * finds nothing into one that finds everything — the same trap an exhaustive category with every term refused is kept
- * out of above.
+ * An empty overlap is left alone: writing it would be writing no clause at all, turning a search that finds nothing
+ * into one that finds everything — the same trap an exhaustive category with every term refused is kept out of above.
  */
 function shortSpans(junction: Group['junction'], parts: readonly Node[]): Node[] | null {
   const spanned = parts.flatMap((part) => {
@@ -466,14 +443,12 @@ function short(node: Node, told: Told): Node {
 /**
  * The tree the same arrangement composes to in fewer characters, and what was done to get there.
  *
- * The tree handed back is for composing and nothing else. The canvas and the link go on carrying what the reader
- * actually arranged, so turning the optimiser off puts the original string back rather than having to undo a rewrite,
- * and a shared link still arrives as the pills that were placed.
+ * The tree handed back is for composing and nothing else: the canvas and the link go on carrying what the reader
+ * arranged, so turning the optimiser off puts the original string back rather than having to undo a rewrite.
  *
- * `rewrites` is the pairs worth showing: a reader who cannot see why `charmander` became `4` has been handed a string
- * to trust on a mass transfer with no way to check it. `lossy` marks the one reduction that is not an equivalence — a
- * name matches nicknames as well as species, the wiki being explicit that `Tyranitar` returns "all Tyranitar (including
- * any Tyranitar nicknamed as other)", where a dex number matches the species alone.
+ * `rewrites` is the pairs worth showing, a reader who cannot see why `charmander` became `4` having been handed a
+ * string to trust on a mass transfer with no way to check it. `lossy` marks the one reduction that is not an
+ * equivalence — a name matches nicknames as well as species, where a dex number matches the species alone.
  */
 export function optimise(state: State) {
   const told: Told = { rewrites: [], lossy: false };

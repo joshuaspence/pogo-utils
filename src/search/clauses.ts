@@ -2,35 +2,24 @@
  * The query tree, written out as the clauses the game reads.
  *
  * Pokémon GO's search box takes no brackets. What it takes is clauses separated by `&`, each a list of alternatives
- * separated by `,`, `:` or `;`, each alternative a term or a term behind a `!`. Niantic's own list documents exactly
- * that much — "Use & or | to combine searches for Pokémon matching multiple criteria", "Use , : or ; to search for
- * Pokémon from multiple criteria", "Use ! before your search to search for all Pokémon except those that match your
- * search" — and mentions no grouping of any kind, while the fullest community reference there is sends a reader after
- * "more complex searches involving parentheses" away to a converter.
+ * separated by `,`, `:` or `;`, each alternative a term or a term behind a `!` — which is all Niantic's own list
+ * documents, mentioning no grouping of any kind.
  *
  * That shape is conjunctive normal form, and every boolean expression has one. So the canvas can let a reader arrange
  * the search they actually mean and this writes it back out as something the box will take: two pills in an `any`
- * inside an `all` beside two more comes out as four clauses, and not one of the four is a search anybody would have
- * thought to write.
+ * inside an `all` beside two more comes out as four clauses, not one of which anybody would have thought to write.
  *
- * Which leaves the precedence, and it is the one assumption under all of this. A clause list joined with `&` only
- * means what the canvas said if a comma binds tighter than an ampersand: `fire,water&shiny` has to read as a shiny
- * that is Fire or Water rather than as Fire or a shiny Water. Niantic's list documents both operators and never
- * combines them in an example, and the fullest community reference carries a note that searches "do not take priority
- * over each other" against a thread that could not be read — so this is stated here rather than proved, and it is the
- * reading the page has taken since it only had chips.
+ * **The precedence is the one assumption under all of this.** A clause list joined with `&` only means what the canvas
+ * said if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a shiny that is Fire or Water.
+ * Niantic's list documents both operators and never combines them in an example, and the fullest community reference
+ * carries a note that searches "do not take priority over each other" against a thread that could not be read. So it
+ * is stated here rather than proved, and it is the reading the page has taken since it only had chips.
  *
- * The page used to warn about it whenever a string mixed the two. It no longer does: the fixed builder mixed them now
- * and then, where nearly any arrangement does — an `any` beside anything else in an `all` mixes them — so the warning
- * would have been up for nearly every query worth building. An `any` on its own is the exception, composing one clause
- * and no `&`.
+ * What the form costs is characters, an `any` multiplying where an `all` adds, which is its nature rather than a
+ * shortcoming: `(a&b),(c&d)` really is four clauses in a language with no brackets.
  *
- * What it costs is characters, since an `any` multiplies where an `all` adds. That is the normal form's nature rather
- * than a shortcoming — `(a&b),(c&d)` really is four clauses in a language with no brackets.
- *
- * Nothing here pushes a negation anywhere, because `tree.js` keeps negation on the pills: the tree arrives in negation
- * normal form and De Morgan is the reader's own doing, a negated `all` being the `any` of negated pills they built
- * instead.
+ * Nothing here pushes a negation anywhere, `tree.js` keeping negation on the pills: the tree arrives in negation
+ * normal form and De Morgan is the reader's own doing.
  */
 
 import { isGroup, leafText, type Leaf, type Node } from './tree.js';
@@ -42,13 +31,11 @@ import { isGroup, leafText, type Leaf, type Node } from './tree.js';
  * says so to the reader. This is here so that a pathological query comes back at all, rather than locking the tab up
  * building a megabyte nobody can use.
  *
- * `size` is what enforces it, and the *whole tree* is the point. A check inside the distribution can only ever bound
- * the node it sits in: guarding an `any`'s product left twenty `all`-joined groups of nine OR'd pairs — each group
- * inside the cap — summing to 10,240 clauses and half a megabyte of query with nothing reported, because an `all` lays
- * its parts' clauses end to end and no one of them was over.
+ * `size` is what enforces it, and the *whole tree* is the point. A check inside the distribution can only bound the
+ * node it sits in: guarding an `any`'s product left twenty `all`-joined groups of nine OR'd pairs — each inside the
+ * cap — summing to 10,240 clauses and half a megabyte of query with nothing reported.
  *
- * Exported so the test can work out the smallest tree that reaches it rather than carrying a copy of the number: a cap
- * raised past a transcribed one leaves the test asserting nothing, and that reads exactly like a pass.
+ * Exported so the test can work out the smallest tree that reaches it rather than carrying a copy of the number.
  */
 export const CLAUSES = 1000;
 
@@ -58,13 +45,11 @@ export const CLAUSES = 1000;
  * `mega0-`.
  *
  * The reference's capture has the game ignoring the negation on an IV term outright: `!1hp` is `1hp`, so the clause
- * asks for the Pokémon it was meant to rule out and looks entirely right doing it. A negated mega level has its own —
- * it answers only with species that can Mega Evolve, rather than with everything else.
+ * asks for the Pokémon it was meant to rule out and looks entirely right doing it. A negated mega level answers only
+ * with species that can Mega Evolve, rather than with everything else.
  *
- * Neither is this page's doing. The catalogue offers no IV term, so one arrives only as a name a reader typed and then
- * negated themselves, and nothing between here and the string manufactures a negation — the pills carry their own and
- * the reductions below only ever drop things. They are named anyway because this page's output ends up in a mass
- * transfer, and a term that means its own opposite is worth a sentence however it got there.
+ * Neither is this page's doing — nothing between here and the string manufactures a negation. They are named because
+ * this page's output ends up in a mass transfer, where a term that means its own opposite is worth a sentence.
  */
 const MISHANDLED = [
   {
@@ -196,9 +181,8 @@ function clause(leaves: readonly Leaf[]): Leaf[] | null {
  * allocation per pair of clauses rather than one per clause.
  *
  * A length test ahead of the subset test would be the obvious thrift and is not here. Distribution gives every clause
- * out of one `any` node the same length, one pill per part, so on anything this actually receives the test would never
- * fire — no mutation of it could be made to fail a test, and alternating runs over the 512-clause case put it inside
- * the noise. A branch that cannot be held by a test and cannot be shown to pay is worth less than the line.
+ * out of one `any` node the same length, so on anything this receives the test would never fire — no mutation of it
+ * could be made to fail, and runs over the 512-clause case put it inside the noise.
  */
 function absorbed(all: readonly (readonly Leaf[])[]) {
   const clauses = all.map((leaves) => {

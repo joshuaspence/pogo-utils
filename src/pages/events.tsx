@@ -1,18 +1,13 @@
 /**
  * The events calendar page. Loads Leek Duck's event list from `data/events-feed.json` — the copy of ScrapedDuck's JSON
- * mirror that `scripts/vend-feed.mts` refreshes hourly — and renders current, upcoming and — on request — recently
- * ended or undated Pokémon GO events. Reading this site's own copy rather than the mirror is what keeps the page and
- * the subscribable calendar feed built from one fetch. A card's `image` is still a `cdn.leekduck.com` URL, the feed
- * carrying it as one, so this moves where the event data comes from rather than everything a visit fetches.
- *
- * Alongside the feed it loads `data/events.json`, a repo-defined list in the same shape, and merges the two: an entry
- * there whose `eventID` matches a feed event overrides it, otherwise it adds one the feed does not carry (an official
- * event Leek Duck has not listed yet, say). Either source failing still renders the other. A third,
- * `data/entries-by-event.json`, says which events have routes here, so a card can link through to them on the map.
+ * mirror that `scripts/vend-feed.mts` refreshes hourly — and merges it with `data/events.json`, a repo-defined list in
+ * the same shape whose entries override a feed event of the same `eventID` or add one the feed does not carry. Either
+ * source failing still renders the other. `data/entries-by-event.json` says which events have routes here, so a card
+ * can link through to them on the map.
  *
  * Three views over the same data: a card list grouped by status, a month grid where every event is a bar spanning the
- * days it covers within each week, and a Tracks timeline laying events out as horizontal bars in fixed category rows (a
- * Gantt chart). The view toggle switches between them; the search box, type filters and dismissals apply to all three.
+ * days it covers within each week, and a Tracks timeline laying events out as horizontal bars in fixed category rows.
+ * The search box, type filters and dismissals apply to all three.
  */
 
 import { Fragment } from 'preact';
@@ -54,27 +49,22 @@ import type { FeedEvent, RouteIndex } from '../types.js';
 type View = 'cards' | 'calendar' | 'tracks';
 
 /**
- * How often to recompute the "starts in…/ends in…" labels against the wall clock, and — every REFETCH_EVERY ticks —
- * pull the feed again. Pages serves `data/events-feed.json` with `cache-control: max-age=600`, so the ten minutes these
- * two multiply to is the soonest a refetch can reach the network at all rather than the browser cache.
- *
- * The copy itself moves at most hourly, so this is for a tab left open all day rather than for catching an
- * announcement.
+ * How often to recompute the relative labels against the wall clock, and — every `REFETCH_EVERY` ticks — pull the feed
+ * again. Pages serves the feed with `cache-control: max-age=600`, so the ten minutes these multiply to is the soonest
+ * a refetch can reach the network rather than the browser cache. For a tab left open all day.
  */
 const TICK_MS = 60_000;
 const REFETCH_EVERY = 10;
 
 /**
- * How near an event's start or end has to be for the card's relative label to read as urgent — the `soon` class, which
- * the stylesheet paints in the accent colour rather than the muted grey a distant date gets. A day covers the "today or
- * tonight" window a reader would actually change their plans over.
+ * How near an event's start or end has to be for the card's label to read as urgent — the `soon` class. A day covers
+ * the "today or tonight" window a reader would actually change their plans over.
  */
 const SOON_MS = DAY_MS;
 
 /**
  * The largest per-card delay step in the grid's entry animation, in card positions. Past this the cards share the last
- * step instead of stretching the stagger further, so a bucket of sixty does not leave its tail arriving a second and a
- * half late.
+ * step, so a bucket of sixty does not leave its tail arriving a second and a half late.
  */
 const STAGGER_MAX = 14;
 
@@ -88,8 +78,8 @@ const relFmt = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
 const dayFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
-// Weekday labels for the grid header, taken from a week that starts on a known Sunday (2023-01-01) so they follow the
-// user's locale without hard-coding English. The grid itself is Sunday-first.
+// Taken from a week starting on a known Sunday (2023-01-01) so they follow the reader's locale without hard-coding
+// English. The grid itself is Sunday-first.
 const weekdayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) => weekdayFmt.format(new Date(2023, 0, 1 + i)));
 
@@ -100,11 +90,9 @@ function relative(target: Date, now: Date) {
 }
 
 /**
- * The cards view's status buckets, in the order they are drawn, with the heading each carries.
- *
- * Rows in an array rather than an object keyed by kind, because the order is the point and an object says it only by
- * insertion. `Object.entries` was also the wrong reader for it: that answers a `string` key whatever the object's own
- * keys are, so `buckets[kind]` could not be one of the four, and the row carrying its own kind is what makes it one.
+ * The cards view's status buckets, in the order they are drawn. An array rather than an object keyed by kind, the
+ * order being the point and an object saying it only by insertion — and `Object.entries` answers a `string` key
+ * whatever the object's own keys are, where a row carrying its own kind narrows to one of the four.
  */
 const GROUPS: readonly { kind: StatusKind; label: string }[] = [
   { kind: 'active', label: 'Happening now' },
@@ -114,10 +102,9 @@ const GROUPS: readonly { kind: StatusKind; label: string }[] = [
 ];
 
 /**
- * The Tracks view's rows, in display order. Each is keyed by the feed's `eventType` (a stable slug) rather than its
- * `heading`, so the match survives a wording change upstream. GO Battle League and GO Pass are deliberately absent: an
- * event of one of those types has no row here and so never lands on the timeline. The labels are ours where
- * they read better than the feed's — "Events" for `event`, "Spotlight Hour" for `pokemon-spotlight-hour`.
+ * The Tracks view's rows, in display order, keyed by the feed's `eventType` slug rather than its `heading` so the
+ * match survives a wording change upstream. GO Battle League and GO Pass are deliberately absent, so an event of
+ * either type never lands on the timeline. The labels are ours where they read better than the feed's.
  */
 const TRACKS = [
   { type: 'choose-your-path', label: 'Choose Your Path' },
@@ -136,12 +123,9 @@ const TRACKS = [
 ];
 
 /**
- * The three reveals at the foot of the filter panel, each with the label it wears and whether it is only offered to the
- * cards view. A table rather than three names written out, because the imperative page had to pair each flag with the
- * chip that stood for it to avoid asking the document for one — and a chip rendered from this needs no such pairing.
- *
- * Both bucket reveals only mean anything for the cards: the calendar and tracks views show a fixed window regardless,
- * and neither can draw a dateless event in the first place — windowOf() gives it no window to place.
+ * The three reveals at the foot of the filter panel, each with its label and whether it is only offered to the cards
+ * view. Both bucket reveals only mean anything there: the calendar and tracks views show a fixed window regardless,
+ * and neither can draw a dateless event at all, `windowOf` giving it no window to place.
  */
 const REVEALS = [
   { name: 'showPast', label: 'Show ended', cardsOnly: true },
@@ -165,8 +149,8 @@ const TRACK_MIN_DAYS = 30;
 const TRACK_MAX_DAYS = 120;
 
 /**
- * A card's picture, which takes itself off the card when it fails to load rather than leaving the browser's broken-image
- * glyph in the corner of it. Its own component so the failure is state rather than a node removing itself from a tree the
+ * A card's picture, which takes itself off the card when it fails to load rather than leaving the browser's
+ * broken-image glyph. Its own component so the failure is state rather than a node removing itself from a tree the
  * reconciler believes it still owns.
  */
 function Thumb({ src }: { src: string }) {
@@ -176,11 +160,9 @@ function Thumb({ src }: { src: string }) {
 }
 
 /**
- * The absolute dates as a line of prose — a range, an open start, an open end, or that there are none.
- *
- * Four branches for four cases rather than three and a fallthrough. The dateless case read first and the end-only one
- * arrived as the default, which is a claim the reader has to reconstruct from the two guards above it; written out, the
- * checker confirms each `format` call has a date rather than taking it on trust.
+ * The absolute dates as a line of prose — a range, an open start, an open end, or that there are none. Four branches
+ * for four cases rather than three and a fallthrough, so the checker confirms each `format` call has a date rather
+ * than taking it on trust.
  */
 function timeRange(ev: ParsedEvent) {
   const local = ev.start && !ev.startHasZone ? ' (your local time)' : '';
@@ -201,11 +183,10 @@ function timeRange(ev: ParsedEvent) {
 }
 
 /**
- * One feed, checked to be a list. `Response#json` answers `any`, and the `Array.isArray` below is the whole of what
- * says otherwise — it narrows no further than `any[]` and nothing at the type level reads an entry, so the element type
- * is a claim rather than something the throw enforces. What makes it a safe one is what normalise() then does with an
- * entry: every field is either handed to parseDate(), which answers null for anything that is not a date, or rendered as
- * text. So a feed that changed shape draws `undefined` rather than doing something with it.
+ * One feed, checked to be a list. `Array.isArray` narrows no further than `any[]`, so the element type is a claim
+ * rather than something the throw enforces. What makes it a safe one is `normalise`: every field is either handed to
+ * `parseDate`, which answers null for anything that is not a date, or rendered as text — so a feed that changed shape
+ * draws `undefined` rather than doing something with it.
  */
 async function fetchEvents(url: string): Promise<readonly FeedEvent[]> {
   const res = await fetch(url, { cache: 'default' });
@@ -240,12 +221,9 @@ async function fetchRouteIndex(): Promise<RouteIndex> {
 
 export default function EventsPage({ query: fragment }: { query: string }) {
   /**
-   * The reader's saved choices, held as the one mutable object the prefs module hands out: `hiddenFor` answers a set the
-   * caller is expected to add to and delete from, and the dismissals and the seen set are read and written the same way.
-   *
-   * So this is a ref and a repaint rather than state. Nothing is gained by copying it on every click — the page always
-   * draws from whatever it currently holds — and making it immutable would mean rewriting `event-prefs.ts` and the 259
-   * lines of tests over it to port a page. `commit` is the one way it changes: persist, then ask for a repaint.
+   * The reader's saved choices, held as the one mutable object the prefs module hands out: `hiddenFor` answers a set
+   * the caller adds to and deletes from, and the dismissals and seen set are read and written the same way. So this is
+   * a ref and a repaint rather than state, and `commit` is the one way it changes.
    */
   const prefs = useRef(loadPrefs()).current;
 
@@ -273,15 +251,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   const [loading, setLoading] = useState(true);
 
   /**
-   * Which fetch the events on screen came from, which is what the cards' entry animation is keyed by.
-   *
-   * A CSS animation runs when its element is mounted, so a new number builds a new grid and plays it while the same
-   * number keeps the grid and leaves it alone — where the imperative page rebuilt every card on every render and spent a
-   * flag to say which of those renders should animate. That flag is what this replaces.
-   *
-   * It is not quite the same rule, and the difference is worth naming: a card that newly passes a filter mounts, so it
-   * fades in where the old page drew it immediately. A minute's re-render still animates nothing, which is the case the
-   * flag existed for — relative labels move every sixty seconds and a twitch each time was the thing to avoid.
+   * Which fetch the events on screen came from, which is what the cards' entry animation is keyed by. A CSS animation
+   * runs when its element mounts, so a new number builds a new grid and plays it while the same number leaves the grid
+   * alone — which is what keeps the minute's re-render from twitching every card as the relative labels move.
    */
   const [generation, setGeneration] = useState(0);
 
@@ -299,17 +271,15 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   const [calMonth, setCalMonth] = useState<Date | null>(null);
 
   /**
-   * An `?event=` the fragment named that has not been applied yet, because the feed it names an event in had not arrived.
-   * Held rather than re-read so the arrival is spent once: a ten-minute re-fetch must not re-apply it over whatever the
-   * reader has since typed into the search box.
+   * An `?event=` the fragment named and the feed had not yet arrived to apply. Held rather than re-read so the arrival
+   * is spent once: a ten-minute re-fetch must not re-apply it over whatever the reader has since typed.
    */
   const pending = useRef<string | null>(null);
 
   /**
-   * Whether an event survives the type-filter, dismissal and search-term filters — the ones that mean "I do not want to
-   * see this", so every view honours them. The status reveals are `isRevealed`'s, layered on top of this. A dismissed
-   * event stays hidden unless "Show hidden" is on, which mirrors how "Show ended" reveals past events — the choice is a
-   * temporary reveal, not a change to the saved dismissal.
+   * Whether an event survives the type-filter, dismissal and search-term filters — the ones meaning "I do not want to
+   * see this", so every view honours them. "Show hidden" reveals a dismissal the way "Show ended" reveals a past
+   * event: a temporary reveal rather than a change to what was saved. The status reveals are `isRevealed`'s.
    */
   function isVisible(ev: ParsedEvent) {
     if (hiddenFor(prefs, view).has(ev.heading)) {
@@ -327,12 +297,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /**
    * Whether the reader has revealed the status bucket this event falls in. The two opt-in buckets are an event that is
-   * over and one the feed gave no date for: neither is something a reader can plan around, and an undated event is more
-   * often a gap on the way here than one genuinely waiting on a date.
+   * over and one the feed gave no date for, neither being something to plan around.
    *
-   * Shared with `newlyVisible` so the new count can only ever be a subset of the total the cards view writes beside it. A
-   * header reporting more new events than events contradicts itself, and so does any count at all above "No events to
-   * show" — which a search term matching only undated events is enough to produce.
+   * Shared with `newlyVisible` so the new count can only be a subset of the total beside it: a header reporting more
+   * new events than events contradicts itself, as does any count at all above "No events to show".
    */
   function isRevealed(ev: ParsedEvent) {
     const kind = statusOf(ev, now).kind;
@@ -342,13 +310,11 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /**
    * Whether the event has turned up since the reader last acknowledged what was on the page. The feed carries no
-   * published date — an entry is `eventID`, `name`, `heading`, `eventType`, `link`, `image`, `start` and `end`, and
-   * nothing else — so "new" can only mean "an ID this browser has not recorded seeing", a per-reader fact anyway.
+   * published date, so "new" can only mean "an ID this browser has not recorded seeing".
    *
-   * A recurring type is never new, whoever is looking and whatever they have ticked. Each occurrence carries its own
-   * dated ID — `pokemonspotlighthour2026-09-24` — so a weekly Spotlight Hour arrives unrecognised every week and would
-   * mark itself for ever. Coming round on schedule is the whole of what those types do, and a mark that fires on schedule
-   * reports nothing. That is why `settleSeen` stores none of them either: no question is left for the set to answer.
+   * A recurring type is never new. Each occurrence carries its own dated ID — `pokemonspotlighthour2026-09-24` — so a
+   * weekly Spotlight Hour arrives unrecognised every week and would mark itself for ever, reporting nothing. Hence
+   * `settleSeen` storing none of them either.
    *
    * Nothing is new before the first feed has settled the seen set, so a slow fetch cannot flash badges over every card.
    */
@@ -357,12 +323,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * Acknowledge one event. The writer paired with `isNew`, and asked only for an event `isNew` has admitted — which it
-   * cannot do before `settleSeen` has filled the set, since a null one is the first of its three conditions.
-   *
-   * So the optional call is that null being unreachable rather than tolerated. There is no branch to write for it:
-   * nothing can be new when there is nothing yet to be new against, so the set this would have created has no members to
-   * carry.
+   * Acknowledge one event, asked only for an event `isNew` has admitted — which it cannot do before `settleSeen` has
+   * filled the set, a null one being the first of its three conditions. So the optional call is that null being
+   * unreachable rather than tolerated.
    */
   function recordSeen(ev: ParsedEvent) {
     prefs.seen?.add(ev.eventID);
@@ -370,26 +333,23 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /**
    * The events the reader is being told are new: unacknowledged, and among those their filters admit. Both filters, so
-   * the count leaves out everything they have said they do not want — a dismissal, a search term, a hidden type, which
-   * after `isNew` has already refused the recurring ones means the rest of DEFAULT_HIDDEN and anything they have unticked
-   * since, and the ended and undated buckets they have not revealed.
+   * the count leaves out everything they have said they do not want.
    */
   const newlyVisible = () => events.filter((ev) => isNew(ev) && isVisible(ev) && isRevealed(ev));
 
   /**
    * Settle the seen set against the feed, once per fetch.
    *
-   * A first visit seeds it with everything on offer rather than marking all of it new: forty badges say no more than none
-   * do, and the point of the mark is the difference from what you last looked at, which on a first visit is nothing. IDs
-   * the feed has dropped are forgotten, which cannot resurrect a mark because every occurrence carries its own dated ID —
-   * `raidhour20260930`, `october-communityday2026` — so a forgotten one never comes round again.
+   * A first visit seeds it with everything on offer rather than marking all of it new, the mark being the difference
+   * from what you last looked at. IDs the feed has dropped are forgotten, which cannot resurrect a mark because every
+   * occurrence carries its own dated ID.
    *
-   * The recurring types are left out of both halves, because `isNew` can never mark one: they are a fifth of the feed, so
+   * The recurring types are left out of both halves, `isNew` never marking one: they are a fifth of the feed, so
    * storing them would turn a fifth of the set over every week to answer a question nothing asks. Leaving them out of
-   * `ids` is also what drops the ones already stored, since the prune keeps only what `ids` holds.
+   * `ids` is also what drops the ones already stored, the prune keeping only what `ids` holds.
    *
-   * Both halves are skipped when the feed gave us nothing, which `load` tolerates: seeding from an empty feed would mark
-   * the whole of the next good one new, and pruning against it would forget every ID the reader had acknowledged.
+   * Both halves are skipped when the feed gave us nothing: seeding from an empty feed would mark the whole of the next
+   * good one new, and pruning against it would forget every ID the reader had acknowledged.
    */
   function settleSeen(settled: readonly ParsedEvent[]) {
     if (settled.length === 0) {
@@ -403,12 +363,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * A link from the Routes page arrives as `#/events?event=<eventID>`, and lands by searching for that event's name.
-   * Reusing the search box rather than scrolling to the card leaves the reader somewhere they recognise: the term is
-   * visible in the box, and emptying it is how they already know to get the other 59 cards back.
-   *
-   * The event is always there to find — the linter rejects a `<pgr:event>` naming an ID that data/events.json does not
-   * carry, so a chip cannot point at one this page has never heard of.
+   * A link from the Routes page arrives as `#/events?event=<eventID>` and lands by searching for that event's name.
+   * Reusing the search box rather than scrolling to the card leaves the term visible, and emptying it is how a reader
+   * already knows to get the other cards back. The event is always there to find, the linter rejecting a `<pgr:event>`
+   * naming an ID `data/events.json` does not carry.
    */
   function applyPending(against: readonly ParsedEvent[]) {
     const id = pending.current;
@@ -421,9 +379,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     pending.current = null;
 
     /**
-     * Unhide its type, or a reader with that filter off would follow the link and be shown nothing at all — seven types
-     * start hidden. Not persisted: this is for the one arrival, not a standing change to what they chose to see. A card
-     * they dismissed individually stays dismissed, which is a decision about that event rather than a blanket rule.
+     * Unhide its type, or a reader with that filter off would follow the link and be shown nothing. Not persisted:
+     * this is for the one arrival. A card dismissed individually stays dismissed, that being a decision about the
+     * event rather than a blanket rule.
      */
     hiddenFor(prefs, view).delete(match.heading);
     setSearch(match.name);
@@ -432,10 +390,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   async function load() {
     setLoading(true);
 
-    /**
-     * Fetch all three sources concurrently and tolerate any failing: a dead feed still shows the repo events, a missing
-     * local file still shows the feed, and a missing index costs the cards their link through to the map and nothing
-     * else.
+    /*
+     * All three concurrently, tolerating any failing: a dead feed still shows the repo events, a missing local file
+     * still shows the feed, and a missing index costs the cards their map link and nothing else.
      */
     const [feed, local, index] = await Promise.allSettled([
       fetchEvents(VENDED_EVENTS),
@@ -452,10 +409,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       return;
     }
 
-    /**
-     * Keyed by eventID with the local pass last, so a repo entry overrides a feed event of the same ID rather than
-     * duplicating it — see mergeEvents(), which parses the dates and sorts by start as well.
-     */
+    // Local last, so a repo entry overrides a feed event of the same ID rather than duplicating it. `mergeEvents`
+    // parses the dates and sorts by start as well.
     const merged = mergeEvents(
       feed.status === 'fulfilled' ? feed.value : [],
       local.status === 'fulfilled' ? local.value : [],
@@ -468,8 +423,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     applyPending(merged);
   }
 
-  // The first fetch, and the fragment's `?event=` read before it so the arrival is applied as soon as there is a feed to
-  // find the event in. A link followed from this page changes only the fragment, so this is also what lands that.
+  // The fragment's `?event=` is read before the first fetch, so the arrival is applied as soon as there is a feed to
+  // find the event in. A link followed from this page changes only the fragment, so this lands that too.
   useEffect(() => {
     pending.current = new URLSearchParams(fragment).get('event');
     applyPending(events);
@@ -480,10 +435,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }, []);
 
   /**
-   * Re-render every minute so relative labels stay honest, and re-fetch every tenth minute to catch new events. A tab
-   * coming back into view re-renders straight away rather than waiting out the rest of its minute, since a background tab
-   * has its timers throttled and its labels are the part a returning reader looks at first. The feed waits for the next
-   * re-fetch tick either way.
+   * Re-render every minute so relative labels stay honest, and re-fetch every tenth to catch new events. A tab coming
+   * back into view re-renders straight away rather than waiting out its minute, a background tab having its timers
+   * throttled. The feed waits for the next re-fetch tick either way.
    */
   useEffect(() => {
     let tick = 0;
@@ -514,8 +468,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /**
    * Switch which hidden-type set the chips edit and the views read. Persisted, unlike the view itself, because the sets
-   * it chooses between are: a scope that fell back to global on reload would leave a reader's per-view filtering saved
-   * and silently out of force, which is worse than not having offered it.
+   * it chooses between are: a scope falling back to global on reload would leave per-view filtering saved and silently
+   * out of force, which is worse than not having offered it.
    */
   function setScope(next: Prefs['filterScope']) {
     prefs.filterScope = next;
@@ -529,22 +483,22 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       hidden.add(heading);
     }
 
-    // Whichever set that was. Naming it from the scope rather than from the set means the two cannot disagree about
-    // where a click just went, which is the one way a chip could take effect and then not survive a reload.
+    // Named from the scope rather than the set, so the two cannot disagree about where a click just went — the one way
+    // a chip could take effect and then not survive a reload.
     commit(prefs.filterScope === 'view' ? 'hiddenByView' : 'hiddenTypes');
   }
 
   function reset() {
     prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
 
-    // Emptied rather than filled with the defaults, because an absent set is what hiddenFor(prefs, view) seeds from the
-    // global one — so this returns every view to the same set the chips now show, whichever scope a reader comes back in.
+    // Emptied rather than filled with the defaults, an absent set being what `hiddenFor` seeds from the global one, so
+    // every view returns to the same set the chips now show whichever scope a reader comes back in.
     prefs.hiddenByView = {};
     prefs.filterScope = 'global';
     prefs.dismissed.clear();
 
-    // Back to not knowing, which settleSeen() then reads as a first visit and seeds from the feed. Clearing it to empty
-    // instead would mark every event on the page new, and a Reset is a return to the defaults, not an announcement.
+    // Back to not knowing, which `settleSeen` reads as a first visit and seeds from the feed. Clearing it to empty
+    // instead would mark every event on the page new, where a Reset is a return to the defaults.
     prefs.seen = null;
 
     try {
@@ -555,8 +509,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       /* Nothing to clear if storage is unavailable. */
     }
 
-    // Not stored preferences, so clearing the keys above leaves these as they were — but they are three of the same chips
-    // Reset puts back, and a Reset that returns the page to its defaults cannot leave one of them widening it.
+    // Not stored, so clearing the keys above leaves these as they were — but they are three of the same chips Reset
+    // puts back, and a Reset cannot leave one of them widening the page.
     setReveals(NOTHING_REVEALED);
     settleSeen(events);
     repaint();
@@ -565,15 +519,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   /**
    * Acknowledge exactly the events the header just reported, so the number always falls to zero.
    *
-   * That population is what the cards view draws, which the other two cannot match: the calendar paints one month at a
-   * time, and the tracks only the types TRACKS has a row for, over a bounded window. So the count agrees with the marks
-   * on screen in the cards view and in neither of the others, in both directions — a new event in next month is counted
-   * before the calendar reaches it, and a new event that has ended is ringed in a past month without being counted. Cards
-   * is the one worth making exact, because it is the only view whose own total sits in the same header.
+   * That population is what the cards view draws, which the other two cannot match — the calendar paints one month and
+   * the tracks only the types `TRACKS` has a row for. Cards is the one worth making exact, being the only view whose
+   * own total sits in the same header.
    *
-   * Revealing a hidden type months later does therefore surface a batch of marks, which is right — those events genuinely
-   * are ones the reader has never been shown, and this clears them in one press. Revealing a recurring one surfaces
-   * nothing, since `isNew` refuses those whatever is ticked.
+   * Revealing a hidden type months later therefore surfaces a batch of marks, which is right: those events genuinely
+   * are ones the reader has never been shown, and this clears them in one press.
    */
   function markAllSeen() {
     for (const ev of newlyVisible()) {
@@ -584,16 +535,13 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * The per-type filter chips, from the categories the feed currently carries. A chip is on when its type is not in the
-   * hidden set; clicking one updates that set, persists it and redraws.
+   * The per-type filter chips, from the categories the feed currently carries. Each wears its type's colour class,
+   * which turns the row into the legend for the colour-coded cards and bars — and that needs the `eventType` slug the
+   * colours are keyed by, where the filters are keyed by the human `heading`. So the pairing is read off the events
+   * rather than kept as a second list that could drift.
    *
-   * Each chip also wears its type's colour class, which turns the row into the legend for the colour-coded cards and
-   * bars. That needs the `eventType` slug the colours are keyed by, while the filters themselves are keyed by the human
-   * `heading` — so the pairing is read off the events rather than kept as a second list that could drift out of step
-   * with the feed.
-   *
-   * The entries are sorted rather than the keys, so the slug arrives with its heading. The comparator is spelled out
-   * because it is over pairs: a bare `.sort()` would stringify each one whole.
+   * The entries are sorted rather than the keys, so the slug arrives with its heading, and the comparator is spelled
+   * out because a bare `.sort()` over pairs would stringify each one whole.
    */
   const slugs = new Map<string, string>();
 
@@ -608,14 +556,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   const newly = newlyVisible().length;
 
   /**
-   * One card. The overlay link covers it, so every other control on it has to be a sibling of that link.
+   * One card. The overlay link covers it, so every other control has to be a sibling of that link.
    *
-   * A function returning markup rather than a component, which is what the imperative page's `card(ev, now)` was too, and
-   * here it is load-bearing rather than a preference. A component declared inside another is a *new function identity* on
-   * every render, which the reconciler reads as a different type: it threw away all sixty cards and built them again on
-   * every keystroke in the search box and on every minute's tick, re-requesting sixty `cdn.leekduck.com` thumbnails each
-   * time. Called directly it contributes no component boundary at all, so the `<article>` keyed below is diffed against
-   * the one from the last render, and the thumbnails stay where they are.
+   * A function returning markup rather than a component, which is load-bearing: a component declared inside another is
+   * a new function identity on every render, which the reconciler reads as a different type — it threw away all sixty
+   * cards on every keystroke in the search box, re-requesting sixty `cdn.leekduck.com` thumbnails each time. Called
+   * directly it contributes no component boundary, so the keyed `<article>` is diffed against the last render's.
    */
   function renderCard(ev: ParsedEvent, index: number) {
     const status = statusOf(ev, now);
@@ -625,16 +571,15 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     const summary = here ? routeSummary(here) : null;
 
     /**
-     * Opening the event acknowledges it, so the mark goes with the click. `target="_blank"` leaves the reader on this
-     * page, so a card they have just gone and read would otherwise still be announcing itself as new when they come back
-     * to this tab — and the one gesture that proves they have seen it is the one that left it marked.
+     * Opening the event acknowledges it. `target="_blank"` leaves the reader on this page, so a card they have just
+     * gone and read would otherwise still be announcing itself as new when they come back.
      *
-     * `auxclick` as well as `click` because a middle click, which over a list like this is how a reader opens something
-     * in a background tab without losing their place, fires only the second of the two.
+     * `auxclick` as well as `click` because a middle click — how a reader opens something in a background tab without
+     * losing their place — fires only the second of the two.
      */
     const acknowledge = (event: MouseEvent) => {
-      // The left and middle buttons are the two that open the link. Chrome reports a right click as an `auxclick` too,
-      // and that opens a menu rather than the event.
+      // Left and middle are the two that open the link. Chrome reports a right click as an `auxclick` too, and that
+      // opens a menu rather than the event.
       if (event.button > 1 || !fresh) {
         return;
       }
@@ -819,18 +764,14 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     return {
       count: parts.join(' · '),
       /**
-       * Keyed by the bucket, which an anonymous `<>` cannot be — and a bucket is exactly what comes and goes here, since
-       * only the non-empty ones are drawn. Unkeyed, the four are matched by position: a search term that empties
-       * "Happening now" slides "Upcoming" into slot nought, whose grid then carries a different key from the one that was
-       * there, so the reconciler rebuilds it and throws away every card under it. Measured at 0 of 62 cards reused on one
-       * keystroke, each taking its `cdn.leekduck.com` thumbnail with it.
+       * Keyed by the bucket, which an anonymous `<>` cannot be — and a bucket is what comes and goes here, only the
+       * non-empty ones being drawn. Unkeyed, the four are matched by position, so a search term emptying "Happening
+       * now" slides "Upcoming" into slot nought and the reconciler rebuilds its grid: measured at 0 of 62 cards reused
+       * on one keystroke, each taking its thumbnail with it.
        */
       body: GROUPS.filter(({ kind }) => buckets[kind].length > 0).map(({ kind, label }) => (
         <Fragment key={kind}>
-          {/*
-           * The bucket's kind rides along on the heading so the stylesheet can pick out the running events; the count
-           * saves the reader tallying cards to see how big a bucket is.
-           */}
+          {/* The kind rides along on the heading so the stylesheet can pick out the running events. */}
           <h2 class={`group group-${kind}`}>
             {label}
             <span class="gcount">{buckets[kind].length}</span>
@@ -855,14 +796,11 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     const todayKey = startOfDay(now).getTime();
 
     /**
-     * Every event the grid can place, resolved once ahead of the week loop. A dateless event has no window and so never
-     * reaches the grid at all. `events` is already sorted by start, so the longest-running bars settle at the top of each
-     * week and the order down a week reads as the order events begin.
+     * Every event the grid can place, resolved once ahead of the week loop. `events` is already sorted by start, so
+     * the longest-running bars settle at the top of each week.
      *
-     * One `flatMap` rather than a `map` and a `filter`, because a predicate does not narrow what it filtered: the pair
-     * survived the `win !== null` test and stayed `Span | null` regardless, which is two assertions' worth of noise at
-     * the two places below that read `win[0]`. Returning no row for an event with no window says the same thing and is
-     * checked.
+     * One `flatMap` rather than a `map` and a `filter`, a predicate not narrowing what it filtered: the pair would
+     * stay `Span | null` past a `win !== null` test, which is two assertions' worth of noise where `win[0]` is read.
      */
     const placed = events.filter(isVisible).flatMap((ev) => {
       const win = windowOf(ev);
@@ -1029,11 +967,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     const rows = [...byType.values()].flatMap((track) => {
       /**
-       * The right edge needs a guard of its own, mirroring the `win[1] <= rangeStartMs` one above: `span` is clamped to
-       * TRACK_MAX_DAYS where `latestEnd` is not, so an event starting past `rangeEndMs` clips to a negative width, draws
-       * at the 20px minimum somewhere past the lane's own right edge — `.track-lane` sets no `overflow` and
-       * `.tracks-scroll` scrolls — and is counted in the tally. Dropped before `packLanes` so it cannot claim a lane and
-       * raise the row's height for a bar nobody can see.
+       * The right edge needs a guard of its own, mirroring the `win[1] <= rangeStartMs` one above: `span` is clamped
+       * to `TRACK_MAX_DAYS` where `latestEnd` is not, so an event starting past `rangeEndMs` clips to a negative width
+       * and draws at the 20px minimum past the lane's right edge, counted in the tally. Dropped before `packLanes` so
+       * it cannot claim a lane and raise the row's height for a bar nobody can see.
        */
       const items = track.items.filter((item) => item.startMs < rangeEndMs).sort((a, b) => a.startMs - b.startMs);
 
@@ -1173,11 +1110,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </button>
 
         {/*
-         * The handle that discloses the filters, on a row of its own at the foot of the panel. `aria-expanded` carries the
-         * state and the title says which way a click goes, so the label stays neutral in both of them and the ellipsis
-         * only has to say there is more here; it is a real character rather than CSS content so it survives the stylesheet
-         * not loading, and needs no `aria-hidden` because `aria-label` already replaces the contents in the accessible
-         * name. The wrapper gives the handle its row — see `.disclose-row` for why that is not the button's job.
+         * `aria-expanded` carries the state and the title says which way a click goes, so the label stays neutral in
+         * both. The ellipsis is a real character rather than CSS content so it survives the stylesheet not loading,
+         * and needs no `aria-hidden`, `aria-label` already replacing the contents in the accessible name.
          */}
         <div class="disclose-row">
           <button
@@ -1194,17 +1129,11 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </div>
       </section>
 
-      {/*
-       * Hidden until the handle above discloses it. Everything in here narrows or widens what the views draw, and none of
-       * it is wanted on a first read: the chip row doubles as the colour legend for all three views, and the three
-       * reveals below only matter to a reader already looking for something they cannot see.
-       */}
+      {/* Hidden until the handle above discloses it: everything in here narrows or widens what the views draw. */}
       <section class="filters" id="filters" aria-label="Filters" hidden={!filtersOpen}>
         {/*
-         * What a chip click applies to, immediately above the chips it governs. The label is a real element and the group
-         * takes `aria-labelledby` rather than repeating it in an `aria-label`, so the two cannot drift; the segmented
-         * `.viewtoggle` is the same control the view switcher uses, and is here because it names both states at once
-         * instead of leaving one of them to be inferred from the other being lit.
+         * What a chip click applies to, immediately above the chips it governs. The label is a real element and the
+         * group takes `aria-labelledby` rather than repeating it in an `aria-label`, so the two cannot drift.
          */}
         <div class="scope">
           <span id="scopeLabel">Type filters apply to</span>
@@ -1229,12 +1158,11 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </div>
 
         {/*
-         * A `group` rather than a labelled `section`, because it is nested inside one: two regions, one wrapping the
-         * other, is a landmark a reader has to step past to reach the chips it holds.
+         * A `group` rather than a labelled `section`, being nested inside one: two regions one wrapping the other is a
+         * landmark a reader has to step past to reach the chips.
          *
-         * The chips are painted from the hidden set in force rather than from their own appearance, which matters because
-         * under a per-view scope that set changes with the view: a row still showing the last view's would be a legend
-         * for a set no longer being read.
+         * Painted from the hidden set in force rather than their own appearance, which matters because under a
+         * per-view scope that set changes with the view — a row showing the last view's would be a stale legend.
          */}
         <div class="type-filters" role="group" aria-label="Filter by event type">
           {types.map(([heading, eventType]) => (
@@ -1251,12 +1179,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </div>
 
         {/*
-         * The same chip as a type filter, and toggle buttons for the same reason: `aria-pressed` is what carries on or off
-         * to a reader who cannot see the dimming, and a button is the one control that takes it.
-         *
-         * Last in the panel, and so last in the tab order, because they are the least of what is in it: the chips above
-         * are the legend for all three views and get read whether or not they are clicked, where these three only widen a
-         * window a reader is unlikely to want widened.
+         * The same chip as a type filter, and buttons for the same reason: `aria-pressed` is what carries on or off to
+         * a reader who cannot see the dimming. Last in the panel and so last in the tab order, the chips above being
+         * the legend for all three views where these only widen a window.
          */}
         <div class="toggles">
           {REVEALS.map(({ name, label, cardsOnly }) => (

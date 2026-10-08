@@ -1,9 +1,8 @@
 /**
  * On-screen controls, taken verbatim from a known-good backup. Each checkbox includes one entry's keys in the
- * synthesized backup: a control's x/y are fixed Java Floats, and a filter from filters.js is the JSON string
- * PGSharp stores. The values are not user-editable. The floating control and both fast-snipe buttons sit in one row
- * along the bottom of the screen, so they share a Y. Dragging each into place by hand left them a pixel or so apart
- * (the floating control was higher still, at 535.75); naming the row's Y once keeps them level.
+ * synthesized backup, and the values are not user-editable. The floating control and both fast-snipe buttons sit in
+ * one row along the bottom of the screen, so naming the row's Y once keeps them level — dragging each into place by
+ * hand left them a pixel or so apart.
  */
 import FEED_FILTERS from './filters.js';
 import SCAN_CONFIG from './scan-config.js';
@@ -19,7 +18,7 @@ const SNIPE2 = {
  * (these keys are non-integer strings), and it decides the order the keys land in the backup, so the entries stay in the
  * order PGSharp wrote them.
  *
- * `satisfies` rather than an annotation, because this table is read both ways: `backup.ts` iterates it with
+ * `satisfies` rather than an annotation, because this table is read both ways: `pgsdata.ts` iterates it with
  * `Object.entries` and also names `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first
  * and throws the second away, measured at two errors on that line for nothing the shape check does not already catch,
  * where `satisfies` checks the shape and hands back the inferred keys. What it rejects is a value that is neither a

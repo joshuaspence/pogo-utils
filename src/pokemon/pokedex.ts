@@ -1,18 +1,15 @@
 import Pokemon from './pokemon.js';
 
 /**
- * The National Pokédex — every species as a constant naming it. PGSharp stores a species as its dex number, which
- * says nothing on its own, so the filters in `pgsharp/filters.js` are written with these constants instead:
- * `POKEMON.PANPOUR` reads as the species it is, and a misspelling is a name the table does not define rather than a
- * number nothing checks.
+ * The National Pokédex — every species as a constant naming it. PGSharp stores a species as its dex number, which says
+ * nothing on its own, so the filters are written with these instead: `POKEMON.PANPOUR` reads as the species it is, and
+ * a misspelling is a name the table does not define rather than a number nothing checks.
  *
- * The whole dex is here rather than only the species in use, so a filter can name any of them without the table
- * having to be extended first. A constant is its English name uppercased, with the punctuation the games spell it
- * with dropped or turned into an underscore — `FARFETCHD`, `MR_MIME`, `NIDORAN_F`, `FLABEBE`, `TYPE_NULL` — which
- * keeps all 1025 distinct.
+ * The whole dex is here rather than only the species in use, so a filter can name any of them. A constant is its
+ * English name uppercased, with punctuation dropped or turned into an underscore, which keeps all 1025 distinct.
  *
- * A species also carries the forms and regional variants it comes in, declared on the entry itself, so everything
- * about a species is in one place rather than in a table off to the side.
+ * A species carries the forms and regional variants it comes in on its own entry, so everything about it is in one
+ * place.
  */
 
 /** The regions a species can wear a variant of, valued at the adjective the games call that variant. */

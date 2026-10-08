@@ -5,9 +5,6 @@
  * term, an arity claiming more parts than there are, a nesting deeper than the stack would survive. The round trip
  * itself is swept rather than sampled — the encoding is a token stream with no brackets to match, which is exactly the
  * kind of thing that is right for the trees someone thought of.
- *
- * Every expectation is derived from `terms.js` and pinned against it first, for the reason `optimise.test.ts` gives: a
- * renamed id or a moved ceiling leaves a test asserting nothing, and that reads exactly like a pass.
  */
 
 import { expect, test } from 'vitest';

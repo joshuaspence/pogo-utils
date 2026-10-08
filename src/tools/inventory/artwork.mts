@@ -1,29 +1,18 @@
 /**
- * Telling two forms apart by the artwork, for the ones the numbers cannot reach.
- *
- * HP is a function of `stamina` alone, so two forms sharing their types and all three base stats are identical in every
- * field the detail screen states — Deerling's four seasons are `115/100/155 Normal+Grass` to the last point, and so are
- * Burmy's three, Basculin's three, Genesect's five, Cherrim's two, Keldeo's two and Shellos' two. `identify` folds them
- * to one and answers it with no alternatives and no notes, which is a wrong answer that flags nothing.
- *
- * The artwork is the only thing left, and the game draws each such form its own: `game-master.mts` resolves a form to
- * the file `pogo_assets` holds it under, by name and against that directory's own listing. So the question is whether
- * a capture's artwork can be matched against those icons, and the answer is a qualified yes — qualified by abstention
- * rather than by accuracy, because a reader that is wrong and says nothing is the expensive kind.
+ * Telling two forms apart by the artwork, for the ones the numbers cannot reach. HP is a function of `stamina` alone,
+ * so two forms sharing their types and all three base stats are identical in every field the detail screen states —
+ * Deerling's four seasons, Burmy's three, Genesect's five and more. `identify` folds them to one and answers with no
+ * alternatives and no notes, which is a wrong answer that flags nothing.
  *
  * **The backdrop is the whole problem, not the colours.** The game blurs an arbitrary scene behind the model and will
  * put a photograph there, against which a small model is a minority of any fixed box. So the subject is bounded by the
  * panel below it and by sharpness, edges being what a blurred scene lacks, and only the largest connected run of what
- * those edges enclose is kept: a backdrop that is flat colour with crisp shapes drawn over it has edges too, and growing
- * the mask from them would flood it with the backdrop's colour.
+ * those edges enclose is kept — a flat backdrop with crisp shapes on it has edges too, and growing the mask from them
+ * would flood it.
  *
- * **Judge it on the margin.** Seventeen committed captures fall in a family the artwork can reach, and at `MARGIN` the
- * match answers five of them — the three Burmy and the two Cherrim — and is right on all five. Ten of the twelve it
- * declines are nearest an icon that is not their own: the four Unown nearest `D` by 0.049, `ho-oh.png` nearest the `S`
- * form by 0.171, and four Pikachu and `charizard-gigantamax.png` nearest their clone's icon by 0.005 or less. So the
- * margin is what stands between the match and being confidently wrong ten times. An abstention costs nothing and fixes
- * nothing: `identify`'s fold still collapses the rivals silently, so a declined call is exactly as wrong as it was
- * before and no louder.
+ * **Judge it on the margin.** Seventeen committed captures fall in a reachable family; at `MARGIN` the match answers
+ * five and is right on all five, and ten of the twelve it declines are nearest an icon that is not their own. So the
+ * margin is what stands between the match and being confidently wrong ten times.
  */
 
 import { join } from 'node:path';
@@ -35,9 +24,9 @@ import { progress } from './progress.mts';
 const BINS = 12;
 
 /**
- * How saturated and how bright a pixel has to be to carry form information. Below these it is the game's own furniture,
- * a shadow or the panel — and the white UI falling out here for free is why the arc, the CP, the star and PGSharp's own
- * overlay need no excluding by position.
+ * How saturated and how bright a pixel has to be to carry form information. Below these it is the game's own
+ * furniture, a shadow or the panel — and the white UI falling out for free is why the arc, the CP, the star and
+ * PGSharp's overlay need no excluding by position.
  */
 const SATURATION = 0.35;
 const VALUE = 0.2;
@@ -56,9 +45,9 @@ const ARTWORK_FROM = 0.215;
 const ARTWORK_SPAN = { from: 0.28, to: 0.72 };
 
 /**
- * How far apart two luminances have to be, and over how many pixels, for the gap to be an edge of the model rather than
- * the gradient of a blurred scene. Then how far to grow those edges, which is what takes in the flat interior they
- * bound — a body's own colour has no gradient in it at all, so edges alone would sample the outline and nothing else.
+ * How far apart two luminances have to be, and over how many pixels, for the gap to be an edge of the model rather
+ * than the gradient of a blurred scene. Then how far to grow those edges, which takes in the flat interior they bound:
+ * a body's own colour has no gradient in it, so edges alone would sample the outline and nothing else.
  */
 const EDGE = 28;
 const EDGE_RADIUS = 2;
@@ -66,10 +55,9 @@ const GROW = 6;
 
 /**
  * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
- * captures anything from 0.18 to 0.48 is right wherever it answers: the widest lead a wrong icon takes is `ho-oh.png`'s
- * 0.171, and the narrowest right answers lead by 0.19 (`basculin-blue.png`) and 0.49 (`burmy-sandy.png`). This sits
- * above the first at the cost of declining `basculin-blue.png`, because abstaining is cheap and being confidently wrong
- * is not.
+ * captures anything from 0.18 to 0.48 is right wherever it answers: the widest lead a wrong icon takes is 0.171 and
+ * the narrowest right answer leads by 0.19. This sits above the first at the cost of declining that answer, abstaining
+ * being cheap where being confidently wrong is not.
  */
 export const MARGIN = 0.3;
 

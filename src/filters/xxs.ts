@@ -1,16 +1,6 @@
 /**
- * The species whose XXS is still wanted — the checklist a "XXS" filter is fed, kept and read the same way as
- * `filters/xxl.js`. The two are separate lists rather than one shared list because a species crossed off the big
- * hunt is rarely the one crossed off the small.
- *
- * One entry per species rather than per form, since PGSharp stores a species as its dex number and a size filter
- * cannot tell two forms of one number apart.
- *
- * It is a Set so a species named twice by accident is simply the same member, not a repeat to trip over.
- *
- * The list is grouped by generation and names an evolution family to a line, so `// prettier-ignore` holds
- * that hand-set shape rather than letting one entry per line stretch it out. A family whose members straddle two
- * generations is named in each, since the grouping follows the dex rather than the chain.
+ * The species whose XXS is still wanted, kept and read the same way as `filters/xxl.js`. Separate lists rather than
+ * one, because a species crossed off the big hunt is rarely the one crossed off the small.
  */
 
 import type Pokemon from '../pokemon/pokemon.js';

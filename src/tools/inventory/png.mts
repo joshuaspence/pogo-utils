@@ -9,14 +9,12 @@ import { crc32, deflateSync, inflateSync } from 'node:zlib';
 /**
  * An image as four bytes a pixel, red, green, blue and alpha, row after row.
  *
- * `text` is whatever `tEXt` chunks the file carried, keyword against value, and is absent on an image built here rather
- * than read — `crop` and `scale` answer a new image whose own size is the truth about it, so there is nothing for them
- * to carry forward. Optional so that the thirty-odd places that build an `Image` by hand need say nothing about it.
+ * `text` is whatever `tEXt` chunks the file carried, and is absent on an image built here rather than read — `crop` and
+ * `scale` answer a new image whose own size is the truth about it. `encodePng` writes it back out, so a chunk survives
+ * a decode and a re-encode.
  *
- * `encodePng` writes it back out, so a chunk survives a decode and a re-encode: cropping a stitch and saving it again
- * would otherwise drop the `Viewport` that is the whole reason for recording one. It carries a null prototype, so
- * `Object.hasOwn(image.text ?? {}, 'Viewport')` is the question to ask about it — `in` answers true for `constructor`,
- * `toString` and every other name `Object.prototype` would have lent it.
+ * It carries a null prototype, so `Object.hasOwn(image.text ?? {}, 'Viewport')` is the question to ask about it: `in`
+ * answers true for `constructor`, `toString` and every other name `Object.prototype` would have lent it.
  */
 export interface Image {
   width: number;
@@ -165,11 +163,9 @@ export function decodePng(bytes: Buffer): Image {
 /**
  * A keyword the spec allows: 1 to 79 characters, printable Latin-1, and no space leading, trailing or doubled.
  *
- * Checked in full rather than for length alone, because `Buffer.from(…, 'latin1')` does not refuse what it cannot
- * represent — it keeps the low byte, so `Nidoran♂` would be written as `NidoranB` and read back as that, in a tool
- * whose subject prints `♂`, `♀` and `✨`. A NUL is the sharpest case: it is the chunk's own separator, so one inside a
- * keyword moves where the value begins, and `{ 'a\0b': 'x' }` reads back as `{ a: 'b\0x' }` — a different pair, written
- * without complaint.
+ * Checked in full rather than for length alone, because `Buffer.from(…, 'latin1')` keeps the low byte rather than
+ * refusing what it cannot represent — so `Nidoran♂` would be written as `NidoranB`. A NUL is the sharpest case, being
+ * the chunk's own separator: `{ 'a\0b': 'x' }` reads back as `{ a: 'b\0x' }`, written without complaint.
  */
 const KEYWORD = /^[\x20-\x7e\xa1-\xff]{1,79}$/;
 
@@ -281,23 +277,18 @@ export function crop(image: Image, left: number, top: number, width: number, hei
  * The screen a capture holds: the capture itself where it is one, and the first `Viewport` rows where it is a stitch.
  *
  * This is what lets a stitch be the only file committed for a detail screen. `stitch` keeps every row above the
- * scrolling band's foot from its first frame verbatim, and `snap` hands it the screenshot it has already written, so a
- * stitch's top rows *are* that screen — and `Viewport` is the one thing the file cannot say with its own `IHDR`, a
- * stitch being as many frames tall as the screen took. Cropping to it needs nothing of the readers: the crop is exactly
- * `Viewport` rows tall, so every fraction of `image.height` lands where it was measured.
+ * scrolling band's foot from its first frame verbatim, so a stitch's top rows *are* that screen, and the crop is
+ * exactly `Viewport` rows tall so every fraction of `image.height` lands where it was measured.
  *
- * Not a perfect substitute, and the one place it is not is worth knowing. The crop's last rows come from the *final*
- * frame where a screen's come from the first — the game's floating buttons are furniture and identical, but the panel
- * between them has scrolled. Nothing reads there, so no region moves; what moves is Tesseract's page segmentation,
- * which takes the whole image. On `cherrim-sunshine.png` and `deoxys-defense.png` that costs the CP its *label* line,
- * so `wholeCp` has nothing to anchor on and the number arrives as a `cps` candidate instead. Identical pixels, a
- * different answer, because the page they sit on differs elsewhere.
+ * Not a perfect substitute: the crop's last rows come from the *final* frame where a screen's come from the first.
+ * Nothing reads there, so no region moves — what moves is Tesseract's page segmentation, which takes the whole image.
+ * On two captures that costs the CP its *label* line, so `wholeCp` cannot anchor and the number arrives as a `cps`
+ * candidate. Identical pixels, a different answer, because the page they sit on differs elsewhere.
  */
 export const screenIn = (image: Image): Image => {
-  // Matched whole rather than split and converted, because `Number('')` is 0 and not `NaN`: a `Viewport` of `4x` reads
-  // as a screen four wide and none tall, which `crop` answers as an empty image rather than refusing. A pattern says
-  // what `snap` writes and nothing else, so every way of being damaged lands in the one branch that hands the capture
-  // back whole.
+  // Matched whole rather than split and converted, `Number('')` being 0 and not `NaN`: a `Viewport` of `4x` reads as a
+  // screen four wide and none tall, which `crop` answers as an empty image. A pattern says what `snap` writes and
+  // nothing else, so every way of being damaged lands in the branch that hands the capture back whole.
   const stated = /^(\d+)x(\d+)$/.exec(image.text?.Viewport ?? '');
 
   return stated ? crop(image, 0, 0, Number(stated[1]), Number(stated[2])) : image;
@@ -324,11 +315,9 @@ export function scale(image: Image, factor: number): Image {
 }
 
 /**
- * An image centred on an opaque canvas, which is what a launcher's maskable icon is: the corners of one are never
- * transparent, and the artwork has to sit inside the circle a platform crops to. Composited rather than laid over,
- * because an anti-aliased edge carries alpha that has to meet the colour it will really sit on — drawn against nothing
- * it would keep a fringe of whatever it was rendered over. Refuses a margin that is not a whole pixel rather than
- * centring the image half a pixel off.
+ * An image centred on an opaque canvas, which is what a launcher's maskable icon is. Composited rather than laid over,
+ * because an anti-aliased edge carries alpha that has to meet the colour it will really sit on. Refuses a margin that
+ * is not a whole pixel rather than centring the image half a pixel off.
  */
 export function pad(image: Image, size: number, colour: [number, number, number]): Image {
   const margin = (size - image.width) / 2;
@@ -365,11 +354,10 @@ export const luminance = (r: number, g: number, b: number) => 0.2126 * r + 0.715
 export const chroma = (r: number, g: number, b: number) => Math.max(r, g, b) - Math.min(r, g, b);
 
 /**
- * Bright, unsaturated pixels as black on white, which is the pairing Tesseract reads best. Both bounds earn their
- * place on PGSharp's overlay: the luminance floor drops the dark box the text sits on, and the chroma ceiling drops
- * the IV percentage, which shares the line and is coloured by how good the Pokemon is — magenta at 93, cyan at 86,
- * green at 75. Dropping it is the point rather than a cost, since it is derivable from the three IVs beside it and
- * its colour is what made it the one field that would not threshold.
+ * Bright, unsaturated pixels as black on white, the pairing Tesseract reads best. Both bounds earn their place on
+ * PGSharp's overlay: the luminance floor drops the dark box the text sits on, and the chroma ceiling drops the IV
+ * percentage, which shares the line and is colour-coded by quality. Dropping that is the point rather than a cost, it
+ * being derivable from the three IVs beside it.
  */
 export function isolate(image: Image, minLuminance: number, maxChroma: number): Image {
   return threshold(image, (r, g, b) => luminance(r, g, b) >= minLuminance && chroma(r, g, b) <= maxChroma);
@@ -377,9 +365,8 @@ export function isolate(image: Image, minLuminance: number, maxChroma: number): 
 
 /**
  * Black where a channel reaches `min` and white elsewhere, which is `isolate` without the colour test. What that buys
- * is the overlay: its IV percentage is colour-coded by quality — magenta at 93, cyan at 86, green at 75 — so a chroma
- * limit deletes it, and the same limit clips the anti-aliased edge of a thin white `1` beside it. Measured on five
- * captures, the near-white treatment reads `2/4/13` where this reads `12/4/13`.
+ * is the thin strokes a chroma limit clips: measured on five captures, the near-white treatment reads `2/4/13` where
+ * this reads `12/4/13`.
  */
 export function brighten(image: Image, min: number): Image {
   return threshold(image, (r, g, b) => Math.max(r, g, b) >= min);
@@ -403,13 +390,11 @@ function threshold(image: Image, keep: (r: number, g: number, b: number) => bool
 
 /**
  * How much of a horizontal band differs between two screenshots, as a fraction of the pixels in it. A pixel differs
- * where any of its three channels moves, since blue text appearing on a dark panel leaves red where it was.
+ * where any of its three channels moves, blue text on a dark panel leaving red where it was.
  *
- * The band matters more than the threshold. Through one swipe the game's panel measured 31%, then 6.2%, then 0.54%
- * and stayed near it, where the artwork above never fell below 4% at all because the Pokémon is animated, and the
- * status bar ticks with the clock. So a caller watching for a screen to stop moving watches the panel and nothing
- * else, and compares against a figure between those two — not against zero, which never arrives. Those figures counted
- * the red channel alone, so they are a floor for the measure here rather than its value.
+ * The band matters more than the threshold. Through one swipe the game's panel measured 31%, then 6.2%, then 0.54% and
+ * stayed near it, where the artwork above never fell below 4% because the Pokémon is animated. So a caller watching
+ * for a screen to stop moving watches the panel and compares against a figure between those two, not against zero.
  */
 export function difference(a: Image, b: Image, from: number, to: number): number {
   if (a.width !== b.width || a.height !== b.height) {

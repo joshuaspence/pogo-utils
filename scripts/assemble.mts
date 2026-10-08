@@ -1,14 +1,11 @@
 /**
- * Assembles `dist/` into the tree GitHub Pages serves.
+ * Assembles `dist/` into the tree GitHub Pages serves: everything a page fetches that the compiler does not produce.
+ * Positions are preserved rather than flattened, a page resolving `src/theme.css` against its own URL and the markup
+ * not being rewritten.
  *
- * `tsc` writes the modules and nothing else, so everything a page fetches that the compiler does not produce is copied
- * here: the markup, the stylesheets that sit beside the modules in `src/`, and the files the pages read at run time.
- * Positions are preserved rather than flattened, because a page resolves `src/theme.css` against its own URL and the
- * markup is not rewritten.
- *
- * An allowlist rather than everything-minus-exclusions, because the two fail in opposite directions. A missing
- * exclusion publishes something nobody audited and says nothing about it; a missing inclusion is a 404 on one page, and
- * the check at the end turns that into a failed build instead of something found by opening the site.
+ * An allowlist rather than everything-minus-exclusions, because the two fail in opposite directions: a missing
+ * exclusion publishes something nobody audited and says nothing, where a missing inclusion is a 404 the check at the
+ * end turns into a failed build.
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
@@ -32,12 +29,9 @@ const PUBLISHED = [
 ];
 
 /**
- * Copies one path into the artifact, at the same position it occupies in the repository.
- *
- * Refusing to land on something already there is what keeps two producers out of one directory. `scripts/bundle.mts`
- * writes the stylesheets and the modules into `dist/src/` and this runs afterwards, so anything the bundler emits is fair
- * game for a name in `PUBLISHED` — and the copy, being the half that happens second, would overwrite it and report a
- * build that succeeded.
+ * Copies one path into the artifact, at the same position it occupies in the repository. Refusing to land on something
+ * already there is what keeps two producers out of one directory: `scripts/bundle.mts` writes into `dist/src/` and
+ * this runs afterwards, so a copy would overwrite what the bundler emitted and report a build that succeeded.
  */
 function publish(path: string): void {
   const to = join(DIST, path);
@@ -82,10 +76,10 @@ for (const entry of PUBLISHED) {
 const SERVED = Object.keys(SERVED_TYPES);
 
 /**
- * The other direction, and the one the allowlist above cannot see: it says what is copied in, not what ends up here.
- * `tsc` writes into `dist/` as well, and it writes more than the modules — `tsBuildInfoFile` defaults to a path derived
- * from `outDir`, which landed the build cache at `dist/tsconfig.tsbuildinfo` and deployed it. Naming that file is the
- * fix; this is what says so, since the default is one `outDir` edit away from coming back.
+ * The other direction, which the allowlist cannot see: it says what is copied in, not what ends up here.
+ * `tsBuildInfoFile` defaults to a path derived from `outDir`, which landed the build cache at
+ * `dist/tsconfig.tsbuildinfo` and deployed it. Naming that file is the fix, and the default is one `outDir` edit away
+ * from coming back.
  */
 const unexpected = readdirSync(DIST, { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile() && !SERVED.includes(extname(entry.name)))
@@ -96,10 +90,9 @@ if (unexpected.length > 0) {
 }
 
 /**
- * Every local path the markup and the manifest name has to be in the artifact. This is what makes the list above safe
- * to maintain by hand: the pages are the authority on what the site needs, so a stylesheet or a module missing from
- * `dist/` fails the build rather than waiting to be noticed. Reading the copies rather than the originals also checks
- * the copying itself.
+ * Every local path the markup and the manifest name has to be in the artifact, which is what makes the list above safe
+ * to maintain by hand: the pages are the authority on what the site needs. Reading the copies rather than the
+ * originals also checks the copying itself.
  */
 const missing: string[] = [];
 let checked = 0;
@@ -109,8 +102,8 @@ const named = new Set<string>();
 
 /**
  * Records `ref` unless it names a file in the artifact. Relative paths resolve against the directory of the file that
- * named them rather than against `DIST`, which is what lets one function serve both a page and a manifest: the two are
- * resolved against different bases in the specification, and only share one while everything sits at the root.
+ * named them rather than against `DIST`, which is what lets one function serve both a page and a manifest — the two
+ * resolve against different bases in the specification and only share one while everything sits at the root.
  */
 function mustResolve(from: string, ref: string): void {
   // Anything not fetched from this origin by path: a CDN module, an outbound link, a fragment, an inline data URL.
@@ -132,9 +125,8 @@ function mustResolve(from: string, ref: string): void {
 
 /**
  * Every string under a `src`, `url` or `start_url` member of a manifest, at whatever depth. A walk rather than the
- * three members this manifest happens to use, because the specification carries more of them — `screenshots`, and a
- * `shortcuts` entry's own `icons` — and one nobody thought to name here would go unchecked without saying so. It errs
- * towards asking about a member that turns out not to be a path, which fails a build rather than passing one.
+ * three members this manifest happens to use, the specification carrying more of them, so one nobody thought to name
+ * here would go unchecked. It errs towards asking about a member that is not a path, which fails a build.
  */
 function* refsOf(value: unknown): Generator<string> {
   if (Array.isArray(value)) {
@@ -167,8 +159,7 @@ for (const page of pages) {
   }
 
   /*
-   * Which manifest to read comes from the markup rather than from a constant beside `PUBLISHED`, for the same reason
-   * the paths above do: the pages are the authority on what the site needs. Renaming the manifest therefore moves this
+   * Read from the markup rather than a constant, for the reason the paths above are: renaming the manifest moves this
    * check with it, where a name written here would quietly stop reading anything. Matching the whole tag and then
    * asking it for its `href` keeps the two attributes in either order.
    */
@@ -182,9 +173,8 @@ for (const page of pages) {
 }
 
 /*
- * Either regex above matching nothing — an attribute reordered, the quoting changed — leaves `missing` empty and passes
- * a build having verified no reference at all, the only trace being a `0` in the summary line that reads as plausible
- * beside a page count that is not zero. So assert each scan found something, as `bundle.mts` does for its own.
+ * Either regex matching nothing leaves `missing` empty and passes a build having verified no reference at all, the
+ * only trace a `0` in the summary line. So assert each scan found something, as `bundle.mts` does for its own.
  */
 if (checked === 0 || manifests.size === 0) {
   throw new Error(
@@ -194,18 +184,18 @@ if (checked === 0 || manifests.size === 0) {
 }
 
 /*
- * The icons and the shortcut targets, which no page names and the scan above therefore cannot see. Left unchecked these
- * fail where nothing is watching: a launcher that cannot fetch an icon draws a letter tile, and a shortcut to a page
- * that moved opens a 404 from someone's home screen rather than from the site.
+ * The icons and shortcut targets, which no page names and the scan above cannot see. Left unchecked they fail where
+ * nothing is watching: a launcher that cannot fetch an icon draws a letter tile, and a shortcut to a page that moved
+ * opens a 404 from someone's home screen.
  */
 for (const manifest of manifests) {
   const parsed: unknown = JSON.parse(readFileSync(join(DIST, manifest), 'utf8'));
 
   for (const ref of refsOf(parsed)) {
     /*
-     * A manifest's members resolve against the manifest's own URL rather than the page's, so a bare fragment names the
-     * manifest itself: `#/events` installs an app that opens `manifest.json#/events` and shows the JSON as text.
-     * `mustResolve` passes fragments as in-page links, which is right for markup and wrong here.
+     * A manifest's members resolve against its own URL rather than the page's, so a bare fragment names the manifest
+     * itself: `#/events` installs an app that opens `manifest.json#/events` and shows the JSON as text. `mustResolve`
+     * passes fragments as in-page links, which is right for markup and wrong here.
      */
     if (ref.startsWith('#')) {
       missing.push(`${manifest} names ${ref}, which resolves to the manifest itself`);

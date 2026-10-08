@@ -16,9 +16,9 @@ The Events page merges two sources, and this skill audits the gap between them a
   page and needs no help. The page reads it from `data/events-feed.json`, an hourly copy, where `compare_sources.py`
   below reads the live mirror — which is the right source for an audit, the copy being at most an hour behind it.
 - **`data/events.json`** is the repository's own list, for events the feed does not carry. Every entry in it is a
-  `regional-event` — a type ScrapedDuck never emits, registered locally in `src/events.ts` — because what Leek Duck
-  systematically omits is the region-locked, in-person kind: City Safari, a campus festival, a mall tour, a national
-  partnership.
+  `regional-event` — a type ScrapedDuck never emits, registered locally in `src/pages/events.tsx` — because what Leek
+  Duck systematically omits is the region-locked, in-person kind: City Safari, a campus festival, a mall tour, a
+  national partnership.
 - **`pokemongo.com`** is the source of truth for what has been announced, and is what this skill reads: the news
   archive, and the in-person events index beside it.
 

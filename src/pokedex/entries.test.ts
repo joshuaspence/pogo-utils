@@ -1,12 +1,7 @@
 /**
  * What a Pokédex row says, which is more than a copy of `pokedex.js` in four places: a flag read across a species and
- * every form under it, a shiny weighed only over the released ones, a hunt an entry is on that the feed cannot watch,
- * and a form of a regional variant named by both. Each of those fails by showing a reader something false rather than
- * by failing to render, so a page that looks right says nothing about any of them.
- *
- * Every expectation is read off the real tables, so each test pins the shape of the data its case needs first. A
- * species whose flags have moved would otherwise leave its case asserting nothing, and that reads exactly like a pass.
- * Where a release would make a case vacuous, the assertion that it has not is the first line of the test.
+ * every form under it, a shiny weighed only over the released ones, a hunt the feed cannot watch, and a form of a
+ * regional variant named by both. Each fails by showing a reader something false rather than by failing to render.
  */
 
 import { expect, test } from 'vitest';

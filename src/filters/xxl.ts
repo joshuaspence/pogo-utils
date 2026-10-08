@@ -1,16 +1,10 @@
 /**
  * The species whose XXL is still wanted — the checklist a "XXL" filter is fed. It starts as the whole dex and shrinks
- * as one is caught, so what is left is what is still missing: the list says the hunt rather than the Pokédex.
+ * as one is caught, so the list says the hunt rather than the Pokédex.
  *
- * One entry per species rather than per form, since PGSharp stores a species as its dex number and a size filter
- * cannot tell two forms of one number apart. Where a form's record is worth chasing on its own, name it by hand —
- * `POKEMON.MEOWTH.region(GALAR)` beside `POKEMON.MEOWTH` — and `pgsharp/filters.js` collapses the pair.
- *
- * It is a Set so a species named twice by accident is simply the same member, not a repeat to trip over.
- *
- * The list is grouped by generation and names an evolution family to a line, so `// prettier-ignore` holds
- * that hand-set shape rather than letting one entry per line stretch it out. A family whose members straddle two
- * generations is named in each, since the grouping follows the dex rather than the chain.
+ * One entry per species rather than per form, a size filter not telling two forms of one dex number apart. Where a
+ * form is worth chasing on its own, name it by hand and `pgsharp/filters.js` collapses the pair. A family straddling
+ * two generations is named in each, the grouping following the dex rather than the chain.
  */
 
 import type Pokemon from '../pokemon/pokemon.js';

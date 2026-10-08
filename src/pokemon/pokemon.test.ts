@@ -1,16 +1,10 @@
 /**
  * Two things travel down a `Pokemon` chain — the cursor a marker lands on and the target a new variant hangs off — and
- * every test here is a defect that confuses them: a marker applied to the species rather than to the form just
- * declared, a form hung off the species rather than off the region descended into, a region read off the adjective in a
- * name rather than out of the variant.
+ * every test here is a defect that confuses them.
  *
- * Most of these assert a state the defaults do not produce — not released, not spawning, a region — so a declaration
- * that lost its marker fails the test rather than passing it for nothing. That is why this file needs fewer explicit
- * preconditions than `search/optimise.test.ts`: there, a refusal and a broken gate both read as no reduction.
- *
- * `DARMANITAN` and `TAUROS` carry the whole of the cursor and the target between them, so the cases below are read off
- * the real dex wherever one of those two can say it, and a bare `new Pokemon` is used only where a test needs a species
- * the dex has not frozen.
+ * Most assert a state the defaults do not produce, so a declaration that lost its marker fails rather than passing for
+ * nothing. `DARMANITAN` and `TAUROS` carry the whole of the cursor and the target between them, so the cases are read
+ * off the real dex wherever one of those can say it.
  */
 
 import { expect, test } from 'vitest';

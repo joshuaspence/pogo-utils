@@ -1,19 +1,15 @@
 /**
  * Every country a GPX file names, each with the continent it groups under in the sidebar and the ISO 3166-1 alpha-2
- * code its flag is drawn from. One table so a country is added in a single place and its continent and code cannot
- * drift out of step.
+ * code its flag is drawn from. One table, so a country's continent and code cannot drift out of step.
  *
- * Exactly those countries and no others. Every lookup starts from a `<pgr:country>` read out of a file, so a name with
- * nothing behind it is unreachable — validate-gpx.mts checks both directions, and adding a country ahead of its first
- * route fails the lint as surely as forgetting to add it at all.
+ * Exactly those countries and no others: `validate-gpx.mts` checks both directions, so adding a country ahead of its
+ * first route fails the lint as surely as forgetting to add it at all.
  *
- * The code is required: a route or waypoint whose country has no entry here cannot be flagged, and building a PGSharp
- * backup errors rather than importing it without one (see countryFlag). The continent only groups the sidebar, which
- * falls back to "Other" without one (see buildSidebar).
+ * The code is required, a country with no entry here being unflaggable and a PGSharp backup erroring rather than
+ * importing it. The continent only groups the sidebar, which falls back to "Other" without one.
  *
  * Codes are alpha-2 so the flag emoji is derived rather than pasted in — "AU" is legible in a diff and two similar
- * flags are not. England is a subdivision rather than a country, and carries the "GB-ENG" tag sequence Unicode gives it
- * instead of a pair of regional indicators.
+ * flags are not. England is a subdivision, and carries the "GB-ENG" tag sequence Unicode gives it.
  */
 
 /**

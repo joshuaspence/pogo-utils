@@ -1,18 +1,13 @@
 /**
- * The event types that come round on a fixed weekly (or seasonal) cadence rather than being planned around: by
- * `heading`, the wording the feed gives a type, which is what both consumers here key on.
+ * The event types that come round on a fixed weekly or seasonal cadence rather than being planned around, by
+ * `heading`, which is what both consumers key on.
  *
- * Two of them: the Events page starts with these types unticked, so a first visit leads with the events a reader is
- * more likely to care about, and the trimmed calendar feed (events.ics) leaves them out, so subscribing does not put a
- * Spotlight Hour and a Raid Hour into every week of your calendar. One list so the page and the feed cannot drift into
- * disagreeing about which types those are.
+ * Two of them: the Events page starts with these unticked, and the trimmed `events.ics` leaves them out so subscribing
+ * does not put a Spotlight Hour into every week of your calendar. One list, so the two cannot drift.
  *
- * `readonly` because the one list is the whole point. Both consumers copy it rather than hold it — a spread and a `Set`
- * in `events.ts`, a `Set` in `build-ics` — so a `push` into the export would be an extra type for whichever of them had
- * not read it yet, which is the drift stated above arriving by the back door.
- *
- * Bound to a name rather than exported as a literal because there is nowhere to write the annotation otherwise: an
- * `export default` takes an expression, so `readonly` would have to be asserted with an `as` rather than checked.
+ * `readonly` because both consumers copy it rather than hold it, so a `push` into the export would be an extra type
+ * for whichever had not read it yet. Bound to a name because an `export default` takes an expression, where `readonly`
+ * would have to be asserted with an `as` rather than checked.
  */
 const RECURRING_TYPES: readonly string[] = ['Pokémon Spotlight Hour', 'Raid Hour', 'Max Mondays', 'Season'];
 

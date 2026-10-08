@@ -1,29 +1,21 @@
 /**
  * The Pokédex entry screen, which is the way round the two things that hide a species from the detail screen: a
- * nickname printed where the name goes, and the `♀` or `♂` of a species' own name that OCR loses. That Pokémon's entry
- * is a few taps away and states the species in large flat text, so a walk that cannot trust the name can open it and
- * ask.
+ * nickname printed where the name goes, and the `♀` or `♂` of a species' own name that OCR loses.
  *
- * **The dex number is what settles it, and the name beside it is not.** Measured over the three committed captures,
- * `0585`, `0032` and `0029` read exactly right off the ordinary whole-screen pass with no crop and no treatment. The
- * names come back `DEERLING`, `NIDORAN` and `NIDORAN ?` — the two Nidoran losing their glyph here exactly as they do on
- * the detail screen, and `fold` mapping both to the same `nidoran`, so a reader keying off the name would be back where
- * it started. Four digits on a flat background are not ambiguous in that way.
+ * **The dex number settles it and the name beside it does not.** Over the three captures measured, `0585`, `0032` and
+ * `0029` read exactly right off the ordinary whole-screen pass, where the names come back `DEERLING`, `NIDORAN` and
+ * `NIDORAN ?` — the two Nidoran losing their glyph here as they do on the detail screen, and `fold` mapping both to the
+ * same `nidoran`.
  *
- * **It answers the species and never the form.** Opening a Pokémon's Pokédex entry does not preselect that Pokémon's
- * form — the entry opens on whichever form it was last left on — so the selected tile says nothing about the Pokémon
- * the walk came from, however legible it is, and on `deerling-pokedex.png` it is very legible indeed at luminance 241
- * against 183. Legible and meaningless is the worst thing a reader can be offered, so nothing here reads it — which
- * is also why this cannot help the one row whose `defects.label` comes of `identify` folding forms together:
- * `basculin-blue.png` is 550 whichever stripe it wears.
+ * **It answers the species and never the form.** Opening an entry does not preselect that Pokémon's form, so the
+ * selected tile says nothing about the Pokémon the walk came from however legible it is. Legible and meaningless is
+ * the worst thing a reader can be offered, so nothing here reads it.
  *
- * **Nothing beats a wrong answer here**, which is what the cross-check below is for. The screen carries other
- * four-digit numbers — `SEEN 2763` and `CAUGHT 1499` on one of these captures alone — so a reader taking the first one
- * it finds would file a species off a counter. A number is accepted only where it resolves to a species and the name
- * printed beside it folds to that same species, and `null` is the answer to every other case. The species half refuses
- * the counters, 2763 being no species, and the name half refuses the status bar: its `09:00` reads as `0900 M © Os` on
- * `xurkitree.png`, the trap `WEIGHT` and `HEIGHT` in `detail.mts` are written against, and 900 is Kleavor, whose name
- * the line does not carry.
+ * **Nothing beats a wrong answer here**, which is what the cross-check below is for: the screen carries other
+ * four-digit numbers — `SEEN 2763`, `CAUGHT 1499` — so a reader taking the first it finds would file a species off a
+ * counter. A number is accepted only where it resolves to a species *and* the name beside it folds to that same
+ * species. The species half refuses the counters, and the name half refuses the status bar, whose `09:00` reads as
+ * `0900 M © Os` where 900 is Kleavor.
  */
 
 import { fold, type Line } from './ocr.mts';

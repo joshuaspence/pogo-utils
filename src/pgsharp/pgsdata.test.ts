@@ -1,15 +1,13 @@
 /**
  * The whole of what the Build button computes, driven from a GPX file's text to the bytes a reader is handed.
  *
- * `favourites.ts` and `java-serialization.ts` are each tested on their own and that is what this adds nothing to. What
- * it adds is the join: which key gets which encoder, that the timezones are in the bytes rather than filled in after
- * they were written, that the control keys land in PGSharp's own order whatever order the reader ticked them in. Every
- * one of those is a backup PGSharp reads *wrongly* rather than refuses, so none of them surfaces as an error anywhere.
+ * `favourites.ts` and `java-serialization.ts` are each tested on their own; what this adds is the join — which key
+ * gets which encoder, that the timezones are in the bytes rather than filled in after, that the control keys land in
+ * PGSharp's own order.
  *
- * The assertions read the stream back rather than hashing it. A digest over a backup carrying controls would be pinned
- * to `filters.ts` and `scan-config.ts`, which land on `master` as data — so a filter added to a list would fail this
- * suite for being a filter added to a list. What is pinned as literal text is the two favourite JSON strings, which
- * depend on this code and on the fixture alone.
+ * The assertions read the stream back rather than hashing it: a digest would be pinned to `filters.ts` and
+ * `scan-config.ts`, so a filter added to a list would fail this suite for being a filter added to a list. What is
+ * pinned as literal text is the two favourite JSON strings, which depend on this code and the fixture alone.
  */
 
 import { expect, test } from 'vitest';

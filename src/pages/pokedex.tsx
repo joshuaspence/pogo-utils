@@ -1,10 +1,9 @@
 /**
  * The Pokédex page: a card per species, narrowed by the controls above them, and a dialog for the one picked.
  *
- * Every card is rendered and the filtered-out ones are hidden, rather than the grid being rebuilt from what survives:
- * 1025 of them is enough that rebuilding on every keystroke would drop their sprites and the reader's scroll position
- * with them. Keying each by its dex number is what holds the reconciler to that — the `<li>` for Pikachu is the same
- * element from one keystroke to the next, and all that changes is whether it is hidden.
+ * Every card is rendered and the filtered-out ones hidden, rather than the grid being rebuilt from what survives: 1025
+ * of them is enough that rebuilding on every keystroke would drop their sprites and the reader's scroll position.
+ * Keying each by its dex number is what holds the reconciler to that.
  *
  * What is chosen lives in the fragment, as on the search page, so a filtered view or an open species is a link.
  */

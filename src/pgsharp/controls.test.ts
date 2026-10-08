@@ -1,13 +1,11 @@
 /**
- * The on-screen control positions, taken verbatim from a known-good backup and written back into a synthesized one. Two
- * things here are contracts rather than values. The bottom row's controls share a Y, which is what naming
- * `CONTROL_ROW_Y` once is for — dragging each into place by hand left them a pixel apart, and a backup restoring them a
- * pixel apart is a row that looks wrong and reports nothing. And the key order decides the order the entries land in
- * the backup, this table being what `backup.ts` walks with `Object.entries`.
+ * The on-screen control positions, written back into a synthesized backup. Two things here are contracts rather than
+ * values: the bottom row's controls share a Y, which is what naming `CONTROL_ROW_Y` once is for, since a backup
+ * restoring them a pixel apart is a row that looks wrong and reports nothing; and the key order decides the order the
+ * entries land in the backup, this table being what `pgsdata.ts` walks with `Object.entries`.
  *
  * `hlscan` and `hlfeeds` are JSON strings rather than objects, so they are checked by parsing them back. That is the
- * one place `scan-config.js` reaches the device, and its field order is part of its value for the same reason a feed
- * filter's is — which makes this file where that module's own contract is held too.
+ * one place `scan-config.js` reaches the device, which makes this where its contract is held too.
  */
 
 import { expect, test } from 'vitest';

@@ -1,11 +1,11 @@
 /**
  * The three functions the search box and the Pokédex both read a name through, so a defect here is the same defect on
- * two pages. What they are for is the gap between a constant and the name a game displays — and every way of getting
- * that wrong is quiet: a species shown under a name nobody recognises, or one a reader can see and cannot type.
+ * two pages. They close the gap between a constant and the name a game displays, and every way of getting that wrong
+ * is quiet: a species shown under a name nobody recognises, or one a reader can see and cannot type.
  *
- * `fold` is the one worth the most, because both consumers only ever ask whether a folded name contains a folded query.
- * So a character it keeps that no keyboard writes is a species unreachable from the search box on a page that renders
- * perfectly, and the tests below are built around the whole dex rather than samples for exactly that reason.
+ * `fold` is worth the most, both consumers only ever asking whether a folded name contains a folded query — so a
+ * character it keeps that no keyboard writes is a species unreachable from the search box on a page that renders
+ * perfectly, which is why these are built around the whole dex rather than samples.
  */
 
 import { expect, test } from 'vitest';

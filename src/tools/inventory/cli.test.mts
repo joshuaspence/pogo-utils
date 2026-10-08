@@ -1,15 +1,14 @@
 /**
  * The command line itself, driven as a subprocess. `scripts/inventory.mts` is the one part of the scanner no test
  * reaches — nothing imports it, so the whole suite passes a script that cannot start, a `parseArgs` that rejects a flag
- * the usage block advertises, and a usage block the script can no longer find in its own source.
+ * the usage advertises, and a usage block the script can no longer find in its own source.
  *
- * It is driven rather than imported because importing it runs it: `parseArgs` and the command dispatch are both at the
- * top level, so a test that loaded the module would parse Vitest's own argv and then try to drive a phone. A subprocess
- * is also the interface a person uses, which is the one worth pinning.
+ * Driven rather than imported because importing it runs it: `parseArgs` and the command dispatch are both at the top
+ * level, so a test that loaded the module would parse Vitest's own argv and then try to drive a phone. A subprocess is
+ * also the interface a person uses.
  *
  * Nothing here reaches the network or a phone. `reads` builds the cache the readers would otherwise download, and
- * `parse` is the one command that needs neither `adb` nor a device. Tesseract it does need, exactly as the capture
- * readers beside it do.
+ * `parse` needs neither `adb` nor a device. Tesseract it does need, as the capture readers beside it do.
  */
 
 import { ICON_CACHE } from './game-master.mts';
@@ -35,30 +34,20 @@ const DUMP = /^ {2}\d+,\d+ \d+×\d+ +/;
 const dumpRows = (text: string) => text.split('\n').filter((line) => DUMP.test(line));
 
 /**
- * A working directory holding the cache the scanner would otherwise download, so a run reaches no network at all. The
- * scanner's `CACHE` is relative, which is the whole of why this works: the directory a subprocess runs in decides where
- * its cache is, and no flag or stub is needed to move it.
+ * A working directory holding the cache the scanner would otherwise download, so a run reaches no network. The
+ * scanner's `CACHE` is relative, which is why this works at all: the directory a subprocess runs in decides where its
+ * cache is, so no flag or stub is needed to move it.
  *
- * All three files are load-bearing, and that is measured rather than reasoned about — seeded with `game-master.json`
- * alone, a `parse` run prints two `Downloading` lines and goes out for the icon index and the string table. Only
- * `game-master.json`'s *contents* matter: `loadGameData` throws without a CP multiplier for every level, where an empty
- * icon index and an empty string table it takes in its stride.
+ * All three files are load-bearing, measured rather than reasoned about — seeded with `game-master.json` alone, a
+ * `parse` run prints two `Downloading` lines. Only its *contents* matter: `loadGameData` throws without a CP
+ * multiplier for every level, where an empty icon index and string table it takes in its stride. That emptiness is
+ * what lets the stderr below be asserted — no form means no icon to fetch, so an empty stderr is exactly the claim
+ * that the seeded cache was read rather than merely present.
  *
- * That emptiness is also what lets the stderr below be asserted at all. No form means no icon to read, so nothing is
- * fetched and nothing is reported, and an empty stderr is then exactly the claim that the seeded cache was read rather
- * than merely present.
- *
- * The multipliers themselves are arbitrary values over more levels than the game has, and safe to be both: no assertion
- * here reads a number derived from them, and over-supplying keeps this from pinning the scanner's highest level.
- *
- * `extra` is appended to those templates, for the one test below that needs a form to exist at all. It defaults to none
- * so that every other caller keeps the emptiness the paragraph above turns into an assertion.
- *
- * `icons` names what the index holds, and writes each file into the cache beside it. Both halves are load-bearing
- * and for different reasons: the index is what carries a name onto a form, so it decides whether a family counts as
- * drawn or as short of its artwork, and the files are what keep a drawn one off the network. Their contents are
- * arbitrary — a pixel apiece, no assertion here reading a signature — but they have to decode, an icon that does
- * not being reported.
+ * `extra` is appended to those templates for the tests that need a form to exist, and defaults to none so every other
+ * caller keeps that emptiness. `icons` names what the index holds and writes each file beside it: the index is what
+ * carries a name onto a form, deciding whether a family counts as drawn, and the files are what keep a drawn one off
+ * the network. Their contents are arbitrary but they have to decode, an icon that does not being reported.
  */
 function reads(extra: readonly unknown[] = [], icons: readonly string[] = []): string {
   const dir = mkdtempSync(join(tmpdir(), 'inventory-cli-'));
@@ -90,16 +79,14 @@ function reads(extra: readonly unknown[] = [], icons: readonly string[] = []): s
 }
 
 /**
- * The `options` block of the script's own `parseArgs` call, and the flag names declared in it.
+ * The `options` block of the script's own `parseArgs` call, and the flag names in it. Read off the source because the
+ * options are a literal inside a top-level call, which a test cannot import without running the script. Matched as the
+ * block first and its keys second rather than as whole option lines, a pattern wanting `{ type:` on the key's own line
+ * stopping at the first option `prettier` has wrapped.
  *
- * Read off the source because there is nowhere else to read them from: the options are a literal inside a top-level
- * call, so a test cannot import them without running the script. Matched as the block first and the keys within it
- * second, rather than as whole option lines — a pattern wanting `{ type:` on the key's own line stops seeing any option
- * `prettier` has wrapped, which is one added property away, and any that declares a `short` alias before its type.
- *
- * That mode of failure is the one to design against, because a check that inspects its own source fails *open*: a flag
- * that drops out of this list is a flag the two comparisons below then agree about, and a shorter list of things to
- * check passes more easily. So it is cross-checked against a count that does not read the names at all.
+ * That failure is the one to design against, because a check inspecting its own source fails *open*: a flag that drops
+ * out of this list is one the comparisons below then agree about. So it is cross-checked against a count that does not
+ * read the names at all.
  */
 const OPTIONS = /\n {2}options: \{\n([\s\S]*?)\n {2}\},\n/.exec(SOURCE)?.[1] ?? '';
 const FLAGS = [...OPTIONS.matchAll(/^ {4}'([a-z-]+)':/gm)].map(([, flag]) => flag as string);
@@ -118,15 +105,13 @@ test('the flags are read off `parseArgs` whole, not some readable subset of it',
 });
 
 /**
- * Which flags the script says each command acts on, read off its `HONOURED` table.
+ * Which flags the script says each command acts on, read off its `HONOURED` table. The block is captured first and its
+ * keys matched inside it for the reasons the options block above is, and the key pattern names no command, so a command
+ * this test has never heard of is read rather than skipped.
  *
- * The block is captured first and its keys matched inside it, for the two reasons the options block above is: a list
- * `prettier` has wrapped still reads whole, and the key pattern names no command, so a command this test has never
- * heard of is read rather than skipped.
- *
- * Naming the three was the hole. A `watch:` entry added to the table was checked by nothing — the pattern could not see
- * it, and the union below could not notice either, being taken over only the entries the pattern had read. Which is the
- * same fail-open shape as before: a reader that matches less is compared against less.
+ * Naming the three was the hole: a `watch:` entry added to the table was checked by nothing, the pattern not seeing it
+ * and the union below being taken over only what the pattern read. The same fail-open shape — a reader that matches
+ * less is compared against less.
  */
 const TABLE = /\nconst HONOURED[^=]*= \{\n([\s\S]*?)\n\};\n/.exec(SOURCE)?.[1] ?? '';
 const HONOURED = new Map(
@@ -162,9 +147,8 @@ const ADVERTISED = run(process.execPath, [SCRIPT, 'help']).then(
 
 /**
  * That `help` answers at all, which is less obvious than it looks: the synopsis is cut out of the script's own source
- * with a regular expression, and `?.[0]` on a miss makes `console.error(undefined)` print the word `undefined` and exit
- * 0 regardless. So a usage block reworded past that pattern breaks the help text and reports success, and this is what
- * tells the difference.
+ * with a regular expression, and `?.[0]` on a miss makes `console.error(undefined)` print `undefined` and exit 0. So a
+ * usage block reworded past that pattern breaks the help text and reports success.
  */
 test('`help` prints the synopsis and exits 0', async () => {
   const { stdout, stderr } = await run(process.execPath, [SCRIPT, 'help']);
@@ -176,13 +160,12 @@ test('`help` prints the synopsis and exits 0', async () => {
 });
 
 /**
- * That `HONOURED` names every flag `parseArgs` accepts and invents none, which is the invariant the table exists to
- * hold: a flag in neither list is one no command acts on, and a flag in the table but not the options is one no command
- * could be given.
+ * That `HONOURED` names every flag `parseArgs` accepts and invents none: a flag in neither list is one no command acts
+ * on, and one in the table but not the options is one no command could be given.
  *
- * It is also what keeps the two patterns above honest. Both read this file's source, and a source reader that stops
- * matching returns *less* — so the comparisons below would agree about a shrinking set and pass. Here the union has to
- * come out equal to the options block, which a half-read table cannot do.
+ * It is also what keeps the two patterns above honest. A source reader that stops matching returns *less*, so the
+ * comparisons would agree about a shrinking set; here the union has to equal the options block, which a half-read
+ * table cannot do.
  */
 test('`HONOURED` accounts for every flag `parseArgs` accepts, and no others', () => {
   expect(TABLE, 'the `HONOURED` table was not found, so every claim about commands below is vacuous').not.toBe('');
@@ -250,13 +233,11 @@ test('a flag its command does not act on is refused, not ignored', async () => {
 
 /**
  * A command the script does not know is a failure rather than a silent no-op, and it says what the commands are. The
- * exit code is the half that matters: `help` and a typo print the same text, and only the status tells a script which
- * of the two happened.
+ * exit code is the half that matters: `help` and a typo print the same text.
  *
- * The names off `Object.prototype` are here because they got through. `HONOURED` is a plain object, so looking one of
- * them up answered an inherited function, the guard found that truthy, and the flag filter then called `.includes` on a
- * function and threw a `TypeError` over the usage. Each needs a flag beside it to show it, an empty list never invoking
- * the filter — which is why a bare `toString` looked fine throughout.
+ * The names off `Object.prototype` are here because they got through. `HONOURED` is a plain object, so looking one up
+ * answered an inherited function, the guard found it truthy, and the flag filter called `.includes` on a function and
+ * threw a `TypeError` over the usage. Each needs a flag beside it to show it, an empty list never invoking the filter.
  */
 test('an unknown command prints the usage and fails', async () => {
   for (const command of ['scna', 'toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__']) {
@@ -277,11 +258,9 @@ test('`parse` with no file prints the usage and fails', async () => {
 
 /**
  * That the `--search` example the usage advertises is one the phone can actually be sent. The two know nothing about
- * each other — the example is the only place the search syntax is written down, and `typeable` is a whitelist drawn up
- * for the scan's own searches — so a whitelist tightened without the example in mind would leave the one term a reader
- * is told to type failing on the phone, with every other test here passing.
- *
- * Taken out of the synopsis rather than written again, so what is checked is what a reader is told.
+ * each other, so a whitelist tightened without the example in mind would leave the one term a reader is told to type
+ * failing on the phone with every other test here passing. Taken out of the synopsis rather than written again, so
+ * what is checked is what a reader is told.
  */
 test('the `--search` term the usage advertises is one the phone can be sent', () => {
   const advertised = /--search '([^']+)'/.exec(SOURCE)?.[1];
@@ -374,11 +353,8 @@ test.for([
 /**
  * The dump of what OCR read is printed only for `--verbose`, and the rest of the report is the same either way.
  *
- * Asserted as the whole of the output rather than as the dump alone, because the claim worth holding is that the flag
- * adds lines and changes nothing: the fields below the dump are what a person reads a report for, and a gate that
- * reordered or dropped one of them would satisfy any count of dump rows. `fixtures/overworld.png` is the map, so the
- * report under the dump is every field empty — which makes the dump the overwhelming majority of the output and this
- * the capture the flag matters most on.
+ * Asserted as the whole output rather than the dump alone, the claim being that the flag adds lines and changes
+ * nothing: a gate that reordered or dropped one of the fields below would satisfy any count of dump rows.
  */
 test('the OCR dump is printed only with `--verbose`', async () => {
   const cwd = reads();
@@ -405,12 +381,11 @@ test('the OCR dump is printed only with `--verbose`', async () => {
 });
 
 /**
- * Two forms the numbers cannot separate, which is the cheapest thing that makes `iconsFor` report at all: one dex, two
+ * Two forms the numbers cannot separate, the cheapest thing that makes `iconsFor` report at all: one dex, two
  * non-costume forms identical in types and all three stats, and no icon for either in the empty index.
  *
- * That last part is what keeps this hermetic, and is why the pair is short of its icons rather than holding them. A
- * family short of one can never be narrowed, so it is named ahead of any download and nothing is fetched; a family
- * the artwork *could* settle would send the run to the network for an icon apiece.
+ * That last part is what keeps this hermetic. A family short of an icon can never be narrowed, so it is named ahead of
+ * any download; a family the artwork *could* settle would send the run to the network for an icon apiece.
  */
 const AMBIGUOUS = ['SPINDA_00', 'SPINDA_01'].map((form) => ({
   templateId: `V0327_POKEMON_${form}`,
@@ -425,17 +400,13 @@ const AMBIGUOUS = ['SPINDA_00', 'SPINDA_01'].map((form) => ({
 }));
 
 /**
- * The preamble `iconsFor` narrates before it has an answer — the form icons it is about to read, with the families no
- * artwork settles — is printed only for `--verbose`. That is the whole of what the flag holds back; the downloads print
- * either way, and `progress.test.mts` is where that is pinned.
+ * The preamble `iconsFor` narrates before it has an answer is printed only for `--verbose`. That is the whole of what
+ * the flag holds back; the downloads print either way, which `progress.test.mts` pins.
  *
- * The `--verbose` run is asserted *first*, and on purpose. The cache `reads` seeds is otherwise empty enough that none
- * of these lines is reached at all, so a quiet assertion standing alone would pass just as well for a gate deleted
- * outright as for one that works: the test has to show the preamble exists before it can claim the flag holds it back.
- *
- * Between them the two assertions also place `showProgress`, which is why no separate test does. Progress is narrated
- * until that call says otherwise, so one made too late — below `iconsFor` rather than above it — leaves the preamble in
- * the quiet run, and the second assertion is what sees it.
+ * The `--verbose` run is asserted *first*, on purpose: the seeded cache is otherwise empty enough that none of these
+ * lines is reached, so a quiet assertion alone would pass as well for a gate deleted outright as for one that works.
+ * Between them the two also place `showProgress` — one made below `iconsFor` rather than above it leaves the preamble
+ * in the quiet run, which the second assertion sees.
  */
 test('the progress preamble is printed only with `--verbose`', async () => {
   const cwd = reads(AMBIGUOUS);
@@ -458,22 +429,16 @@ test('the progress preamble is printed only with `--verbose`', async () => {
 
 /**
  * The one warning no `Downloading` line can lend a subject to. `cached` reads the status and not the body, so a 200
- * carrying an error page is cached and fails in the decode past it, after the download that fetched it has finished
- * printing — and this line is written as a continuation, two spaces and no subject of its own.
+ * carrying an error page is cached and fails in the decode past it, after the download has finished printing — and
+ * this line is written as a continuation, with no subject of its own.
  *
- * Seeded rather than served, which is what makes it hermetic: the week's grace reads the file without a word, and bytes
- * that will not parse do so whether they arrived over the network or not. It is also the whole of the path, the index
- * being an improvement rather than a prerequisite — the run goes on to answer with no artwork narrowing anything.
+ * Seeded rather than served, which is what makes it hermetic: the week's grace reads the file without a word, and
+ * bytes that will not parse do so however they arrived. Matched as *a* URL rather than the index's own, which
+ * `game-master.mts` does not export: the claim is that the line names the file it is about.
  *
- * Matched as *a* URL rather than as the index's own, which `game-master.mts` does not export and this should not have
- * to know: the claim is that the line names the file it is about. `iconsFor`'s icons are the other half of that claim
- * and cannot be reached from here — `ICON_BASE` is upstream, with nowhere to point it — so they rest on the same
- * `cachedAs`, which is what this holds.
- *
- * That the copy is gone afterwards is the seeded half of the other claim `cachedAs` makes, and the half
- * `progress.test.mts` cannot reach: there the bytes that will not decode are ones it downloaded, here ones it only
- * ever read, and a fix that dropped the file on the write path alone would pass that test and leave this run reading
- * the same HTML every day for a week.
+ * That the copy is gone afterwards is the half `progress.test.mts` cannot reach — there the bad bytes are ones it
+ * downloaded, here ones it only read, so a fix that dropped the file on the write path alone would pass that test and
+ * leave this run reading the same HTML every day for a week.
  */
 test('a cached file that will not decode is reported against its own URL, and not kept', async () => {
   const cwd = reads();
@@ -494,17 +459,15 @@ test('a cached file that will not decode is reported against its own URL, and no
 });
 
 /**
- * The listing that parses and is still no good, which is the stale directory's failure arriving by another route: every
- * name it carries resolves, so a reader that takes it answers confidently about the forms it happens to name and says
- * nothing at all about the ones it dropped.
+ * The listing that parses and is still no good — the stale directory's failure by another route: every name it carries
+ * resolves, so a reader that takes it answers confidently about the forms it names and says nothing about the ones it
+ * dropped.
  *
- * Seeded with the pair's own icons and both their names, which is what makes this two-sided rather than an assertion
- * that nothing happened. The same cache without `truncated` is the test above it — the index resolves both forms, the
- * family is drawn and the count prints — so `Reading 2 form icons` going missing is the refusal, and the warning in its
- * place is where the refusal says so. Reverting the guard prints the count and no warning, which is the mutation.
+ * Seeded with the pair's own icons and both their names, which is what makes this two-sided. The same cache without
+ * `truncated` is the test above, where the count prints, so `Reading 2 form icons` going missing is the refusal and
+ * the warning in its place is where it says so. Reverting the guard prints the count and no warning — the mutation.
  *
- * `--verbose` because the count is behind it and the absence has to be of a line the run would otherwise have reached.
- * The warning is not: a listing that cannot be used is reported whether or not progress was asked for.
+ * `--verbose` because the count is behind it, so the absence is of a line the run would otherwise have reached.
  */
 test('a listing that says it is truncated is refused rather than half read', async () => {
   const cwd = reads(AMBIGUOUS, ['pm327.f00.icon.png', 'pm327.f01.icon.png']);
@@ -529,14 +492,13 @@ test('a listing that says it is truncated is refused rather than half read', asy
 });
 
 /**
- * The other half of that preamble, which the test above cannot reach. `AMBIGUOUS` on its own leaves both Spinda
- * forms short of an icon, so the family lands in `short` rather than `drawn`, `drawn.length` is 0 and `Reading N form
- * icons` is never printed at all — measured by reverting that one line to `console.error`, which left the whole suite
- * green.
+ * The other half of that preamble, which the test above cannot reach. `AMBIGUOUS` alone leaves both Spinda forms short
+ * of an icon, so the family lands in `short` rather than `drawn` and `Reading N form icons` is never printed at all —
+ * measured by reverting that line to `console.error`, which left the whole suite green.
  *
- * Giving the index both icons and writing both files is what moves the family across. The week's grace reads them
- * off disk, so the count prints with nothing fetched, and `short` is empty for the same reason — which is why this
- * asserts a count where the test above asserts the families, the two lines being gated together and reached apart.
+ * Giving the index both icons and writing both files is what moves the family across, so the count prints with nothing
+ * fetched. Hence a count here where the test above asserts the families: the two lines are gated together and reached
+ * apart.
  */
 test('the icon count in the preamble is printed only with `--verbose`', async () => {
   const cwd = reads(AMBIGUOUS, ['pm327.f00.icon.png', 'pm327.f01.icon.png']);

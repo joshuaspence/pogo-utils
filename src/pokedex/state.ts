@@ -1,10 +1,7 @@
 /**
- * What the Pokédex page's controls are set to, and which entries that admits.
- *
- * The state lives in the fragment, so a filtered view or an open species is a link — which makes the round trip the
- * contract: a state written out and read back is the same state, and a fragment a reader has edited by hand can only
- * ever produce one the controls could have. Nothing here touches the DOM; `page.ts` is what reads the controls into a
- * state and paints the entries this admits.
+ * What the Pokédex page's controls are set to, and which entries that admits. The state lives in the fragment, so a
+ * filtered view is a link — which makes the round trip the contract: a state written out and read back is the same
+ * state, and a hand-edited fragment can only produce one the controls could have. Nothing here touches the DOM.
  */
 
 import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, type Entry } from './entries.js';

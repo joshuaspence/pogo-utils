@@ -1,11 +1,7 @@
 /**
- * What an event *is* once the page has it, and where it sits in time: the feed's two sources merged into one list, each
- * entry's dates parsed, and the placement every one of the three views reads off it.
- *
- * `src/events.ts` is a page entry point and so unreachable outside a browser, where none of this needs one — a status,
- * an instant window, the columns of a week a bar covers and the lane it stacks in are all answers about dates. They sit
- * here beside `event-feed.ts` for the reason that file gives: a rule the page applies to the feed is worth being able
- * to check without a DOM around it.
+ * Where an event sits in time: the feed's two sources merged into one list, each entry's dates parsed, and the
+ * placement the three views read off it. None of it needs a DOM, which is what lets a test reach these rules without
+ * one — `src/pages/events.tsx` is a page component and so unreachable outside a browser.
  */
 
 import { HAS_ZONE } from './event-feed.js';
@@ -13,11 +9,8 @@ import { HAS_ZONE } from './event-feed.js';
 import type { FeedEvent } from './types.js';
 
 /**
- * A feed entry with its dates parsed — what every function below takes, and the only shape the page itself works in.
- * Named for what normalise() does to a `FeedEvent` rather than for the dates it carries, since a `tbd` event has none.
- *
- * `Event` would have been the obvious name and is the one to avoid: a type of that name shadows the DOM's own
- * `Event` for the whole of the page module, and the card's acknowledge handler takes a real `MouseEvent`.
+ * A feed entry with its dates parsed — the only shape the page itself works in. Not `Event`, which would shadow the
+ * DOM's own for the whole page module, where the card's acknowledge handler takes a real `MouseEvent`.
  */
 export interface ParsedEvent {
   eventID: string;
@@ -36,34 +29,22 @@ export interface ParsedEvent {
 export type StatusKind = 'active' | 'upcoming' | 'tbd' | 'ended';
 
 /**
- * Where an event sits relative to now — see statusOf(). A discriminated union rather than one shape with an optional
- * `at`, because the edge a card counts down to is exactly what a dateless event does not have: `tbd` carries no
- * instant, and `active` carries one only where the event has an announced end.
- *
- * `tbd` still carries the field, as an explicit null. Omitting it makes `status.at` unreadable without first ruling
- * that kind out, which is a test the card does not otherwise need — where a null says the same thing to the reader and
- * leaves the two pending kinds guaranteeing a `Date` all the same, which is the whole of what the union is for.
+ * Where an event sits relative to now. A discriminated union rather than one shape with an optional `at`, because the
+ * edge a card counts down to is exactly what a dateless event lacks. `tbd` still carries the field as an explicit
+ * null, so `status.at` is readable without first ruling that kind out.
  */
 export type Status =
   { kind: 'tbd'; at: null } | { kind: 'upcoming' | 'ended'; at: Date } | { kind: 'active'; at: Date | null };
 
 /**
- * The half-open instant interval an event occupies, `[startMs, endMs]` — see windowOf(). A tuple rather than a
- * `number[]`, so the two ends are named by position and neither `overlaps()` nor `calBar()` has to answer for a third
- * element that cannot arrive. It is also what keeps `win[0]` a `number`: `noUncheckedIndexedAccess` adds `| undefined`
- * to an array's element but not to a tuple index the type already knows is there.
- *
- * Not `Window`, which is the DOM's own and would be shadowed for the whole module — the same trap `ParsedEvent` avoids.
+ * The half-open instant interval an event occupies, `[startMs, endMs]`. A tuple rather than a `number[]` so neither
+ * end has to answer for a third element, and so `win[0]` stays a `number` — `noUncheckedIndexedAccess` adds
+ * `| undefined` to an array's element but not to a tuple index. Not `Window`, for the reason `ParsedEvent` is not
+ * `Event`.
  */
 export type Span = readonly [number, number];
 
-/**
- * One event placed on a Tracks row: the span it occupies, and the sub-row packLanes() has put it in.
- *
- * `lane` starts at 0 and is written afterwards rather than being part of the value, because which lane an event belongs
- * in is not a fact about the event — it depends on every other event on the same track, so nothing can know it until
- * the row is complete and sorted.
- */
+/** One event placed on a Tracks row. `lane` is written by `packLanes` afterwards: it depends on the whole row. */
 export interface TrackItem {
   ev: ParsedEvent;
   startMs: number;
@@ -91,10 +72,8 @@ export function addDays(d: Date, n: number) {
 }
 
 /**
- * The largest unit that keeps a relative label's number readable, and that number. Separated from the wording because
- * the wording is Intl's and the arithmetic is ours: `relative()` in the page hands this straight to a
- * `RelativeTimeFormat`, which handles pluralisation and the reader's locale, and this is the half that decides whether
- * "in 90 minutes" reads as hours.
+ * The largest unit that keeps a relative label's number readable, and that number — whether "in 90 minutes" reads as
+ * hours. The wording is Intl's: `relative()` hands this to a `RelativeTimeFormat`.
  */
 export function relativeUnit(target: Date, now: Date) {
   const mins = Math.round((target.getTime() - now.getTime()) / 60_000);
@@ -112,16 +91,13 @@ export function relativeUnit(target: Date, now: Date) {
 }
 
 /**
- * Where an event sits relative to now. `active` covers both a running window and one that has started with no end.
- * `tbd` is an event the feed carries with no date at all, both `start` and `end` null.
+ * Where an event sits relative to now. `active` covers both a running window and one started with no end.
  *
- * That is rarely the announced-but-unscheduled event it sounds like. ScrapedDuck reads an event's identity off Leek
- * Duck's event list but joins its dates in from `leekduck.com/feeds/events.json`, and that feed drops an event days
- * before the list page does, so everything under the list's "Recently ended" divider reaches us dateless. On 2026-09-24
- * the feed's five dateless events were exactly that divider's five, among them `gbl-twilight-trails_great-league_ultra-
- * league-mega-edition_willpower-cup-great-league-edition`, which Leek Duck's own page dates 15 to 22 September. So
- * `tbd` mostly means an event already over whose dates went missing on the way here — which is why renderCards() keeps
- * the bucket behind a toggle rather than showing it by default.
+ * `tbd` is rarely the announced-but-unscheduled event it sounds like. ScrapedDuck reads an event's identity off Leek
+ * Duck's list but joins its dates in from a feed that drops them days earlier, so everything under the list's
+ * "Recently ended" divider reaches us dateless — on 2026-09-24 the feed's five dateless events were exactly that
+ * divider's five. So `tbd` mostly means an event already over, which is why `renderCards` keeps the bucket behind a
+ * toggle.
  */
 export function statusOf(ev: ParsedEvent, now: Date): Status {
   if (!ev.start && !ev.end) {
@@ -140,14 +116,9 @@ export function statusOf(ev: ParsedEvent, now: Date): Status {
 }
 
 /**
- * The instant window an event occupies for the calendar's overlap tests. A dated event is [start, end]; a start with no
- * end is a single-day marker on its start date rather than an open-ended band that would paint every following day; an
- * end with no start is a single day at its end date. A dateless event has no window and never lands on the grid.
- *
- * The dateless case is the `day === null` below rather than a guard of its own, because `start ?? end` is null exactly
- * when both are and one test therefore does the work of two. Guarding first left `start ?? end` as `Date | null` all
- * the same — nothing ties the earlier test to this expression — so the shorter form is also the one that needs no
- * assertion.
+ * The instant window an event occupies for the calendar's overlap tests. A start with no end is a single-day marker
+ * rather than an open-ended band that would paint every following day; an end with no start is a day at its end date.
+ * `start ?? end` is null exactly when both are, so the dateless case needs no guard of its own.
  */
 export function windowOf(ev: ParsedEvent): Span | null {
   if (ev.start && ev.end) {
@@ -169,9 +140,8 @@ export function overlaps(win: Span | null, from: number, to: number) {
 }
 
 /**
- * The columns of one week row an event's window touches, as `[first, last]` inclusive, or null for a week it misses
- * entirely. A window is one contiguous interval, so the columns it covers are contiguous too and the pair describes
- * them completely. A single-day event yields a one-column span and needs no special case.
+ * The columns of one week row an event's window touches, as `[first, last]` inclusive, or null for a week it misses. A
+ * window is one contiguous interval, so the columns it covers are contiguous and the pair describes them completely.
  */
 export function weekColumns(win: Span | null, weekStart: Date): readonly [number, number] | null {
   let first = -1;
@@ -190,10 +160,9 @@ export function weekColumns(win: Span | null, weekStart: Date): readonly [number
 }
 
 /**
- * The class marking an event's type, so CSS can give each type its own colour (see the `.type-*` rules in events.css).
- * Takes the stable `eventType` slug like the Tracks rows, not the human `heading`. Empty for a feed entry missing the
- * field, in which case the colour consumers fall back to their default. Worn by the card, the calendar bar, the
- * timeline bar and the filter chip alike, which is what keeps one type reading the same colour in all four.
+ * The class marking an event's type, so CSS can give each its own colour (the `.type-*` rules in `events.css`). Takes
+ * the stable `eventType` slug rather than the human `heading`, and is worn by the card, both bars and the filter chip
+ * alike, which is what keeps one type reading the same colour in all four.
  */
 export function typeClass(eventType: string) {
   return eventType ? ` type-${eventType}` : '';
@@ -201,8 +170,8 @@ export function typeClass(eventType: string) {
 
 /**
  * Assign each item a `lane` — a sub-row within its track — by greedy interval partitioning: reuse the first lane whose
- * previous bar has already ended, otherwise open a new one. Items must arrive sorted by start. Returns the lane count,
- * which sets the track row's height so overlapping events stack instead of drawing over each other.
+ * previous bar has ended, otherwise open a new one. Items must arrive sorted by start. Returns the lane count, which
+ * sets the track's height so overlapping events stack instead of drawing over each other.
  */
 export function packLanes(items: readonly TrackItem[]) {
   const laneEnds: number[] = [];
@@ -233,16 +202,12 @@ function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
 }
 
 /**
- * The two feeds as one list, sorted by start, with this repository's own entries last so one of them overrides a feed
- * event of the same `eventID` rather than duplicating it. Either side may be empty, which is what lets the page
- * tolerate a dead feed or a missing local file and still draw the other.
+ * The two feeds as one list, sorted by start, with this repository's own entries last so one overrides a feed event of
+ * the same `eventID` rather than duplicating it. Either side may be empty, which is what lets the page tolerate a dead
+ * feed or a missing local file. A dateless event sorts to the end on `Infinity`, where the cards view wants it.
  *
- * A dateless event sorts to the end rather than to the front, which is where the cards view's own bucket order wants
- * it: `Infinity` for a missing start, so the comparison is between two numbers however many of them are missing.
- *
- * The Map is annotated because a bare `new Map()` is a `Map<any, any>` that a `set` does not refine, so `[...values()]`
- * would be an `any[]` and normalise() would check nothing at all about what it was handed — the claim its return type
- * makes rests on that line.
+ * The Map is annotated because a bare `new Map()` is a `Map<any, any>` that `set` does not refine, so `normalise`
+ * would check nothing at all about what it was handed.
  */
 export function mergeEvents(feed: readonly FeedEvent[], local: readonly FeedEvent[]): ParsedEvent[] {
   const byEventId = new Map<string, FeedEvent>();

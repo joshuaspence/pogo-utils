@@ -1,11 +1,9 @@
 /**
  * The one document's shell: the tab bar, and whichever page the fragment names below it.
  *
- * Each page is reached through `import()` rather than imported outright, which is the whole of what keeps the five pages
- * off each other's download. Leaflet is 164KB and the Java serialization codec behind the PGSharp backup is another
- * 152KB; imported statically, both would land in the bundle every reader fetches to look at the events calendar, which
- * is the page the manifest opens on and the smallest of the five. A dynamic import is a split point to esbuild, so each
- * page stays its own chunk and is fetched when it is first opened.
+ * Each page is reached through `import()` rather than imported outright, which is what keeps the five off each other's
+ * download — Leaflet is 164KB and the Java serialization codec another 152KB, and imported statically both would land
+ * in the bundle every reader fetches to look at the events calendar. A dynamic import is a split point to esbuild.
  */
 
 import type { FunctionComponent } from 'preact';

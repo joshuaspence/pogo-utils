@@ -1,19 +1,15 @@
 /**
- * What a `<pgr:event>` reference is, and what cutting one does to the file around it. These are the two halves of one
- * agreement: `scripts/validate-gpx.mts` refuses a reference naming an event `data/events.json` does not have and
- * `scripts/prune-events.mts` cuts the references of the events it just removed, so a form one reads and the other does
- * not is an event pruned here and refused there — which, `pnpm build` running the validator, is every Pages deploy
- * failing until the file is edited by hand.
+ * What a `<pgr:event>` reference is, and what cutting one does to the file around it — the two halves of one
+ * agreement, since a form the validator reads and the pruner does not is an event pruned here and refused there,
+ * failing every Pages deploy until the file is edited by hand.
  *
- * The forms below are the ones a line-matching reader gets wrong and a parser does not: an element inline among its
- * siblings, whitespace around the ID, CRLF endings and a prefix other than `pgr`. None is in `data/` today, which is
- * exactly why they are written out here rather than read from it — a corpus test can only pin the one shape the corpus
- * happens to be in, and the corpus case at the end says what that shape is.
+ * The forms below are the ones a line-matching reader gets wrong and a parser does not: inline among siblings,
+ * whitespace around the ID, CRLF endings, a prefix other than `pgr`. None is in `data/` today, which is why they are
+ * written out rather than read from it — a corpus test can only pin the shape the corpus happens to be in.
  *
- * The cases that refuse are the other half, and they matter more than the ones that cut. A span that over-runs deletes
- * whatever followed it, the file can still parse afterwards, and the Prune workflow commits that to `master` with
- * nobody watching — so every shape this cannot read for certain has to throw, and each of those shapes is pinned here
- * as a throw rather than left to a reader's judgement.
+ * The cases that refuse matter more than the ones that cut. A span that over-runs deletes whatever followed, the file
+ * can still parse afterwards, and the Prune workflow commits that to `master` unwatched — so every shape this cannot
+ * read for certain is pinned here as a throw.
  */
 
 import { cutElements, eventRefs, gpxSources, parseGpx } from './gpx-source.mts';

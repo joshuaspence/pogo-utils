@@ -1,22 +1,19 @@
 /**
- * One tall image out of several screenshots taken while scrolling, which is the only way to see a screen that is longer
- * than the phone all at once. The detail screen is one: an unscrolled capture reaches the moves at its foot and stops
- * there, short of the catch details below them.
+ * One tall image out of several screenshots taken while scrolling, which is the only way to see a screen longer than
+ * the phone all at once.
  *
- * **Not everything on the screen scrolls, and that is the whole problem.** The status bar ticks with the clock at the
- * top, PGSharp draws its overlay *over* the app rather than in it so it stays exactly where it is, and the game's own
- * round buttons float above the panel at the bottom. Correlating two frames over the whole screen therefore finds the
- * shift that keeps the furniture still — which is zero — rather than the one that lines the content up. So the caller
- * names the band that does scroll, and everything here works inside it.
+ * **Not everything on the screen scrolls, and that is the whole problem.** The status bar ticks, PGSharp draws its
+ * overlay *over* the app rather than in it, and the game's round buttons float above the panel. Correlating two frames
+ * over the whole screen therefore finds the shift that keeps the furniture still — zero — rather than the one that
+ * lines the content up, so the caller names the band that does scroll.
  *
- * **What it answers with is the content once and the furniture once.** Rows above the band come from the first frame,
- * rows below it from the last, and the band itself is the first frame's worth plus whatever each later frame revealed.
- * A naive concatenation would repeat both the overlay and the buttons once per frame.
+ * **It answers with the content once and the furniture once**: rows above the band from the first frame, rows below
+ * from the last, and the band itself the first frame's worth plus whatever each later frame revealed.
  *
- * **It refuses rather than guesses.** `offsetBetween` scores every candidate shift and takes the best only where it is
- * clearly better than the field; two frames that overlap by too little to be sure, or not at all, answer null and the
- * capture stops there with what it has. A capture that is short is obvious to whoever looks at it, where a capture
- * silently assembled at the wrong offset is a screenshot of something that was never on the screen.
+ * **It refuses rather than guesses.** `offsetBetween` takes the best shift only where it is clearly better than the
+ * field, so frames overlapping too little answer null and the capture stops with what it has. A short capture is
+ * obvious to whoever looks at it, where one silently assembled at the wrong offset is a screenshot of something that
+ * was never on the screen.
  */
 
 import { rgb, type Image } from './png.mts';

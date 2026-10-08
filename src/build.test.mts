@@ -1,11 +1,10 @@
 /**
  * The `build:*` steps against the order `pnpm build` runs them in.
  *
- * `build` names its steps rather than globbing `'build:*'`, because the order is a dependency graph and not a
- * preference: `build:data` writes the one of its two indexes that `build:ics` reads, and `build:assemble` checks what
- * every other step wrote. Naming them costs the one mistake a glob could not make — a step added to `package.json` and
- * left out of the list — and npm-run-all has nothing to report, since a step missing from `build` is not a failure but
- * a step that never runs. The only trace would be whatever it was going to write being absent from `dist/`.
+ * `build` names its steps rather than globbing `'build:*'`, the order being a dependency graph: `build:data` writes
+ * what `build:ics` reads, and `build:assemble` checks what every other step wrote. Naming them costs the one mistake a
+ * glob could not make — a step added to `package.json` and left out of the list — which npm-run-all cannot report,
+ * since a step missing from `build` is not a failure but a step that never runs.
  *
  * The two readings are independent on purpose: the steps come out of `build`'s command string and the scripts out of
  * the object's keys, so a pattern that stopped matching cannot agree with the keys about anything.

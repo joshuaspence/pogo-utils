@@ -1,10 +1,7 @@
 /**
- * The DOM helpers every page needs: one to build an element, one to find one.
- *
- * `byId` is the interesting half. `document.getElementById` answers `HTMLElement | null`, and the pages then read a
- * `.value` or a `.checked` off whatever came back — two assumptions about markup that lives in a different file. An id
- * matching nothing, or matching a tag it did not used to, is a broken page rather than a case to handle, so this throws
- * where the disagreement is instead of letting a `null` travel until something further along trips over it.
+ * The DOM helpers every page needs: one to build an element, one to find one. An id matching nothing, or matching a
+ * tag it did not used to, is a broken page rather than a case to handle, so `byId` throws where the disagreement is
+ * instead of letting a `null` travel until something further along trips over it.
  */
 
 /**
@@ -31,13 +28,11 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 
 /**
  * The element with this id, as the class asked for — `HTMLElement` where none is. Name a class only where the code
- * depends on one, since that is what the argument says: `byId('q', HTMLInputElement)` because a `.value` is read off
- * it, and a plain `byId('grid')` for a container whose tag the script has no opinion about.
+ * depends on one, which is what the argument says.
  *
  * Two overloads rather than one type parameter defaulting to `HTMLElement`, because a type parameter appearing only in
  * the return position is inferred from the caller's own annotation: with the default, `byId('grid')` answers
- * `HTMLInputElement` to anyone who asks for one and the check is worth nothing. A fixed return type has nothing to
- * infer.
+ * `HTMLInputElement` to anyone who asks for one and the check is worth nothing.
  */
 export function byId(id: string): HTMLElement;
 export function byId<T extends HTMLElement>(id: string, type: abstract new (...args: never) => T): T;
