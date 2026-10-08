@@ -21,7 +21,9 @@
  * reading the page has taken since it only had chips.
  *
  * The page used to warn about it whenever a string mixed the two. It no longer does: the fixed builder mixed them now
- * and then, where an arrangement holding any `any` at all mixes them, so the warning would never be off.
+ * and then, where nearly any arrangement does — an `any` beside anything else in an `all` mixes them — so the warning
+ * would have been up for nearly every query worth building. An `any` on its own is the exception, composing one clause
+ * and no `&`.
  *
  * What it costs is characters, since an `any` multiplies where an `all` adds. That is the normal form's nature rather
  * than a shortcoming — `(a&b),(c&d)` really is four clauses in a language with no brackets.

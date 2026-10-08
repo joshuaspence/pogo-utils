@@ -215,7 +215,11 @@ body[data-page='search'] {
     color: var(--accent);
   }
 
-  /* The one thing the builder cannot decide for the reader, so it is the one thing on the page painted as a warning. */
+  /**
+   * A note about the string that is worth a second look rather than a refusal — which is the `mishandled` list and
+   * nothing else, now that the precedence caveat is gone. `.broken` below borrows this shape for the refusals, and
+   * takes the accent red to tell the two apart.
+   */
 
   .output .caveat {
     margin: 0;
@@ -471,7 +475,16 @@ body[data-page='search'] {
    */
 
   .chip {
-    --chip: hsl(var(--hue) var(--chip-s) var(--chip-l));
+    /**
+     * `--hue` is set per category section, so a chip outside one has none — the eight in the Ranges panel had `--chip`
+     * invalid at computed-value time, and their required state rendered with no tint at all: a `currentcolor` border
+     * and a transparent background, the two declarations that use it both thrown away. The fallback is on the hue
+     * rather than on each use, so `--chip` is a colour wherever a chip ends up and no future one can be caught by it.
+     *
+     * 220 is `--track`'s own hue, which is what this page already means by *a value the reader has set* — and the
+     * ranges want no sixteenth entry on a wheel this sheet says is full.
+     */
+    --chip: hsl(var(--hue, 220) var(--chip-s) var(--chip-l));
 
     display: inline-flex;
     align-items: center;
@@ -517,19 +530,29 @@ body[data-page='search'] {
     background: var(--accent-soft);
     color: var(--accent);
     font-weight: 600;
+  }
+
+  /**
+   * The strike goes on the label rather than on the whole chip, the same way `.pill.out .face .name` does it further
+   * down. A decoration on the button propagates to every in-flow descendant and a descendant cannot turn it off — so
+   * the `text-decoration: none` that used to sit on `.state` was inert, and the strike crossed the `!` glyph. Which is
+   * not merely untidy: a struck-through `!` reads as the `+` that means *off*, so the one thing that says what state a
+   * chip is in without relying on its colour was saying the wrong one.
+   */
+
+  .chip[data-state='out'] .name {
     text-decoration: line-through;
     text-decoration-thickness: 1px;
   }
 
   /**
-   * The state, said in a glyph as well as in colour and a strike — the three have to be tellable apart by someone who
-   * cannot see the difference between a red chip and a teal one.
+   * The state, said in a glyph as well as in colour — the three have to be tellable apart by someone who cannot see
+   * the difference between a red chip and a teal one.
    */
 
   .chip .state {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
-    text-decoration: none;
   }
 
   .chip[data-state='off'] .state {

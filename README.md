@@ -212,8 +212,9 @@ nothing is dropped — a pill with no bounds filled in yet, or a group with noth
 way rather than guessed at. And the conversion only means what it says if a comma binds tighter than an ampersand, which
 is the one assumption under all of it: Niantic's list documents both operators and never combines them in an example, so
 it is stated rather than proved, and it is the reading the page has taken since it only had chips. The page used to warn
-whenever a string mixed the two operators and no longer does — the fixed builder mixed them now and then, where an
-arrangement holding any `any` at all mixes them, so the warning would never have been off.
+whenever a string mixed the two operators and no longer does — the fixed builder mixed them now and then, where nearly
+any arrangement does, so the warning would have been up for nearly every query worth building. An `any` on its own is
+the exception, composing one clause and no `&`.
 
 [`src/search/tree.ts`](src/search/tree.ts) owns the arrangement itself: what a pill writes, and the three edits a drag
 makes. A node is named by its **path** — `[2, 0]` is the first part of the third part of the root — which is what a

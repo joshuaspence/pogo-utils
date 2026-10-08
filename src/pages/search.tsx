@@ -311,8 +311,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   /** One name finished with, which becomes a pill in the current group. A nickname works as well as a species. */
   function takeName(text: string) {
+    // Through `cycle` rather than `append`, which is what it was: the same name twice is one pill's worth of search,
+    // and `Enter` is easy to press twice without meaning anything by it. `append` is for a drop, where the reader has
+    // said where the pill goes.
     for (const name of names(text)) {
-      edit((tree) => append(tree, focus, { kind: 'name', text: name, negated: false }));
+      edit((tree) => cycle(tree, focus, { kind: 'name', text: name, negated: false }));
     }
 
     setTyping('');
@@ -548,7 +551,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         <h1>Pokémon GO Search Strings</h1>
         <p class="sub">
           Build a string for the game's own search box. Press a chip once to require it, twice to rule it out, three
-          times to drop it — or drag one into a group to say <em>any of these</em>.
+          times to drop it. Everything in the query has to match; make a group to say <em>any of these</em>.
         </p>
       </header>
 
@@ -752,7 +755,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                       <span class="state" aria-hidden="true">
                         {CHIP[chip].glyph}
                       </span>
-                      <span>{term.label}</span>
+                      <span class="name">{term.label}</span>
                     </button>
                   );
                 })}
@@ -784,7 +787,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                   <span class="state" aria-hidden="true">
                     {CHIP[chip].glyph}
                   </span>
-                  <span>{range.label}</span>
+                  <span class="name">{range.label}</span>
                 </button>
               );
             })}

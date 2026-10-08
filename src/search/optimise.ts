@@ -1,7 +1,7 @@
 /**
  * Compressing a finished query. Every reduction here rewrites the *tree* rather than the string and hands back another
- * tree for `query.js` to compose, so the shortened string goes through the same clause writer, the same distribution
- * and the same ambiguity check as the plain one. Nothing takes apart a search string that was just written.
+ * tree for `query.js` to compose, so the shortened string goes through the same distribution and the same clause
+ * writer as the plain one. Nothing takes apart a search string that was just written.
  *
  * Three kinds of redundancy are worth removing. The first two are the same thing: the reader has said which species
  * they mean at more length than the game needs.

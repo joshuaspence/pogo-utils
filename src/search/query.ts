@@ -50,8 +50,10 @@ export const names = (text: string) =>
  * A string mixing `,` and `&` only means what the canvas says it means if a comma binds tighter than an ampersand.
  * That assumption is still load-bearing and `clauses.js` documents it; what is gone is the warning the page used to
  * carry about it. The earlier builder mixed the two operators only now and then, so a caveat marked the occasion —
- * an arrangement with any `any` in it mixes them, so the same caveat would be on screen for every query worth
- * building, and a warning that never goes away is furniture rather than a warning.
+ * almost any arrangement mixes them, since an `any` beside anything else in an `all` does, so the same caveat would be
+ * up for nearly every query worth building and a warning that is up nearly always is furniture rather than a warning.
+ *
+ * Nearly rather than always: an `any` on its own composes one clause and no `&` at all, which `query.test.js` asserts.
  */
 export function compose(state: State) {
   const { clauses, error, mishandled } = clausesOf(state.tree);

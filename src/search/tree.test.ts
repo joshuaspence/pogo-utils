@@ -196,8 +196,15 @@ test('a span chip cycles on its range rather than on its bounds', () => {
 });
 
 test('a name has no chip and no cycle, but does not land twice in one group', () => {
-  // Two names are two searches, so a name never turns round the way a chip does. The same name twice is one pill's
-  // worth of search, and the box commits on Enter — which a reader can press twice without meaning anything by it.
+  /*
+   * Two names are two searches, so a name never turns round the way a chip does. The same name twice is one pill's
+   * worth of search, and `Enter` is easy to press twice without meaning anything by it.
+   *
+   * This pins `cycle`'s own contract and nothing about the page, which is worth saying because for a while it was the
+   * only thing holding the behaviour: the name box committed through `append` instead, so typing `pikachu` and
+   * pressing `Enter` twice really did compose `pikachu&pikachu` while this test sat green. A contract no caller uses
+   * is a contract that proves nothing, and the caller is `takeName` in `search.tsx`.
+   */
   const tree = all(named('pikachu'));
 
   expect(shape(cycle(tree, [], named('pikachu')))).toEqual({ all: ['pikachu'] });
