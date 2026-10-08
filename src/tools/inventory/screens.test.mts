@@ -847,6 +847,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 486,
+    defects: { notes: ['the screen reads CP 4864, where this form at this level is 486'] },
     file: 'unown-question.png',
     form: 'Question Mark',
     gender: null,
@@ -1226,10 +1227,10 @@ test('every committed capture is either a row or a negative case', () => {
  * capture of a Pokémon nothing here states — the stitch carries no row of its own, so there is nothing else to catch
  * it.
  *
- * Only one direction: a screen needs no companion. The three negatives have none, `snap` refusing to scroll a screen
- * PGSharp's overlay cannot vouch for, and `unown-question.png` has none either, being the last capture still waiting
- * for the right Pokémon — a companion of the Unown that was found instead would sit beside a screen of a different one,
- * which is worse than no companion at all.
+ * Only one direction: a screen needs no companion, and the three negatives have none — `snap` refuses to scroll a
+ * screen PGSharp's overlay cannot vouch for. Every detail capture has one, which was not true while three were still
+ * waiting for the right Pokémon to be found: a companion of the Pokémon that was found instead would have sat beside a
+ * screen of a different one, which is worse than no companion at all.
  */
 test('every stitch is a stitch of a screen the corpus holds', () => {
   const orphans = STITCHES.filter((file) => !SCREENS.includes(`${file.slice(0, -SCROLLED.length)}.png`));
@@ -1422,7 +1423,7 @@ const COVERAGE = {
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 31,
+  noDefects: 30,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1489,7 +1490,7 @@ test('the vended game master is the shape the readers are asserted against', () 
  * lost off one end of the number to the artwork behind it.
  */
 test(
-  'which captures the CP is read off, and which one of them it reads wrongly',
+  'which captures the CP is read off, and which two of them it reads wrongly',
   async () => {
     const states = new Map<string, number>();
 
@@ -1525,24 +1526,26 @@ test(
       'spoink.png': 998,
       'unown-b.png': 487,
       'unown-exclamation.png': 517,
-      'unown-question.png': 486,
+      'unown-question.png': 4864,
       'xurkitree.png': 2197,
     });
 
     // And which of them it reads *wrongly*, derived from the map rather than listed again — a row already states what
     // the screen shows, so a disagreement is a filter and not a second list to keep in step.
     //
-    // One, and the same shape the other two were before the corpus was taken again: the leading digit is lost and the
-    // rest reads cleanly, `38` for 738. The band rescue in `wholeCp` recovers such a line elsewhere and on this one it
-    // does not, so the row carries a `defects.notes` entry reporting the `cps` candidate the arithmetic rejected.
+    // Two, and they fail in opposite directions, which is worth more than the count: `growlithe-nickname.png` loses the
+    // leading digit and reads `38` for 738, where `unown-question.png` gains a trailing one and reads `4864` for 486.
+    // A band wide enough to rescue the first takes in more of the line, which is the direction that produces the
+    // second — so the two are a pair rather than two instances, and each carries a `defects.notes` entry reporting the
+    // `cps` candidate the arithmetic rejected.
     //
-    // It was three, on captures that now read whole — which is the figure worth keeping an eye on rather than the
-    // explanation: the same reader over a different photograph of the same screen is right twice more often, so what
-    // this pins is a property of the captures as much as of `wholeCp`.
+    // It was three before the corpus was taken again and both of these read whole on some capture of the same screen,
+    // which is the figure worth keeping an eye on rather than the explanation: what this pins is a property of the
+    // captures as much as of `wholeCp`.
     expect(
       FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
       'which captures misread their CP has changed',
-    ).toStrictEqual(['growlithe-nickname.png']);
+    ).toStrictEqual(['growlithe-nickname.png', 'unown-question.png']);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -2189,6 +2192,7 @@ test(
       'unown-b-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'unown-exclamation-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'unown-m-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-question-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'xurkitree-scrolled.png': { fast: 'Thunder Shock', charged: ['Power Whip'] },
     });
 
