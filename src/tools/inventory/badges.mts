@@ -100,6 +100,12 @@ const coloured = (r: number, g: number, b: number) => chroma(r, g, b) >= SIZE_CH
  * the panel being white as well, and hands Tesseract a black page with one white island. The saturation is also the
  * cheap test, most Pokémon wearing no badge — but not sufficient alone, the band holding artwork of any colour, so the
  * text still has to spell one of the four.
+ *
+ * **Read with no whitelist.** Held to `XSL`, `smoliv.png`'s pill reads `XS` off an `XXS` badge the game's own `xxs`
+ * search confirms; open it reads `XXS,` and `fold` drops the comma. An alphabet earns its place where a stray glyph
+ * could split a number in two — why `wholeCp` and the overlay keep theirs — and a badge is two or three of one letter
+ * with no number to split; the chips below read open as well. Over the corpus, four of the 43 rows wear a badge and
+ * open is right on all four where the whitelist is right on three, the other 39 answering null under both.
  */
 export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
   const band = crop(
@@ -116,7 +122,7 @@ export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
 
   const pill = extentOf(band, coloured);
   const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
-  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3), SIZE_ALPHABET)) ?? '');
+  const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3))) ?? '');
 
   return SIZES.find((size) => text.includes(size.toLowerCase())) ?? null;
 }
@@ -332,11 +338,7 @@ const SIZE_SPAN = 1.6;
 const SIZE_CHROMA = 60;
 const SIZE_FILL = 0.01;
 
-/**
- * The only three letters a badge can spell, and the four words it spells with them. Longest first, so an `XXL` is not
- * answered by the `XL` inside it.
- */
-const SIZE_ALPHABET = 'XSL';
+/** The four words a badge can spell, longest first so that an `XXL` is not answered by the `XL` inside it. */
 const SIZES = ['XXL', 'XXS', 'XL', 'XS'] as const satisfies readonly Size[];
 
 /**

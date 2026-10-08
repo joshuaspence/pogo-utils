@@ -654,7 +654,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 340,
-    defects: { size: 'XS' },
     file: 'smoliv.png',
     form: null,
     gender: 'female',
@@ -1257,7 +1256,7 @@ const COVERAGE = {
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 30,
+  noDefects: 31,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1300,12 +1299,11 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * trigger therefore costs an extra read on a defect and on nothing else. A capture that starts raising a note without
  * earning a `defects` entry fails here instead of quietly tripling that Pokémon's reads for ever.
  *
- * The four it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it.
+ * The three it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it.
  * Each is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses
- * Basculin's two stripes, no icon signature recorded for either; the artwork declines two of Burmy's three cloaks and
- * the fold collapses those as well, an abstention costing nothing and fixing nothing; and `smoliv.png`'s `XXS` badge
- * reads `XS` against nothing at all, the size pill being the one field here no other reader derives. No number of
- * further reads can find those, so a scan cannot either — only a second reader of the same thing could.
+ * Basculin's two stripes, no icon signature recorded for either, and the artwork declines two of Burmy's three cloaks
+ * so the fold collapses those as well — an abstention costing nothing and fixing nothing. No number of further reads
+ * can find those, so a scan cannot either; only a second reader of the same thing could.
  */
 test('the defects a scan can find for itself are the nine captures that raise a note', () => {
   const noted = FIXTURES.filter((f) => notesOf(f).length > 0);
@@ -1322,7 +1320,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
     'a pinned defect that raises no note is one a scan cannot read again on',
-  ).toStrictEqual(['basculin-blue.png', 'burmy-sandy.png', 'burmy-trash.png', 'smoliv.png']);
+  ).toStrictEqual(['basculin-blue.png', 'burmy-sandy.png', 'burmy-trash.png']);
 });
 
 /**
@@ -1686,12 +1684,11 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
   const at = (Math.round(height.top - height.height * 1.9) * image.width + Math.round(height.left - height.height)) * 4;
   stray.data.set([255, 0, 0], at);
 
-  // Against the same capture unaltered rather than against `XXS`, which is what the badge says and what `sizeOf` no
-  // longer reads off it — `smoliv.png`'s row pins that disagreement as `defects.size`. The claim here is the stray
-  // pixel costing nothing, and stating it as invariance keeps the two apart: this goes on passing when the misread is
-  // fixed, where an `XXS` written out here would have to be remembered at the same time.
+  // Against the same capture unaltered rather than against `XXS` directly, which keeps the two claims apart: this one
+  // is the stray pixel costing nothing, and stated as invariance it held across the misread this capture used to pin
+  // and its fix. What the badge reads as is the line below, and the row's own `size` is what says that is right.
   expect(await sizeOf(stray, height)).toBe(await sizeOf(image, height));
-  expect(await sizeOf(image, height), 'what `sizeOf` reads off this badge has changed').toBe('XS');
+  expect(await sizeOf(image, height), 'what `sizeOf` reads off this badge has changed').toBe('XXS');
 });
 
 /**
@@ -2129,6 +2126,14 @@ test('the corpus reaches both sides of every attribute', () => {
     'a capture needs `defects.types` again, so `typesOf` has started reading no type off a screen that states one',
   ).toStrictEqual([]);
 
+  // And the size, which was pinned until the badge was read with no whitelist: `smoliv.png` read `XS` off its `XXS`,
+  // and all four badged captures now answer the band their row states. So this is the third key the corpus holds
+  // against a reader rather than for one.
+  expect(
+    FIXTURES.filter((f) => f.defects && 'size' in f.defects).map((f) => f.file),
+    'a capture needs `defects.size` again, so `sizeOf` has started misreading a badge',
+  ).toStrictEqual([]);
+
   // And both kinds of bracketed form: some captures carry a suffix that names a form of their species, and two carry
   // one that names no form at all, those being PGSharp's `[` and `\` for Unown's two punctuation forms.
   assert.ok(
@@ -2145,7 +2150,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'notes', 'size']);
+  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
