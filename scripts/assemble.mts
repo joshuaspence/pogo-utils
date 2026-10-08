@@ -13,6 +13,7 @@
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
+import { SERVED_TYPES } from './served-types.mts';
 
 const DIST = 'dist';
 
@@ -71,8 +72,14 @@ for (const entry of PUBLISHED) {
   }
 }
 
-/** Every kind of file the site serves. Anything else reaching the artifact is something nobody meant to publish. */
-const SERVED = ['.css', '.gpx', '.html', '.ics', '.js', '.json', '.png', '.svg'];
+/**
+ * Every kind of file the site serves. Anything else reaching the artifact is something nobody meant to publish.
+ *
+ * Read off the table that says what each of them is served as, rather than kept here as a second copy of the same
+ * list: a kind of file this allows through and the local server has no type for would otherwise be a thing the build
+ * calls fine and a reader sees as a download.
+ */
+const SERVED = Object.keys(SERVED_TYPES);
 
 /**
  * The other direction, and the one the allowlist above cannot see: it says what is copied in, not what ends up here.
