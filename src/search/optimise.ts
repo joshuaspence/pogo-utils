@@ -139,6 +139,10 @@ const everything = (spans: readonly Span[]) =>
  * matching anywhere in it. `char` reaches Charmander under both readings; `saur` reaches Bulbasaur under one and
  * nothing under the other. So a fragment whose two readings disagree is refused rather than guessed at. That costs
  * `saur` and `mime` their reductions and leaves every reduction that is taken true whichever reading is right.
+ *
+ * The community phrase list looks like it settles this and does not: both its rows saying a name matches "anywhere"
+ * are *Pokédex* rows, where its storage row for `{name}` gives `vulpix` and `vulp` — two prefixes. Widening this on
+ * those quotations would trade every shortened name for a search that finds nothing.
  */
 function dexOf(fragment: string): number[] | null {
   const contains = SPECIES.filter((species) => species.name.includes(fragment));

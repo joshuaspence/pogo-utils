@@ -8,8 +8,8 @@
  */
 
 import { clausesOf } from './clauses.js';
-import { emptyTree, group, isGroup, type Leaf, type Node } from './tree.js';
-import { RANGES, TERMS_BY_ID, type Preset } from './terms.js';
+import { emptyTree, group, isGroup, NESTING, type Leaf, type Node } from './tree.js';
+import { bounded, RANGES, TERMS_BY_ID, type Preset } from './terms.js';
 
 /** The state above, named. */
 export interface State {
@@ -19,14 +19,6 @@ export interface State {
 
 /** An empty state, which every reader of a link starts from and the Clear button returns to. */
 export const emptyState = (): State => ({ tree: emptyTree(), optimise: false });
-
-/**
- * How deep a link may nest. The canvas cannot realistically reach it — a reader would be clicking *add a group* sixty
- * times into its own last group — so this is about what a stranger can put in a fragment: the reader below recurses
- * once per group, and a link claiming ten thousand of them would exhaust the stack before anything could refuse it.
- * Hence the depth is checked on the way down rather than measured afterwards.
- */
-export const NESTING = 64;
 
 /**
  * The names a pasted string holds. Commas separate them, and the spaces a reader types around one are theirs rather
@@ -44,11 +36,10 @@ export const names = (text: string) =>
 /**
  * The search string, and whatever is worth saying about it.
  *
- * A string mixing `,` and `&` only means what the canvas says it means if a comma binds tighter than an ampersand.
- * That assumption is still load-bearing and `clauses.js` documents it; what is gone is the warning the page used to
- * carry about it. The earlier builder mixed the two operators only now and then, so a caveat marked the occasion —
- * almost any arrangement mixes them, since an `any` beside anything else in an `all` does, so the same caveat would be
- * up for nearly every query worth building and a warning that is up nearly always is furniture rather than a warning.
+ * A string mixing `,` and `&` only means what the canvas says it means if a comma binds tighter than an ampersand,
+ * which the reference `clauses.js` cites states outright for this search box. The page used to warn whenever a string
+ * mixed the two and does not now: there is nothing to warn about, and the caveat would in any case have been up for
+ * nearly every query worth building, an `any` beside anything else in an `all` mixing them.
  *
  * Nearly rather than always: an `any` on its own composes one clause and no `&` at all, which `query.test.js` asserts.
  */
@@ -147,11 +138,7 @@ function bound(text: string | undefined, id: string) {
   const range = RANGES.find((entry) => entry.id === id);
   const value = Number.parseInt(text ?? '', 10);
 
-  if (!range || Number.isNaN(value)) {
-    return null;
-  }
-
-  return Math.min(Math.max(value, range.min ?? 0), range.max);
+  return !range || Number.isNaN(value) ? null : bounded(value, range);
 }
 
 /**

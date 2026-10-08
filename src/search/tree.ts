@@ -26,6 +26,18 @@
 
 import { RANGES, TERMS_BY_ID } from './terms.js';
 
+/**
+ * How deep a tree may be, which is one number because three readers build one: a fragment a stranger wrote, a typed
+ * query, and the canvas's own *add a group* button. Each recurses as it descends, and the descent is what a
+ * pathological input exhausts — a link claiming ten thousand groups would blow the stack before anything could refuse
+ * it — so this is checked on the way down rather than measured afterwards.
+ *
+ * A reader cannot realistically reach it by hand: sixty clicks of *add a group*, each into the group the last one made.
+ * Two copies of the figure would let the fragment reader accept what the typed-query reader refuses, which reads as the
+ * parser being broken rather than as the two disagreeing.
+ */
+export const NESTING = 64;
+
 /** Which way a group joins its parts. `all` is the game's `&` and `any` its comma. */
 export type Junction = 'all' | 'any';
 

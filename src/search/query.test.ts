@@ -9,18 +9,8 @@
 
 import { expect, test } from 'vitest';
 
-import {
-  compose,
-  emptyState,
-  fromFragment,
-  nameFragment,
-  names,
-  NESTING,
-  presetTree,
-  toFragment,
-  type State,
-} from './query.js';
-import { group, isGroup, leafText, nodeAt, type Leaf, type Node } from './tree.js';
+import { compose, emptyState, fromFragment, nameFragment, names, presetTree, toFragment, type State } from './query.js';
+import { group, isGroup, leafText, NESTING, nodeAt, type Leaf, type Node } from './tree.js';
 import { PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
 
 const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });

@@ -184,7 +184,17 @@ export const GROUPS: readonly Group[] = [
     id: 'origin',
     label: 'How you got it',
     hue: 200,
-    help: 'Where it came from, which the game records on the Pokémon itself.',
+    /*
+     * Three of these the game does not answer the way the label reads, per the community phrase list. They keep their
+     * chips — the game takes all three terms — but the help says so, this page's output being what a mass transfer is
+     * run from, and says whose claim it is: none of the three was checked against the game, and `primalraid` is a bug
+     * Niantic can fix out from under the sentence.
+     */
+    help:
+      'Where it came from, which the game records on the Pokémon itself. Three come with a caveat the community ' +
+      'phrase list reports: `EX raid` returns nothing now, the raids being long past the dates it looks at; `Primal ' +
+      'raid` is not working; and `From Team GO Rocket` misses shadows that came from a raid or from research, which ' +
+      '`Shadow` or `Purified` will find.',
     terms: [
       { id: 'traded', term: 'traded', label: 'Traded' },
       { id: 'hatched', term: 'hatched', label: 'Hatched' },
@@ -321,6 +331,15 @@ export const RANGES: readonly Range[] = [
   { id: 'distance', prefix: 'distance', label: 'Kilometres from home', max: 40000 },
   { id: 'year', prefix: 'year', label: 'Year caught', min: 2016, max: 2030 },
 ];
+
+/**
+ * A number inside a range's own limits, which is the whole of what `max` above bounds.
+ *
+ * Three readers build a span pill — the number boxes, a fragment a stranger wrote and a typed query — and a pill out of
+ * any of them has to be one the other two could have made. Otherwise the bound changes under the reader: a typed
+ * `cp99999` composed `cp99999`, and the link that string wrote read back as `cp5000`.
+ */
+export const bounded = (value: number, range: Range) => Math.min(Math.max(value, range.min ?? 0), range.max);
 
 /**
  * Starting points, each a plain state the builder loads and the reader then edits — the point is to land mid-way
