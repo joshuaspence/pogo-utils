@@ -180,9 +180,8 @@ interface Fixture {
  * The other 39 rows have no search behind them. They arrived named for what they are, and the name is a claim the
  * rendered screen has to bear out — weaker provenance, and sufficient for what those rows are for.
  *
- * `xurkitree.png` is here for a job its own test states rather than for its attributes: it is the only capture whose
- * status bar OCRs as a measurement, so it is the only one that can fail if a measurement's anchor stops requiring a
- * decimal point. `alola` pins its region alone, so its `size` and flags rest on the same eye as the 39.
+ * `xurkitree.png`'s search is the weak one of the four: `alola` pins its region and nothing else, so its `size` and
+ * flags rest on the same eye as the 39 and it is one of those rows in everything but provenance.
  *
  * | file             | search                                                                               |
  * |------------------|--------------------------------------------------------------------------------------|
@@ -1384,32 +1383,7 @@ test(
 );
 
 /**
- * What the overlay `fixtures/xurkitree.png` loses is worth exactly one number, and this is it. The capture plainly
- * carries `L20 ɪᴠ82 11/12/14` and `readOverlay` answers null, so `identify` stops at the species and the `CP 2197` the
- * screen does show is checked against nothing. Handing it that row's own level and IVs — which are what a person reads
- * off the overlay, the row stating the Pokémon rather than the reader — closes the loop: level 20 and 11/12/14 against
- * Xurkitree's `330/144/195` derive **2197**, the CP on the screen to the digit, with no note raised.
- *
- * So this is not a second way of asserting the defect — the row's `iv: null` does that — but a statement of its cost,
- * and the two halves fail for different reasons. If `readOverlay` is fixed, the defect fails and this goes on passing;
- * if the arithmetic or the hermetic Xurkitree moves, this fails and the defect goes on passing.
- */
-test('the overlay fixtures/xurkitree.png does not read would have cross-checked its CP', async () => {
-  const fixture = FIXTURES.find((f) => f.file === 'xurkitree.png');
-  assert.ok(fixture?.overlay, 'the capture whose overlay goes unread has left the corpus');
-
-  const { overlay } = fixture;
-  const { detail } = await readingOf(fixture.file);
-  const identity = identify(DATA, detail, { levels: [overlay.level], iv: overlay.iv, form: null });
-
-  expect(detail.cp, 'the capture has lost the CP this is cross-checked against').toBe(fixture.cp);
-  expect(identity.levels, 'the HP no longer agrees with the level the overlay states').toStrictEqual([overlay.level]);
-  expect(identity.cp).toBe(detail.cp);
-  expect(identity.notes, 'the readers disagree with each other').toStrictEqual([]);
-});
-
-/**
- * The same measurement for `fixtures/spinda-04.png`, and it costs more than a cross-check: Spinda's 20 forms are
+ * What the bracketed form on `fixtures/spinda-04.png` is worth, which is more than a cross-check: Spinda's 20 forms are
  * identical in every field the screen shows, so the fold leaves `00` standing and the bracketed `(04)` PGSharp draws is
  * the **only** thing on the screen that can say which of the 20 it is. With the overlay unread the answer is not an
  * ambiguity but a confident wrong form, exactly as it is for Unown below.
@@ -1519,8 +1493,7 @@ test('without the level the overlay states, the CP still settles one', async () 
 
   // The row's CP rather than the read one, because a crop of this capture's stitch does not yield it: the label line
   // goes unfound where the page's tail differs, so `wholeCp` cannot anchor and the number arrives as a candidate. What
-  // is under test is the arithmetic settling a level from the printed CP, and the row is what states that CP — the same
-  // substitution `xurkitree.png`'s test makes below, for the same reason.
+  // is under test is the arithmetic settling a level from the printed CP, and the row is what states that CP.
   const identity = identify(DATA, { ...detail, cp: fixture.cp }, { ...overlay, levels: [] }, artwork);
 
   expect(detail.cp, 'the capture reads its own CP again, so this can go back to the read one').toBe(null);
