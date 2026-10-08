@@ -39,13 +39,24 @@ pnpm serve
 
 `pnpm serve` serves what the last build left rather than building first, so an edit under `src/` wants `pnpm build`
 again before it shows — and an absent `dist/` stops the server naming that command rather than answering every request
-with a 404. The server is esbuild's own, already a dependency for the bundle, so there is nothing further to install.
+with a 404. The server is [`scripts/serve.mts`](scripts/serve.mts), a `node:http` handler, so nothing is installed for
+it and nothing is served that the build does not publish: an extension with no entry in
+[`scripts/served-types.mts`](scripts/served-types.mts) is a 404 rather than a guessed type.
 
-Two caveats, both local only. `events.ics` is served `text/plain` where Pages sends `text/calendar`, so the Events
-page's **Subscribe** link opens as a text page here rather than reaching a calendar client, and esbuild has no MIME
-override to change it. And the LAN address printed beside the local one is good for viewing the site on a phone but not
-for installing it — a plain-HTTP origin is no secure context, and Chrome will read `manifest.json` for installation only
-from one — so [Installing as an app](#installing-as-an-app) is a flow only `localhost` or Pages can exercise.
+That table is the point of serving it this way. Each entry was read off the deployment with `curl -sI` rather than
+chosen here, so a header is the same locally as in production — which is what lets the Events page's **Subscribe** link
+be followed here at all, `text/calendar` being what a calendar client takes and `text/plain` being what it ignores. It
+is also the list [`scripts/assemble.mts`](scripts/assemble.mts) holds `dist/` to, so a new kind of file is one entry
+rather than two that can drift apart.
+
+Nothing re-checks those values against the deployment, and the suite cannot: it reads the same table to assert the
+server honours it. So a header Pages changes is found by asking it — `curl -sI` against the published file — rather than
+by a run going red.
+
+One caveat is local only and stays. The LAN address printed beside the local one is good for viewing the site on a phone
+but not for installing it — a plain-HTTP origin is no secure context, and Chrome will read `manifest.json` for
+installation only from one — so [Installing as an app](#installing-as-an-app) is a flow only `localhost` or Pages can
+exercise.
 
 Static hosting cannot list a directory, so the viewer is handed the paths in
 [`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it
