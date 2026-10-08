@@ -225,7 +225,7 @@ test('the fixed furniture is taken once, from the first frame and the last', () 
 
 /**
  * What a recorded `Viewport` does and does not buy, the obvious use of it being wrong. `snap` writes the screen's own
- * height beside the stitch so that a reader handed the tall image can find the rows the phone drew — but cropping to
+ * height onto the stitch so that a reader handed the tall image can find the rows the phone drew — but cropping to
  * that height does **not** give the screen back. Rows down to the band's foot are the first frame verbatim; the rows
  * after it are the next frame's revealed content, the screen's own footer having been appended at the far end instead.
  *
@@ -330,8 +330,7 @@ test('stitching nothing, or frames without a shift between each pair, is a mista
  * screen, rows 763 to 1997 — lies entirely in the rows `stitch` keeps from its first frame verbatim. So these frames
  * are the screens the phone drew, to the pixel, over every row anything below reads.
  */
-const capture = (file: string) =>
-  screenIn(decodePng(readFileSync(new URL(`fixtures/${file.replace(/\.png$/, '-scrolled.png')}`, import.meta.url))));
+const capture = (file: string) => screenIn(decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))));
 
 /**
  * Where the game's floating buttons are, measured on `pikachu.png` and `smoliv.png` — which agree exactly, the buttons

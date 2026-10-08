@@ -27,20 +27,21 @@
  *                       [--tags 'Trade to 0xNULL,…'] [--no-moves] [--scroll] [--keep-screens DIR]
  *                       [--config FILE] [--serial SERIAL] [--refresh] [--verbose]
  *   pnpm inventory snap [--search TERM] [--verbose] [--refresh] [--config FILE] [--serial SERIAL] [NAME]
- *                       save a screenshot of whatever is showing, and a stitch of the whole screen beside it, and print
- *                       what each reader makes of the screenshot; fails unless it is a detail screen carrying PGSharp's
- *                       overlay. `--search` opens the first Pokémon storage's own search matches first, so that a
- *                       capture names the Pokémon it wants — `--search '+burmy & cp196'` rather than a screen set up by
- *                       hand
+ *                       save `NAME.png` — the whole screen stitched out of a scroll, or the plain screenshot where
+ *                       PGSharp's overlay did not read, which is where nothing is scrolled at all — and print what
+ *                       each reader makes of it; fails unless it is a detail screen carrying that overlay, and a
+ *                       failure leaves a capture already saved under the name as it was. `--search` opens the first
+ *                       Pokémon that storage's own search matches, so that a capture names the Pokémon it wants —
+ *                       `--search '+burmy & cp196'` rather than a screen set up by hand
  *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *   Each line lists the flags that command acts on, and a flag handed to a command whose line omits it is refused
  *   rather than ignored. Why a flag is on the lines it is on belongs with `HONOURED` below, not here.
  *
  * A scroll capture keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames
- * into one tall image, which is how a screen longer than the phone is seen whole. `snap` always takes one, as
- * `NAME-scrolled.png`; a scan takes one where `--scroll` asks for it, reading the moves from it rather than from a
- * single screenshot taken part way down. The stitched image is **not** given to the other readers, and that is a limit
+ * into one tall image, which is how a screen longer than the phone is seen whole. `snap` always takes one and leaves it
+ * as `NAME.png`; a scan takes one where `--scroll` asks for it, reading the moves from it rather than from a single
+ * screenshot taken part way down. The stitched image is **not** given to the other readers here, and that is a limit
  * rather than an oversight — the star corner, the overlay sweep, the tag band and the artwork are each anchored on a
  * fraction of the image's height, so a frame three times taller moves every one of them. `parseMoves` is the one reader
  * that is not, being anchored on the `GYMS & RAIDS` line.
@@ -73,7 +74,7 @@ import { identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
-import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
+import { decodePng, difference, encodePng, screenIn, type Image } from '../src/tools/inventory/png.mts';
 import { showProgress } from '../src/tools/inventory/progress.mts';
 import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -148,12 +149,6 @@ const SCROLL_FRAMES = 12;
  * being no phone here to time one on.
  */
 const SCROLL_DRAG_MS = 1000;
-
-/**
- * What a stitched capture is saved under, beside the screenshot it was stitched from. Named once because a scan and a
- * snap both write one and `snap` refuses a `NAME` ending in it, so three places would otherwise have to agree.
- */
-const SCROLLED = '-scrolled';
 
 /**
  * How far down the panel may be left after a snap has dragged it back, as a fraction of the screen's height, under
@@ -364,25 +359,53 @@ function artworkIn(image: Image, box: OverlayBox | null, icons: ReadonlyMap<Form
   return signature ? { signature, icons } : undefined;
 }
 
-/** Everything each reader makes of one screenshot, for tuning. */
+/**
+ * Everything each reader makes of one screenshot, for tuning.
+ *
+ * **A stitch is read twice, because the readers do not want the same image.** Every one but `parseMoves` is anchored on
+ * a fraction of the height, so each needs the screen the stitch records rather than the tall file — `screenIn` crops to
+ * the `Viewport` written on it. `parseMoves` wants the whole thing: it anchors on the `GYMS & RAIDS` line, and the
+ * moves below the phone's foot are the only reason a stitch is taken at all. Measured on the committed corpus, the two
+ * readings really do disagree in both directions — `ho-oh.png` answers `tags: []` whole against `['Shiny', 'Lucky Me']`
+ * cropped, and `applin.png` and `charizard-gigantamax.png` answer no move at all cropped against the right pair whole.
+ *
+ * So one pass each, which costs a second Tesseract run on a stitch and nothing at all on a screen: `screenIn` hands
+ * back the very image it was given where there is no `Viewport` to crop to, and that identity is what `===` tests here.
+ * Every plain screenshot takes that branch, which is `snap`'s own call — it reports before anything is stitched.
+ */
 async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Signature>) {
-  const lines = await readLines(image);
+  const screen = screenIn(image);
+  const lines = await readLines(screen);
+  const whole = screen === image ? lines : await readLines(image);
 
   if (options.verbose) {
-    for (const l of lines) {
-      console.log(`  ${`${l.left},${l.top} ${l.width}×${l.height}`.padEnd(22)} ${l.text}`);
+    const dump = (found: typeof lines) => {
+      for (const l of found) {
+        console.log(`  ${`${l.left},${l.top} ${l.width}×${l.height}`.padEnd(22)} ${l.text}`);
+      }
+    };
+
+    // Both passes where there were two, and labelled, since the point of the flag is to show which lines a reader was
+    // actually handed: a field read wrong is in the screen's set and a move read wrong is in the stitch's.
+    if (whole === lines) {
+      dump(lines);
+    } else {
+      console.log('  --- the screen, which every reader but the moves was given');
+      dump(lines);
+      console.log('  --- the whole stitch, which the moves were read off');
+      dump(whole);
     }
   }
 
-  const detail = await parseDetail(lines, data, image);
+  const detail = await parseDetail(lines, data, screen);
   const found = config.overlay
-    ? { box: config.overlay, overlay: await readOverlay(image, config.overlay) }
-    : await findOverlay(image);
+    ? { box: config.overlay, overlay: await readOverlay(screen, config.overlay) }
+    : await findOverlay(screen);
   const box = found?.box ?? null;
   const overlay = found?.overlay ?? null;
-  const id = identify(data, detail, overlay, artworkIn(image, box, icons));
+  const id = identify(data, detail, overlay, artworkIn(screen, box, icons));
   console.log('detail:', detail);
-  console.log('moves:', await parseMoves(lines, data, id.form, image));
+  console.log('moves:', await parseMoves(whole, data, id.form, image));
   console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
   console.log('overlay:', overlay ?? 'nothing read');
   // The form carries its whole move pool, which prints as a column of `[Object]` and buries everything worth reading;
@@ -782,11 +805,15 @@ async function scan() {
 
         if (options.scroll) {
           // The same two halves `snap` takes: the screenshot already in hand as the first frame, rather than a second
-          // photograph of a screen that has moved on, and the height it was drawn at recorded beside the stitch.
+          // photograph of a screen that has moved on, and the height it was drawn at recorded on the stitch.
+          //
+          // Under the plain name, the stitch being the capture and `-detail` above the one frame it was built from.
+          // `name` here is the scan's own index, so a capture kept for the corpus is still renamed to the Pokémon it
+          // shows; what the plain name buys is that the suffix is no longer part of what has to come off.
           const capture = await scrollFrames(device, image);
           scrolled = stitch(capture.frames, capture.offsets, config.scrollBand);
           back = capture.offsets.reduce((a, b) => a + b, 0);
-          keep(`${name}${SCROLLED}`, scrolled, { Viewport: `${image.width}x${image.height}` });
+          keep(name, scrolled, { Viewport: `${image.width}x${image.height}` });
 
           if (capture.lost) {
             notes.push(`the scroll lost its place after frame ${capture.frames.length}`);
@@ -1146,11 +1173,18 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
  * screen: the two cannot be told apart from here, and the case `snap` exists to serve is the detail screen whose fields
  * do not read. Guessing which it was would put a claim nothing checked in front of whoever is debugging.
  *
- * **It takes a scroll capture of every screen it can confirm is a detail screen**, saved as `NAME-scrolled.png` beside
- * the screen itself. The foot of a detail screen is below the phone, so the moves a misread was looking at are in no
- * plain screenshot of it, and a flag to ask for them is one remembered after the phone has gone back to the map. Both
- * files are kept because neither does the other's job: the stitch is the whole screen to look at, and the screen is the
- * one the readers above can be given and the one a fixture is.
+ * **It takes a scroll capture of every screen it can confirm is a detail screen**, and that stitch is what `NAME.png`
+ * is left holding. The foot of a detail screen is below the phone, so the moves a misread was looking at are in no
+ * plain screenshot of it, and a flag to ask for them is one remembered after the phone has gone back to the map.
+ *
+ * One file rather than the stitch beside the screen, because the screen is recoverable from the stitch and nothing is
+ * served by writing both: `screenIn` crops to the `Viewport` written on it, so the stitch is the whole screen to look
+ * at *and* the one every reader above can be given — `report` does exactly that, and reads the moves off the whole.
+ *
+ * The plain screenshot keeps the name only where the overlay did not read, which is where nothing is scrolled at all,
+ * and that is how the corpus's three negatives were taken. So `NAME.png` is the best capture of the screen that could
+ * be had, and a fixture is committed under that name unchanged. **A name that already holds one is left alone** where
+ * this run cannot better it; see `held` below, which is the whole of why the screen is not written up front.
  *
  * What it confirms a detail screen by is the overlay rather than the HP, which is why a refusal does not stop it. Three
  * small numbers separated by slashes are a thing only PGSharp's overlay puts on the screen, so a screen it read one on
@@ -1161,39 +1195,34 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
  * **It puts the panel back where it found it**, which `--scroll` left to the scan. See `scrollUp`: its undershoot is
  * safe only for a caller the game will draw another Pokémon for, and nothing redraws the panel after a snap, so a panel
  * left part way down is what the next snap of that screen captures. The way back is measured and asked for again until
- * it is had, and said out loud rather than refused where it cannot be: both files are written by then, so the status
- * goes on answering for the capture rather than for where the phone was left.
+ * it is had, and said out loud rather than refused where it cannot be: the capture is written by then, so the status
+ * goes on answering for it rather than for where the phone was left.
  *
  * **`--search` drives the phone to the Pokémon** instead of taking whatever is showing, which is what makes a capture
  * reproducible: the term says which Pokémon was wanted, where a screen set up by hand records nothing about that at
  * all. Storage is somewhere only a game in front can be driven to, so the launch comes with it — see `toStorage`, which
  * owns that check on behalf of every caller. A grid it lands on with no Pokémon in it is refused before anything is
- * written, the one case that beats writing first: the capture would otherwise be of the storage grid, saved over
- * whatever this name already held. It also brings the game master's load forward, so a `--search` run on a cold cache
- * with no network fails having written nothing, where a plain snap cannot.
+ * written, which beats writing first for the same reason `held` does: the capture would otherwise be of the storage
+ * grid, saved over whatever this name already held. It also brings the game master's load forward, so a `--search` run
+ * on a cold cache with no network fails having written nothing, which a plain snap only manages on a name that was
+ * already taken.
  *
- * The screen is grabbed and written to disk first, then read, then checked. Writing first is what makes a snap of a
- * broken phone useful: the readers can throw rather than read nothing — `ocr` rejects outright where Tesseract is not
- * on the path — and a snap that saved nothing is no help on the one run that needed it. Reading before any drag is what
- * keeps a scroll capture of the wrong screen from driving the phone for nothing, and the game master is loaded after
- * the grab wherever nothing above wanted it sooner, `iconsFor` taking minutes on a cold cache: long enough for the
- * phone to blank the screen set up for the snap.
+ * On a free name the screen is grabbed and written to disk first, then read, then checked. Writing first is what makes
+ * a snap of a broken phone useful: the readers can throw rather than read nothing — `ocr` rejects outright where
+ * Tesseract is not on the path — and a snap that saved nothing is no help on the one run that needed it. That write is
+ * a floor rather than an artifact of its own, the stitch going over it wherever one can be had. On a name that already
+ * holds a capture it is held back instead, since there the floor would be a demolition; `held` says why.
+ *
+ * Reading before any drag is what keeps a scroll capture of the wrong screen from driving the phone for nothing, and
+ * the game master is loaded after the grab wherever nothing above wanted it sooner, `iconsFor` taking minutes on a cold
+ * cache: long enough for the phone to blank the screen set up for the snap.
  */
 async function snap() {
   const name = rest[0] ?? new Date().toISOString().replaceAll(':', '-');
 
-  // Refused before the phone is opened, since nothing it answers could change it. `snap foo` writes `foo.png` and
-  // `foo-scrolled.png`, so `snap foo-scrolled` would overwrite that stitch with a plain screenshot and put its own
-  // stitch in `foo-scrolled-scrolled.png`, both `Saved …` lines reading exactly as they do on a snap that took nothing.
-  if (name.endsWith(SCROLLED)) {
-    console.error(`snap: NAME cannot end in \`${SCROLLED}\`, which is the suffix the stitch beside it is saved under`);
-    process.exitCode = 1;
-
-    return;
-  }
-
-  // Refused here for the same reason, and against `adb`'s own test rather than a second copy of it: a term `type` will
-  // not send is one the phone would be driven to storage and into the search box for before anything said so.
+  // Refused before the phone is opened, since nothing it answers could change it, and against `adb`'s own test rather
+  // than a second copy of it: a term `type` will not send is one the phone would be driven to storage and into the
+  // search box for before anything said so.
   if (options.search !== undefined && !typeable(options.search)) {
     console.error(`snap: --search ${JSON.stringify(options.search)} has characters the phone cannot be sent`);
     process.exitCode = 1;
@@ -1229,9 +1258,23 @@ async function snap() {
   const device = new Device(options.serial);
   await device.check();
 
-  const write = (suffix: string, image: Image, carry: Readonly<Record<string, string>> = {}) => {
-    const path = join(CACHE, 'snaps', `${name}${suffix}.png`);
+  const path = join(CACHE, 'snaps', `${name}.png`);
 
+  // Whether this name already holds a capture, which decides when the screen may be written. One file means the screen
+  // and the stitch share a path, so writing the screen up front — which is what keeps a snap of a phone nothing can be
+  // read off from saving nothing — would truncate a good stitch a previous run saved, and the refusal below returns
+  // before the new one is assembled.
+  //
+  // So the up-front write is held back wherever there is something to lose, and the screen reaches the file only on a
+  // name that was free. A refused re-snap then leaves the earlier capture alone and says so, and a refused first snap
+  // still lands — which is how the corpus's three negatives were taken.
+  const held = existsSync(path);
+
+  // What both refusals that write nothing end on, named once because the guarantee is one guarantee: the file under
+  // this name is whatever the last run to get past here put there. `--search` has made this promise all along.
+  const kept = 'nothing was written, so a snap already saved under this name is still the one that was there';
+
+  const write = (image: Image, carry: Readonly<Record<string, string>> = {}) => {
     mkdirSync(join(CACHE, 'snaps'), { recursive: true });
     writeFileSync(path, encodePng(image, carry));
     console.log(`Saved ${path} (${image.width}×${image.height})`);
@@ -1280,7 +1323,7 @@ async function snap() {
         found === 0
           ? `--search ${JSON.stringify(options.search)} matched nothing, which the grid's own counter says`
           : `--search ${JSON.stringify(options.search)} left a grid with neither a counter nor a CP label in it`,
-        'nothing was written, so a snap already saved under this name is still the one that was there',
+        kept,
       );
 
       return;
@@ -1291,7 +1334,10 @@ async function snap() {
 
   // Settled, so that what is read is the screen rather than the middle of an animation it was drawing.
   const image = await settled(device);
-  write('', image);
+
+  if (!held) {
+    write(image);
+  }
 
   const data = await gameData();
   const read = await report(image, data, await iconsFor(CACHE, data, options.refresh));
@@ -1310,29 +1356,41 @@ async function snap() {
 
   // The refusal above says the capture is not one a scan could have used; this says there is nothing to scroll. Only
   // the overlay separates the two, per the doc: a screen whose HP alone misread is scrolled, refusal and all.
+  //
+  // Nothing more is written on the way out. On a free name the screen is already down, which is the capture; on a name
+  // that was held, the run has produced no stitch and the screen it did produce is the worse of the two, so what was
+  // there stays and the status says which it is.
   if (read.overlay === null) {
+    if (held) {
+      refuse(kept);
+    }
+
     return;
   }
 
-  // The whole screen stitched out of as many frames as it takes. The report above ran on the unstitched screen, the
-  // readers it calls being anchored on fractions of the image's height — so a stitched image is something to look at
-  // rather than something to hand them, and it is written beside that screen rather than over it.
+  // The whole screen stitched out of as many frames as it takes. The report above ran on the unstitched screen — it is
+  // all there was then — so what the report read is not what lands on disk here. This write is the only one on an
+  // accepted capture, going over the screen on a free name and being the first on a name that was held.
   const capture = await scrollFrames(device, image);
   const total = capture.offsets.reduce((a, b) => a + b, 0);
   const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
   // `Viewport` is the one thing a stitch cannot say about itself: its own `IHDR` height is as many frames as the screen
   // took, so the height the phone drew is unrecoverable from the file, and the file is the only place that travels with
-  // it. Written on the stitch alone, the screen's own height being that number already.
+  // it. Written on the stitch alone, a screen's own height being that number already — which is why the plain
+  // screenshot left under this name where the overlay did not read carries no chunk at all.
   //
-  // What it is good for is narrower than it looks, and `stitch`'s layout is why: cropping to this height does not give
-  // the screen back. Rows down to the band's foot are frame 1 verbatim, the rows after it are the next frame's revealed
-  // content, and the screen's own floating buttons were appended at the far end. The crop that *is* the screen stops at
-  // the foot — 1997 rows of 2244 here — and so is still the wrong height for every reader anchored on a fraction of it.
-  // `stitch.test.mts` pins both halves of that.
-  write(SCROLLED, stitch(capture.frames, capture.offsets, config.scrollBand), {
+  // It buys the height and not the pixels, and `stitch`'s layout is why: rows down to the band's foot are frame 1
+  // verbatim, the rows after it are the next frame's revealed content, and the screen's own floating buttons were
+  // appended at the far end. So `screenIn` gives every reader an image of the height it was measured against — which is
+  // what a fixture rests on — while the crop that *is* the screen row for row stops short at the foot, 1997 rows of
+  // 2244 here. `stitch.test.mts` pins both halves of that.
+  //
+  // Said before the write rather than after it, so that the two `Saved` lines this run prints against the one path are
+  // not consecutive: the second is the stitch going over the screen, and back to back they would read as a repeat.
+  console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first.`);
+  write(stitch(capture.frames, capture.offsets, config.scrollBand), {
     Viewport: `${image.width}x${image.height}`,
   });
-  console.log(`Stitched ${capture.frames.length} frames, scrolling ${scrolled} past the first.`);
   await scrollUp(device, image, total);
 
   // The way back measured rather than assumed, against the screenshot already in hand, and asked for again by whatever
@@ -1355,18 +1413,19 @@ async function snap() {
     left = after;
   }
 
-  // Said rather than refused: both files are written and are what the snap was taken for, so the status goes on meaning
-  // the capture is worth keeping. What a panel left down costs is the next snap of this screen, which nothing here can
-  // fix and whoever takes it should hear about.
+  // Said rather than refused: the capture is written and is what the snap was taken for, so the status goes on meaning
+  // it is worth keeping. What a panel left down costs is the next snap of this screen, which nothing here can fix and
+  // whoever takes it should hear about.
   if (left === null) {
     console.error('snap: the screen stopped lining up with the one captured, so the phone was left off the Pokémon');
   } else if (left > floor) {
     console.error(`snap: the panel is left ${left} pixels down, so another snap of this screen would be shifted`);
   }
 
-  // A capture that lost its place is short by however much it had left to go, and a stitch of one frame is a copy of
-  // the screenshot beside it. Either is a picture of something that was on the screen, so it is kept and refused rather
-  // than thrown away — but it is not the whole screen a snap saves, and the status has to say so.
+  // A capture that lost its place is short by however much it had left to go, and a stitch of one frame is the screen
+  // over again, carrying a `Viewport` the same height as itself. Either is a picture of something that was on the
+  // screen, so it is kept and refused rather than thrown away — but it is not the whole screen a snap saves, and the
+  // status has to say so.
   if (capture.lost) {
     refuse(`the scroll lost its place after frame ${capture.frames.length}, so the stitch is short`);
   }

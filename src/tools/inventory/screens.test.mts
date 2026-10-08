@@ -883,7 +883,7 @@ const FIXTURES: readonly Fixture[] = [
  * is the same screenshot every time it is read, so there is nothing for a shared one to carry between tests.
  */
 const read = async (file: string) => {
-  const image = screenIn(decodePng(readFileSync(new URL(`fixtures/${pathOf(file)}`, import.meta.url))));
+  const image = screenIn(decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url))));
   const lines = await readLines(image);
   const detail = await parseDetail(lines, DATA, image);
   const found = await findOverlay(image);
@@ -1197,38 +1197,26 @@ const COMMITTED = readdirSync(new URL('fixtures', import.meta.url))
   .sort();
 
 /**
- * The suffix `snap` saves a stitch beside its screen under — `SCROLLED` in `scripts/inventory.mts`, which refuses a
- * NAME ending in it so that the two can never collide. Written again here rather than read off that script, which
- * cannot be imported: `parseArgs` and the command dispatch are both at its top level, so loading it runs it.
- */
-const SCROLLED = '-scrolled.png';
-
-/**
  * The corpus in its two halves, by what each file *is*: a screen as the phone drew it, or a stitch of a scroll holding
  * one in its first rows. Partitioned here once so the tests below take whichever they are about rather than each
  * filtering for itself and drifting over which is which.
  *
  * Only the three negatives are screens. Every detail capture is committed as a stitch alone, the screen being
- * recoverable from it — `screenIn` says how — so there is one file per capture rather than two that can drift.
+ * recoverable from it — `screenIn` says how — so there is one file per capture, under one name: a row names its own
+ * file, and `read` above is handed that name whichever artifact answers to it, `screenIn` cropping a stitch to the
+ * `Viewport` it carries and handing a screen, which carries none, straight back.
+ *
+ * Sorted by `NEGATIVE` rather than by anything the files themselves carry, which is what keeps the three claims below
+ * falsifiable. A stitch both states a `Viewport` and is taller than the phone drew, so either would serve to partition
+ * the directory — but then the tests asserting those two things would be asserting the property they had been sorted
+ * by, and could only pass. The declaration says what a capture is, the directory says what is committed, and the test
+ * below is what holds the two to each other.
+ *
+ * `STITCHES` takes the remainder rather than the rows, so a capture committed and declared nowhere is held to the
+ * stitch claims and fails them. Partitioning both halves off a declaration would drop it out of each, unexamined.
  */
-const SCREENS = COMMITTED.filter((file) => !file.endsWith(SCROLLED));
-const STITCHES = COMMITTED.filter((file) => file.endsWith(SCROLLED));
-
-/**
- * What a row's `file` resolves to on disk. A row names the capture rather than the file — `spoink.png` is the Spoink,
- * whichever artifact the corpus keeps it as — so the name outlives the layout, and the forty-three rows did not have to
- * be rewritten when the screens went.
- */
-const pathOf = (file: string) => {
-  const stitch = `${file.slice(0, -'.png'.length)}${SCROLLED}`;
-
-  return COMMITTED.includes(stitch) ? stitch : file;
-};
-
-/** Every capture committed, by the name a row gives it: a stitch answers for the screen it holds. */
-const COMMITTED_NAMES = [
-  ...new Set(COMMITTED.map((file) => (file.endsWith(SCROLLED) ? `${file.slice(0, -SCROLLED.length)}.png` : file))),
-].sort();
+const SCREENS = COMMITTED.filter((file) => NEGATIVE.includes(file));
+const STITCHES = COMMITTED.filter((file) => !NEGATIVE.includes(file));
 
 /**
  * That every committed capture is accounted for, which is the one thing about this corpus no row can say. A PNG added
@@ -1238,22 +1226,7 @@ const COMMITTED_NAMES = [
  * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
-  expect(COMMITTED_NAMES).toStrictEqual(CORPUS.toSorted());
-});
-
-/**
- * And that every stitch answers for a row, which is what the name resolution above rests on. A stitch whose row is gone
- * or renamed is a capture of a Pokémon nothing here states — it carries no row of its own, and `pathOf` would quietly
- * stop resolving to it, leaving the reader tests to fail on a missing file rather than on the capture being unaccounted
- * for.
- *
- * Only one direction: a row needs no stitch. The three negatives have none, `snap` refusing to scroll a screen
- * PGSharp's overlay cannot vouch for, so they are committed as screens and read as they are.
- */
-test('every stitch answers for a row', () => {
-  const orphans = STITCHES.filter((file) => !CORPUS.includes(`${file.slice(0, -SCROLLED.length)}.png`));
-
-  expect(orphans, 'a stitch answers for no row, so nothing states what is on it').toStrictEqual([]);
+  expect(COMMITTED).toStrictEqual(CORPUS.toSorted());
 });
 
 /**
@@ -1285,8 +1258,9 @@ const SCREEN_RATIO = 2.35;
  * it is checked here rather than left to surface as a reader disagreeing somewhere else.
  *
  * Over `SCREENS` rather than the whole directory, the stitches being committed on purpose and checked the other way
- * round below. That is the one thing this test asks of a name: the suffix decides which claim a capture is held to, so
- * a stitch saved under a plain name is still caught here — which is exactly how #123 failed.
+ * round below. Which claim a capture is held to is `NEGATIVE`'s to say and not the name's, the name having stopped
+ * telling the two artifacts apart when the screens went — so this half is the three negatives alone, and #123's own
+ * mistake, a stitch over a detail capture, is what the corpus now is.
  *
  * The failure names the size beside the file, because the name is the part that already looked right.
  */
@@ -1307,9 +1281,10 @@ test('every committed screen is one screen rather than a stitch', () => {
 });
 
 /**
- * And the other way round: that every stitch really is taller than the phone drew, so a capture saved under the suffix
- * cannot quietly be a single frame. The ceiling is the same one, which is what makes the pair exhaustive — every
- * capture is on one side of `SCREEN_RATIO` or the other, and which side it is allowed to be on is its name.
+ * And the other way round: that every stitch really is taller than the phone drew, so a capture with a row to answer
+ * for cannot quietly be a single frame. The ceiling is the same one, which is what makes the pair exhaustive — every
+ * capture is on one side of `SCREEN_RATIO` or the other, and which side it is allowed to be on is whether `NEGATIVE`
+ * names it.
  *
  * All of them are, which is worth stating because one was not. `eevee-background.png`'s scroll was refused twice over —
  * `offsetBetween` scores every shift and takes none where the best does not stand out, and a photographic backdrop
@@ -1378,9 +1353,11 @@ const textIn = (file: string): Record<string, string> => {
  * one specific way: it cannot catch a stitch whose readable regions are right and whose tail is from the wrong frame,
  * since nothing reads there.
  *
- * `scripts/inventory.mts` is where the property is created, and `pnpm inventory snap` is where it can still be checked:
- * the screen it writes beside the stitch is the one `scrollFrames` was handed, and comparing the two is a check a
- * capture run can make on itself even though the committed corpus cannot.
+ * `scripts/inventory.mts` is where the property is created, and nowhere checks it any more. A capture run used to be
+ * able to: `snap` wrote the screen `scrollFrames` was handed beside the stitch, so the two could be compared on the
+ * spot. It now writes one file, the stitch going over that screen under the same name, so the comparison has no second
+ * side even at capture time. Both images are still in hand there, so the comparison could be made before the write —
+ * which would be a change to `snap` and not to this file.
  *
  * The screens that remain are asserted to carry no `Viewport`, and for a reason that outlives all of this: `snap`
  * writes the chunk on the stitch alone, a screen's own `IHDR` height already being that number, so a `Viewport` on a
@@ -2096,77 +2073,76 @@ test(
     const read: Record<string, Moves> = {};
 
     for (const file of COMMITTED) {
-      const name = file.endsWith(SCROLLED) ? `${file.slice(0, -SCROLLED.length)}.png` : file;
-      const { identity } = await readingOf(name);
+      const { identity } = await readingOf(file);
       const image = decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
 
       read[file] = await parseMoves(await readLines(image), DATA, identity.form, image);
     }
 
     expect(read).toStrictEqual({
-      'applin-scrolled.png': { fast: 'Astonish', charged: ['Struggle'] },
-      'articuno-galar-scrolled.png': { fast: 'Confusion', charged: ['Fly'] },
-      'articuno-kanto-scrolled.png': { fast: 'Powder Snow', charged: ['Ice Beam'] },
-      'basculin-blue-scrolled.png': { fast: 'Water Gun', charged: ['Muddy Water'] },
-      'burmy-plant-scrolled.png': { fast: 'Tackle', charged: ['Struggle'] },
-      'burmy-sandy-scrolled.png': { fast: 'Tackle', charged: ['Struggle'] },
-      'burmy-trash-scrolled.png': { fast: 'Bug Bite', charged: ['Struggle'] },
-      'castform-normal-scrolled.png': { fast: 'Tackle', charged: ['Weather Ball'] },
-      'castform-rainy-scrolled.png': { fast: 'Tackle', charged: ['Thunder'] },
-      'castform-snowy-scrolled.png': { fast: 'Powder Snow', charged: ['Blizzard'] },
-      'castform-sunny-scrolled.png': { fast: 'Tackle', charged: ['Fire Blast'] },
-      'chansey-dynamax-scrolled.png': { fast: 'Pound', charged: ['Psychic'] },
-      'charizard-gigantamax-scrolled.png': { fast: 'Air Slash', charged: ['Air Cutter'] },
-      'cherrim-overcast-scrolled.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
-      'cherrim-sunshine-scrolled.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
-      'deoxys-attack-scrolled.png': { fast: 'Poison Jab', charged: ['Psycho Boost'] },
-      'deoxys-defense-scrolled.png': { fast: 'Counter', charged: ['Psycho Boost'] },
-      'deoxys-normal-scrolled.png': { fast: 'Zen Headbutt', charged: ['Hyper Beam'] },
-      'deoxys-speed-scrolled.png': { fast: 'Charge Beam', charged: ['Thunderbolt'] },
-      'dialga-altered-scrolled.png': { fast: 'Dragon Breath', charged: ['Thunder'] },
-      'dialga-origin-scrolled.png': { fast: 'Dragon Breath', charged: ['Iron Head'] },
-      'eevee-background-scrolled.png': { fast: 'Tackle', charged: ['Swift'] },
-      'growlithe-nickname-scrolled.png': { fast: 'Ember', charged: ['Flamethrower'] },
-      'ho-oh-scrolled.png': { fast: 'Extrasensory', charged: ['Brave Bird'] },
-      'meloetta-aria-scrolled.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
-      'meowth-alola-scrolled.png': { fast: 'Scratch', charged: ['Foul Play'] },
-      'meowth-galar-scrolled.png': { fast: 'Metal Sound', charged: ['Trailblaze'] },
+      'applin.png': { fast: 'Astonish', charged: ['Struggle'] },
+      'articuno-galar.png': { fast: 'Confusion', charged: ['Fly'] },
+      'articuno-kanto.png': { fast: 'Powder Snow', charged: ['Ice Beam'] },
+      'basculin-blue.png': { fast: 'Water Gun', charged: ['Muddy Water'] },
+      'burmy-plant.png': { fast: 'Tackle', charged: ['Struggle'] },
+      'burmy-sandy.png': { fast: 'Tackle', charged: ['Struggle'] },
+      'burmy-trash.png': { fast: 'Bug Bite', charged: ['Struggle'] },
+      'castform-normal.png': { fast: 'Tackle', charged: ['Weather Ball'] },
+      'castform-rainy.png': { fast: 'Tackle', charged: ['Thunder'] },
+      'castform-snowy.png': { fast: 'Powder Snow', charged: ['Blizzard'] },
+      'castform-sunny.png': { fast: 'Tackle', charged: ['Fire Blast'] },
+      'chansey-dynamax.png': { fast: 'Pound', charged: ['Psychic'] },
+      'charizard-gigantamax.png': { fast: 'Air Slash', charged: ['Air Cutter'] },
+      'cherrim-overcast.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
+      'cherrim-sunshine.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
+      'deoxys-attack.png': { fast: 'Poison Jab', charged: ['Psycho Boost'] },
+      'deoxys-defense.png': { fast: 'Counter', charged: ['Psycho Boost'] },
+      'deoxys-normal.png': { fast: 'Zen Headbutt', charged: ['Hyper Beam'] },
+      'deoxys-speed.png': { fast: 'Charge Beam', charged: ['Thunderbolt'] },
+      'dialga-altered.png': { fast: 'Dragon Breath', charged: ['Thunder'] },
+      'dialga-origin.png': { fast: 'Dragon Breath', charged: ['Iron Head'] },
+      'eevee-background.png': { fast: 'Tackle', charged: ['Swift'] },
+      'growlithe-nickname.png': { fast: 'Ember', charged: ['Flamethrower'] },
+      'ho-oh.png': { fast: 'Extrasensory', charged: ['Brave Bird'] },
+      'meloetta-aria.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
+      'meowth-alola.png': { fast: 'Scratch', charged: ['Foul Play'] },
+      'meowth-galar.png': { fast: 'Metal Sound', charged: ['Trailblaze'] },
+      'meowth-kanto.png': { fast: 'Bite', charged: ['Night Slash'] },
       'no-pgsharp.png': { fast: 'Bubble', charged: [] },
       'overworld.png': { fast: null, charged: [] },
       'pgsharp-no-overlay.png': { fast: 'Bubble', charged: [] },
-      'meowth-kanto-scrolled.png': { fast: 'Bite', charged: ['Night Slash'] },
-      'pikachu-ash-hat-scrolled.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
-      'pikachu-santa-hat-scrolled.png': { fast: 'Present', charged: ['Wild Charge'] },
-      'pikachu-willows-assistant-scrolled.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
-      'pikachu-scrolled.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
-      'pikachu-witch-hat-scrolled.png': { fast: 'Quick Attack', charged: ['Discharge'] },
-      'rotom-wash-scrolled.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
-      'smoliv-scrolled.png': { fast: 'Tackle', charged: ['Energy Ball'] },
-      'snorlax-purified-scrolled.png': { fast: 'Lick', charged: ['Return'] },
-      'spoink-scrolled.png': { fast: 'Splash', charged: ['Psybeam'] },
-      'spinda-04-scrolled.png': { fast: 'Sucker Punch', charged: ['Icy Wind'] },
-      'unown-b-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'unown-exclamation-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'unown-m-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'unown-question-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'xurkitree-scrolled.png': { fast: 'Thunder Shock', charged: ['Power Whip'] },
+      'pikachu-ash-hat.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
+      'pikachu-santa-hat.png': { fast: 'Present', charged: ['Wild Charge'] },
+      'pikachu-willows-assistant.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
+      'pikachu-witch-hat.png': { fast: 'Quick Attack', charged: ['Discharge'] },
+      'pikachu.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
+      'rotom-wash.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
+      'smoliv.png': { fast: 'Tackle', charged: ['Energy Ball'] },
+      'snorlax-purified.png': { fast: 'Lick', charged: ['Return'] },
+      'spinda-04.png': { fast: 'Sucker Punch', charged: ['Icy Wind'] },
+      'spoink.png': { fast: 'Splash', charged: ['Psybeam'] },
+      'unown-b.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-exclamation.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-m.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'unown-question.png': { fast: 'Hidden Power', charged: ['Struggle'] },
+      'xurkitree.png': { fast: 'Thunder Shock', charged: ['Power Whip'] },
     });
 
-    // And that no stitch reads *less* than its screen, which is the relation rather than the map: a companion that had
-    // been stitched at the wrong offset could hold a plausible pair of moves and still have lost one the screen shows.
+    // And that no stitch reads *less* than the screen inside it, which is the relation rather than the map: a stitch
+    // assembled at the wrong offset could hold a plausible pair of moves and still have lost one its own first frame
+    // shows. One file on either side of it — `readingOf` is the crop `screenIn` takes, `read` above is the whole.
     for (const file of STITCHES) {
-      const screen = `${file.slice(0, -SCROLLED.length)}.png`;
-      const { lines, image, identity } = await readingOf(screen);
+      const { lines, image, identity } = await readingOf(file);
       const shown = await parseMoves(lines, DATA, identity.form, image);
       const whole = read[file];
 
       assert.ok(whole, `${file} read no moves at all`);
-      expect(whole.charged.length, `${file} lost a charged move its screen shows`).toBeGreaterThanOrEqual(
+      expect(whole.charged.length, `${file} lost a charged move the screen in it shows`).toBeGreaterThanOrEqual(
         shown.charged.length,
       );
 
       if (shown.fast !== null) {
-        expect(whole.fast, `${file} lost the fast move its screen shows`).toBe(shown.fast);
+        expect(whole.fast, `${file} lost the fast move the screen in it shows`).toBe(shown.fast);
       }
     }
   },

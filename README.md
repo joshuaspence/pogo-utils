@@ -321,13 +321,16 @@ open storage screen picks up from there rather than waiting out a cold start.
 
 A scroll capture keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames
 into one tall image, which is how a screen longer than the phone is seen whole. `pnpm inventory snap` takes one of any
-screen it can confirm is a detail screen, saved as `NAME-scrolled.png` beside the screen itself, and a scan takes one
-where `--scroll` asks for it, reading the moves from it rather than from one screenshot taken part way down. A snap then
-drags the panel back to where it found it, measuring rather than assuming it got there, so one snap does not shift the
-next. The stitched image is not handed to the other readers: the star corner, the overlay sweep, the tag band and the
-artwork are each anchored on a fraction of the image's height, so a frame three times taller moves all of them. The band
-of the screen the frames are lined up in is `scrollBand` in `--config`; it has to end above the game's floating buttons,
-which are drawn over the panel rather than in it, or their top is stitched in once per frame.
+screen it can confirm is a detail screen and leaves it as `NAME.png`, leaving the plain screenshot under that same name
+only where PGSharp's overlay did not read, which is where it does not scroll at all; a scan takes one where `--scroll`
+asks for it, reading the moves from it rather than from one screenshot taken part way down. A snap will not write over a
+capture already saved under the name unless it has a better one to put there, so a re-snap that comes back refused
+leaves the earlier file alone and says so. It then drags the panel back to where it found it, measuring rather than
+assuming it got there, so one snap does not shift the next. The stitched image is not handed to the readers anchored on
+a fraction of the height — the star corner, the overlay sweep, the tag band and the artwork — so `snap` and `parse` crop
+it back to the screen it records before they see it, and read the moves off the whole. The band of the screen the frames
+are lined up in is `scrollBand` in `--config`; it has to end above the game's floating buttons, which are drawn over the
+panel rather than in it, or their top is stitched in once per frame.
 
 Every tap position, swipe and delay can be overridden from a JSON file passed as `--config`. When something is misread,
 `pnpm inventory snap` saves a screenshot of whatever the phone shows and prints what each reader makes of it, and
