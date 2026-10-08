@@ -45,8 +45,21 @@ body[data-page='search'] {
     --chip-l: 68%;
   }
 
+  /**
+   * The column everything on this page sits in, and the one place the space between those things is set.
+   *
+   * A `gap` rather than a `margin-bottom` on each of them, which is what it was: the gap is the column's to say, and
+   * every card forgetting to carry one is a card that cannot forget. The category grid *had* forgotten — it is a grid
+   * of panels rather than a panel of its own, so there was nothing at all between Generation and the Ranges panel
+   * where every other pair on this page was 14px apart. It also takes a rule with it, the grid no longer having to
+   * zero its items' margins to stop them doubling its own `gap`.
+   */
+
   .builder {
+    display: flex;
     max-width: var(--content-w);
+    flex-direction: column;
+    gap: 14px;
     margin: 0 auto;
     padding: 8px 22px 40px;
     font-size: 13px;
@@ -64,7 +77,6 @@ body[data-page='search'] {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 14px;
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -73,9 +85,10 @@ body[data-page='search'] {
   }
 
   /**
-   * The gap this card holds off the next panel is a band the page scrolls through on its way under the card, which reads
-   * as content leaking out from behind it. Painting the band in the page background closes it, so the panels below
-   * disappear under an edge rather than surfacing for 14px first.
+   * The column's gap below this card is a band the page scrolls through on its way under it, which reads as content
+   * leaking out from behind the card. Painting the band in the page background closes it, so the panels below
+   * disappear under an edge rather than surfacing for 14px first. The height is that gap, and the two want changing
+   * together.
    */
 
   .output::after {
@@ -271,7 +284,6 @@ body[data-page='search'] {
 
   .panel,
   .group {
-    margin-bottom: 14px;
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -444,10 +456,6 @@ body[data-page='search'] {
     align-items: start;
   }
 
-  .groups .group {
-    margin: 0;
-  }
-
   .group .chips {
     display: flex;
     flex-wrap: wrap;
@@ -534,7 +542,6 @@ body[data-page='search'] {
    */
 
   .canvas {
-    margin-bottom: 14px;
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 10px;
