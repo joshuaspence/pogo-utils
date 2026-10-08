@@ -371,6 +371,17 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   let fallback: { iv: IVs; before: string } | null = null;
   let chosen: { iv: IVs; before: string } | null = null;
 
+  // The text ahead of the triple from *every* treatment, which is where the level shortlist comes from. The triple and
+  // the level are separate readings of separate parts of one line — the same argument the bracket below makes — and the
+  // arbitration that gets the triple right was taking the level from whichever pass won it. `deoxys-attack.png` reads
+  // `20 14/13/14` under the first treatment and `00 9114/13/14` under the third, and the third is the one whose
+  // percentage confirms its triple, so the level 20 the first pass had read plainly was thrown away with it.
+  //
+  // Kept whatever the triple turns out to be, so a treatment whose triple is impossible still offers its level:
+  // `burmy-plant.png` reads `L151 44/15/15`, where 44 is no IV and `L151` is the `L15` on the screen with the `IV`
+  // label's upright run into it.
+  const ahead: string[] = [];
+
   for (const treat of OVERLAY_TREATMENTS) {
     const text = (await ocrLine(scale(treat(raw), OVERLAY_SCALE), OVERLAY_ALPHABET)) ?? '';
     const triple = TRIPLE.exec(text);
@@ -378,6 +389,8 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     if (!triple) {
       continue;
     }
+
+    ahead.push(text.slice(0, triple.index));
 
     const [attack, defense, stamina] = triple.slice(1).map(Number) as [number, number, number];
 
@@ -400,7 +413,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     return null;
   }
 
-  const { iv, before } = reading;
+  const { iv } = reading;
 
   const suffixIn = async (crop: Image, alphabet: string) =>
     [...((await ocrLine(crop, alphabet))?.matchAll(FORM_SUFFIX) ?? [])].at(-1)?.[1]?.trim() ?? null;
@@ -428,7 +441,9 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   ]);
 
   return {
-    levels: levelsIn(before),
+    // Unioned per text rather than over the texts joined, so that `levelsIn`'s pair spanning two runs stays inside one
+    // reading: a digit the first treatment ended on and a digit the third began with were never neighbours on a screen.
+    levels: [...new Set(ahead.flatMap(levelsIn))],
     iv,
     form: numeric !== null && /^\d{2}$/.test(numeric) ? numeric : lettered,
   };

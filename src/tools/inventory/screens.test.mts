@@ -251,7 +251,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 206,
-    defects: { notes: ['the overlay reads as level 4 or 45 or 5, none of which this HP can be'] },
     file: 'burmy-plant.png',
     form: 'Plant',
     gender: 'male',
@@ -331,9 +330,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 979,
-    defects: {
-      notes: ['the overlay reads as level 2 or 27 or 7 or 1 or 11 or 10, none of which this HP can be'],
-    },
     file: 'castform-sunny.png',
     form: 'Sunny',
     gender: 'female',
@@ -359,7 +355,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1605,
-    defects: { notes: ['the overlay reads as level 5 or 8, none of which this HP can be'] },
+    defects: { notes: ['the overlay reads as level 9 or 5 or 8, none of which this HP can be'] },
     file: 'charizard-gigantamax.png',
     form: null,
     gender: 'male',
@@ -399,7 +395,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1441,
-    defects: { notes: ['the overlay reads as level 9 or 1, none of which this HP can be'] },
     file: 'deoxys-attack.png',
     form: 'Attack',
     gender: null,
@@ -1255,7 +1250,7 @@ const COVERAGE = {
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 32,
+  noDefects: 35,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1309,7 +1304,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
 
   // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
   // all produces — which is the trigger switched off and nothing saying so.
-  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(9);
+  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(6);
 
   expect(
     noted.filter((f) => f.defects === undefined).map((f) => f.file),
@@ -1466,11 +1461,9 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  * Some capture must offer a level **above** its true one, which is what catches an HP test admitting any HP at or above
  * the one read — against a shortlist whose largest member is already the answer such a break cannot move anything. And
  * some shortlist must **not** contain its true level, which is what says the HP is the arbiter rather than a
- * tie-breaker. Four do:
- * `burmy-plant.png` `[4, 45, 5]` for 15, `castform-sunny.png` `[2, 27, 7, 1, 11, 10]` for 21,
- * `charizard-gigantamax.png` `[5, 8]` for 20 and `deoxys-attack.png` `[9, 1]` for 20 — each one a `defects.notes`
- * entry reporting the disagreement. Without any of them, a `levelsOf` that merely filtered the stated list would pass
- * every assertion here.
+ * tie-breaker. One does: `charizard-gigantamax.png` `[9, 5, 8]` for 20, a `defects.notes` entry reporting the
+ * disagreement, and the only one left because no treatment of its band reads the level plainly — `90`, `L` and `5 80`
+ * are the three. Without it, a `levelsOf` that merely filtered the stated list would pass every assertion here.
  */
 test(
   'the shortlists the overlay states both overshoot a true level and miss one',
