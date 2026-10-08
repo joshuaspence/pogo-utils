@@ -64,27 +64,35 @@
  * LFS. What went with them and could not follow is `parseDetail` on an entry screen: that the type icons come back and
  * every other field stays absent needed a real one.
  *
- * **Ten rows carry a `defects`, and six readers disagree with a screen somewhere.** A reader that disagrees is pinned
- * here rather than fixed here, a fix being a change to what the code does and so a pull request of its own, and the
- * corpus test asserts which keys are in use, so a disagreement arriving or leaving is reported.
+ * **Twelve rows carry a `defects`, over five readers.** A reader that disagrees is pinned here rather than fixed here,
+ * a fix being a change to what the code does and so a pull request of its own, and the corpus test asserts which keys
+ * are in use, so a disagreement arriving or leaving is reported.
  *
- * Two of the ten are what the screen cannot separate rather than a reader at fault. `basculin-blue.png` is a form the
- * screen cannot separate at all: Basculin's stripes share their stats, types and moves, no icon signature is recorded
- * for them, and the fold answers `Basculin (Red Striped)` with nothing beside it saying that was a choice.
- * `spoink.png`'s overlay offers level `1` alone for a Pokémon at 7, so the HP settles the level and `identify` notes
- * the disagreement — the note reporting the overlay's misreading rather than making one.
+ * One of the twelve is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
+ * screen cannot separate at all, Basculin's stripes sharing their stats, types and moves with no icon signature
+ * recorded, so the fold answers `Basculin (Red Striped)` with nothing beside it saying that was a choice.
  *
- * The other eight are readers that answer something the screen does not say, and each is a capture away from being a
- * bug report: `wholeCp` loses the leading digit on three screens — `605` for 1605, `284` for 2845, `38` for 738 — where
- * the band rescue recovers it elsewhere; the artwork match declines all three Burmy cloaks, so `identify` folds `Burmy
- * (Plant)` for every one of them; `readOverlay` reads `5/4/4` for `charizard-gigantamax.png`'s `12/12/12`, which is the
- * one triple it gets wrong; `sizeOf` reads `XS` off `smoliv.png`'s `XXS` badge, which the game's own `xxs` search says
- * is the badge; and the name pass takes the green `LUCKY POKÉMON` under `ho-oh.png`'s nickname for the name itself.
+ * The other eleven are readers answering something the screen does not say, and each is a capture away from being a bug
+ * report. `readOverlay` is the worst of them: it reads `10/4/13` for `articuno-galar.png`'s `12/4/13` and `3/13/3` for
+ * `rotom-wash.png`'s `13/3/1`, and a wrong triple carries a wrong level and a wrong derived CP behind it, which is why
+ * those two rows pin four keys apiece. The artwork match declines the Sandy and Trash cloaks, so `identify` folds
+ * `Burmy (Plant)` for both. `levelsOf` offers a shortlist containing no level the HP can be on four captures, each
+ * reporting it as a note it need not have raised. `wholeCp` loses the leading digit on `growlithe-nickname.png`, `38`
+ * for 738, where the band rescue recovers such a line everywhere else. `sizeOf` reads `XS` off `smoliv.png`'s `XXS`
+ * badge, which the game's own `xxs` search says is the badge. And `castform-rainy.png` is answered as **`Inteleon`**,
+ * deriving CP 1512 for the 832 on its screen — the severe one, and the shape the Charizard that read as Ho-Oh had
+ * before the corpus was taken again.
  *
  * What still holds everywhere: `findOverlay` finds a box on every screen that carries one, `isFavourite` does not take
  * `spinda-04.png`'s warm background for a filled star, `tagsOn` reads `snorlax-purified.png`'s `Perfect` chip rather
- * than cutting it away as the type icons, a height is not taken from under the size pill that corrupts it, and a name
- * the pass misses outright is re-read off its own band rather than filed as a nickname.
+ * than cutting it away as the type icons, every nickname is read as its own rather than as the green `LUCKY POKÉMON`
+ * line beneath it, and a name the pass misses outright is re-read off its own band rather than filed as a nickname.
+ *
+ * One defence is no longer exercised, and is said so rather than left to be assumed. A height read from under the size
+ * pill that corrupts it was measured on `spoink.png`, whose XXL badge made it read `1.4m` for `1.1m` until the line was
+ * read on its own. No XXL Spoink is in storage any more — the game's own counter answers `(0)` for `+spoink & xxl` — so
+ * the capture that replaced it wears no badge at all. Four captures still wear one, `xurkitree.png` among them at XXL,
+ * and whether any of their pills reaches the height is untested.
  *
  * **Two of Vitest's assertion forms are used here, and the division is a type one rather than a preference.** `expect`
  * states what a reader answered, as every other suite in this repository does. `assert.ok` states a precondition — that
@@ -789,18 +797,16 @@ const FIXTURES: readonly Fixture[] = [
     weight: 5.43,
   },
   {
-    cp: 247,
-    defects: { notes: ['the overlay reads as level 1, none of which this HP can be'] },
+    cp: 998,
     file: 'spoink.png',
     form: null,
-    gender: 'male',
-    height: 1.1,
-    hp: 59,
-    overlay: { iv: { attack: 14, defense: 4, stamina: 14 }, level: 7 },
-    size: 'XXL',
+    gender: 'female',
+    height: 0.65,
+    hp: 115,
+    overlay: { iv: { attack: 14, defense: 12, stamina: 11 }, level: 27 },
     species: 'Spoink',
     types: ['Psychic'],
-    weight: 43.83,
+    weight: 24.06,
   },
   {
     cp: 487,
@@ -1289,9 +1295,9 @@ test('every committed screen is one screen rather than a stitch', () => {
  *
  * All of them are, which is worth stating because one was not. `eevee-background.png`'s scroll was refused twice over —
  * `offsetBetween` scores every shift and takes none where the best does not stand out, and a photographic backdrop
- * drifting between frames stands out nowhere — so its companion came back a copy of the single frame it had. The capture
- * taken once `scrollFrames` was handed the screen already in hand assembled three frames, so the backdrop was never the
- * whole of it. Asserted empty rather than deleted, a capture joining the list being the refusal coming back.
+ * drifting between frames stands out nowhere — so its companion came back a copy of the single frame it had. The
+ * capture taken once `scrollFrames` was handed the screen already in hand assembled three frames, so the backdrop was
+ * never the whole of it. Asserted empty rather than deleted, a capture joining the list being the refusal coming back.
  */
 test('every stitch is taller than the screen beside it', () => {
   const copies = STITCHES.flatMap((file) => {
@@ -1416,7 +1422,7 @@ const COVERAGE = {
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 30,
+  noDefects: 31,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1516,6 +1522,7 @@ test(
       'pikachu.png': 69,
       'rotom-wash.png': 813,
       'smoliv.png': 340,
+      'spoink.png': 998,
       'unown-b.png': 487,
       'unown-exclamation.png': 517,
       'unown-question.png': 486,
@@ -1604,7 +1611,7 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  * the same.
  *
  * The second is that some capture's shortlist does **not** contain its true level, which is what says the HP is the
- * arbiter rather than a tie-breaker. Five do: `spoink.png` offers `1` alone for a Pokémon at level 7,
+ * arbiter rather than a tie-breaker. Four do:
  * `burmy-plant.png` `[4, 45, 5]` for 15, `castform-sunny.png` `[2, 27, 7, 1, 11, 10]` for 21,
  * `charizard-gigantamax.png` `[5, 8]` for 20 and `deoxys-attack.png` `[9, 1]` for 20 — each one a `defects.notes`
  * entry reporting the disagreement. Without any of them, a `levelsOf` that merely filtered the stated list would pass
@@ -2064,9 +2071,9 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * could have been 0 unremarked.
  *
  * The two that decline are the Sandy and Trash cloaks, and the decline is the match's own doing rather than stale data
- * here — `ARTWORK` holds signatures of the game's icons, which no capture can move, so what changed is the signature the
- * capture yields. Their rows carry `defects.label` saying what `identify` then answers: `Burmy (Plant)` for both, the
- * fold's first cloak, with nothing beside it saying that was a choice.
+ * here — `ARTWORK` holds signatures of the game's icons, which no capture can move, so what changed is the signature
+ * the capture yields. Their rows carry `defects.label` saying what `identify` then answers: `Burmy (Plant)` for both,
+ * the fold's first cloak, with nothing beside it saying that was a choice.
  */
 test(
   'the artwork settles three of five forms the numbers cannot, and declines two',
@@ -2176,6 +2183,7 @@ test(
       'rotom-wash-scrolled.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
       'smoliv-scrolled.png': { fast: 'Tackle', charged: ['Energy Ball'] },
       'snorlax-purified-scrolled.png': { fast: 'Lick', charged: ['Return'] },
+      'spoink-scrolled.png': { fast: 'Splash', charged: ['Psybeam'] },
       'spinda-04-scrolled.png': { fast: 'Sucker Punch', charged: ['Icy Wind'] },
       'unown-b-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
       'unown-exclamation-scrolled.png': { fast: 'Hidden Power', charged: ['Struggle'] },
