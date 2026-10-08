@@ -2,18 +2,18 @@
  * What `assembled` answers and what it refuses, which is the one reader that returns a triple no pass read and so the
  * one whose refusals are worth as much as its answers.
  *
- * `screens.test.mts` cannot state them. It reaches `assembled` on two of its 43 captures, and on `dialga-origin.png`
- * the combination that checks out is the one the first pass read anyway — so the row is satisfied either way and
- * nothing there distinguishes an assembly from the fallback. Two of the three ways this can answer are unreachable
- * over that corpus altogether: no capture puts two combinations in play, and the single-digit percentage below is a
- * screen nobody has captured.
+ * `screens.test.mts` cannot state them. Four of its 43 captures hand `assembled` a reading, it answers on two of those
+ * and changes the answer on one — and on `dialga-origin.png`, the other it answers, the combination that checks out is
+ * the one the first pass read anyway, so the row is satisfied either way and nothing there distinguishes an assembly
+ * from the fallback. What no capture reaches at all is two combinations checking out, and the single-digit percentage
+ * below is a screen nobody has captured.
  *
  * The readings are quoted off the real loop, dumped out of `readOverlay` over every fixture, rather than invented. What
  * keeps them from going stale as transcription is the corpus itself: a treatment that starts reading those bands
  * differently moves the triple `articuno-galar.png`'s row denies, and `screens.test.mts` fails there.
  */
 
-import { assembled } from './overlay.mts';
+import { assembled, confirmed } from './overlay.mts';
 import { expect, test } from 'vitest';
 
 /**
@@ -104,4 +104,43 @@ test('a percentage of one digit assembles nothing', () => {
     ]),
     'a run of `180` confirmed a triple summing to 0, which no pass read',
   ).toBeNull();
+});
+
+/**
+ * And what the floor refuses outright, which is the part of it `assembled` cannot show: the triples it turns down are
+ * turned down even where their percentage is printed as a run of its own, so they lose a `chosen` and not only an
+ * assembly. Every triple summing under 5 has a one-digit percentage, and before the floor all 35 of them could confirm
+ * themselves off that digit.
+ *
+ * Derived from the percentage the file documents rather than listed, so a floor written as something narrower — the
+ * digit having to be borrowed from a longer run, say — fails here rather than passing on the cases that were quoted.
+ */
+test('a triple summing under 5 confirms nothing, its percentage being one digit', () => {
+  const percentageOf = ({ attack, defense, stamina }: { attack: number; defense: number; stamina: number }) =>
+    String(Math.floor(((attack + defense + stamina) / 45) * 100));
+  const sub5 = [];
+
+  for (let attack = 0; attack <= 15; attack += 1) {
+    for (let defense = 0; defense <= 15; defense += 1) {
+      for (let stamina = 0; stamina <= 15; stamina += 1) {
+        const iv = { attack, defense, stamina };
+
+        if (percentageOf(iv).length < 2) {
+          sub5.push(iv);
+        }
+      }
+    }
+  }
+
+  // The count as well as the refusals, because an empty list of offenders is also what an enumeration that selected
+  // nothing produces, and that reads exactly like a pass.
+  expect(sub5.length, 'the triples with a one-digit percentage are no longer the 35 summing under 5').toBe(35);
+  expect(
+    sub5.filter((iv) => confirmed(`L20 ${percentageOf(iv)} `, iv)),
+    'a triple summing under 5 confirms itself off a single printed digit',
+  ).toStrictEqual([]);
+
+  // The control, or the assertion above would also pass on a `confirmed` that had stopped reading a percentage printed
+  // as its own run at all: the same line with two digits of percentage still confirms.
+  expect(confirmed('L20 91 ', { attack: 14, defense: 13, stamina: 14 })).toBe(true);
 });

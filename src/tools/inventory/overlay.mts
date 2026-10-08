@@ -92,10 +92,15 @@ const OVERLAY_TREATMENTS = [
  *
  * Two digits of it at least, because one is no checksum: a single digit ends almost any run, so `L20` would confirm a
  * triple summing to 0 and `182` one summing to 1 — and the `L` cannot be what rules those out, since the run carrying
- * the digit need not be a level at all. What it gives up is the 35 triples of 4,096 that sum under 5, whose percentage
- * is one digit; those confirm nothing and fall back, which is where they stood before any of this.
+ * the digit need not be a level at all.
+ *
+ * What that refuses is the 35 triples of 4,096 that sum under 5, whose percentage is one digit, and it refuses them
+ * outright rather than only where the digit was borrowed from a longer run: all 35 could confirm themselves off a
+ * percentage printed as its own run, and none can now. So a 0/0/0 screen loses a `chosen` as well as an `assembled` and
+ * stands on the fallback, which is where any reading with no checksum beside it stands. The confirmation it loses was
+ * never sound — one digit of agreement is one digit — but it is refused now, not merely unavailable.
  */
-function confirmed(before: string, iv: IVs): boolean {
+export function confirmed(before: string, iv: IVs): boolean {
   const percentage = String(Math.floor(((iv.attack + iv.defense + iv.stamina) / 45) * 100));
   const runs = before.match(/\d+/g) ?? [];
   const last = runs.at(-1) ?? '';
@@ -113,11 +118,14 @@ function confirmed(before: string, iv: IVs): boolean {
  * value per field, every combination of them is checked against each reading's percentage, and the answer is the one
  * that checks out — or nothing, where none does or more than one does.
  *
- * It can only reach a capture no pass confirmed, and it reaches two of the 43. `articuno-galar.png` is the one it
- * changes: its attack is 10 or 12 and its stamina 13 or 3 across two passes, and only `12/4/13` comes to the `64` one
- * of them printed. On `dialga-origin.png` it answers the `10/13/13` the first pass read anyway, the second having lost
- * only the stamina — so the row cannot tell this apart from the fallback there, and `overlay.test.mts` asserts both
- * off the readings the real loop hands this, which a row by itself cannot say.
+ * It is asked only where no pass confirmed, which over the corpus is four captures with a reading between them: it
+ * answers on two of those and changes the answer on one. That last number is the one the feature is for.
+ *
+ * `articuno-galar.png` is the capture it changes: its attack is 10 or 12 and its stamina 13 or 3 across two passes, and
+ * only `12/4/13` comes to the `64` one of them printed. On `dialga-origin.png` it answers the `10/13/13` the first pass
+ * read anyway, the second having lost only the stamina, so the row cannot tell that apart from the fallback. On
+ * `burmy-plant.png` and `rotom-wash.png` nothing checks out and the fallback stands. `overlay.test.mts` asserts all
+ * four off the readings the real loop hands this, which a row by itself cannot say.
  *
  * Checked with `confirmed` rather than against the percentage directly, so that what counts as the percentage is one
  * definition and not two — it is the tail of a run of digits, and which run is itself a judgement that function makes.
