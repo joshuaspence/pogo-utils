@@ -64,21 +64,21 @@
  * LFS. What went with them and could not follow is `parseDetail` on an entry screen: that the type icons come back and
  * every other field stays absent needed a real one.
  *
- * **Eleven rows carry a `defects`, over four readers.** A reader that disagrees is pinned here rather than fixed here,
+ * **Eight rows carry a `defects`, over four readers.** A reader that disagrees is pinned here rather than fixed here,
  * a fix being a change to what the code does and so a pull request of its own, and the corpus test asserts which keys
  * are in use, so a disagreement arriving or leaving is reported.
  *
- * One of the eleven is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
+ * One of the eight is what the screen cannot separate rather than a reader at fault: `basculin-blue.png` is a form the
  * screen cannot separate at all, Basculin's stripes sharing their stats, types and moves with no icon signature
  * recorded, so the fold answers `Basculin (Red Striped)` with nothing beside it saying that was a choice.
  *
- * The other ten are readers answering something the screen does not say, and each is a capture away from being a bug
+ * The other seven are readers answering something the screen does not say, and each is a capture away from being a bug
  * report. `readOverlay` is the worst of them: it reads `10/4/13` for `articuno-galar.png`'s `12/4/13` and `3/13/3` for
  * `rotom-wash.png`'s `13/3/1`, and a wrong triple carries a wrong level and a wrong derived CP behind it, which is why
  * those two rows pin four keys apiece. The artwork match declines Cherrim's Overcast, so `identify` folds
  * `Cherrim (Sunny)` for it — and its nearest icon is the Sunny one, so `MARGIN` is all that keeps that a fold rather
- * than an answer. `levelsOf` offers a shortlist containing no level the HP can be on four captures, each reporting it
- * as a note it need not have raised. `wholeCp` loses the leading digit on `growlithe-nickname.png`, `38`
+ * than an answer. `levelsOf` offers a shortlist containing no level the HP can be on `charizard-gigantamax.png` alone,
+ * reporting it as a note it need not have raised. `wholeCp` loses the leading digit on `growlithe-nickname.png`, `38`
  * for 738, where the band rescue recovers such a line everywhere else. And `castform-rainy.png` is answered as
  * **`Inteleon`**, deriving CP 1512 for the 832 on its screen — the severe one, and the shape the Charizard that read as
  * Ho-Oh had before the corpus was taken again.
@@ -354,7 +354,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 206,
-    defects: { notes: ['the overlay reads as level 4 or 45 or 5, none of which this HP can be'] },
     file: 'burmy-plant.png',
     form: 'Plant',
     gender: 'male',
@@ -434,9 +433,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 979,
-    defects: {
-      notes: ['the overlay reads as level 2 or 27 or 7 or 1 or 11 or 10, none of which this HP can be'],
-    },
     file: 'castform-sunny.png',
     form: 'Sunny',
     gender: 'female',
@@ -462,7 +458,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1605,
-    defects: { notes: ['the overlay reads as level 5 or 8, none of which this HP can be'] },
+    defects: { notes: ['the overlay reads as level 9 or 5 or 8, none of which this HP can be'] },
     file: 'charizard-gigantamax.png',
     form: null,
     gender: 'male',
@@ -502,7 +498,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1441,
-    defects: { notes: ['the overlay reads as level 9 or 1, none of which this HP can be'] },
     file: 'deoxys-attack.png',
     form: 'Attack',
     gender: null,
@@ -1437,7 +1432,7 @@ const COVERAGE = {
   crossCheckDisagrees: 3,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 32,
+  noDefects: 35,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 2,
@@ -1491,7 +1486,7 @@ test('the defects a scan can find for itself are the nine captures that raise a 
 
   // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
   // all produces — which is the trigger switched off and nothing saying so.
-  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(9);
+  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(6);
 
   expect(
     noted.filter((f) => f.defects === undefined).map((f) => f.file),
@@ -1667,11 +1662,14 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  * the same.
  *
  * The second is that some capture's shortlist does **not** contain its true level, which is what says the HP is the
- * arbiter rather than a tie-breaker. Four do:
- * `burmy-plant.png` `[4, 45, 5]` for 15, `castform-sunny.png` `[2, 27, 7, 1, 11, 10]` for 21,
- * `charizard-gigantamax.png` `[5, 8]` for 20 and `deoxys-attack.png` `[9, 1]` for 20 — each one a `defects.notes`
- * entry reporting the disagreement. Without any of them, a `levelsOf` that merely filtered the stated list would pass
- * every assertion here.
+ * arbiter rather than a tie-breaker. One does: `charizard-gigantamax.png` offers `[9, 5, 8]` for a level 20, which its
+ * row pins as a `defects.notes` entry reporting the disagreement. Without it, a `levelsOf` that merely filtered the
+ * stated list would pass every assertion here.
+ *
+ * It was four until the shortlist was taken from every treatment of the band rather than from whichever one the triple
+ * came out of. Charizard is the one left because no treatment of its band reads the level at all — `90`, `L` and
+ * `5 80` are the three — where the others each had a pass that read theirs plainly and was discarded with its
+ * percentage.
  */
 test(
   'the shortlists the overlay states both overshoot a true level and miss one',
