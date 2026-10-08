@@ -387,7 +387,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1658,
-    file: 'cherrim-sunshine.png',
+    file: 'cherrim-sunny.png',
     form: 'Sunny',
     gender: 'male',
     height: 0.61,
@@ -1488,15 +1488,15 @@ test('a level the overlay misreads leaves the CP to settle the form', async () =
 });
 
 /**
- * The printed CP settles the level as well as the form. `cherrim-sunshine.png`'s HP admits both 31 and 31.5, and the
+ * The printed CP settles the level as well as the form. `cherrim-sunny.png`'s HP admits both 31 and 31.5, and the
  * overlay's `L31` is what settles it on the screen; without that, the `CP 1658` it prints is Cherrim at 31 and not at
  * 31.5, which is the same answer.
  */
 test('without the level the overlay states, the CP still settles one', async () => {
-  const { detail, overlay, artwork } = await readingOf('cherrim-sunshine.png');
+  const { detail, overlay, artwork } = await readingOf('cherrim-sunny.png');
   assert.ok(overlay, 'the fixture has lost its overlay');
 
-  const fixture = FIXTURES.find((f) => f.file === 'cherrim-sunshine.png');
+  const fixture = FIXTURES.find((f) => f.file === 'cherrim-sunny.png');
   assert.ok(fixture, 'the capture a printed CP settles a half-level on has left the corpus');
 
   // The row's CP rather than the read one, because a crop of this capture's stitch does not yield it: the label line
@@ -1855,7 +1855,7 @@ test(
       'burmy-sandy.png': 'declined',
       'burmy-trash.png': 'declined',
       'cherrim-overcast.png': 'Cherrim (Overcast)',
-      'cherrim-sunshine.png': 'Cherrim (Sunny)',
+      'cherrim-sunny.png': 'Cherrim (Sunny)',
     });
   },
   WHOLE_CORPUS_TIMEOUT,
@@ -1904,7 +1904,7 @@ test(
       'chansey-dynamax.png': { fast: 'Pound', charged: ['Psychic'] },
       'charizard-gigantamax.png': { fast: 'Air Slash', charged: ['Air Cutter'] },
       'cherrim-overcast.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
-      'cherrim-sunshine.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
+      'cherrim-sunny.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
       'deoxys-attack.png': { fast: 'Poison Jab', charged: ['Psycho Boost'] },
       'deoxys-defense.png': { fast: 'Counter', charged: ['Psycho Boost'] },
       'deoxys-normal.png': { fast: 'Zen Headbutt', charged: ['Hyper Beam'] },
