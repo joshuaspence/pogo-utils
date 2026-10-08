@@ -15,7 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from './stitch.mts';
-import { crop, decodePng, rgb, type Image } from './png.mts';
+import { crop, decodePng, rgb, screenIn, type Image } from './png.mts';
 
 /**
  * Where the frames below put their furniture, which is a fact about the screen rather than about any band. The band is
@@ -324,8 +324,14 @@ test('stitching nothing, or frames without a shift between each pair, is a mista
  * `pikachu.png` against `smoliv.png` is that case: their summaries line up at a shift of 114, which would be two
  * Pokémon assembled into one image. It is refused by how **close** the match is rather than by how far it stands out —
  * a true scroll costs 0.00 where these two cost 16.82 at their best, the band being 70% flat panel grey.
+ *
+ * Read out of the stitch each is committed as, the corpus keeping one file per capture rather than a screen beside a
+ * stitch. `screenIn` crops to the `Viewport` the stitch records, and the band this exercises — 0.34 to 0.89 of the
+ * screen, rows 763 to 1997 — lies entirely in the rows `stitch` keeps from its first frame verbatim. So these frames
+ * are the screens the phone drew, to the pixel, over every row anything below reads.
  */
-const capture = (file: string) => decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
+const capture = (file: string) =>
+  screenIn(decodePng(readFileSync(new URL(`fixtures/${file.replace(/\.png$/, '-scrolled.png')}`, import.meta.url))));
 
 /**
  * Where the game's floating buttons are, measured on `pikachu.png` and `smoliv.png` — which agree exactly, the buttons

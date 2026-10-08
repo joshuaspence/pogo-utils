@@ -10,7 +10,19 @@
 
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from 'vitest';
-import { brighten, crop, decodePng, difference, encodePng, isolate, pad, rgb, scale, type Image } from './png.mts';
+import {
+  brighten,
+  crop,
+  decodePng,
+  difference,
+  encodePng,
+  isolate,
+  pad,
+  rgb,
+  scale,
+  screenIn,
+  type Image,
+} from './png.mts';
 
 /**
  * An image whose every pixel is a function of its position, so a transposition or an off-by-one shows up as a value.
@@ -43,6 +55,32 @@ test('an image survives being encoded and decoded byte for byte', () => {
  * Asserted against `decodePng`'s own reading rather than by looking for the bytes, because what a caller depends on is
  * the keyword coming back — and the bytes are checked anyway, the chunk's CRC being verified like every other.
  */
+/**
+ * `screenIn` crops to the `Viewport` a stitch records and hands anything else back untouched, which is what lets one
+ * file be committed where a screen and a stitch used to be.
+ *
+ * The untouched cases are the ones worth pinning: a capture carrying no chunk is a screen already, and a capture
+ * carrying a `Viewport` that is not two numbers is damaged — cropping on either reading would answer an image of the
+ * wrong size, where handing it back answers one the caller can still measure.
+ */
+test('`screenIn` crops to a recorded `Viewport`, and leaves anything else alone', () => {
+  const image = ramp(4, 6);
+
+  expect([screenIn(image).width, screenIn(image).height], 'no chunk, so already a screen').toStrictEqual([4, 6]);
+
+  const carried = decodePng(encodePng(image, { Viewport: '4x2' }));
+  const screen = screenIn(carried);
+
+  expect([screen.width, screen.height]).toStrictEqual([4, 2]);
+  expect([...screen.data], 'the crop is the top rows, not a resize').toStrictEqual([...crop(image, 0, 0, 4, 2).data]);
+
+  for (const damaged of ['', '4', 'wide x tall', '4x', 'x2']) {
+    const back = screenIn(decodePng(encodePng(image, { Viewport: damaged })));
+
+    expect([back.width, back.height], `Viewport ${JSON.stringify(damaged)} was cropped to`).toStrictEqual([4, 6]);
+  }
+});
+
 test('a `tEXt` chunk written beside an image comes back as its keyword and value', () => {
   const back = decodePng(encodePng(ramp(3, 2), { Viewport: '1008x2244', Software: 'pogo-utils' }));
 

@@ -1,7 +1,7 @@
 /**
  * What the detail screen's readers make of real screens, over the corpus of captures committed beside this file.
  *
- * **This file is its own Vitest project, `corpus`, so that a run can leave it out.** Reading the 49 captures spawns
+ * **This file is its own Vitest project, `corpus`, so that a run can leave it out.** Reading the 46 captures spawns
  * some thousands of Tesseract processes, which is 95% of the suite's wall clock against a few seconds for every other
  * test file put together — so `pnpm test:default` is the loop to work in, where `pnpm test` runs both projects and
  * `pnpm test:corpus` runs this one. CI takes each project as its own job. Nothing here asserts differently for being
@@ -107,14 +107,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { afterAll, assert, beforeAll, describe, expect, test } from 'vitest';
 import { closest, type Form, type GameData, type IVs } from './game-master.mts';
 import { ambiguous, nearest, signatureOf, type Signature } from './artwork.mts';
-import { decodePng } from './png.mts';
+import { decodePng, screenIn } from './png.mts';
 import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
 import { identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
 import { dexOn } from './pokedex.mts';
 import { parseMoves, type Moves } from './moves.mts';
-import { SCREEN_BAND } from './stitch.mts';
 
 /**
  * The game master, vended beside the captures rather than downloaded: `pnpm vend:game-master` writes what a real
@@ -884,7 +883,7 @@ const FIXTURES: readonly Fixture[] = [
  * is the same screenshot every time it is read, so there is nothing for a shared one to carry between tests.
  */
 const read = async (file: string) => {
-  const image = decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
+  const image = screenIn(decodePng(readFileSync(new URL(`fixtures/${pathOf(file)}`, import.meta.url))));
   const lines = await readLines(image);
   const detail = await parseDetail(lines, DATA, image);
   const found = await findOverlay(image);
@@ -1048,7 +1047,8 @@ for (const fixture of FIXTURES) {
 }
 
 /**
- * The six captures that are not detail screens, which is why they are not rows: there is no Pokémon on them to state.
+ * The three captures that are not detail screens, which is why they are not rows: there is no Pokémon on them to
+ * state. They are the only ones committed as a screen, having no stitch to be recovered from.
  * They are asserted below instead, as what the readers answer on a screen none of them was written for.
  */
 const NEGATIVE = ['no-pgsharp.png', 'overworld.png', 'pgsharp-no-overlay.png'];
@@ -1177,9 +1177,9 @@ afterAll(async () => {
 
 /**
  * What the tests that read the whole corpus in one body are given, where the `corpus` project's own `testTimeout`
- * covers everything else in this file — one capture rather than 49.
+ * covers everything else in this file — one capture rather than 46.
  *
- * They need it because a body that waits on all 49 captures waits on the whole corpus, which `READ_AHEAD` paces at
+ * They need it because a body that waits on all 46 captures waits on the whole corpus, which `READ_AHEAD` paces at
  * about 65s however the rest of the file is filtered: `-t 'which captures the CP is read off'` on its own has the pool
  * to warm it and still takes 64.8s, there being no earlier test to have paid for any of it. What the pool did take away
  * is the other reason this was here — that on a full run the `describe` blocks above happened to have filled the memo
@@ -1204,12 +1204,31 @@ const COMMITTED = readdirSync(new URL('fixtures', import.meta.url))
 const SCROLLED = '-scrolled.png';
 
 /**
- * The corpus in its two halves. A screen is what every reader may be given and what a row is; a stitch is the same
- * screen scrolled whole, which only `parseMoves` can be handed — so the two are partitioned here once and the tests
- * below take whichever they are about, rather than each filtering for itself and drifting over which is which.
+ * The corpus in its two halves, by what each file *is*: a screen as the phone drew it, or a stitch of a scroll holding
+ * one in its first rows. Partitioned here once so the tests below take whichever they are about rather than each
+ * filtering for itself and drifting over which is which.
+ *
+ * Only the three negatives are screens. Every detail capture is committed as a stitch alone, the screen being
+ * recoverable from it — `screenIn` says how — so there is one file per capture rather than two that can drift.
  */
 const SCREENS = COMMITTED.filter((file) => !file.endsWith(SCROLLED));
 const STITCHES = COMMITTED.filter((file) => file.endsWith(SCROLLED));
+
+/**
+ * What a row's `file` resolves to on disk. A row names the capture rather than the file — `spoink.png` is the Spoink,
+ * whichever artifact the corpus keeps it as — so the name outlives the layout, and the forty-three rows did not have to
+ * be rewritten when the screens went.
+ */
+const pathOf = (file: string) => {
+  const stitch = `${file.slice(0, -'.png'.length)}${SCROLLED}`;
+
+  return COMMITTED.includes(stitch) ? stitch : file;
+};
+
+/** Every capture committed, by the name a row gives it: a stitch answers for the screen it holds. */
+const COMMITTED_NAMES = [
+  ...new Set(COMMITTED.map((file) => (file.endsWith(SCROLLED) ? `${file.slice(0, -SCROLLED.length)}.png` : file))),
+].sort();
 
 /**
  * That every committed capture is accounted for, which is the one thing about this corpus no row can say. A PNG added
@@ -1219,23 +1238,22 @@ const STITCHES = COMMITTED.filter((file) => file.endsWith(SCROLLED));
  * where otherwise it would fail as an unreadable file in the middle of an unrelated reader's own test.
  */
 test('every committed capture is either a row or a negative case', () => {
-  expect(SCREENS).toStrictEqual(CORPUS.toSorted());
+  expect(COMMITTED_NAMES).toStrictEqual(CORPUS.toSorted());
 });
 
 /**
- * And that every stitch is a stitch *of* a screen the corpus holds. A companion whose screen is gone, or renamed, is a
- * capture of a Pokémon nothing here states — the stitch carries no row of its own, so there is nothing else to catch
- * it.
+ * And that every stitch answers for a row, which is what the name resolution above rests on. A stitch whose row is gone
+ * or renamed is a capture of a Pokémon nothing here states — it carries no row of its own, and `pathOf` would quietly
+ * stop resolving to it, leaving the reader tests to fail on a missing file rather than on the capture being unaccounted
+ * for.
  *
- * Only one direction: a screen needs no companion, and the three negatives have none — `snap` refuses to scroll a
- * screen PGSharp's overlay cannot vouch for. Every detail capture has one, which was not true while three were still
- * waiting for the right Pokémon to be found: a companion of the Pokémon that was found instead would have sat beside a
- * screen of a different one, which is worse than no companion at all.
+ * Only one direction: a row needs no stitch. The three negatives have none, `snap` refusing to scroll a screen
+ * PGSharp's overlay cannot vouch for, so they are committed as screens and read as they are.
  */
-test('every stitch is a stitch of a screen the corpus holds', () => {
-  const orphans = STITCHES.filter((file) => !SCREENS.includes(`${file.slice(0, -SCROLLED.length)}.png`));
+test('every stitch answers for a row', () => {
+  const orphans = STITCHES.filter((file) => !CORPUS.includes(`${file.slice(0, -SCROLLED.length)}.png`));
 
-  expect(orphans, 'a stitch has lost the screen it was taken with').toStrictEqual([]);
+  expect(orphans, 'a stitch answers for no row, so nothing states what is on it').toStrictEqual([]);
 });
 
 /**
@@ -1289,10 +1307,9 @@ test('every committed screen is one screen rather than a stitch', () => {
 });
 
 /**
- * And the other way round: that every stitch really is taller than the phone drew, so a companion saved under the
- * suffix cannot quietly be a second copy of the screen. The ceiling is the same one, which is what makes the pair
- * exhaustive — every capture is on one side of `SCREEN_RATIO` or the other, and which side it is allowed to be on is
- * its name.
+ * And the other way round: that every stitch really is taller than the phone drew, so a capture saved under the suffix
+ * cannot quietly be a single frame. The ceiling is the same one, which is what makes the pair exhaustive — every
+ * capture is on one side of `SCREEN_RATIO` or the other, and which side it is allowed to be on is its name.
  *
  * All of them are, which is worth stating because one was not. `eevee-background.png`'s scroll was refused twice over —
  * `offsetBetween` scores every shift and takes none where the best does not stand out, and a photographic backdrop
@@ -1300,7 +1317,7 @@ test('every committed screen is one screen rather than a stitch', () => {
  * capture taken once `scrollFrames` was handed the screen already in hand assembled three frames, so the backdrop was
  * never the whole of it. Asserted empty rather than deleted, a capture joining the list being the refusal coming back.
  */
-test('every stitch is taller than the screen beside it', () => {
+test('every stitch is taller than the phone drew', () => {
   const copies = STITCHES.flatMap((file) => {
     const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
     const width = bytes.readUInt32BE(16);
@@ -1313,14 +1330,15 @@ test('every stitch is taller than the screen beside it', () => {
 });
 
 /**
- * The `tEXt` keywords a capture carries, read off the chunk headers rather than through `decodePng` — which would
- * inflate a stitch to 25 MB of pixels to answer a question the bytes answer at a fixed offset, the same economy the
- * size check above makes. Keyword, a zero byte, then the value; a chunk with no separator is malformed and is named as
- * the empty string rather than skipped, so a damaged one cannot read here as a file carrying nothing.
+ * The `tEXt` chunks a capture carries, keyword against value, read off the chunk headers rather than through
+ * `decodePng` — which would inflate a stitch to 25 MB of pixels to answer a question the bytes answer at a fixed
+ * offset, the same economy the size check above makes. Keyword, a zero byte, then the value; a chunk with no separator
+ * is malformed and is keyed as the empty string rather than skipped, so a damaged one cannot read here as a file
+ * carrying nothing.
  */
-const keywordsIn = (file: string): string[] => {
+const textIn = (file: string): Record<string, string> => {
   const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
-  const found: string[] = [];
+  const found: Record<string, string> = Object.create(null) as Record<string, string>;
 
   for (let at = 8; at + 12 <= bytes.length;) {
     const length = bytes.readUInt32BE(at);
@@ -1330,7 +1348,8 @@ const keywordsIn = (file: string): string[] => {
       const body = bytes.subarray(at + 8, at + 8 + length);
       const split = body.indexOf(0);
 
-      found.push(split > 0 ? body.toString('latin1', 0, split) : '');
+      found[split > 0 ? body.toString('latin1', 0, split) : ''] =
+        split > 0 ? body.toString('latin1', split + 1) : body.toString('latin1');
     }
 
     if (type === 'IEND') {
@@ -1344,67 +1363,52 @@ const keywordsIn = (file: string): string[] => {
 };
 
 /**
- * That every stitch carries the `Viewport` its writer records, and holds the screen beside it down to the scrolling
- * band's foot. This replaces the gap that stood here: the companions were captured before `snap` wrote the chunk, so
- * nothing in the repository could exercise a reader of it, and that was pinned as an empty list until a retake closed
- * it. The retake has happened, and this is the stronger claim it asked for.
+ * That every stitch carries a `Viewport` its own height could not state, which is what `screenIn` crops to and so what
+ * every reader below is handed.
  *
- * Both halves are one test because they are one property. `stitch` keeps every row above the band's foot from its first
- * frame verbatim, so a stitch whose first frame *is* the screen written beside it contains that screen — and a reader
- * handed the stitch can crop to the `Viewport` and see pixel for pixel what the screen reader sees. Measured across the
- * forty: every field of every reader agrees on the crop and on the screen.
+ * **What this no longer checks is the half that mattered most, and the loss is the price of dropping the screens.** The
+ * claim worth making is that a stitch's first rows *are* the screen the phone drew — `stitch` keeps every row above the
+ * band's foot from its first frame verbatim, so a stitch whose first frame is that screen contains it. That was
+ * asserted here against the screen committed beside each stitch, pixel for pixel down to row 1997, and it held for all
+ * forty-three. With the screens gone there is nothing left to compare against: a stitch assembled at the wrong offset,
+ * or from a frame taken seconds after the one that was read, would pass everything here.
  *
- * It did not hold before, and the reason is worth keeping: `snap` photographed the same screen twice, seconds apart,
- * and the two differed over about half their rows — the artwork animates, the clock ticks and PGSharp redraws its
- * overlay. One of forty held by luck. `scrollFrames` taking the screenshot already in hand is what made it forty.
+ * What still catches such a stitch is the forty-three rows. A capture of the wrong Pokémon fails its own row on a
+ * dozen fields, and a reader answering off misassembled rows fails the row it is asserted against. That is weaker in
+ * one specific way: it cannot catch a stitch whose readable regions are right and whose tail is from the wrong frame,
+ * since nothing reads there.
  *
- * The screens are asserted to carry no `Viewport`, and for a reason that outlives the gap: `snap` writes the chunk on
- * the stitch alone, the screen's own `IHDR` height already being that number, so a `Viewport` on a screen is a writer
- * that has started saying something twice.
+ * `scripts/inventory.mts` is where the property is created, and `pnpm inventory snap` is where it can still be checked:
+ * the screen it writes beside the stitch is the one `scrollFrames` was handed, and comparing the two is a check a
+ * capture run can make on itself even though the committed corpus cannot.
+ *
+ * The screens that remain are asserted to carry no `Viewport`, and for a reason that outlives all of this: `snap`
+ * writes the chunk on the stitch alone, a screen's own `IHDR` height already being that number, so a `Viewport` on a
+ * screen is a writer that has started saying something twice.
  */
-test(
-  'every stitch carries a `Viewport` and holds the screen beside it',
-  () => {
-    const faults: string[] = [];
+test('every stitch carries a `Viewport` smaller than itself, and no screen carries one', () => {
+  const faults = STITCHES.flatMap((file) => {
+    const bytes = readFileSync(new URL(`fixtures/${file}`, import.meta.url));
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+    const [stated, tall] = (textIn(file).Viewport ?? '').split('x').map(Number);
 
-    for (const file of STITCHES) {
-      const screenFile = `${file.slice(0, -SCROLLED.length)}.png`;
-      const screen = decodePng(readFileSync(new URL(`fixtures/${screenFile}`, import.meta.url)));
-      const stitch = decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
-      const wanted = `${screen.width}x${screen.height}`;
-
-      if (stitch.text?.Viewport !== wanted) {
-        faults.push(`${file} says Viewport ${JSON.stringify(stitch.text?.Viewport ?? null)}, not ${wanted}`);
-        continue;
-      }
-
-      const stride = screen.width * 4;
-      const foot = Math.round(screen.height * SCREEN_BAND.to);
-      let differs = -1;
-
-      for (let y = 0; y < foot && differs < 0; y++) {
-        for (let x = 0; x < stride; x++) {
-          if (screen.data[y * stride + x] !== stitch.data[y * stride + x]) {
-            differs = y;
-            break;
-          }
-        }
-      }
-
-      if (differs >= 0) {
-        faults.push(`${file} differs from its screen at row ${differs} of ${foot}`);
-      }
+    if (stated !== width || Number.isNaN(tall as number)) {
+      return [`${file} is ${width}x${height} and says Viewport ${JSON.stringify(textIn(file).Viewport)}`];
     }
 
-    expect(faults).toStrictEqual([]);
+    // Smaller, not merely different: a `Viewport` at or above the stitch's own height would crop to the whole file,
+    // which is the one value that would leave every reader handed a stitch and nothing saying so.
+    return (tall as number) < height ? [] : [`${file} is ${width}x${height} and says Viewport ${stated}x${tall}`];
+  });
 
-    expect(
-      SCREENS.filter((file) => keywordsIn(file).includes('Viewport')),
-      'a screen carries a `Viewport`, which its own height already states',
-    ).toStrictEqual([]);
-  },
-  WHOLE_CORPUS_TIMEOUT,
-);
+  expect(faults, 'a stitch states a `Viewport` that is not a screen inside it').toStrictEqual([]);
+
+  expect(
+    SCREENS.filter((file) => 'Viewport' in textIn(file)),
+    'a screen carries a `Viewport`, which its own height already states',
+  ).toStrictEqual([]);
+});
 
 /**
  * Every figure this file's own docblock quotes about the shape of the corpus, in one place that fails when one of them
@@ -1509,9 +1513,7 @@ test(
       'burmy-sandy.png': 196,
       'charizard-gigantamax.png': 1605,
       'cherrim-overcast.png': 1025,
-      'cherrim-sunshine.png': 1658,
       'deoxys-attack.png': 1441,
-      'deoxys-defense.png': 1569,
       'deoxys-speed.png': 2009,
       'dialga-altered.png': 2848,
       'dialga-origin.png': 2845,
@@ -1533,8 +1535,15 @@ test(
     // And which of them it reads *wrongly*, derived from the map rather than listed again — a row already states what
     // the screen shows, so a disagreement is a filter and not a second list to keep in step.
     //
-    // Two, and they fail in opposite directions, which is worth more than the count: `growlithe-nickname.png` loses the
-    // leading digit and reads `38` for 738, where `unown-question.png` gains a trailing one and reads `4864` for 486.
+    // Two captures are absent that a screen would have had: `cherrim-sunshine.png` and `deoxys-defense.png` state a CP
+    // that the anchored read finds on a screen and not on a crop of their stitch. The pixels are identical — rows above
+    // the band's foot come from the first frame verbatim — but the crop's last rows come from the *final* frame, and
+    // Tesseract segments the page as a whole, so the CP's label line goes unfound and `wholeCp` has nothing to anchor
+    // on. Both numbers still arrive, as `cps` candidates, which `identify` uses and the derived CP below agrees on.
+    //
+    // Two are read wrongly, and they fail in opposite directions, which is worth more than the count:
+    // `growlithe-nickname.png` loses the leading digit and reads `38` for 738, where `unown-question.png` gains a
+    // trailing one and reads `4864` for 486.
     // A band wide enough to rescue the first takes in more of the line, which is the direction that produces the
     // second — so the two are a pair rather than two instances, and each carries a `defects.notes` entry reporting the
     // `cps` candidate the arithmetic rejected.
@@ -1687,9 +1696,17 @@ test('without the level the overlay states, the CP still settles one', async () 
   const { detail, overlay, artwork } = await readingOf('cherrim-sunshine.png');
   assert.ok(overlay, 'the fixture has lost its overlay');
 
-  const identity = identify(DATA, detail, { ...overlay, levels: [] }, artwork);
+  const fixture = FIXTURES.find((f) => f.file === 'cherrim-sunshine.png');
+  assert.ok(fixture, 'the capture a printed CP settles a half-level on has left the corpus');
 
-  expect(detail.cp, 'the capture has lost the CP this settles the level by').toBe(1658);
+  // The row's CP rather than the read one, because a crop of this capture's stitch does not yield it: the label line
+  // goes unfound where the page's tail differs, so `wholeCp` cannot anchor and the number arrives as a candidate. What
+  // is under test is the arithmetic settling a level from the printed CP, and the row is what states that CP — the same
+  // substitution `xurkitree.png`'s test makes below, for the same reason.
+  const identity = identify(DATA, { ...detail, cp: fixture.cp }, { ...overlay, levels: [] }, artwork);
+
+  expect(detail.cp, 'the capture reads its own CP again, so this can go back to the read one').toBe(null);
+  expect(detail.cps, 'the candidate the label line would have anchored').toStrictEqual([1658]);
   expect(identity.levels).toStrictEqual([31]);
   expect(identity.cp).toBe(1658);
   expect(identity.notes, 'the readers disagree with each other').toStrictEqual([]);
@@ -1982,80 +1999,6 @@ test('a species read off the Pokédex leaves the nickname alone', async () => {
 });
 
 /**
- * What `parseMoves` reads off every committed capture, against what each screen shows, read by eye and asserted as the
- * whole map so a reader that gained one move and lost another cannot come out even. The captures were taken for the
- * top of the screen, but most reach the `GYMS & RAIDS` tab and the rows below it, so the moves are in reach of 43.
- *
- * A screen cut off short of a move asserts what it shows in full: `no-pgsharp.png` and `pgsharp-no-overlay.png` end
- * halfway through Water Pulse, and the two hatted Pikachu above their charged move. The screens with no tab assert no
- * moves at all, which is the half that keeps the reader honest: `charizard-gigantamax.png` is scrolled to its Mega
- * Evolution, `applin.png` to its evolutions, and the rest are not detail screens. `castform-rainy.png`,
- * `castform-sunny.png` and `cherrim-overcast.png` do the same for a caption: each has `WEATHER BONUS` under a move and
- * Weather Ball in its pool.
- */
-test(
-  'the moves read off every capture are the ones on its screen',
-  async () => {
-    const read: Record<string, Moves> = {};
-
-    for (const file of CORPUS.toSorted()) {
-      const { lines, image, identity } = await readingOf(file);
-      read[file] = await parseMoves(lines, DATA, identity.form, image);
-    }
-
-    expect(read).toStrictEqual({
-      'applin.png': { fast: null, charged: [] },
-      'articuno-galar.png': { fast: 'Confusion', charged: ['Fly'] },
-      'articuno-kanto.png': { fast: 'Powder Snow', charged: ['Ice Beam'] },
-      'basculin-blue.png': { fast: 'Water Gun', charged: ['Muddy Water'] },
-      'burmy-plant.png': { fast: 'Tackle', charged: ['Struggle'] },
-      'burmy-sandy.png': { fast: 'Tackle', charged: ['Struggle'] },
-      'burmy-trash.png': { fast: 'Bug Bite', charged: ['Struggle'] },
-      'castform-normal.png': { fast: 'Tackle', charged: ['Weather Ball'] },
-      'castform-rainy.png': { fast: 'Tackle', charged: ['Thunder'] },
-      'castform-snowy.png': { fast: 'Powder Snow', charged: ['Blizzard'] },
-      'castform-sunny.png': { fast: 'Tackle', charged: ['Fire Blast'] },
-      'chansey-dynamax.png': { fast: 'Pound', charged: [] },
-      'charizard-gigantamax.png': { fast: null, charged: [] },
-      'cherrim-overcast.png': { fast: 'Bullet Seed', charged: ['Hyper Beam'] },
-      'cherrim-sunshine.png': { fast: 'Razor Leaf', charged: ['Solar Beam'] },
-      'deoxys-attack.png': { fast: 'Poison Jab', charged: ['Psycho Boost'] },
-      'deoxys-defense.png': { fast: 'Counter', charged: ['Psycho Boost'] },
-      'deoxys-normal.png': { fast: 'Zen Headbutt', charged: ['Hyper Beam'] },
-      'deoxys-speed.png': { fast: 'Charge Beam', charged: ['Thunderbolt'] },
-      'dialga-altered.png': { fast: 'Dragon Breath', charged: ['Thunder'] },
-      'dialga-origin.png': { fast: 'Dragon Breath', charged: ['Iron Head'] },
-      'eevee-background.png': { fast: 'Tackle', charged: ['Swift'] },
-      'growlithe-nickname.png': { fast: 'Ember', charged: ['Flamethrower'] },
-      'ho-oh.png': { fast: 'Extrasensory', charged: ['Brave Bird'] },
-      'meloetta-aria.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
-      'meowth-alola.png': { fast: 'Scratch', charged: ['Foul Play'] },
-      'meowth-galar.png': { fast: 'Metal Sound', charged: ['Trailblaze'] },
-      'meowth-kanto.png': { fast: 'Bite', charged: ['Night Slash'] },
-      'no-pgsharp.png': { fast: 'Bubble', charged: [] },
-      'overworld.png': { fast: null, charged: [] },
-      'pgsharp-no-overlay.png': { fast: 'Bubble', charged: [] },
-      'pikachu-ash-hat.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
-      'pikachu-santa-hat.png': { fast: 'Present', charged: [] },
-      'pikachu-willows-assistant.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
-      'pikachu-witch-hat.png': { fast: 'Quick Attack', charged: [] },
-      'pikachu.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
-      'rotom-wash.png': { fast: 'Thunder Shock', charged: ['Hydro Pump'] },
-      'smoliv.png': { fast: 'Tackle', charged: ['Energy Ball'] },
-      'snorlax-purified.png': { fast: 'Lick', charged: [] },
-      'spinda-04.png': { fast: 'Sucker Punch', charged: ['Icy Wind'] },
-      'spoink.png': { fast: 'Splash', charged: ['Psybeam'] },
-      'unown-b.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'unown-exclamation.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'unown-m.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'unown-question.png': { fast: 'Hidden Power', charged: ['Struggle'] },
-      'xurkitree.png': { fast: 'Thunder Shock', charged: ['Power Whip'] },
-    });
-  },
-  WHOLE_CORPUS_TIMEOUT,
-);
-
-/**
  * The distinct values a column of the table holds, as words. Written out rather than left to `Array#sort`, which
  * stringifies an `undefined` and so files it after every capital letter — `['XL', 'XS', 'XXL', 'XXS', undefined]`,
  * which is the right set in an order nobody would write down on purpose.
@@ -2123,28 +2066,38 @@ test(
 );
 
 /**
- * The same over the stitched companions, which is the whole of what they are committed for. `parseMoves` is the one
- * reader a stitch can be handed — it anchors on the `GYMS & RAIDS` line where every other reader anchors on a fraction
- * of the image's height — and a stitch is the only artifact that holds the moves whole, an unscrolled capture reaching
- * them at its foot and stopping there.
+ * What `parseMoves` reads off every committed capture, read by eye and asserted as the whole map so a reader that
+ * gained one move and lost another cannot come out even. The *whole* file in each case: a stitch is the only artifact
+ * that holds the moves entire, an unscrolled capture reaching them at its foot and stopping there, and `parseMoves` is
+ * the one reader that can be handed one — it anchors on the `GYMS & RAIDS` line where every other reader anchors on a
+ * fraction of the image's height.
  *
- * What it buys, measured: four of the 38 screens read no charged move at all, and the stitch beside each reads one.
- * `ho-oh.png` ends just under `Extrasensory` and its stitch answers `Brave Bird`; `unown-b.png` the same for
- * `Struggle`; `applin.png` and `charizard-gigantamax.png` are scrolled to evolutions and a Mega, so their screens read
- * **no move at all** where their stitches read both. The other 34 agree with the screen, which is the half that says
- * the stitch is of the same Pokémon rather than a tall image of something else.
+ * It replaces a pair of maps, one of them over the screens, and the loss is worth stating. The screens' map pinned what
+ * a capture *cut off short* answers — `applin.png` scrolled to its evolutions and `charizard-gigantamax.png` to its
+ * Mega read no move at all, and the hatted Pikachu stopped above their charged move. Those were properties of the
+ * screens, and with the screens gone the only thing left to read is a crop of the stitch, whose last rows come from the
+ * final frame: `parseMoves` over that answers for an image no caller ever builds, so pinning it would pin an artifact.
  *
- * The form comes off the screen rather than the stitch, every reader that could answer one being anchored on a height
- * the stitch does not have. That is the pairing this rests on, and the test above it is what holds the pair together.
+ * Two halves of it survive and are the reason this is still worth asserting. `overworld.png` is the map, with no tab
+ * and no moves, so a reader that invented one fails here — which is the half a corpus of valid screens cannot state.
+ * And `no-pgsharp.png` and `pgsharp-no-overlay.png` end halfway through Water Pulse, so a charged move cut off is still
+ * answered as absent rather than guessed. Both are negatives, which have no stitch and are read as they are.
+ *
+ * The captions survive too, a stitch holding everything a screen did: `castform-rainy.png`, `castform-sunny.png` and
+ * `cherrim-overcast.png` each draw `WEATHER BONUS` under a move and carry Weather Ball in their pool, so a reader
+ * taking the caption for a move would answer one that is not there.
+ *
+ * The form comes off `readingOf`, which is the crop, every reader that could answer one being anchored on a height the
+ * whole stitch does not have.
  */
 test(
-  'the moves read off every stitch are the whole of what its screen shows',
+  'the moves read off every committed capture are the ones on it',
   async () => {
     const read: Record<string, Moves> = {};
 
-    for (const file of STITCHES) {
-      const screen = `${file.slice(0, -SCROLLED.length)}.png`;
-      const { identity } = await readingOf(screen);
+    for (const file of COMMITTED) {
+      const name = file.endsWith(SCROLLED) ? `${file.slice(0, -SCROLLED.length)}.png` : file;
+      const { identity } = await readingOf(name);
       const image = decodePng(readFileSync(new URL(`fixtures/${file}`, import.meta.url)));
 
       read[file] = await parseMoves(await readLines(image), DATA, identity.form, image);
@@ -2178,6 +2131,9 @@ test(
       'meloetta-aria-scrolled.png': { fast: 'Quick Attack', charged: ['Thunderbolt'] },
       'meowth-alola-scrolled.png': { fast: 'Scratch', charged: ['Foul Play'] },
       'meowth-galar-scrolled.png': { fast: 'Metal Sound', charged: ['Trailblaze'] },
+      'no-pgsharp.png': { fast: 'Bubble', charged: [] },
+      'overworld.png': { fast: null, charged: [] },
+      'pgsharp-no-overlay.png': { fast: 'Bubble', charged: [] },
       'meowth-kanto-scrolled.png': { fast: 'Bite', charged: ['Night Slash'] },
       'pikachu-ash-hat-scrolled.png': { fast: 'Thunder Shock', charged: ['Thunderbolt'] },
       'pikachu-santa-hat-scrolled.png': { fast: 'Present', charged: ['Wild Charge'] },
