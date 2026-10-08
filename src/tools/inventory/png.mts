@@ -278,6 +278,32 @@ export function crop(image: Image, left: number, top: number, width: number, hei
 }
 
 /**
+ * The screen a capture holds: the capture itself where it is one, and the first `Viewport` rows where it is a stitch.
+ *
+ * This is what lets a stitch be the only file committed for a detail screen. `stitch` keeps every row above the
+ * scrolling band's foot from its first frame verbatim, and `snap` hands it the screenshot it has already written, so a
+ * stitch's top rows *are* that screen — and `Viewport` is the one thing the file cannot say with its own `IHDR`, a
+ * stitch being as many frames tall as the screen took. Cropping to it needs nothing of the readers: the crop is exactly
+ * `Viewport` rows tall, so every fraction of `image.height` lands where it was measured.
+ *
+ * Not a perfect substitute, and the one place it is not is worth knowing. The crop's last rows come from the *final*
+ * frame where a screen's come from the first — the game's floating buttons are furniture and identical, but the panel
+ * between them has scrolled. Nothing reads there, so no region moves; what moves is Tesseract's page segmentation,
+ * which takes the whole image. On `cherrim-sunshine.png` and `deoxys-defense.png` that costs the CP its *label* line,
+ * so `wholeCp` has nothing to anchor on and the number arrives as a `cps` candidate instead. Identical pixels, a
+ * different answer, because the page they sit on differs elsewhere.
+ */
+export const screenIn = (image: Image): Image => {
+  // Matched whole rather than split and converted, because `Number('')` is 0 and not `NaN`: a `Viewport` of `4x` reads
+  // as a screen four wide and none tall, which `crop` answers as an empty image rather than refusing. A pattern says
+  // what `snap` writes and nothing else, so every way of being damaged lands in the one branch that hands the capture
+  // back whole.
+  const stated = /^(\d+)x(\d+)$/.exec(image.text?.Viewport ?? '');
+
+  return stated ? crop(image, 0, 0, Number(stated[1]), Number(stated[2])) : image;
+};
+
+/**
  * A nearest-neighbour enlargement. Tesseract reads small text better with more pixels under it, but only up to a
  * point: measured over twelve overlay captures, 2x turned `14/18/12` into the `14/13/12` it really was, where 3x and
  * 4x started reading the `L` of the level as a `1`.
