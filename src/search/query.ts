@@ -47,19 +47,17 @@ export const names = (text: string) =>
 /**
  * The search string, and whatever is worth saying about it.
  *
- * The caveat is the one thing the builder cannot fix for you. Pokémon GO's search has no parentheses, so a string that
- * mixes `,` and `&` cannot say which binds tighter, and `fire,water&shiny` is open to being read as either "Fire, or a
- * shiny Water" or "a shiny, and Fire or Water". The page says so when the question can arise, which is better than
- * quietly picking a reading on the reader's behalf — and it arises more often now, an arrangement being able to ask
- * for things the earlier fixed one could not.
+ * A string mixing `,` and `&` only means what the canvas says it means if a comma binds tighter than an ampersand.
+ * That assumption is still load-bearing and `clauses.js` documents it; what is gone is the warning the page used to
+ * carry about it. The earlier builder mixed the two operators only now and then, so a caveat marked the occasion —
+ * an arrangement with any `any` in it mixes them, so the same caveat would be on screen for every query worth
+ * building, and a warning that never goes away is furniture rather than a warning.
  */
 export function compose(state: State) {
   const { clauses, error, mishandled } = clausesOf(state.tree);
-  const query = clauses.join('&');
 
   return {
-    query,
-    ambiguous: query.includes(',') && query.includes('&'),
+    query: clauses.join('&'),
     clauses: clauses.length,
     error,
     mishandled,

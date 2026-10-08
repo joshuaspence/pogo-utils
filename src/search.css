@@ -745,11 +745,17 @@ body[data-page='search'] {
 
   /**
    * The pill under the pointer. Fixed and translated off its own corner so it hangs from the grab point, and
-   * `pointer-events: none` so that `elementFromPoint` reports the group beneath rather than the ghost itself — which
-   * is the whole of how the drop target is found.
+   * `pointer-events: none` so that `elementFromPoint` reports the group beneath rather than this element itself —
+   * which is the whole of how the drop target is found.
+   *
+   * Not `.ghost`, which it was called first: this sheet already gives that word to the Clear button beside the string,
+   * and the Pokédex gives it to a link. `.output button.ghost` outranks a bare `.ghost` on everything the two of them
+   * both set, so the colours were fine and only the one property this rule holds alone leaked — Clear went
+   * `position: fixed` and climbed into the Copy button. A class name means one thing per sheet, and the sheet's own
+   * note about five pages sharing nineteen names is about the easier half of that problem.
    */
 
-  .ghost {
+  .dragging {
     position: fixed;
     z-index: 50;
     padding: 4px 10px;

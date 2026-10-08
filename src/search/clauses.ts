@@ -13,10 +13,15 @@
  * inside an `all` beside two more comes out as four clauses, and not one of the four is a search anybody would have
  * thought to write.
  *
- * Which leaves the precedence, and the page has already answered it. A clause list joined with `&` only means what it
- * says if a comma binds tighter than an ampersand, which is the reading the earlier builder took when it wrote
- * `fire,water&shiny` for a shiny that is Fire or Water, and the caveat under the output box says the string cannot
- * prove which binds first. Nothing new is claimed here.
+ * Which leaves the precedence, and it is the one assumption under all of this. A clause list joined with `&` only
+ * means what the canvas said if a comma binds tighter than an ampersand: `fire,water&shiny` has to read as a shiny
+ * that is Fire or Water rather than as Fire or a shiny Water. Niantic's list documents both operators and never
+ * combines them in an example, and the fullest community reference carries a note that searches "do not take priority
+ * over each other" against a thread that could not be read — so this is stated here rather than proved, and it is the
+ * reading the page has taken since it only had chips.
+ *
+ * The page used to warn about it whenever a string mixed the two. It no longer does: the fixed builder mixed them now
+ * and then, where an arrangement holding any `any` at all mixes them, so the warning would never be off.
  *
  * What it costs is characters, since an `any` multiplies where an `all` adds. That is the normal form's nature rather
  * than a shortcoming — `(a&b),(c&d)` really is four clauses in a language with no brackets.

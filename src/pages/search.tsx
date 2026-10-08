@@ -137,7 +137,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const listRef = useRef<HTMLUListElement>(null);
   const queryRef = useRef<HTMLElement>(null);
 
-  const { query, ambiguous, was, rewrites, lossy, error, mishandled } = current(state);
+  const { query, was, rewrites, lossy, error, mishandled } = current(state);
 
   /** The fragment this state would be linked as, which is both what goes in the address bar and when to put it there. */
   const mine = toFragment(state);
@@ -562,11 +562,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </span>
           </div>
 
-          <p class="caveat" hidden={!ambiguous}>
-            This mixes <code>,</code> and <code>&amp;</code>, and the game's search has no brackets to say which binds
-            first. Check it matches what you meant before trusting it on a mass transfer.
-          </p>
-
           <p class="broken" hidden={error === null}>
             {ticked(error ?? '')}
           </p>
@@ -711,6 +706,35 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           </p>
         </section>
 
+        <div class="groups">
+          {GROUPS.map((category) => (
+            <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
+              <h2 class="label">{category.label}</h2>
+              <div class="chips">
+                {category.terms.map((term) => (
+                  <button
+                    key={term.id}
+                    type="button"
+                    class="chip"
+                    title={`${term.term} — drag into a group, or press to add it to the one you are filling`}
+                    aria-label={`Add ${term.label}`}
+                    onPointerDown={(event) =>
+                      onPointerDown(event, termLeaf(term.id), null, () =>
+                        edit((tree) => append(tree, focus, termLeaf(term.id))),
+                      )
+                    }
+                  >
+                    <span class="state" aria-hidden="true">
+                      +
+                    </span>
+                    <span>{term.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p class="help">{category.help}</p>
+            </section>
+          ))}
+        </div>
         <section class="panel" aria-labelledby="rangesLabel">
           <h2 class="label" id="rangesLabel">
             Ranges
@@ -745,41 +769,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             A span pill carries its own two boxes, and a box left empty falls back to that range's limit.
           </p>
         </section>
-
-        <div class="groups">
-          {GROUPS.map((category) => (
-            <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
-              <h2 class="label">{category.label}</h2>
-              <div class="chips">
-                {category.terms.map((term) => (
-                  <button
-                    key={term.id}
-                    type="button"
-                    class="chip"
-                    title={`${term.term} — drag into a group, or press to add it to the one you are filling`}
-                    aria-label={`Add ${term.label}`}
-                    onPointerDown={(event) =>
-                      onPointerDown(event, termLeaf(term.id), null, () =>
-                        edit((tree) => append(tree, focus, termLeaf(term.id))),
-                      )
-                    }
-                  >
-                    <span class="state" aria-hidden="true">
-                      +
-                    </span>
-                    <span>{term.label}</span>
-                  </button>
-                ))}
-              </div>
-              <p class="help">{category.help}</p>
-            </section>
-          ))}
-        </div>
       </main>
 
       {/* The pill under the pointer, drawn outside the layout so it cannot push anything about as it moves. */}
       {drag?.moved === true && (
-        <span class="ghost" style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
+        <span class="dragging" style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
           {isGroup(drag.node) ? JUNCTION[drag.node.junction].label : leafLabel(drag.node)}
         </span>
       )}

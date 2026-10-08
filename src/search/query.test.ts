@@ -61,12 +61,16 @@ test('an empty canvas composes nothing at all', () => {
   expect(compose(state(all(any(), all()))).query).toBe('');
 });
 
-test('the caveat is earned by mixing the two operators and by nothing else', () => {
-  // The game has no brackets, so `shiny&fire,water` is open to being read either way round and the page says so
-  // rather than quietly picking one. A string carrying only one of the two operators cannot raise the question.
-  expect(compose(state(all(yes('shiny'), any(yes('fire'), yes('water'))))).ambiguous).toBe(true);
-  expect(compose(state(any(yes('fire'), yes('water')))).ambiguous).toBe(false);
-  expect(compose(state(all(yes('shiny'), yes('lucky')))).ambiguous).toBe(false);
+test('a comma binds tighter than an ampersand, which is the one thing the string is read against', () => {
+  /*
+   * Stated rather than proved — Niantic's list never combines the two operators in an example — and the page no longer
+   * warns about it, a warning that would be on for every arrangement holding an `any` being furniture. So it is pinned
+   * here instead: an `any` nested in the root composes one clause of alternatives, and that is only the search the
+   * canvas drew if the comma binds first.
+   */
+  expect(compose(state(all(yes('shiny'), any(yes('fire'), yes('water'))))).query).toBe('shiny&fire,water');
+  expect(compose(state(all(yes('shiny'), yes('lucky')))).query).toBe('shiny&lucky');
+  expect(compose(state(any(yes('fire'), yes('water')))).query).toBe('fire,water');
 });
 
 test('a query too wide to write says so and composes nothing', () => {

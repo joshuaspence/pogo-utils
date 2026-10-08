@@ -207,10 +207,13 @@ an XXL Pumpkaboo — two `all` groups inside an `any`, which the earlier fixed b
 have thought to write.
 
 Three costs are worth knowing. An `any` **multiplies** where an `all` adds, so a few groups buy a great many characters;
-the converter refuses past a thousand clauses rather than build a string no search box could hold. The conversion only
-means what it says if a comma binds tighter than an ampersand, which is the reading the page has always taken and the
-one the warning above the string says the game will not confirm. And a clause that asks nothing is dropped — a pill with
-no bounds filled in yet, or a group with nothing in it, asks nothing and is read that way rather than guessed at.
+the converter refuses past a thousand clauses rather than build a string no search box could hold. A clause that asks
+nothing is dropped — a pill with no bounds filled in yet, or a group with nothing in it, asks nothing and is read that
+way rather than guessed at. And the conversion only means what it says if a comma binds tighter than an ampersand, which
+is the one assumption under all of it: Niantic's list documents both operators and never combines them in an example, so
+it is stated rather than proved, and it is the reading the page has taken since it only had chips. The page used to warn
+whenever a string mixed the two operators and no longer does — the fixed builder mixed them now and then, where an
+arrangement holding any `any` at all mixes them, so the warning would never have been off.
 
 [`src/search/tree.ts`](src/search/tree.ts) owns the arrangement itself: what a pill writes, and the three edits a drag
 makes. A node is named by its **path** — `[2, 0]` is the first part of the third part of the root — which is what a
@@ -236,7 +239,7 @@ with, so each reduction asks only about one group's own parts. A pill one group 
 which is the only reading that cannot make a search broader than it was.
 
 It rewrites the _tree_ rather than the string, handing a second tree to the same composer, so the short string goes
-through the same distribution and the same ambiguity check as the long one — and the canvas and the link never stop
+through the same distribution and the same clause writer as the long one — and the canvas and the link never stop
 carrying what was actually arranged, so switching the toggle back off restores the original rather than leaving a
 rewrite to undo. The substitutions are listed under the string, because one of them is not an equivalence: a name
 matches nicknames as well as species, where a dex number matches the species alone. What it will not do is turn
