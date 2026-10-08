@@ -134,8 +134,8 @@ test('no stylesheet gives one class name to two kinds of element', () => {
 });
 
 /**
- * The page names a sheet scopes itself to, out of its `body[data-page='…']` wrappers. Comments are stripped first for the
- * reason `selectedIds` does it: the wrapper is discussed in prose in most of these sheets.
+ * The page names a sheet scopes itself to, out of its `body[data-page='…']` wrappers. Comments are stripped first, as
+ * `selectedIds` does, because the wrapper is discussed in prose in most of these sheets.
  */
 function scopedPages(css: string) {
   const pages = new Set<string>();
@@ -187,7 +187,7 @@ test('every page a stylesheet scopes itself to is one the router has', () => {
    * nothing at all. Neither check above would notice: the rules parse, the ids still resolve, the page renders — and
    * every class in the sheet is simply unstyled.
    *
-   * Renaming a page is what reaches this. The router entry, the chunk table and the stylesheet import are all checked by
+   * Renaming a page is what reaches this. The router entry, the chunk table and the stylesheet import are checked by
    * `tsc`; the attribute value in the sheet is a string on both ends and was checked by nothing.
    */
   const named = routerPages();
