@@ -5,10 +5,11 @@
  * new kind of file is therefore a single entry here, and cannot arrive with the build allowing it and the server
  * having no type for it.
  *
- * The values are the headers GitHub Pages answers with rather than types chosen here, so a local run and the
- * deployment can differ on a header only where this has gone stale. `pnpm check:served-types` is what says whether it
- * has, by asking the deployed site for one file per extension — a comment claiming the parity cannot notice losing it,
- * and `src/serve.test.mts` reads this table to assert against, so it cannot either.
+ * The values were read off the deployment with `curl -sI` rather than chosen here, so a local run and the deployment
+ * can differ on a header only where this has gone stale since. Nothing re-checks that, and nothing can cheaply:
+ * `src/serve.test.mts` reads this table to assert against, so it pins that the server honours these values and not
+ * that they are still what Pages sends. Treat them as a record of one measurement, and `curl -sI` the published file
+ * when a header matters.
  *
  * Matching Pages is the whole of the reason `.js` carries its older `application/javascript` rather than the
  * `text/javascript` that has since replaced it, and why `.ics` and `.gpx` have no `charset` where the other text types

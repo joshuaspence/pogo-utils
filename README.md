@@ -43,22 +43,15 @@ with a 404. The server is [`scripts/serve.mts`](scripts/serve.mts), a `node:http
 it and nothing is served that the build does not publish: an extension with no entry in
 [`scripts/served-types.mts`](scripts/served-types.mts) is a 404 rather than a guessed type.
 
-That table is the point of serving it this way. Each entry is the header the deployed site answers with, read off Pages
-rather than chosen, so a header is the same locally as in production — which is what lets the Events page's
-**Subscribe** link be followed here at all, `text/calendar` being what a calendar client takes and `text/plain` being
-what it ignores. It is also the list [`scripts/assemble.mts`](scripts/assemble.mts) holds `dist/` to, so a new kind of
-file is one entry rather than two that can drift apart.
+That table is the point of serving it this way. Each entry was read off the deployment with `curl -sI` rather than
+chosen here, so a header is the same locally as in production — which is what lets the Events page's **Subscribe** link
+be followed here at all, `text/calendar` being what a calendar client takes and `text/plain` being what it ignores. It
+is also the list [`scripts/assemble.mts`](scripts/assemble.mts) holds `dist/` to, so a new kind of file is one entry
+rather than two that can drift apart.
 
-[`scripts/check-served-types.mts`](scripts/check-served-types.mts) asks the deployment whether that table is still
-right, one file per extension:
-
-```sh
-pnpm check:served-types
-```
-
-It is out of `pnpm lint` because it reaches the network, which `pnpm build` is otherwise free of, so it is for when the
-table is edited or a header looks wrong locally. The suite covers the other half — that the server honours the table —
-by reading the same table, which is exactly why the comparison against the deployment is a separate command.
+Nothing re-checks those values against the deployment, and the suite cannot: it reads the same table to assert the
+server honours it. So a header Pages changes is found by asking it — `curl -sI` against the published file — rather than
+by a run going red.
 
 One caveat is local only and stays. The LAN address printed beside the local one is good for viewing the site on a phone
 but not for installing it — a plain-HTTP origin is no secure context, and Chrome will read `manifest.json` for

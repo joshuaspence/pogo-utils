@@ -17,8 +17,8 @@
  * error that reads much like a refusal if nothing looks any further.
  *
  * What this cannot check is the table itself. It reads `SERVED_TYPES` to assert against, so it pins that the server
- * honours the table and says nothing about whether the table still matches the deployment — that is
- * `pnpm check:served-types`, which asks Pages and is kept out of the suite for reaching the network.
+ * honours the table and says nothing about whether the table still matches the deployment. Nothing here does — a
+ * header Pages changes is found by `curl -sI` against the published file, not by this going red.
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
