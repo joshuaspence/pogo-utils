@@ -1292,8 +1292,8 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * scan cannot either; only a second reader of the same thing could.
  */
 test('the defects a scan can find for itself are the five captures that raise a note', () => {
-  // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
-  // all produces — which is the trigger switched off and nothing saying so.
+  // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
+  // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
   expect(
     FIXTURES.filter((f) => notesOf(f).length > 0).length,
     'how many captures `identify` raises a note on has changed',
