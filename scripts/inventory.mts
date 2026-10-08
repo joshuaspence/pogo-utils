@@ -577,12 +577,15 @@ async function scan() {
     /** Worked out while reading, since a reading is only accepted once something fits it; the row writer reuses it. */
     id: Identity;
     key: string | null;
-    /** The screenshot this reading was read from, which is what a kept screen has to be to account for its row. */
+    /** The screenshot this reading was read from, which the `-detail` screen has to be to account for its row. */
     image: Image;
     /**
      * The last screenshot taken, which is `image` on every reading but one `bestOf` kept from an earlier attempt. The
      * scroll owes `scrollFrames` a frame still on the screen and measures its swipe against one, where an attempt back
      * is a `config.waits.swipe` and a `settled` older than that.
+     *
+     * Where the two differ the stitch is a later read of the screen than the row beside it, which the row says, since
+     * the stitch is the capture a fixture is promoted from and the row is what a reader would take its claims for.
      */
     latest: Image;
     /**
@@ -599,8 +602,8 @@ async function scan() {
    * of the upper screen and one crop. Only a box that actually yielded a reading is kept: one that merely looked
    * right would go on being wrong for every Pokémon after it, where not keeping it costs another sweep.
    *
-   * `sweep` is the caller's leave to spend one of the rationed searches, which it withholds where a sweep cannot be
-   * what this Pokémon needs — the crop is still read, so a box already known still answers.
+   * `sweep` is the caller's leave to spend one of the rationed searches, which it withholds on a look this Pokémon is
+   * being given for some other reason — the crop is still read, so a box already known still answers.
    */
   const overlayOf = async (image: Image, sweep: boolean): Promise<Overlay | null> => {
     if (overlayBox) {
@@ -657,8 +660,10 @@ async function scan() {
    * artwork match that declined Cherrim's Overcast. Nothing here can be the check for those; only a second reader of
    * the same thing could be.
    *
-   * `could also be …` is counted with the rest, so a form the screen cannot separate costs every attempt for nothing.
-   * That is one capture of the 43, and it is a defect rather than an ambiguity: `castform-rainy.png` is
+   * `could also be …` is counted with the rest, but only on a reading that has IVs: with none the search narrows on
+   * types alone and 21 of the game master's 1,024 species answer it for ever, so counting those would read every
+   * Deoxys, Dialga and Lycanroc three times on every pass for an answer no further look can change. Where there are
+   * IVs it costs one capture of the 43, and that one is a defect rather than an ambiguity: `castform-rainy.png` is
    * answered as **Inteleon**, deriving CP 1512 for the 832 on its screen — the one wrong label in the corpus that names
    * a different species, its nickname having sent the search across every species, and that note is the only one it
    * raises. Leaving the note out would leave that out with it.
@@ -671,7 +676,7 @@ async function scan() {
    */
   const readDetail = async (): Promise<Reading> => {
     let latest: Image | null = null;
-    let read = false;
+    let lost: number | null = null;
 
     // Minus `latest`, which is this function's to answer rather than an attempt's: an attempt only knows its own.
     const best = await bestOf<Omit<Reading, 'latest'>>(
@@ -688,23 +693,30 @@ async function scan() {
         latest = image;
         const detail = await parseDetail(await readLines(image), data, image);
 
-        // Only a detail screen is worth a sweep, and only while this Pokémon's overlay has not read on some attempt.
-        // The sweeps are rationed over the whole run: an empty search's grid or a tile still opening would otherwise
-        // spend them before the first Pokémon, and a note-driven retry of a Pokémon whose overlay already read would
-        // spend one on a miss the attempt before disproves.
-        const overlay = detail.hp === null ? null : await overlayOf(image, !read);
-        read = read || overlay !== null;
+        // Only a detail screen is worth a sweep, and on a retry only where the attempt before it lost a field. The
+        // sweeps are rationed over the whole run, so one granted on every attempt buys three tries of the same
+        // `findOverlay` on one Pokémon where the ration was five tries spread over five — and `findOverlay` is what
+        // varies by phone, its own docblock measuring it at nine of twelve captures from one and none from another.
+        const overlay = detail.hp === null ? null : await overlayOf(image, lost === null || lost > 0);
         const key = keyOf(detail, overlay);
         const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
 
-        // The overlay's clause is the conditional one: where no box has been found at all there is nothing to wait for,
-        // and insisting would cost three reads of every Pokémon on a phone that is not running PGSharp. A form that
-        // fits is the surest of the three, the name, the types, the HP and the IVs agreeing being what a half-read
-        // screen cannot fake.
-        const unread =
-          Number(key === null) + Number(overlay === null && overlayBox !== null) + Number(id.form === null);
+        // The key above the other two, not beside them: a reading with no key is the one `walk` counts as a miss and
+        // writes `detail screen not read`, so it must lose to any reading that got the HP however much else that one
+        // lost. The overlay's clause is the conditional one, since where no box has been found at all there is nothing
+        // to wait for; a form that fits is the surest of the three, the name, the types, the HP and the IVs agreeing
+        // being what a half-read screen cannot fake.
+        const keyless = Number(key === null);
+        const fields = Number(overlay === null && overlayBox !== null) + Number(id.form === null);
 
-        return { detail, overlay, id, key, image, faults: faultsOf(unread, id.notes.length) };
+        // Notes only where the overlay read, because the ones raised without IVs are the ones no further read can
+        // clear: with `iv === null` the search narrows on types alone, and 21 of the game master's 1,024 species then
+        // answer `could also be …` for ever. Counting those would read every one of them three times on every pass.
+        const notes = overlay === null ? 0 : id.notes.length;
+
+        lost = keyless + fields;
+
+        return { detail, overlay, id, key, image, faults: faultsOf(keyless, fields, notes) };
       },
     );
 
@@ -836,6 +848,14 @@ async function scan() {
           scrolled = stitch(capture.frames, capture.offsets, config.scrollBand);
           back = capture.offsets.reduce((a, b) => a + b, 0);
           keep(name, scrolled, { Viewport: `${latest.width}x${latest.height}` });
+
+          // So the stitch and this row are a pair or say they are not. A fixture is promoted from the stitch while its
+          // expectations are derived from the committed png, so nothing downstream would report the two having been
+          // read a `config.waits.swipe` apart — and the readings that need a second look are the ones the corpus is
+          // collected for.
+          if (latest !== image) {
+            notes.push('the capture kept for this row is a later read of the screen than the row itself');
+          }
 
           if (capture.lost) {
             notes.push(`the scroll lost its place after frame ${capture.frames.length}`);

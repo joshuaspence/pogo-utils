@@ -408,11 +408,12 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
   let fallback: { iv: IVs; before: string } | null = null;
   let chosen: { iv: IVs; before: string } | null = null;
 
-  // The text ahead of the triple from *every* treatment, which is where the level shortlist comes from. The triple and
-  // the level are separate readings of separate parts of one line — the same argument the bracket below makes — and the
-  // arbitration that gets the triple right was taking the level from whichever pass won it. `deoxys-attack.png` reads
-  // `20 14/13/14` under the first treatment and `00 9114/13/14` under the third, and the third is the one whose
-  // percentage confirms its triple, so the level 20 the first pass had read plainly was thrown away with it.
+  // The text ahead of the triple from every treatment the loop reaches, which is where the level shortlist comes from
+  // — so every one of them up to and including the confirmed pass it stops on, that being as far as the loop goes. The
+  // triple and the level are separate readings of separate parts of one line, the same argument the bracket below
+  // makes, and taking the level from whichever pass won the triple threw away a level another had read plainly:
+  // `deoxys-attack.png` reads `20 14/13/14` under the first treatment and `00 9114/13/14` under the third, and it is
+  // the third whose percentage confirms its triple.
   //
   // Kept whatever the triple turns out to be, so a treatment whose triple is impossible still offers its level:
   // `burmy-plant.png` reads `L151 44/15/15`, where 44 is no IV and `L151` is the `L15` on the screen with the `IV`

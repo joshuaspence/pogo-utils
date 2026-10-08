@@ -112,26 +112,32 @@ test.for([0, -1])('a ration of %i still reads once', async (tries) => {
 });
 
 /**
- * The other half of the scan's contract, and the one a sum gets wrong: `faultsOf` has to rank a reading that lost a
- * field below every reading that kept them all. Summed, one lost field weighed the same as one note — and the scan's
- * terms make that pair reachable, a screen whose HP goes unread scoring two where one read whole and raised two notes
- * scored two as well, so `bestOf`'s last-of-equals handed back the keyless one and the row was written unread.
+ * The other half of the scan's contract, and the one a sum gets wrong. The scan ranks a reading in three tiers — no
+ * key, then the overlay and the form, then the notes — and each pair of them has a reachable case where a sum picks the
+ * worse reading. Summed, one lost field weighed the same as one note: a screen whose HP went unread scored two where
+ * one read whole with two notes scored two as well, and last-of-equals handed back the keyless one. Summed within the
+ * fields, a reading that lost the HP alone ties one that read it and lost the overlay and the form, and the tie again
+ * goes to the keyless reading — which is the one `walk` counts as a miss and writes `detail screen not read`, three in
+ * a row stopping the pass, where the other answers a row with the HP, weight, height and name on it.
  *
- * `99` rather than two or three, because the claim is that no number of notes reaches a field: a ceiling written into
- * the weighting would pass at the counts `identify` happens to raise today and fail on the next note added.
+ * `99` rather than two or three, because the claim is that no count in a lower tier reaches one above it: a ceiling
+ * written into the weighting would pass at the counts `identify` happens to raise today and fail on the next one added.
  */
-test('a field that went unread outranks any number of notes', () => {
-  expect(faultsOf(0, 99)).toBeLessThan(faultsOf(1, 0));
-  expect(faultsOf(1, 99)).toBeLessThan(faultsOf(2, 0));
+test('a tier outranks every count in the tiers below it', () => {
+  expect(faultsOf(0, 99, 99)).toBeLessThan(faultsOf(1, 0, 0));
+  expect(faultsOf(0, 0, 99)).toBeLessThan(faultsOf(0, 1, 0));
+  expect(faultsOf(1, 99, 99)).toBeLessThan(faultsOf(2, 0, 0));
 });
 
-/** And notes still order readings that lost the same fields, or the retry would have nothing to prefer. */
-test('fewer notes rank better, and only a reading with neither scores zero', () => {
-  expect(faultsOf(0, 1)).toBeLessThan(faultsOf(0, 2));
-  expect(faultsOf(0, 2)).toBeLessThan(faultsOf(0, 3));
-  expect(faultsOf(0, 0)).toBe(0);
+/** And each tier still orders readings that tie above it, or the retry would have nothing to prefer. */
+test('counts order within a tier, and only a reading with nothing wrong scores zero', () => {
+  expect(faultsOf(0, 0, 1)).toBeLessThan(faultsOf(0, 0, 2));
+  expect(faultsOf(0, 0, 2)).toBeLessThan(faultsOf(0, 0, 3));
+  expect(faultsOf(0, 1, 0)).toBeLessThan(faultsOf(0, 2, 0));
+  expect(faultsOf(0, 0, 0)).toBe(0);
 
-  // Which is what `bestOf` stops on, so a note has to keep it above nought or a noted reading is never read again.
-  expect(faultsOf(0, 1)).toBeGreaterThan(0);
-  expect(faultsOf(1, 0)).toBeGreaterThan(0);
+  // Nought is what `bestOf` stops on, so every tier has to keep a score above it or that reading is never read again.
+  expect(faultsOf(0, 0, 1)).toBeGreaterThan(0);
+  expect(faultsOf(0, 1, 0)).toBeGreaterThan(0);
+  expect(faultsOf(1, 0, 0)).toBeGreaterThan(0);
 });

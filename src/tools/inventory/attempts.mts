@@ -49,15 +49,14 @@ export async function bestOf<T>(
 }
 
 /**
- * One answer's faults as the single score `bestOf` ranks, with the fields that went unread above the notes raised about
- * the ones that did. The two are not the same kind of wrong: an unread field is an answer the caller cannot use at all,
- * where a note is an answer with a disagreement written beside it — so a reading that lost a field must never beat one
- * that kept them all, however many notes the second raised.
+ * Several counts of what is wrong with an answer as the one score `bestOf` ranks, most serious first. A count in any
+ * tier outranks every count in the tiers below it, however large those are: the caller's tiers are kinds of wrong that
+ * do not trade against each other, where a sum would rank one of the worst level with one of the least.
  *
- * `notes / (notes + 1)` is what holds the note term under 1 for every count while still rising with it, so notes order
- * answers of equal `unread` and nothing more. Summing them instead ranks one lost field level with one note, which is
- * what this exists to prevent; scaling `unread` instead would need a ceiling on what a reader can raise.
+ * `n / (n + 1)` is what does it, folded from the last tier up — under 1 for every count while still rising with it, so
+ * each tier orders answers that tie on all the tiers above and nothing more. Scaling instead would need a ceiling on
+ * each count, which a caller cannot promise. Zero only where every tier is zero, which is what `bestOf` stops on.
  */
-export function faultsOf(unread: number, notes: number): number {
-  return unread + notes / (notes + 1);
+export function faultsOf(...tiers: readonly number[]): number {
+  return tiers.reduceRight((below, count) => count + below / (below + 1), 0);
 }
