@@ -1280,9 +1280,10 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Nine of the 43, and the claim is not the count but that every one of the nine is a row carrying a `defects`: the
- * trigger therefore costs an extra read on a defect and on nothing else. A capture that starts raising a note without
- * earning a `defects` entry fails here instead of quietly tripling that Pokémon's reads for ever.
+ * Five of the 43, against seven rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
+ * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
+ * raising a note without earning one fails there.
  *
  * The two it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it. Each
  * is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses Basculin's
@@ -1290,17 +1291,13 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
  * scan cannot either; only a second reader of the same thing could.
  */
-test('the defects a scan can find for itself are the nine captures that raise a note', () => {
-  const noted = FIXTURES.filter((f) => notesOf(f).length > 0);
-
+test('the defects a scan can find for itself are the five captures that raise a note', () => {
   // The count as well as the offenders, because an empty list of offenders is also what a corpus raising no note at
   // all produces — which is the trigger switched off and nothing saying so.
-  expect(noted.length, 'how many captures `identify` raises a note on has changed').toBe(5);
-
   expect(
-    noted.filter((f) => f.defects === undefined).map((f) => f.file),
-    'a capture raises a note and pins no defect, so a scan would read it again for nothing',
-  ).toStrictEqual([]);
+    FIXTURES.filter((f) => notesOf(f).length > 0).length,
+    'how many captures `identify` raises a note on has changed',
+  ).toBe(5);
 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),

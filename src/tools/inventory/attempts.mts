@@ -14,14 +14,14 @@
 /**
  * The first answer nothing counts against, or the best of `tries` of them.
  *
- * `faults` is how much is wrong with an answer, as a count to be got to zero: `read` is called again while the lowest
- * count so far is above zero and there are tries left, and what comes back is the lowest-counting answer rather than
+ * `faults` is how much is wrong with an answer, as a score to be got to zero: `read` is called again while the lowest
+ * score so far is above zero and there are tries left, and what comes back is the lowest-scoring answer rather than
  * the last.
  *
  * The *last* of equals, though, so that a run of answers of one quality comes back as its freshest. They are the same
- * answer by the count, and whatever a caller carries out of one besides the answer — a screenshot, for the scan — is
- * least stale on the last of them. Keeping the earliest would quietly change what every caller gets on the ordinary
- * run where no attempt is better than another.
+ * answer by the score, and keeping the earliest would quietly change what every caller gets on the ordinary run where
+ * no attempt is better than another. Among equals only, so a caller carrying something out of an attempt besides the
+ * answer owes itself the freshest — the scan keeps the last screenshot, which its scroll has to measure against.
  *
  * `read` is handed the attempt's number, which is what lets a caller settle the thing before looking again without
  * this knowing what settling means for whatever is being read. It is called at least once however small `tries` is:
@@ -46,4 +46,18 @@ export async function bestOf<T>(
       return best.answer;
     }
   }
+}
+
+/**
+ * One answer's faults as the single score `bestOf` ranks, with the fields that went unread above the notes raised about
+ * the ones that did. The two are not the same kind of wrong: an unread field is an answer the caller cannot use at all,
+ * where a note is an answer with a disagreement written beside it — so a reading that lost a field must never beat one
+ * that kept them all, however many notes the second raised.
+ *
+ * `notes / (notes + 1)` is what holds the note term under 1 for every count while still rising with it, so notes order
+ * answers of equal `unread` and nothing more. Summing them instead ranks one lost field level with one note, which is
+ * what this exists to prevent; scaling `unread` instead would need a ceiling on what a reader can raise.
+ */
+export function faultsOf(unread: number, notes: number): number {
+  return unread + notes / (notes + 1);
 }

@@ -3,18 +3,19 @@
  * walks past and the one part of that walk no other test reaches: `cli.test.mts` drives the script as a subprocess,
  * and the only command there that needs no phone is `parse`, which reads a file once and retries nothing.
  *
- * So the scan's half of the contract is asserted here, against answers scripted as the fault counts a reading comes
- * out with — a screen read whole counting nought, and each thing wrong with it counting one. What a *reading's* count
- * is made of belongs with the scan, and which captures come out above nought is pinned over the real corpus in
- * `screens.test.mts`. This is the behaviour those two leave unstated: that a count above nought is read again, that a
- * count of nought is not, and which of several answers comes back.
+ * So the scan's half of the contract is asserted here, against answers scripted as the fault scores a reading comes
+ * out with — a screen read whole scoring nought, and each thing wrong with it raising the score. Which facts about a
+ * reading count belongs with the scan, and which captures come out above nought is pinned over the real corpus in
+ * `screens.test.mts`; how those facts rank against each other is `faultsOf`, asserted at the foot of this file. This
+ * is the behaviour those leave unstated: that a score above nought is read again, that a score of nought is not, and
+ * which of several answers comes back.
  *
  * `read` records the attempts it was handed throughout, so that how many times it was called is asserted alongside what
  * came back. An answer alone cannot say it: `bestOf` returning the clean answer is also what a reader called once and
  * lucky would produce.
  */
 
-import { bestOf } from './attempts.mts';
+import { bestOf, faultsOf } from './attempts.mts';
 import { expect, test } from 'vitest';
 
 /** How many faults each attempt's answer comes out with, in order, and the attempt numbers `read` was handed. */
@@ -75,8 +76,8 @@ test('the best of the attempts comes back, not the last', async () => {
 
 /**
  * Equals go to the last, which is what leaves the ordinary run — every attempt as doubtful as the one before — handing
- * back exactly what it always did. The scan carries the attempt's screenshot out with its reading and hands it to the
- * scroll capture as that capture's first frame, so the freshest of equals is the one that costs nothing.
+ * back exactly what it always did. It reaches no further than equals, which is why the scan keeps the last screenshot
+ * for itself rather than taking the one travelling with the reading.
  */
 test('the last of equal answers comes back', async () => {
   const { read } = reader(1, 1, 1);
@@ -108,4 +109,29 @@ test.for([0, -1])('a ration of %i still reads once', async (tries) => {
 
   expect(await bestOf(tries, faults, read)).toStrictEqual({ faults: 1 });
   expect(asked).toStrictEqual([0]);
+});
+
+/**
+ * The other half of the scan's contract, and the one a sum gets wrong: `faultsOf` has to rank a reading that lost a
+ * field below every reading that kept them all. Summed, one lost field weighed the same as one note — and the scan's
+ * terms make that pair reachable, a screen whose HP goes unread scoring two where one read whole and raised two notes
+ * scored two as well, so `bestOf`'s last-of-equals handed back the keyless one and the row was written unread.
+ *
+ * `99` rather than two or three, because the claim is that no number of notes reaches a field: a ceiling written into
+ * the weighting would pass at the counts `identify` happens to raise today and fail on the next note added.
+ */
+test('a field that went unread outranks any number of notes', () => {
+  expect(faultsOf(0, 99)).toBeLessThan(faultsOf(1, 0));
+  expect(faultsOf(1, 99)).toBeLessThan(faultsOf(2, 0));
+});
+
+/** And notes still order readings that lost the same fields, or the retry would have nothing to prefer. */
+test('fewer notes rank better, and only a reading with neither scores zero', () => {
+  expect(faultsOf(0, 1)).toBeLessThan(faultsOf(0, 2));
+  expect(faultsOf(0, 2)).toBeLessThan(faultsOf(0, 3));
+  expect(faultsOf(0, 0)).toBe(0);
+
+  // Which is what `bestOf` stops on, so a note has to keep it above nought or a noted reading is never read again.
+  expect(faultsOf(0, 1)).toBeGreaterThan(0);
+  expect(faultsOf(1, 0)).toBeGreaterThan(0);
 });
