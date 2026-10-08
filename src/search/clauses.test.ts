@@ -185,6 +185,97 @@ const pairs = (count: number, at = 0) =>
 /** The most OR'd pairs that still fit inside the cap, and so the largest building block a test can lay end to end. */
 const UNDER = Math.floor(Math.log2(CLAUSES));
 
+/*
+ * A pill shared by every part of an `any` is lifted out of it before the distribution, which is what decides whether
+ * a realistic arrangement can be written at all. The truth tables above already cover whether it is *sound* — several
+ * of them hold arrangements with a shared pill. What is left to pin is the arithmetic it saves, the shapes it has to
+ * leave alone, and that it never changes the answer.
+ */
+
+test('a pill every part of an any asks for is written once rather than in every clause', () => {
+  // *A shiny Fire, or a shiny Water, or a shiny Grass* — one `any` holding an `all` per type. Said as a product this
+  // is two to the power of the types named; said as a sum it is `shiny` and one clause of types.
+  const shinyTypes = (count: number) =>
+    any(...Array.from({ length: count }, (_, at) => all(yes('shiny'), named(`t${at}`, false))));
+
+  expect(clausesFor(shinyTypes(3))).toEqual(['shiny', 't0,t1,t2']);
+  expect(clausesFor(shinyTypes(6))).toEqual(['shiny', 't0,t1,t2,t3,t4,t5']);
+
+  // Ten spread to 1024 clauses unfactored, which is past the cap: the string could not be written at all before.
+  expect(clausesFor(shinyTypes(10))).toEqual(['shiny', 't0,t1,t2,t3,t4,t5,t6,t7,t8,t9']);
+  expect(clausesFor(shinyTypes(40))).toHaveLength(2);
+});
+
+test('a part asking for nothing beyond what is shared is the whole of what the any asks', () => {
+  // `any(shiny, all(shiny, fire))` is `shiny`: every other part is shiny and then some.
+  expect(clausesFor(any(yes('shiny'), all(yes('shiny'), yes('fire'))))).toEqual(['shiny']);
+  expect(clausesFor(any(all(yes('shiny'), yes('lucky')), all(yes('shiny'), yes('lucky'), yes('fire'))))).toEqual([
+    'shiny',
+    'lucky',
+  ]);
+});
+
+test('two groups over the same pills are not the same shared part', () => {
+  /*
+   * `all(a, b)` and `any(a, b)` hold the same pills and ask opposite questions, so what a part asks has to carry the
+   * junction as well as the pills. Without it both subgroups below read as one shared part, one of them is lifted and
+   * the other thrown away, and the search narrows from `s and (a or b)` to `s and a and b` — a wrong answer rather
+   * than a missed reduction, which is why this is a test and not a measurement.
+   */
+  const tree = any(
+    all(yes('shiny'), all(yes('fire'), yes('water'))),
+    all(yes('shiny'), any(yes('fire'), yes('water'))),
+  );
+
+  agrees(tree, ['shiny', 'fire', 'water']);
+  expect(clausesFor(tree)).toEqual(['shiny', 'fire,water']);
+});
+
+test('an any with nothing in common is left as the product it is', () => {
+  // Nothing to lift, so these are the clauses they always were — and the cap still refuses what is genuinely wide.
+  expect(clausesFor(any(all(yes('shiny'), yes('fire')), all(yes('lucky'), yes('water'))))).toEqual([
+    'shiny,lucky',
+    'shiny,water',
+    'fire,lucky',
+    'fire,water',
+  ]);
+
+  expect(clausesOf(pairs(UNDER + 1)).error).toContain(String(CLAUSES));
+});
+
+test('factoring never changes the answer, over every arrangement the sweep can build', () => {
+  /*
+   * The gate for the whole idea. Factoring rewrites the tree before it is distributed, so what it has to be held to is
+   * that the search is the one that was arranged — checked against the truth table, the one oracle here that knows
+   * nothing about how either side is computed.
+   */
+  const pills = [yes('shiny'), yes('lucky'), yes('fire'), no('shiny')];
+  const terms = ['shiny', 'lucky', 'fire'];
+  let swept = 0;
+
+  for (const one of pills) {
+    for (const two of pills) {
+      for (const three of pills) {
+        for (const four of pills) {
+          // Shapes with something in common between the parts, which is what factoring reaches for.
+          for (const tree of [
+            any(all(one, two), all(three, four)),
+            any(all(one, two), all(one, three), all(one, four)),
+            all(one, any(all(two, three), all(two, four))),
+            any(one, all(two, three), all(two, four)),
+            any(all(one, any(two, three)), all(one, four)),
+          ]) {
+            agrees(tree, terms);
+            swept += 1;
+          }
+        }
+      }
+    }
+  }
+
+  expect(swept).toBe(pills.length ** 4 * 5);
+});
+
 test('an arrangement that spreads past the cap is refused rather than built', () => {
   // Derived from the cap rather than transcribed, so a cap moved either way moves both of these with it.
   expect(clausesOf(pairs(UNDER + 1)).error).toContain(String(CLAUSES));

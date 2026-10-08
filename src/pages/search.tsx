@@ -1,9 +1,12 @@
 /**
  * The search-string builder page: a catalogue of pills on one side and the query you arrange them into on the other.
  *
- * The arrangement *is* the state: the canvas holds a tree and `query.js` composes whatever is in it, which is why the
- * brackets need no text box of their own — a bracket is a group, and a group is a thing on screen you drop a pill
- * into.
+ * The arrangement *is* the state: the canvas holds a tree and `query.js` composes whatever is in it, so a bracket is a
+ * group and a group is a thing on screen you drop a pill into.
+ *
+ * A query can be typed in as well, and that is an import rather than a second composer: `parse.js` reads the brackets
+ * into a tree, the canvas draws it, and the one composer takes it from there. Which is the whole difference between
+ * the row at the top of the canvas and the text box that used to sit beside the chips composing clauses of its own.
  *
  * A pill reaches a group two ways, both ending in the same `commit`. Dragging is the one a pointer wants, tracked
  * through pointer capture so touch behaves like a mouse, with a few pixels of slop before a press counts as a drag.
@@ -25,6 +28,7 @@ import {
   type State,
 } from '../search/query.js';
 import { optimise } from '../search/optimise.js';
+import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
 import { GROUPS, PRESETS, RANGES, type Range } from '../search/terms.js';
@@ -77,9 +81,12 @@ const same = (one: Path, two: Path) => one.length === two.length && one.every((i
 const characters = (length: number) => `${length} character${length === 1 ? '' : 's'}`;
 
 /**
- * A message's backticked parts set in `<code>`, so that a sentence written in this repository's prose convention reads
- * on screen the way the caveat beside it does rather than showing its own punctuation. Splitting on the tick leaves the
- * plain text at the even positions and the quoted characters at the odd ones, the string having begun outside a pair.
+ * A sentence's backticked parts set in `<code>`, so that prose written in this repository's convention reads on screen
+ * the way the caveat beside it does rather than showing its own punctuation. Splitting on the tick leaves the plain
+ * text at the even positions and the quoted characters at the odd ones, the string having begun outside a pair.
+ *
+ * Two callers: a refusal from `clauses.js`, and a category's own help in `terms.js` — which was showing its ticks as
+ * ticks. `the game has no \`gen1\`` had been on the page since before the canvas.
  */
 const ticked = (message: string) =>
   message.split('`').map((part, index) => (index % 2 === 0 ? part : <code key={index}>{part}</code>));
@@ -141,6 +148,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const [held, setHeld] = useState<{ node: Node; from: Path } | null>(null);
 
   const [typing, setTyping] = useState('');
+
+  /** The query being typed into the import box, and why the last attempt at it went nowhere. */
+  const [typed, setTyped] = useState('');
+  const [typedError, setTypedError] = useState<string | null>(null);
   const [offered, setOffered] = useState<readonly Offer[]>([]);
   const [active, setActive] = useState(-1);
   const [copyLabel, setCopyLabel] = useState('Copy');
@@ -163,6 +174,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setFocus([]);
     setHeld(null);
     setTyping('');
+    setTyped('');
+    setTypedError(null);
     closeSuggestions();
   }, [fragment]);
 
@@ -306,6 +319,29 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
     return () => clearTimeout(restore);
   }, [copyLabel]);
+
+  /**
+   * A typed query put on the canvas, replacing whatever was there. Replacing rather than merging, because a reader who
+   * has pasted a whole search means that search — and the arrangement they are replacing is one press of the browser's
+   * own back button away, the link having carried it.
+   *
+   * The box is emptied on success so that the canvas is the only place the query lives. A failure leaves both the text
+   * and the arrangement alone, there being nothing to put and no reason to take anything away.
+   */
+  function importTyped() {
+    const { tree, error } = read(typed);
+
+    setTypedError(error);
+
+    if (tree === null) {
+      return;
+    }
+
+    setState((was) => ({ ...was, tree }));
+    setFocus([]);
+    setHeld(null);
+    setTyped('');
+  }
 
   /** One name finished with, which becomes a pill in the current group. A nickname works as well as a species. */
   function takeName(text: string) {
@@ -619,14 +655,55 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             The query
           </h2>
 
+          {/*
+           * Typing a query in rather than arranging one. It fills the canvas instead of writing a string of its own,
+           * so there is still one arrangement and one output — and the pills it leaves can be dragged about like any
+           * others, which is the whole difference between this and a second box that composed beside the first.
+           *
+           * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error,
+           * and a canvas that emptied itself at each keystroke would be unusable.
+           */}
+          <form
+            class="import"
+            onSubmit={(event) => {
+              event.preventDefault();
+              importTyped();
+            }}
+          >
+            <input
+              id="typed"
+              type="text"
+              value={typed}
+              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
+              autocomplete="off"
+              spellcheck={false}
+              aria-label="Type a query, brackets and all"
+              aria-invalid={typedError !== null}
+              aria-describedby="importHelp"
+              onInput={(event) => {
+                setTyped(event.currentTarget.value);
+                setTypedError(null);
+              }}
+            />
+            <button type="submit" class="ghost" disabled={typed.trim() === ''}>
+              Use it
+            </button>
+          </form>
+
+          <p class="broken" hidden={typedError === null}>
+            {ticked(typedError ?? '')}
+          </p>
+
           {renderGroup([])}
 
-          <p class="help">
-            A group asks for <em>all</em> of its pills or <em>any</em> of them; press its button to turn it round. Press
-            a pill to swap <em>required</em> for <em>ruled out</em>, <kbd>⇅</kbd> to pick it up and then click a group
-            to put it down, and <kbd>✕</kbd> to take it off. The game has no brackets, so whatever you arrange is
-            written back out as clauses it does take — which is why an <em>any</em> inside the query can cost a good
-            many characters.
+          <p class="help" id="importHelp">
+            Paste a search with brackets in it and this lays it out as pills — <code>&amp;</code> and <code>|</code> are{' '}
+            <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are <em>or</em>, and <code>!</code> rules out
+            whatever follows. Or arrange it yourself: a group asks for <em>all</em> of its pills or <em>any</em> of
+            them, and its button turns it round. Press a pill to swap <em>required</em> for <em>ruled out</em>,{' '}
+            <kbd>⇅</kbd> to pick it up and then click a group to put it down, and <kbd>✕</kbd> to take it off. The game
+            has no brackets, so whatever ends up here is written back out as clauses it does take — which is why an{' '}
+            <em>any</em> can cost a good many characters.
           </p>
         </section>
 
@@ -758,7 +835,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                   );
                 })}
               </div>
-              <p class="help">{category.help}</p>
+              <p class="help">{ticked(category.help)}</p>
             </section>
           ))}
         </div>

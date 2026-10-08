@@ -573,6 +573,81 @@ body[data-page='search'] {
   }
 
   /**
+   * The row a query is typed into, which fills the canvas below it rather than composing anything of its own. Laid out
+   * as one line so it reads as an instruction to the canvas and not as a second place a search could live.
+   */
+
+  .import {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  #typed {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+  }
+
+  #typed:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  #typed[aria-invalid='true'] {
+    border-color: var(--accent);
+  }
+
+  .import button {
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .import button:hover:not(:disabled) {
+    border-color: var(--track);
+    color: var(--track);
+  }
+
+  .import button:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .import button:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /* The refusal sits where the output box's does, so a reader meets the same shape wherever a string is turned away. */
+
+  .canvas .broken {
+    margin: 0;
+    padding: 8px 10px;
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    background: var(--accent-soft);
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+
+  .canvas .broken code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  /**
    * One group. Nested groups are the same element at every depth, so the indent comes from the nesting itself rather
    * than from a rule per level — which is the only way a tree of unknown depth can be drawn at all.
    *

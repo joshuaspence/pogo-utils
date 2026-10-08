@@ -9,11 +9,15 @@
  * the search they actually mean and this writes it back out as something the box will take: two pills in an `any`
  * inside an `all` beside two more comes out as four clauses, not one of which anybody would have thought to write.
  *
- * **The precedence is the one assumption under all of this.** A clause list joined with `&` only means what the canvas
- * said if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a shiny that is Fire or Water.
- * Niantic's list documents both operators and never combines them in an example, and the fullest community reference
- * carries a note that searches "do not take priority over each other" against a thread that could not be read. So it
- * is stated here rather than proved, and it is the reading the page has taken since it only had chips.
+ * **The precedence is the one assumption under all of this, and it is documented.** A clause list joined with `&`
+ * only means what the canvas said if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a
+ * shiny that is Fire or Water. The community reference cited below for two negation bugs says so in its storage table:
+ * "Ambiguity is resolved by always considering `,`s nested inside `&`s", with `meowth,alola&vulpix,galar` as the
+ * example. Niantic's own list never combines the two operators, so the community one is what settles it.
+ *
+ * That reference also notes that searches "do not take priority over each other", which is about its *Pokédex* table —
+ * a different box with its own phrase list. This file read that as doubt about the line above for a while: a claim from
+ * a three-table reference is worth nothing until you know which search it is a claim about.
  *
  * What the form costs is characters, an `any` multiplying where an `all` adds, which is its nature rather than a
  * shortcoming: `(a&b),(c&d)` really is four clauses in a language with no brackets.
@@ -22,7 +26,7 @@
  * normal form and De Morgan is the reader's own doing.
  */
 
-import { isGroup, leafText, type Leaf, type Node } from './tree.js';
+import { group, isGroup, leafText, type Leaf, type Node } from './tree.js';
 
 /**
  * As many clauses as the distribution is let reach. A query ORing a dozen pairs is 4096 clauses out of 24 pills, and
@@ -51,6 +55,18 @@ export const CLAUSES = 1000;
  * Neither is this page's doing — nothing between here and the string manufactures a negation. They are named because
  * this page's output ends up in a mass transfer, where a term that means its own opposite is worth a sentence.
  */
+/*
+ * Nothing here reorders a clause for `+{name}`, and the same reference argues it should: its storage table records
+ * that a family shorthand "returns no results if put before `@` or `#`". Taken at face value that condemns
+ * `+charmander&@special`, which this page writes whenever a family pill is placed ahead of an Exclusive-move one — and
+ * which the factoring above writes unprompted. A pass putting every `+` after every `@` and `#` was written and then
+ * taken out again: typed into the game, both that and the spaced `+charmander & @special` return what they should.
+ *
+ * The note is older than the build it was read against. A line from a reference that would cost something to act on is
+ * worth checking against the game first; one that costs nothing — like the two below, which are notes beside a string
+ * — is worth acting on without.
+ */
+
 const MISHANDLED = [
   {
     pattern: /^(?:[0-4]|[0-4]-[0-4]?|-[0-4])(?:attack|defense|hp)$/,
@@ -78,6 +94,75 @@ export interface Written {
 
   /** The negations the game is known to get wrong, each named once however many clauses it ended up in. */
   mishandled: readonly Mishandled[];
+}
+
+/**
+ * A node said as one string, so two parts of a junction can be compared for asking the same thing. Structural rather
+ * than canonical: the parts are not sorted, so `all(a, b)` and `all(b, a)` are two keys. Sorting them was in the first
+ * draft and bought only recognising two differently-ordered subgroups as one shared part — which, measured, writes the
+ * same clauses one intermediate clause later, and which no mutation could be made to fail a test over.
+ *
+ * The junction is in the key and has to be: without it `all(a, b)` and `any(a, b)` read as one shared part, and the
+ * search narrows from `s and (a or b)` to `s and a and b`.
+ */
+function key(node: Node): string {
+  return isGroup(node) ? `${node.junction}(${node.parts.map(key).join('|')})` : (leafText(node) ?? '');
+}
+
+/** What a part of a junction asks for, as keys: an `all`'s own parts, or the part itself where it is not one. */
+const asks = (node: Node) => new Set((isGroup(node) && node.junction === 'all' ? node.parts : [node]).map(key));
+
+/**
+ * A pill every part of an `any` asks for, lifted out of it: `any(all(s, a), all(s, b))` is `all(s, any(a, b))` — the
+ * same search said as a sum where it was said as a product.
+ *
+ * This decides whether a realistic arrangement can be written at all. *A shiny Fire, or a shiny Water, or a shiny
+ * Grass* is a natural thing to place, one `any` holding an `all` per type, and it spreads to two to the power of
+ * however many types are named: 64 clauses at six, past the cap at ten, where the answer is `shiny` and one clause of
+ * types. Dropping those clauses afterwards cannot help, the cap being reached while they are built.
+ *
+ * Here rather than in `optimise.js` because it is not optional: that toggle is for reductions a reader might want
+ * undone, where this changes only how much work the distribution is. `clauses.test.js` holds it to the same clauses
+ * either way, over a sweep of arrangements with something in common between their parts.
+ *
+ * A part asking for *nothing but* what is shared needs no case of its own — it is left an `all` of nothing, which the
+ * arithmetic below reads as the search for everything, and an `any` holding everything is everything. The branch that
+ * noticed was another no mutation could kill.
+ */
+function factored(node: Node): Node {
+  if (!isGroup(node)) {
+    return node;
+  }
+
+  const parts = node.parts.map(factored);
+
+  if (node.junction !== 'any' || parts.length < 2) {
+    return { ...node, parts };
+  }
+
+  const sets = parts.map(asks);
+  const [first] = sets;
+  const shared = first === undefined ? [] : [...first].filter((text) => sets.every((one) => one.has(text)));
+
+  if (shared.length === 0) {
+    return { ...node, parts };
+  }
+
+  const within = (part: Node) => (isGroup(part) && part.junction === 'all' ? part.parts : [part]);
+  const lifted = within(parts[0] ?? node).filter((part) => shared.includes(key(part)));
+  const left = parts.map((part) => within(part).filter((one) => !shared.includes(key(one))));
+
+  // Each remainder is wrapped whatever its length: an `all` of one part spreads to exactly what that part does, and an
+  // `all` of none is the search for everything, which is what a part asking only for the shared pills has become.
+  return group('all', [
+    ...lifted,
+    factored(
+      group(
+        'any',
+        left.map((rest) => group('all', rest)),
+      ),
+    ),
+  ]);
 }
 
 /**
@@ -234,7 +319,10 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
  * notes are for.
  */
 export function clausesOf(node: Node): Written {
-  if (size(node) > CLAUSES) {
+  // Factored before it is measured, the point of factoring being to bring the measurement under the cap.
+  const tree = factored(node);
+
+  if (size(tree) > CLAUSES) {
     return {
       clauses: [],
       error: `That spreads past ${CLAUSES} clauses, which is longer than any search box will take`,
@@ -243,7 +331,7 @@ export function clausesOf(node: Node): Written {
   }
 
   const kept = absorbed(
-    spread(node)
+    spread(tree)
       .map(clause)
       .filter((one) => one !== null),
   );

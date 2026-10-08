@@ -227,21 +227,50 @@ an XXL Pumpkaboo — two `all` groups inside an `any`, which the earlier fixed b
 `pikachu,pumpkaboo&pikachu,xxl&shiny,pumpkaboo&shiny,xxl`, and not one of those four clauses is a search anybody would
 have thought to write.
 
-Three costs are worth knowing. An `any` **multiplies** where an `all` adds, so a few groups buy a great many characters;
-the converter refuses past a thousand clauses rather than build a string no search box could hold. A clause that asks
-nothing is dropped — a pill with no bounds filled in yet, or a group with nothing in it, asks nothing and is read that
-way rather than guessed at. And the conversion only means what it says if a comma binds tighter than an ampersand, which
-is the one assumption under all of it: Niantic's list documents both operators and never combines them in an example, so
-it is stated rather than proved, and it is the reading the page has taken since it only had chips. The page used to warn
-whenever a string mixed the two operators and no longer does — the fixed builder mixed them now and then, where nearly
-any arrangement does, so the warning would have been up for nearly every query worth building. An `any` on its own is
-the exception, composing one clause and no `&`.
+One reduction happens before the distribution rather than after it, because it decides whether an arrangement can be
+written at all. A pill every part of an `any` asks for is lifted out of it: `any(all(s, a), all(s, b))` is
+`all(s, any(a, b))`, which is the same search said as a sum where it was said as a product. _A shiny Fire, or a shiny
+Water, or a shiny Grass_ is a natural thing to place, and it spreads to two to the power of however many types are named
+— 64 clauses at six, past the cap at ten — where the answer is `shiny&fire,water,…` and `shiny` is in every clause.
+Dropping those clauses afterwards cannot help, the cap being reached while they are built.
+
+Three costs are worth knowing. An `any` **multiplies** where an `all` adds, so a few groups with nothing in common buy a
+great many characters; the converter refuses past a thousand clauses rather than build a string no search box could
+hold. A clause that asks nothing is dropped — a pill with no bounds filled in yet, or a group with nothing in it, asks
+nothing and is read that way rather than guessed at. And the conversion only means what it says if a comma binds tighter
+than an ampersand, which is the one thing everything here rests on — and which the
+[community phrase list](https://leidwesen.github.io/SearchPhrases/) states outright for this search box: "`&` and `,`
+can be used multiple times in one search. Ambiguity is resolved by always considering `,`s nested inside `&`s", with
+`meowth,alola&vulpix,galar` as the example. Niantic's own list never combines the two operators, so that is the source
+that settles it. The page used to warn whenever a string mixed them and no longer does: there is nothing to warn about,
+and the caveat would have been up for nearly every query worth building in any case.
 
 [`src/search/tree.ts`](src/search/tree.ts) owns the arrangement itself: what a pill writes, and the three edits a drag
 makes. A node is named by its **path** — `[2, 0]` is the first part of the third part of the root — which is what a
 render already knows and what a drop target already is, so nothing has to mint an identity and keep it in step. The cost
 is that `move` is the one operation that invalidates its own argument, taking a pill out shifting every sibling after it
 along, so it corrects its destination rather than trusting callers to.
+
+### Typing one in
+
+A query can be pasted rather than arranged. [`src/search/parse.ts`](src/search/parse.ts) reads
+`(pikachu&shiny),(pumpkaboo&xxl)` into the tree the brackets describe and the canvas draws it, which is the inverse of
+the composer and the easy direction of the two: a reader can say what they mean with brackets, and the page writes out
+something the game will take.
+
+It is an **import rather than a second composer**. Nothing in it writes a string — it writes a tree, the canvas draws
+it, and the one composer takes it from there, so the pills it leaves can be dragged about like any others. A word the
+catalogue knows arrives as its own pill, so `shiny` lights up the Status chip and `cp1500-3000` arrives as a span pill
+with its boxes filled; `1-151` arrives as _Gen 1_, that being the chip which already spells it. Anything else is a name,
+which is what the game does with a word it does not know.
+
+Both of the game's spellings of each operator are read: `&` and `|` are _and_, `,` and `;` and `:` are _or_, and `!`
+rules out what follows — a bracket included, which arrives as the other junction with its pills turned, De Morgan being
+applied while reading because `tree.ts` keeps negation on the pills and has no negated group.
+
+The test that matters is the round trip: **every string this page writes, it reads back into the same string.** The
+composer writes on the assumption a comma binds tighter, and the reader has to make the same assumption to agree, so
+that one property holds the two halves to one language.
 
 ### Shortening
 
