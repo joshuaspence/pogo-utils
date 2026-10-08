@@ -1,10 +1,14 @@
 /**
- * The Integrations page. Its one panel builds a PGSharp backup from the repository's GPX files, ported from pgsedit.
- * PGSData.dat is a serialized `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is
- * Points, from `<wpt>`, and `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so
- * importing it leaves the rest of the profile be.
+ * The Integrations page: handing this collection's own data to the third-party tools that will take it, a panel each.
  *
- * The codec is 152KB of the artifact and nothing else uses it, which is why this page is reached through `import()`.
+ * The PGSharp panel builds a backup from the repository's GPX files, ported from pgsedit. PGSData.dat is a serialized
+ * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
+ * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
+ * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
+ * why that is the only one of the four hunts worth sending.
+ *
+ * The Java codec is the weight on this page and nothing else uses it, which is why it is reached through `import()`.
+ * The display filter rides the same chunk — it is a few hundred bytes of JSON and splitting it again would buy nothing.
  */
 
 import { useState } from 'preact/hooks';
@@ -12,6 +16,7 @@ import { useState } from 'preact/hooks';
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
+import { displayFilterText, shinyHuntFilter, FILE_NAME } from '../livepokemap/display-filter.js';
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
@@ -74,8 +79,8 @@ async function buildRepoFavourites() {
  * with `Uint8Array.from`, which is an `ArrayBuffer` already, so the bare annotation is weaker than inference rather
  * than stronger.
  */
-function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
-  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string, type = 'application/octet-stream') {
+  const blob = new Blob([bytes], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -103,6 +108,26 @@ export default function IntegrationsPage() {
   const [ticked, setTicked] = useState<ReadonlySet<Control>>(() => new Set(CONTROLS));
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<Status | null>(null);
+
+  /**
+   * Write the display filter. No fetching and no parsing, so unlike the backup there is nothing to wait for — but
+   * `species` throws on a list holding something `pokemon.js` does not define, which is worth saying rather than
+   * swallowing. The count comes off the list that was actually written, as the backup's summary does.
+   */
+  function runFilter() {
+    try {
+      const filter = shinyHuntFilter();
+
+      downloadBytes(new TextEncoder().encode(displayFilterText(filter)), FILE_NAME, 'application/json');
+      setFilterStatus({
+        message: `Wrote ${filter.config.speciesFilterList.length} species to ${FILE_NAME}.`,
+        kind: 'ok',
+      });
+    } catch (e) {
+      setFilterStatus({ message: `Failed to build the filter: ${said(e)}`, kind: 'err' });
+    }
+  }
 
   /**
    * Build the file and hand it over. Everything between the favourites and the bytes is `buildBackup`'s, so what is left
@@ -188,6 +213,28 @@ export default function IntegrationsPage() {
           </button>
 
           <div class={status?.kind ? `status ${status.kind}` : 'status'}>{status?.message ?? ''}</div>
+        </div>
+
+        <div class="body">
+          <h2>Live PokeMap display filters</h2>
+
+          <p>
+            Build a Live PokeMap display filter that allowlists every species still wanted for a shiny — the same list
+            the backup above hands PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are
+            thresholds rather than lists, and Live PokeMap shows all three without being told which species to watch.
+          </p>
+
+          <p class="note">
+            Importing replaces your Live PokeMap display filters entirely — anything not set here, your IV and level
+            bounds among it, goes back to its default. Open the file and paste its contents into Live PokeMap&apos;s own
+            filter import; it reads the text rather than the file.
+          </p>
+
+          <button class="run" type="button" onClick={runFilter}>
+            Generate &amp; download
+          </button>
+
+          <div class={filterStatus?.kind ? `status ${filterStatus.kind}` : 'status'}>{filterStatus?.message ?? ''}</div>
         </div>
       </main>
     </>

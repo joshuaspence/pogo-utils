@@ -9,7 +9,8 @@ application and reached from a shared top tab bar:
 - **Search** (`#/search`) — a builder for the strings the game's own Pokémon search box takes.
 - **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny, and which hunts
   still want it.
-- **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites.
+- **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites, and a Live
+  PokeMap display filter built from the shiny hunt list.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
@@ -342,6 +343,28 @@ Each waypoint also carries the IANA timezone its coordinates fall in (`Europe/Ma
 [`tz-lookup`](https://github.com/darkskyapp/tz-lookup) — a zone name belongs to a polygon, so no offset calculation can
 stand in for it. Routes have no timezone field, matching PGSharp. If that script does not load, the backup is written
 without timezones and the page says how many were left out; PGSharp accepts entries either way.
+
+## Import into Live PokeMap
+
+The second panel on the **Integrations** page writes a [Live PokeMap](https://livepokemap.com) _display filter_: an
+allowlist of every species still wanted for a shiny, as the dex numbers its filter stores. Click **Generate &
+download**, then open `lpm-display-filter.json` and paste its contents into Live PokeMap's own filter import — that
+format has no file picker, and its importer reads the text rather than the file.
+
+It is the shiny list alone. XXL, XXS and 100% are thresholds rather than lists — `filterXXL`, `filterXXS` and `minIV`
+say them without naming a species, and Live PokeMap surfaces all three unprompted, its `alwaysShowSize` and
+`alwaysShowPerfect` defaulting on. Which species still want a shiny is the one thing it cannot work out for itself, and
+it is the same Set the PGSharp feed is built from, narrowed the same way by
+[`src/filters/narrow.ts`](src/filters/narrow.ts).
+
+**Importing replaces your display filters entirely.** Live PokeMap spreads an imported `config` over its own defaults
+rather than over what you had, so every field the file leaves out — the IV and level bounds among them — goes back to
+its default. The file therefore carries only the two fields this collection has an opinion about, and the panel says so
+above the button.
+
+Not to be confused with Live PokeMap's own **Config** export, the `{"_version": 1, "settings": {…}}` file. That one
+honours a seven-key allowlist of interface preferences and silently drops anything else, so a species list cannot be
+expressed in it at all; the two formats are not interchangeable in either direction.
 
 ## Installing as an app
 

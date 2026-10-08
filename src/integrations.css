@@ -1,7 +1,7 @@
 /**
  * The Integrations page. Shares the colour tokens in theme.css, the tab bar in nav.css and the heading block in
- * chrome.css with the other pages; the panel here builds a partial PGSData.dat entirely in the browser from the
- * repository's GPX files.
+ * chrome.css with the other pages; the panels here build a partial PGSData.dat and a Live PokeMap display filter
+ * entirely in the browser, from the repository's GPX files and hunt lists.
  */
 
 /**
@@ -14,8 +14,8 @@
  */
 body[data-page='integrations'] {
   /**
-   * The header and the panel below it share one content column, so the title sits over the thing it heads instead of out
-   * at the page margin with a thousand pixels between them. `--content-w` holds that width in the one place both need.
+   * The header and the panels below it share one content column, so the title sits over the thing it heads instead of
+   * out at the page margin with a thousand pixels between them. `--content-w` holds that width where all of them need.
    *
    * On the wrapper rather than on `:root`, which is what each sheet used while each was alone. Three of the four want a
    * different width — 1100px for the Events calendar and the Pokédex grid, 880px for the search builder — so on `:root`
@@ -23,7 +23,12 @@ body[data-page='integrations'] {
    */
   --content-w: 640px;
 
+  /* A column, so the gap between the panels is stated once rather than as a margin on one of them. */
+
   .backup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     max-width: var(--content-w);
     margin: 0 auto;
     padding: 8px 22px 40px;

@@ -1,7 +1,7 @@
 {
   "name": "Pokémon GO Utilities",
   "short_name": "PoGo Utils",
-  "description": "Events calendar, GPX route map, search strings, a Pokédex and PGSharp backups for Pokémon GO.",
+  "description": "Events calendar, GPX route map, search strings, a Pokédex and exports for PGSharp and Live PokeMap.",
   "start_url": "./#/events",
   "display": "standalone",
   "background_color": "#f7f8fa",
