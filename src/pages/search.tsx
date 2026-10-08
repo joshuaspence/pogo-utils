@@ -6,9 +6,12 @@
  *
  * A query can be typed in as well, and that is an import rather than a second composer: `parse.js` reads the brackets
  * into a tree, the canvas draws it, and the one composer takes it from there. Which is the whole difference between
- * the row at the top of the output card and the text box that used to sit beside the chips composing clauses of its
- * own — and the reason the two share that card, a search with brackets and the clauses it comes to being one thing
- * said twice.
+ * the Brackets pane and the text box that used to sit beside the chips composing clauses of its own.
+ *
+ * **The two panes are two views of one state, which is why they are tabs and not pages.** Arranging and typing reach
+ * the same tree, so the output card sits above both and stays put as they swap: the answer is the constant and the
+ * pane is only how this reader is feeding it. Nothing about the pane is in the link, a link carrying the arrangement
+ * and the arrangement drawing in either.
  *
  * A pill reaches a group two ways, both ending in the same `commit`. Dragging is the one a pointer wants, tracked
  * through pointer capture so touch behaves like a mouse, with a few pixels of slop before a press counts as a drag.
@@ -63,6 +66,25 @@ const JUNCTION: Record<Junction, { label: string; said: string }> = {
   all: { label: 'All of', said: 'every pill in this group has to match' },
   any: { label: 'Any of', said: 'one pill in this group matching is enough' },
 };
+
+/** Which way of writing the query is on show. Both feed the one arrangement; neither is a second state. */
+type Pane = 'builder' | 'brackets';
+
+/**
+ * The two panes, and what each is for.
+ *
+ * *Brackets* rather than *raw*: what goes in that box is the richer of the two strings, having the brackets the game
+ * has none of, where the raw thing is the output above it. Naming the input *raw* would point the word at the wrong
+ * half. It also matches the field's own label, so the tab and the box agree about what they hold.
+ */
+const PANES: readonly { id: Pane; label: string; said: string }[] = [
+  { id: 'builder', label: 'Builder', said: 'Arrange pills from the catalogue' },
+  { id: 'brackets', label: 'Brackets', said: 'Type a query with brackets in it' },
+];
+
+/** What a term chip's tooltip says: the word the game reads, then what pressing it does. */
+const chipTitle = (term: string) =>
+  `${term} — press to require, again to rule out, again to drop; or drag into a group`;
 
 /** A path as an attribute, and back. The root group is the empty string, which is still an attribute that is there. */
 const pathAttribute = (path: Path) => path.join('.');
@@ -218,6 +240,13 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   /** The query being typed into the import box, and why the last attempt at it went nowhere. */
   const [typed, setTyped] = useState('');
   const [typedError, setTypedError] = useState<string | null>(null);
+
+  /**
+   * Which pane is open. Not in the link and not stored: the arrangement is what a link carries, and it draws in either
+   * pane, so the pane is how *this* reader is working rather than anything about the query. Builder to begin with,
+   * being the one that needs no syntax known in advance.
+   */
+  const [pane, setPane] = useState<Pane>('builder');
   const [offered, setOffered] = useState<readonly Offer[]>([]);
   const [active, setActive] = useState(-1);
   const [copyLabel, setCopyLabel] = useState('Copy');
@@ -665,58 +694,14 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       <header class="page">
         <h1>Pokémon GO Search Strings</h1>
         <p class="sub">
-          Build a string for the game's own search box. Press a chip once to require it, twice to rule it out, three
-          times to drop it. Everything in the query has to match; make a group to say <em>any of these</em>.
+          Build a string for the game's own search box, either way round: arrange it from the catalogue in{' '}
+          <em>Builder</em>, where a chip once requires it, twice rules it out and three times drops it, or type it with
+          brackets in <em>Brackets</em>. Both fill the one query, and the string for the game is always at the top.
         </p>
       </header>
 
       <main class="builder">
-        <section class="output" aria-label="The search string, in and out">
-          {/*
-           * Typing a query in rather than arranging one. It fills the canvas instead of composing a string of its own,
-           * so there is still one arrangement and one output — and the pills it leaves can be dragged about like any
-           * others, which is the whole difference between this and a second box that composed beside the first.
-           *
-           * It sits above the string it turns into, in the one card that is sticky, because the two are the same
-           * search said the two ways: brackets in, clauses out. In the canvas below it was a row a reader scrolled
-           * past without seeing, which is a box nobody can use however well it reads.
-           *
-           * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error,
-           * and a canvas that emptied itself at each keystroke would be unusable.
-           */}
-          <form
-            class="import"
-            onSubmit={(event) => {
-              event.preventDefault();
-              importTyped();
-            }}
-          >
-            <label class="side" for="typed">
-              With brackets
-            </label>
-            <input
-              id="typed"
-              type="text"
-              value={typed}
-              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
-              autocomplete="off"
-              spellcheck={false}
-              aria-invalid={typedError !== null}
-              aria-describedby="importHelp"
-              onInput={(event) => {
-                setTyped(event.currentTarget.value);
-                setTypedError(null);
-              }}
-            />
-            <button type="submit" class="use" disabled={typed.trim() === ''}>
-              Use it
-            </button>
-          </form>
-
-          <p class="broken" hidden={typedError === null}>
-            {ticked(typedError ?? '')}
-          </p>
-
+        <section class="output" aria-label="The search string">
           <div class="string">
             {/* Plain text, not a label: the live region reads the string out, so nothing reaches it by name. */}
             <span class="side">For the game</span>
@@ -777,191 +762,282 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           </p>
         </section>
 
-        {/* The query itself, which is the page. Sticky output above it, catalogue below. */}
-        <section class="canvas" aria-labelledby="canvasLabel">
-          <h2 class="label" id="canvasLabel">
-            The query
-          </h2>
-
-          {renderGroup([])}
-
-          <p class="help" id="importHelp">
-            The box above takes a search with brackets and lays it out as pills — <code>&amp;</code> and <code>|</code>{' '}
-            are <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are <em>or</em>, and <code>!</code> rules
-            out whatever follows. Or arrange it yourself: a group asks for <em>all</em> of its pills or <em>any</em> of
-            them, and its button turns it round. Press a pill to swap <em>required</em> for <em>ruled out</em>,{' '}
-            <kbd>⇅</kbd> to pick it up and then click a group to put it down, and <kbd>✕</kbd> to take it off. The game
-            has no brackets, so whatever ends up here is written back out as clauses it does take — which is why an{' '}
-            <em>any</em> can cost a good many characters.
-          </p>
-        </section>
-
-        <section class="panel" aria-labelledby="presetsLabel">
-          <h2 class="label" id="presetsLabel">
-            <span class="ico" aria-hidden="true">
-              ⭐
-            </span>{' '}
-            Favourites
-          </h2>
-          <div class="presets">
-            {PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => {
-                  setState((was) => ({ ...was, tree: presetTree(preset) }));
-                  setFocus([]);
-                  setHeld(null);
-                }}
-              >
-                <span>{preset.label}</span>
-                <span class="note">{preset.note}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section class="panel" aria-labelledby="nameLabel">
-          <h2 class="label" id="nameLabel">
-            Name or species
-          </h2>
-
-          <div class="combobox">
-            <input
-              ref={textRef}
-              id="text"
-              type="text"
-              value={typing}
-              placeholder="pikachu"
-              autocomplete="off"
-              spellcheck={false}
-              role="combobox"
-              aria-expanded={offered.length > 0}
-              aria-controls="suggestions"
-              aria-autocomplete="list"
-              aria-activedescendant={offered[active] ? `suggestion-${active}` : undefined}
-              aria-label="Name or species"
-              onInput={(event) => {
-                const parts = event.currentTarget.value.split(',');
-                const left = parts.pop() ?? '';
-
-                // A comma is what separates names, so typing or pasting one commits the name in front of it — which is
-                // also how a pasted `pikachu, eevee, snorlax` arrives as three pills rather than one name.
-                if (parts.length > 0) {
-                  takeName(parts.join(','));
-                }
-
-                setTyping(left);
-                setOffered(suggestions(left));
-                setActive(-1);
-              }}
-              onKeyDown={onNameKeyDown}
-              onBlur={closeSuggestions}
-            />
-
-            {/* [html-validate-disable-next prefer-native-element -- a select cannot be a combobox's popup] */}
-            <ul
-              ref={listRef}
-              class="suggestions"
-              id="suggestions"
-              role="listbox"
-              aria-label="Matching species"
-              hidden={offered.length === 0}
+        {/*
+         * The two ways to write the query. Ordinary buttons rather than links, the choice being a view of one state and
+         * not a place: a link would put the pane in history beside the arrangements, so Back would step through panes.
+         *
+         * Both tabs stay in the tab order rather than taking a roving `tabindex`. The arrow keys a tablist usually
+         * carries are what *makes* a roving one reachable, so the pair is two features or neither, and with two tabs
+         * the Tab key alone costs a reader nothing.
+         */}
+        <div class="panes" role="tablist" aria-label="How to write the query">
+          {PANES.map(({ id, label, said }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`pane-${id}`}
+              class="pane-tab"
+              title={said}
+              aria-selected={pane === id}
+              aria-controls={`panel-${id}`}
+              onClick={() => setPane(id)}
             >
-              {offered.map((offer, index) => (
-                <li
-                  key={speciesTerm(offer)}
-                  id={`suggestion-${index}`}
-                  role="option"
-                  aria-selected={index === active}
-                  // mousedown rather than click: a click arrives after the blur that closes the list, by which point
-                  // there is no row left to have been clicked.
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    takeName(speciesTerm(offer));
-                  }}
-                >
-                  {offer.name}
-                  {offer.family && <span class="family"> (family)</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <p class="help">
-            Partial names match, so <code>char</code> finds Charmander and Charizard. Two letters bring up the species
-            that match, and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one into the group you are filling. Each species is
-            followed by its family: taking <em>Charmander (family)</em> writes <code>+charmander</code>, the game's
-            shorthand for a species and the rest of its evolutionary line.
-          </p>
-        </section>
-
-        <div class="groups">
-          {GROUPS.map((category) => (
-            <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
-              <h2 class="label">{category.label}</h2>
-              <div class="chips">
-                {category.terms.map((term) => {
-                  const chip = chipState(state.tree, focus, term.id);
-
-                  return (
-                    <button
-                      key={term.id}
-                      type="button"
-                      class="chip"
-                      data-state={chip}
-                      title={`${term.term} — press to require, again to rule out, again to drop; or drag into a group`}
-                      aria-label={`${term.label} — ${CHIP[chip].said} in the group you are filling`}
-                      onPointerDown={(event) =>
-                        onPointerDown(event, termLeaf(term.id), null, () => pressChip(termLeaf(term.id)))
-                      }
-                    >
-                      <span class="state" aria-hidden="true">
-                        {CHIP[chip].glyph}
-                      </span>
-                      <span class="name">{term.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p class="help">{ticked(category.help)}</p>
-            </section>
+              {label}
+            </button>
           ))}
         </div>
-        <section class="panel" aria-labelledby="rangesLabel">
-          <h2 class="label" id="rangesLabel">
-            Ranges
-          </h2>
-          <div class="chips">
-            {RANGES.map((range) => {
-              const chip = chipState(state.tree, focus, range.id);
 
-              return (
+        {/*
+         * Hidden rather than unmounted, so the canvas a reader comes back to is the one they left — a pane switch is a
+         * change of view and should cost them no scroll position and no half-filled span box.
+         */}
+        <div class="pane" role="tabpanel" id="panel-builder" aria-labelledby="pane-builder" hidden={pane !== 'builder'}>
+          {/* The query itself, which is the pane's subject. Sticky output above it, catalogue below. */}
+          <section class="canvas" aria-labelledby="canvasLabel">
+            <h2 class="label" id="canvasLabel">
+              The query
+            </h2>
+
+            {renderGroup([])}
+
+            <p class="help">
+              A group asks for <em>all</em> of its pills or <em>any</em> of them, and its button turns it round. Press a
+              pill to swap <em>required</em> for <em>ruled out</em>, <kbd>⇅</kbd> to pick it up and then click a group
+              to put it down, and <kbd>✕</kbd> to take it off. The game has no brackets, so whatever ends up here is
+              written back out as clauses it does take — which is why an <em>any</em> can cost a good many characters.
+            </p>
+          </section>
+
+          <section class="panel" aria-labelledby="presetsLabel">
+            <h2 class="label" id="presetsLabel">
+              <span class="ico" aria-hidden="true">
+                ⭐
+              </span>{' '}
+              Favourites
+            </h2>
+            <div class="presets">
+              {PRESETS.map((preset) => (
                 <button
-                  key={range.id}
+                  key={preset.id}
                   type="button"
-                  class="chip"
-                  data-state={chip}
-                  title={`${range.prefix || 'a dex span'} — press to add a span, again to rule it out, again to drop`}
-                  aria-label={`${range.label} — ${CHIP[chip].said} in the group you are filling`}
-                  onPointerDown={(event) =>
-                    onPointerDown(event, rangeLeaf(range.id), null, () => pressChip(rangeLeaf(range.id)))
-                  }
+                  onClick={() => {
+                    setState((was) => ({ ...was, tree: presetTree(preset) }));
+                    setFocus([]);
+                    setHeld(null);
+                  }}
                 >
-                  <span class="state" aria-hidden="true">
-                    {CHIP[chip].glyph}
-                  </span>
-                  <span class="name">{range.label}</span>
+                  <span>{preset.label}</span>
+                  <span class="note">{preset.note}</span>
                 </button>
-              );
-            })}
+              ))}
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="nameLabel">
+            <h2 class="label" id="nameLabel">
+              Name or species
+            </h2>
+
+            <div class="combobox">
+              <input
+                ref={textRef}
+                id="text"
+                type="text"
+                value={typing}
+                placeholder="pikachu"
+                autocomplete="off"
+                spellcheck={false}
+                role="combobox"
+                aria-expanded={offered.length > 0}
+                aria-controls="suggestions"
+                aria-autocomplete="list"
+                aria-activedescendant={offered[active] ? `suggestion-${active}` : undefined}
+                aria-label="Name or species"
+                onInput={(event) => {
+                  const parts = event.currentTarget.value.split(',');
+                  const left = parts.pop() ?? '';
+
+                  // A comma is what separates names, so typing or pasting one commits the name in front of it —
+                  // which is also how a pasted `pikachu, eevee, snorlax` arrives as three pills rather than one.
+                  if (parts.length > 0) {
+                    takeName(parts.join(','));
+                  }
+
+                  setTyping(left);
+                  setOffered(suggestions(left));
+                  setActive(-1);
+                }}
+                onKeyDown={onNameKeyDown}
+                onBlur={closeSuggestions}
+              />
+
+              {/* [html-validate-disable-next prefer-native-element -- a select cannot be a combobox's popup] */}
+              <ul
+                ref={listRef}
+                class="suggestions"
+                id="suggestions"
+                role="listbox"
+                aria-label="Matching species"
+                hidden={offered.length === 0}
+              >
+                {offered.map((offer, index) => (
+                  <li
+                    key={speciesTerm(offer)}
+                    id={`suggestion-${index}`}
+                    role="option"
+                    aria-selected={index === active}
+                    // mousedown rather than click: a click arrives after the blur that closes the list, by which point
+                    // there is no row left to have been clicked.
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      takeName(speciesTerm(offer));
+                    }}
+                  >
+                    {offer.name}
+                    {offer.family && <span class="family"> (family)</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <p class="help">
+              Partial names match, so <code>char</code> finds Charmander and Charizard. Two letters bring up the species
+              that match, and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one into the group you are filling. Each species
+              is followed by its family: taking <em>Charmander (family)</em> writes <code>+charmander</code>, the game's
+              shorthand for a species and the rest of its evolutionary line.
+            </p>
+          </section>
+
+          <div class="groups">
+            {GROUPS.map((category) => (
+              <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
+                <h2 class="label">{category.label}</h2>
+                <div class="chips">
+                  {category.terms.map((term) => {
+                    const chip = chipState(state.tree, focus, term.id);
+
+                    return (
+                      <button
+                        key={term.id}
+                        type="button"
+                        class="chip"
+                        data-state={chip}
+                        title={chipTitle(term.term)}
+                        aria-label={`${term.label} — ${CHIP[chip].said} in the group you are filling`}
+                        onPointerDown={(event) =>
+                          onPointerDown(event, termLeaf(term.id), null, () => pressChip(termLeaf(term.id)))
+                        }
+                      >
+                        <span class="state" aria-hidden="true">
+                          {CHIP[chip].glyph}
+                        </span>
+                        <span class="name">{term.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p class="help">{ticked(category.help)}</p>
+              </section>
+            ))}
           </div>
-          <p class="help">
-            A span pill carries its own two boxes, and a box left empty falls back to that range's limit. Two spans of
-            the same range in one group is a search you reach by dragging the second one in, a press reading the one
-            already there.
+          <section class="panel" aria-labelledby="rangesLabel">
+            <h2 class="label" id="rangesLabel">
+              Ranges
+            </h2>
+            <div class="chips">
+              {RANGES.map((range) => {
+                const chip = chipState(state.tree, focus, range.id);
+
+                return (
+                  <button
+                    key={range.id}
+                    type="button"
+                    class="chip"
+                    data-state={chip}
+                    title={`${range.prefix || 'a dex span'} — press to add a span, again to rule it out, again to drop`}
+                    aria-label={`${range.label} — ${CHIP[chip].said} in the group you are filling`}
+                    onPointerDown={(event) =>
+                      onPointerDown(event, rangeLeaf(range.id), null, () => pressChip(rangeLeaf(range.id)))
+                    }
+                  >
+                    <span class="state" aria-hidden="true">
+                      {CHIP[chip].glyph}
+                    </span>
+                    <span class="name">{range.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p class="help">
+              A span pill carries its own two boxes, and a box left empty falls back to that range's limit. Two spans of
+              the same range in one group is a search you reach by dragging the second one in, a press reading the one
+              already there.
+            </p>
+          </section>
+        </div>
+
+        {/*
+         * The other way in: a query typed with the brackets the game has none of. It fills the canvas in the pane next
+         * door rather than composing a string of its own, so there is still one arrangement and one output — and the
+         * pills it leaves can be dragged about like any others, which is the whole difference between this and a second
+         * box that composed beside the first.
+         *
+         * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error, and
+         * a canvas that emptied itself at each keystroke would be unusable.
+         */}
+        {/*
+         * The panel is the card, where the Builder's is a column of them. It carries no heading of its own: the field's
+         * own label says what the box holds, and a tab panel is named by the tab that opened it.
+         */}
+        <div
+          class="pane panel"
+          role="tabpanel"
+          id="panel-brackets"
+          aria-labelledby="pane-brackets"
+          hidden={pane !== 'brackets'}
+        >
+          <form
+            class="import"
+            onSubmit={(event) => {
+              event.preventDefault();
+              importTyped();
+            }}
+          >
+            <label class="side" for="typed">
+              With brackets
+            </label>
+            <input
+              id="typed"
+              type="text"
+              value={typed}
+              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
+              autocomplete="off"
+              spellcheck={false}
+              aria-invalid={typedError !== null}
+              aria-describedby="importHelp"
+              onInput={(event) => {
+                setTyped(event.currentTarget.value);
+                setTypedError(null);
+              }}
+            />
+            <button type="submit" class="use" disabled={typed.trim() === ''}>
+              Use it
+            </button>
+          </form>
+
+          <p class="broken" hidden={typedError === null}>
+            {ticked(typedError ?? '')}
           </p>
-        </section>
+
+          <p class="help" id="importHelp">
+            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are{' '}
+            <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
+            <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> is the shiny Pikachu and the XXL Pumpkaboo. The game
+            takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above writes it
+            back as clauses the game does take.
+          </p>
+        </div>
       </main>
 
       {/* The pill under the pointer, drawn outside the layout so it cannot push anything about as it moves. */}

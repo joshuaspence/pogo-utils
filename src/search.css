@@ -100,11 +100,12 @@ body[data-page='search'] {
   }
 
   /**
-   * The two rows of the card: a search with brackets in it, and the clauses it comes to. Laid out alike, because they
-   * are the same search said the two ways and the pairing is the whole of what the page does.
+   * The two rows a query is read on: the one it is typed into, down in the Brackets pane, and the clauses it comes to,
+   * up in the card. Laid out alike, and with the label and button widths below they line up down the page across the
+   * tab bar between them — they are the same search said the two ways, and the pairing is what the page does.
    */
 
-  .output .import,
+  .import,
   .output .string {
     display: flex;
     align-items: stretch;
@@ -122,7 +123,7 @@ body[data-page='search'] {
    * as a pair.
    */
 
-  .output .side {
+  .side {
     display: flex;
     flex: 0 0 9.5em;
     align-items: center;
@@ -194,14 +195,19 @@ body[data-page='search'] {
    * the same outline the Copy button takes when it has nothing to copy, for the reason given below it.
    *
    * The width is held rather than left to the labels, which is what makes the rows a pair down their right edge as
-   * well as their left: *Use it* sets 71.2px against *Copy*'s 68.4, and two fields 2.9px apart read as a near miss
-   * rather than as an alignment. `5.5em` is 71.5px at the 13px below. The Copy button still grows for the clipboard
-   * fallback's longer label, as it did before there was a second row to be out of step with.
+   * well as their left: two fields a couple of pixels apart read as a near miss rather than as an alignment. `5.75em`
+   * is 74.75px at the 13px below, and it is the *enabled* widths that have to fit, this pair being what a reader looks
+   * at with a query in the box — `Use it` wants 73.41px at the 600 below and `Copy` 70.5px, where disabled at 500 they
+   * are 71.23px and 68.36px and a narrower hold would have looked right in that state alone.
+   *
+   * The Copy button still grows for its own transient labels, `Copied` at 82.06px and the clipboard fallback's
+   * `Press ⌘C` at 99.42px. Holding those would set the resting width a third wider than its word for a moment that
+   * lasts 1.4 seconds.
    */
 
-  .output button.use,
+  button.use,
   .output button.copy {
-    min-width: 5.5em;
+    min-width: 5.75em;
     padding: 0 18px;
     border: 1px solid var(--accent);
     border-radius: 8px;
@@ -212,24 +218,24 @@ body[data-page='search'] {
     cursor: pointer;
   }
 
-  .output button.use {
+  button.use {
     background: transparent;
     color: var(--accent);
   }
 
-  .output button.use:hover:not(:disabled),
+  button.use:hover:not(:disabled),
   .output button.copy:hover:not(:disabled) {
     filter: brightness(1.05);
   }
 
-  .output button.use:disabled {
+  button.use:disabled {
     border-color: var(--border);
     color: var(--muted);
     font-weight: 500;
     cursor: default;
   }
 
-  .output button.use:focus-visible {
+  button.use:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -318,8 +324,8 @@ body[data-page='search'] {
     line-height: 1.5;
   }
 
-  .output .caveat code,
-  .output .broken code {
+  .caveat code,
+  .broken code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
 
@@ -329,7 +335,7 @@ body[data-page='search'] {
    * elsewhere on the site, against the amber the caveat uses for a reading it cannot settle.
    */
 
-  .output .broken {
+  .broken {
     margin: 0;
     padding: 8px 10px;
     border-left: 3px solid var(--accent);
@@ -371,6 +377,82 @@ body[data-page='search'] {
 
   .output .rewritten .lossy {
     flex: 1 0 100%;
+  }
+
+  /**
+   * The pane switch: a segmented pair rather than the underlined tabs `nav.css` draws across the top of every page.
+   * Those are destinations and these are two views of one query, so they are deliberately not the same control —
+   * underlined the same way, a reader would read *Builder* as a sixth page and expect Back to leave the Search page.
+   *
+   * It sits below the sticky card rather than inside it: the string is the page's answer whichever pane composed it,
+   * and a switch that scrolled away with the panes would still be the switch for the card above.
+   */
+
+  /**
+   * An outlined track with the open pane filled inside it, and no more than its two words wide — a switch between two
+   * things, not a banner across the page.
+   *
+   * The track takes no fill of its own: `--panel` on the pane below is what reads as raised, and both themes put the
+   * page itself at `--bg`, so a `--bg` track would be a declaration that paints nothing. The border is what says
+   * where the control ends.
+   *
+   * The accent is spent on the fill of *Copy* and the outline of *Use it*, which are the two things on this page that
+   * *do* something. A third accent fill here put the loudest mark on the page on a control that only changes what is
+   * on show, and it read as the action beside the two that are.
+   */
+
+  .panes {
+    display: flex;
+    align-self: start;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+
+  .pane-tab {
+    padding: 7px 22px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .pane-tab:hover:not([aria-selected='true']) {
+    color: var(--text);
+  }
+
+  .pane-tab[aria-selected='true'] {
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    color: var(--accent);
+    cursor: default;
+  }
+
+  .pane-tab:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /**
+   * A pane carries the column's own gap, the panels inside it having been direct children of `.builder` before there
+   * were panes to put them in. Without this they would stack flush against each other.
+   */
+
+  .pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Paired with the `display: flex` above, which the UA stylesheet's `[hidden] {display: none}` would lose to. */
+
+  .pane[hidden] {
+    display: none;
   }
 
   .panel,
@@ -927,7 +1009,7 @@ body[data-page='search'] {
       padding-inline: 22px;
     }
 
-    .output .import,
+    .import,
     .output .string {
       flex-direction: column;
       gap: 6px;
@@ -935,11 +1017,21 @@ body[data-page='search'] {
 
     /* Stacked, the label is a heading over its field rather than a column beside it, so it stops reserving one. */
 
-    .output .side {
+    .side {
       flex-basis: auto;
     }
 
-    .output button.use,
+    /* Across the column rather than shrunk to two words, which is the wider tap target where taps are what it gets. */
+
+    .panes {
+      align-self: stretch;
+    }
+
+    .pane-tab {
+      flex: 1;
+    }
+
+    button.use,
     .output button.copy {
       padding: 9px 18px;
     }
