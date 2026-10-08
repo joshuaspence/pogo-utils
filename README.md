@@ -49,6 +49,17 @@ rather than chosen, so a header is the same locally as in production — which i
 what it ignores. It is also the list [`scripts/assemble.mts`](scripts/assemble.mts) holds `dist/` to, so a new kind of
 file is one entry rather than two that can drift apart.
 
+[`scripts/check-served-types.mts`](scripts/check-served-types.mts) asks the deployment whether that table is still
+right, one file per extension:
+
+```sh
+pnpm check:served-types
+```
+
+It is out of `pnpm lint` because it reaches the network, which `pnpm build` is otherwise free of, so it is for when the
+table is edited or a header looks wrong locally. The suite covers the other half — that the server honours the table —
+by reading the same table, which is exactly why the comparison against the deployment is a separate command.
+
 One caveat is local only and stays. The LAN address printed beside the local one is good for viewing the site on a phone
 but not for installing it — a plain-HTTP origin is no secure context, and Chrome will read `manifest.json` for
 installation only from one — so [Installing as an app](#installing-as-an-app) is a flow only `localhost` or Pages can
