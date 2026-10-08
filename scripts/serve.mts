@@ -118,6 +118,17 @@ const server = createServer((request, response) => {
   const stream = createReadStream(located.file);
 
   /*
+   * `pipe` unpipes when its destination closes but does not destroy its source, so a client that goes away mid-body
+   * would leave this open for good — one descriptor and one read buffer per abandoned request, which a stop button or
+   * a reload during a GPX download is the ordinary way to reach. `'close'` fires on the normal end as well as the
+   * aborted one, and destroying a stream that has already ended is a no-op, so this needs no condition.
+   *
+   * `pipeline()` would also do it, but it wants the head written before the pipe starts and so would undo the
+   * `'open'` ordering below.
+   */
+  response.once('close', () => stream.destroy());
+
+  /*
    * The head is written on `'open'` rather than ahead of it, so a file that passed the stat and then could not be
    * opened still gets a status of its own. That race is this repository's own documented loop rather than anything
    * exotic: `pnpm build` opens with `rm -rf dist`, and a browser reload in the second it takes lands here with the

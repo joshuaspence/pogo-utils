@@ -22,7 +22,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
@@ -141,8 +141,27 @@ const serve = async (cwd: string) => {
     child.on('error', reject);
   });
 
-  return { port, url: (path: string) => `http://127.0.0.1:${port}${path}` };
+  return { port, pid: child.pid, url: (path: string) => `http://127.0.0.1:${port}${path}` };
 };
+
+/**
+ * A request abandoned once its body has started, which is a stop button or a reload during a download. Resolving on
+ * the first chunk is what makes it mid-body rather than before the response: an abort before the stream opens would
+ * never reach the descriptor this is about.
+ */
+const abort = (port: number, path: string) =>
+  new Promise<void>((resolve) => {
+    const sent = httpRequest({ host: '127.0.0.1', port, path }, (response) => {
+      response.once('data', () => {
+        sent.destroy();
+        resolve();
+      });
+    });
+
+    /* `destroy()` surfaces here as `ECONNRESET`, which is the abort working rather than a failure. */
+    sent.on('error', () => resolve());
+    sent.end();
+  });
 
 test('serves every extension in the table as the type the table gives', async () => {
   const { url } = await serve(workspace());
@@ -216,6 +235,56 @@ test('survives a file it cannot read, and answers before a status is committed',
 
   expect(await raw(port, '/locked.json')).toBe(500);
   expect(await raw(port, '/index.html')).toBe(200);
+});
+
+/**
+ * Enough of a file that a response is still in flight when the client goes away, the leaked descriptor only being
+ * reachable mid-body: a few hundred bytes of fixture leaves in one packet whether anyone aborts it or not.
+ */
+const ABORTABLE = 8 * 1024 * 1024;
+
+/*
+ * Counted through `/proc`, so Linux only. The leak is not platform-specific but measuring it from outside the process
+ * is, and `ubuntu-latest` is every runner in `.github/workflows/`, so the gate is where it has to be. Nothing else in
+ * this file needs deselecting anywhere.
+ */
+test.skipIf(process.platform !== 'linux')('closes the file it was reading when a client goes away', async () => {
+  const directory = workspace();
+  writeFileSync(join(directory, 'dist', 'data', 'big.gpx'), 'x'.repeat(ABORTABLE));
+
+  const { port, pid, url } = await serve(directory);
+
+  if (pid === undefined) {
+    throw new Error('The server reported no pid to count descriptors against.');
+  }
+
+  /** Descriptors onto that one file, which socket churn cannot move the way a whole-of-`fd` count would be moved. */
+  const held = () =>
+    readdirSync(`/proc/${pid}/fd`).filter((descriptor) => {
+      try {
+        return readlinkSync(`/proc/${pid}/fd/${descriptor}`).endsWith('/dist/data/big.gpx');
+      } catch {
+        /* Closed between the listing and the readlink, which is the opposite of one being held. */
+        return false;
+      }
+    }).length;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await abort(port, '/data/big.gpx');
+  }
+
+  /* Polled rather than slept on, so a leak is what fails this and a slow machine is not. */
+  for (let waited = 0; waited < 2000 && held() > 0; waited += 50) {
+    await new Promise((settle) => setTimeout(settle, 50));
+  }
+
+  expect(held()).toBe(0);
+
+  /* The ordinary path still has to finish, destroying on `'close'` being easy to get wrong in the other direction. */
+  const whole = await fetch(url('/data/big.gpx'));
+
+  expect(whole.status).toBe(200);
+  expect((await whole.arrayBuffer()).byteLength).toBe(ABORTABLE);
 });
 
 test('takes another port when one is busy rather than exiting', async () => {
