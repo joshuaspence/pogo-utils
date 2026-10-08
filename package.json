@@ -17,7 +17,7 @@
     "lint:types": "pnpm build",
     "lint:xml": "node scripts/validate-gpx.mts",
     "prune:events": "node scripts/prune-events.mts",
-    "serve": "pnpm build && node scripts/serve.mts",
+    "serve": "node scripts/serve.mts",
     "test": "vitest run",
     "test:corpus": "vitest run --project corpus",
     "test:coverage": "vitest run --coverage",
