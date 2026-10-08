@@ -1,12 +1,10 @@
 /**
- * A link out and a link back in. `toFragment` and `fromFragment` are the pair worth testing together, because a
- * fragment is the one thing here a stranger writes: every case below is either a defect that trusts it — a bound past
- * the box that could have produced it, an id no table carries, a term arriving both wanted and refused — or one that
- * loses a choice on the way out, which reads on the page as a reader having made a different one.
+ * What the page composes, and a link out and back in.
  *
- * `compose` and `rangeClause` are asserted where they say what a restored state *means*. A round trip giving back the
- * wrong state and one giving back a state that composes the wrong string are the same bug to whoever followed the
- * link, and only the second of them is visible.
+ * A fragment is the one thing here a stranger writes, so most of this is about what arrives: a token that names no
+ * term, an arity claiming more parts than there are, a nesting deeper than the stack would survive. The round trip
+ * itself is swept rather than sampled — the encoding is a token stream with no brackets to match, which is exactly the
+ * kind of thing that is right for the trees someone thought of.
  *
  * Every expectation is derived from `terms.js` and pinned against it first, for the reason `optimise.test.ts` gives: a
  * renamed id or a moved ceiling leaves a test asserting nothing, and that reads exactly like a pass.
@@ -14,274 +12,269 @@
 
 import { expect, test } from 'vitest';
 
-import { GROUPS, RANGES, TERMS_BY_ID, type Group, type Range } from './terms.js';
-import { compose, emptyState, fromFragment, names, rangeClause, toFragment, type Bounds, type State } from './query.js';
+import {
+  compose,
+  emptyState,
+  fromFragment,
+  nameFragment,
+  names,
+  NESTING,
+  presetTree,
+  toFragment,
+  type State,
+} from './query.js';
+import { group, isGroup, leafText, nodeAt, type Leaf, type Node } from './tree.js';
+import { PRESETS, RANGES, TERMS_BY_ID } from './terms.js';
 
-/** A state as the builder would have it, with only the parts a test is about spelled out. */
-const state = (parts: Partial<State>): State => ({ ...emptyState(), ...parts });
+const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });
+const no = (id: string): Leaf => ({ kind: 'term', id, negated: true });
+const named = (text: string): Leaf => ({ kind: 'name', text, negated: false });
+const all = (...parts: Node[]) => group('all', parts);
+const any = (...parts: Node[]) => group('any', parts);
 
-/** One group by id. It throws rather than defaulting, a group gone being a precondition gone rather than a failure. */
-function group(id: string): Group {
-  const found = GROUPS.find((entry) => entry.id === id);
-
-  if (!found) {
-    throw new Error(`\`terms.js\` carries no ${id} group`);
-  }
-
-  return found;
-}
-
-/** One numeric range by id, so a test pins the floor and ceiling its literals were derived from. */
-function range(id: string): Range {
-  const found = RANGES.find((entry) => entry.id === id);
-
-  if (!found) {
-    throw new Error(`\`terms.js\` carries no ${id} range`);
-  }
-
-  return found;
-}
-
-/** What the writer puts in the search string for one range's two boxes, which is the half the game reads. */
-const clause = (id: string, bounds: Bounds) => rangeClause(range(id), state({ ranges: new Map([[id, bounds]]) }));
+/** A state as the page would have it, with only the part a test is about spelled out. */
+const state = (tree: Node, optimise = false): State => ({ ...emptyState(), tree, optimise });
 
 /** The round trip as the page makes it: write the link, then read it back the way the browser hands it over. */
 const roundTrip = (chosen: State) => fromFragment(`#${toFragment(chosen)}`);
 
-test('every choice a chip, a box or a toggle can make survives the round trip', () => {
-  const chosen = state({
-    text: 'pikachu, eevee',
-    include: new Set(['shiny', 'fire']),
-    exclude: new Set(['lucky']),
-    ranges: new Map<string, Bounds>([
-      ['dex', { from: 1, to: 151 }],
-      ['cp', { from: null, to: 1500 }],
-    ]),
-    optimise: true,
-  });
+/** A tree said in the shape a failure can be read in. */
+const shape = (node: Node): unknown =>
+  isGroup(node) ? { [node.junction]: node.parts.map(shape) } : (leafText(node) ?? '…');
 
-  // Every id above names a real term, which is what makes the drop two tests below load-bearing rather than something
-  // this case quietly relies on: a fragment is checked against the tables, so a test built on a renamed id would be
-  // asserting that renaming works.
-  expect([...chosen.include, ...chosen.exclude].filter((id) => !TERMS_BY_ID.has(id))).toEqual([]);
+test('the clauses of the tree, joined, are the string', () => {
+  // One `&` between clauses and nothing else: the game's search is a conjunction, and an arrangement in this form is
+  // a list of its terms.
+  expect(compose(state(all(yes('shiny')))).query).toBe('shiny');
+  expect(compose(state(all(yes('shiny'), yes('lucky')))).query).toBe('shiny&lucky');
+  expect(compose(state(all(yes('shiny'), any(yes('fire'), yes('water'))))).query).toBe('shiny&fire,water');
+
+  const spread = compose(state(any(all(named('pikachu'), yes('shiny')), all(named('pumpkaboo'), yes('xxl')))));
+
+  // The search the earlier fixed builder could not say at all, as the four clauses the game will take for it.
+  expect(spread.query).toBe('pikachu,pumpkaboo&pikachu,xxl&shiny,pumpkaboo&shiny,xxl');
+  expect(spread.clauses).toBe(4);
+});
+
+test('an empty canvas composes nothing at all', () => {
+  expect(compose(emptyState()).query).toBe('');
+  expect(compose(state(all(any(), all()))).query).toBe('');
+});
+
+test('the caveat is earned by mixing the two operators and by nothing else', () => {
+  // The game has no brackets, so `shiny&fire,water` is open to being read either way round and the page says so
+  // rather than quietly picking one. A string carrying only one of the two operators cannot raise the question.
+  expect(compose(state(all(yes('shiny'), any(yes('fire'), yes('water'))))).ambiguous).toBe(true);
+  expect(compose(state(any(yes('fire'), yes('water')))).ambiguous).toBe(false);
+  expect(compose(state(all(yes('shiny'), yes('lucky')))).ambiguous).toBe(false);
+});
+
+test('a query too wide to write says so and composes nothing', () => {
+  const wide = any(...Array.from({ length: 11 }, (_, at) => all(named(`a${at}`), named(`b${at}`))));
+  const broken = compose(state(wide));
+
+  expect(broken.query).toBe('');
+  expect(broken.error).not.toBeNull();
+  expect(compose(state(all(yes('shiny')))).error).toBeNull();
+});
+
+test('the one preset is everything it names, ruled out', () => {
+  const [preset] = PRESETS;
+
+  if (!preset) {
+    throw new Error('`terms.js` carries no presets');
+  }
+
+  expect(preset.exclude?.length).toBeGreaterThan(0);
+
+  // Every id it names is a real term, which is what makes the string below the preset's own doing rather than a typo's.
+  expect((preset.exclude ?? []).filter((id) => !TERMS_BY_ID.has(id))).toEqual([]);
+
+  const tree = presetTree(preset);
+
+  expect(isGroup(tree) && tree.junction).toBe('all');
+  expect(
+    compose(state(tree))
+      .query.split('&')
+      .every((clause) => clause.startsWith('!')),
+  ).toBe(true);
+});
+
+test("the Pokédex's link into this page arrives as the one name it asked for", () => {
+  /*
+   * `pokedex.tsx` offers *Search for it* and *Search its family*, and it used to build `t=` by hand — the key the name
+   * box had. A fragment spelled at the call site goes on saying so after the page it points at has stopped reading it,
+   * and the only sign would have been a link that opens an empty canvas. So it goes through `nameFragment`, and this
+   * is that link followed.
+   */
+  for (const text of ['charmander', '+charmander', "farfetch'd", 'mr. mime']) {
+    const arrived = fromFragment(`#${nameFragment(text)}`);
+
+    expect({ text, shape: shape(arrived.tree), query: compose(arrived).query }).toEqual({
+      text,
+      shape: { all: [text] },
+      query: text,
+    });
+  }
+});
+
+test('names are split on the comma a reader types, and trimmed', () => {
+  expect(names('pikachu, eevee , snorlax')).toEqual(['pikachu', 'eevee', 'snorlax']);
+  expect(names('   ')).toEqual([]);
+  expect(names('+charmander')).toEqual(['+charmander']);
+});
+
+/*
+ * The link. A fragment carries the arrangement as a token stream, a group writing how it joins and how many parts it
+ * has, so reading one is a descent with a counter rather than a story about unbalanced brackets.
+ */
+
+test('an arrangement survives the round trip', () => {
+  const chosen = state(
+    all(
+      yes('shiny'),
+      no('lucky'),
+      any(named('pikachu'), named('+charmander')),
+      { kind: 'range', id: 'cp', from: 1500, to: null, negated: false },
+      any(all(yes('fire'), { kind: 'range', id: 'dex', from: 1, to: 151, negated: true })),
+    ),
+    true,
+  );
 
   expect(roundTrip(chosen)).toEqual(chosen);
 
-  // The toggle travels as the one value that means it, so a link saying anything else arrives with the optimiser off
-  // rather than on by accident.
+  // The toggle travels as the one value that means it, so a link saying anything else arrives with it off rather than
+  // on by accident.
   expect(fromFragment('s=1').optimise).toBe(true);
   expect(fromFragment('s=true').optimise).toBe(false);
 });
 
 test('a link arrives with its hash, which is not part of the first key', () => {
-  // `location.hash` carries the `#`, so a reader following a link hands this the whole of it. Keeping it makes the
-  // first key `#t`, which names nothing and is dropped — an empty name box out of a link that carried one.
-  expect(fromFragment('#t=pikachu').text).toBe('pikachu');
-  expect(fromFragment('t=pikachu').text).toBe('pikachu');
-  expect(new URLSearchParams('#t=pikachu').get('t')).toBe(null);
+  // `location.hash` carries the `#`, so a reader following a link hands this the whole of it.
+  expect(shape(fromFragment('#q=A1_Tshiny').tree)).toEqual({ all: ['shiny'] });
+  expect(shape(fromFragment('q=A1_Tshiny').tree)).toEqual({ all: ['shiny'] });
+  expect(new URLSearchParams('#q=A1_Tshiny').get('q')).toBe(null);
 });
 
-test('a character the fragment uses for itself travels escaped rather than as itself', () => {
-  // `+charmander` is this repository's own family syntax and `+` is the one character a form reader turns into a space;
-  // `,` separates the names within the box and `&` separates the fragment's own parts. `encodeURIComponent` escapes all
-  // of them where `encodeURI` leaves the last two, so the two controls are what that reading would have produced.
-  expect(toFragment(state({ text: '+charmander' }))).toBe('t=%2Bcharmander');
-  expect(toFragment(state({ text: 'pikachu, eevee' }))).toBe('t=pikachu%2C%20eevee');
+test('a name carries the characters the token stream uses for itself', () => {
+  // `_` separates the tokens and `encodeURIComponent` leaves it alone, so a nickname holding one would otherwise end
+  // its token early and the rest of the name would read as a pill of its own. `#` is both the game's "has any tag"
+  // and the character a fragment begins with, and `&` separates the fragment's own parts.
+  for (const text of ['my_shiny', 'a_b_c', '#', 'tag&more', 'half%', 'é 50%_x']) {
+    const chosen = state(all(named(text)));
 
-  expect(roundTrip(state({ text: '+charmander' })).text).toBe('+charmander');
-  expect(roundTrip(state({ text: 'pikachu, eevee' })).text).toBe('pikachu, eevee');
-
-  expect(new URLSearchParams('t=+charmander').get('t')).toBe(' charmander');
-  expect(new URLSearchParams('t=pikachu, eevee&x=lucky').get('t')).toBe('pikachu, eevee');
+    expect({ text, back: roundTrip(chosen).tree }).toEqual({ text, back: chosen.tree });
+  }
 });
 
-test('the name box is carried trimmed, and whitespace alone is carried not at all', () => {
-  // The spaces a reader types around a name are theirs rather than part of it, which is already what the game is handed
-  // — so the fragment agrees, and a link cannot restore a state that composes differently from the one that wrote it.
-  expect(names('   ')).toEqual([]);
-
-  expect(toFragment(state({ text: '  pikachu  ' }))).toBe('t=pikachu');
-  expect(toFragment(state({ text: '   ' }))).toBe('');
-  expect(roundTrip(state({ text: '  pikachu  ' })).text).toBe('pikachu');
+test('an empty arrangement is carried by no key at all', () => {
+  expect(toFragment(emptyState())).toBe('');
+  expect(toFragment(state(emptyTreeLike()))).toBe('');
+  expect(shape(fromFragment('').tree)).toEqual({ all: [] });
 });
 
-test('an id that names nothing is dropped rather than restored as a choice no chip can show', () => {
+/** An empty root, written out the long way so the test does not lean on `emptyState` for both halves. */
+const emptyTreeLike = () => group('all', []);
+
+test('a token that names nothing is dropped, and the parts after it are not shifted', () => {
   expect(TERMS_BY_ID.has('shiny')).toBe(true);
   expect(TERMS_BY_ID.has('sparkly')).toBe(false);
 
-  const restored = fromFragment('i=shiny.sparkly&nope=1-5');
-
-  // `groupClause` walks each group's own terms and `fromFragment` each range in the table, so an id neither carries
-  // would compose nothing and show nowhere — while `toFragment` wrote it out again, so a link that had rotted past a
-  // rename would go on carrying its own rot.
-  expect(restored.include).toEqual(new Set(['shiny']));
-  expect(restored.ranges.size).toBe(0);
+  // A group always consumes the parts it declared, dropped or not, so one bad pill cannot take the next one with it.
+  expect(shape(fromFragment('q=A3_Tshiny_Tsparkly_Tlucky').tree)).toEqual({ all: ['shiny', 'lucky'] });
+  expect(shape(fromFragment('q=A2_Tsparkly_Tlucky').tree)).toEqual({ all: ['lucky'] });
+  expect(shape(fromFragment('q=A2_Rnope.1.2_Tlucky').tree)).toEqual({ all: ['lucky'] });
+  expect(shape(fromFragment('q=A2_Zwhat_Tlucky').tree)).toEqual({ all: ['lucky'] });
 });
 
-test('a term cannot arrive both wanted and refused', () => {
-  // The chips cannot produce it; a hand-edited link can. It matters because `status` AND's what it is given, so the
-  // pair composes a search for a shiny that is not shiny — which matches nothing and says nothing about why.
-  expect(group('status').join).toBe('&');
-  expect(compose(state({ include: new Set(['shiny']), exclude: new Set(['shiny']) })).query).toBe('shiny&!shiny');
+test('a bound from a stranger is clamped to the pill that could have produced it', () => {
+  const dex = RANGES.find((range) => range.id === 'dex');
+  const year = RANGES.find((range) => range.id === 'year');
 
-  const restored = fromFragment('i=shiny&x=shiny.lucky');
+  expect([dex?.min, dex?.max]).toEqual([1, 1025]);
+  expect([year?.min, year?.max]).toEqual([2016, 2030]);
 
-  expect([restored.include, restored.exclude]).toEqual([new Set(['shiny']), new Set(['lucky'])]);
-  expect(compose(restored).query).toBe('shiny&!lucky');
+  // An unclamped bound hands the game a span no pill could have made — `0-9999` out of a dex box that stops at 1025.
+  expect(nodeAt(fromFragment('q=A1_Rdex.0.9999').tree, [0])).toEqual({
+    kind: 'range',
+    id: 'dex',
+    from: 1,
+    to: 1025,
+    negated: false,
+  });
+
+  expect(nodeAt(fromFragment('q=A1_Ryear.1999.2020').tree, [0])).toEqual({
+    kind: 'range',
+    id: 'year',
+    from: 2016,
+    to: 2020,
+    negated: false,
+  });
+
+  // A bound that is not a number is the empty box it looks like, which the writer then fills from the table.
+  expect(shape(fromFragment('q=A1_Rdex..151').tree)).toEqual({ all: ['1-151'] });
+  expect(shape(fromFragment('q=A1_Rdex.x.y').tree)).toEqual({ all: ['…'] });
 });
 
-test('a bound from a stranger is clamped to the box it claims to have come from', () => {
-  expect([range('dex').min, range('dex').max]).toEqual([1, 1025]);
-  expect([range('year').min, range('year').max]).toEqual([2016, 2030]);
-
-  // An unclamped bound hands the game a span the boxes could never have made — `0-9999` out of a builder whose dex box
-  // stops at 1025 — and the page then shows boxes that disagree with the string beneath them.
-  expect(fromFragment('dex=0-9999').ranges.get('dex')).toEqual({ from: 1, to: 1025 });
-  expect(fromFragment('year=1999-2020').ranges.get('year')).toEqual({ from: 2016, to: 2020 });
+test('an arity claiming more parts than there are is a short tree rather than a hang', () => {
+  // Clamped to the tokens actually left, so a link claiming a billion parts reads the two it has and stops.
+  expect(shape(fromFragment('q=A99999999_Tshiny_Tlucky').tree)).toEqual({ all: ['shiny', 'lucky'] });
+  expect(shape(fromFragment('q=A2_Tshiny').tree)).toEqual({ all: ['shiny'] });
+  expect(shape(fromFragment('q=Ax_Tshiny').tree)).toEqual({ all: [] });
 });
 
-test('a bound that is not a number is the empty box it looks like', () => {
-  // `dex=-151` is a `to` with no `from`, so it splits into an empty part and a number rather than into a negative one.
-  expect(fromFragment('dex=-151').ranges.get('dex')).toEqual({ from: null, to: 151 });
-  expect(fromFragment('dex=x-y').ranges.get('dex')).toEqual({ from: null, to: null });
+test('a link nested deeper than the limit is refused on the way down rather than by the stack', () => {
+  /*
+   * The reader recurses once per group, so a link claiming ten thousand of them would exhaust the stack before
+   * anything could refuse it — which is why the depth is checked before descending rather than measured afterwards.
+   * The canvas cannot reach this: a reader would be pressing *add a group* sixty-odd times into its own last group.
+   */
+  const deep = (count: number) => `q=${Array.from({ length: count }, () => 'A1').join('_')}_Tshiny`;
 
-  // Which the writer then fills from the table, so a half-filled link composes what the half-filled boxes would.
-  expect(compose(fromFragment('dex=-151')).query).toBe('1-151');
+  const depth = (node: Node): number => (isGroup(node) && node.parts[0] ? 1 + depth(node.parts[0]) : 0);
+
+  expect(depth(fromFragment(deep(NESTING)).tree)).toBe(NESTING);
+  expect(depth(fromFragment(deep(10_000)).tree)).toBeLessThanOrEqual(NESTING);
+  expect(compose(fromFragment(deep(10_000))).error).toBeNull();
 });
 
-test('a range with both boxes empty is carried by neither the link nor the query', () => {
-  const empty = state({ ranges: new Map<string, Bounds>([['dex', { from: null, to: null }]]) });
+/** Every tree of up to `size` nodes over two pills and both junctions, which is enough shapes to sweep. */
+function* trees(size: number): Generator<Node> {
+  if (size <= 1) {
+    yield yes('shiny');
+    yield no('lucky');
+    yield named('pika_chu');
+    yield { kind: 'range', id: 'cp', from: 100, to: null, negated: false };
+    return;
+  }
 
-  expect(toFragment(empty)).toBe('');
-  expect(compose(empty).query).toBe('');
+  for (const junction of ['all', 'any'] as const) {
+    for (const one of trees(size - 1)) {
+      yield group(junction, [one]);
 
-  // So the round trip normalises here rather than being an identity, and this is the only place it does: the state
-  // holding the entry and the state without it write the same two strings, which is what the fragment carries.
-  expect(fromFragment('dex=x-y').ranges.has('dex')).toBe(true);
-  expect(roundTrip(fromFragment('dex=x-y')).ranges.has('dex')).toBe(false);
-});
+      for (const two of trees(1)) {
+        yield group(junction, [one, two]);
+      }
+    }
+  }
+}
 
-test('an empty box is filled from the table rather than written as an open end', () => {
-  expect(range('cp').max).toBe(5000);
-  expect([range('dex').prefix, range('dex').min]).toEqual(['', 1]);
+test('every arrangement this writes, it reads back', () => {
+  // The sweep rather than a handful, because the encoding is a flat token stream: an arity read one short or one long
+  // puts the rest of the tree in the wrong place, and the result is still a tree.
+  let swept = 0;
 
-  // `cp3000-` may well be read the way it looks, where `cp3000-5000` cannot be read any other way and nothing has a CP
-  // above the ceiling anyway. The dex carries no prefix, a bare span being how the game searches dex numbers.
-  expect(clause('cp', { from: 3000, to: null })).toBe('cp3000-5000');
-  expect(clause('dex', { from: null, to: 151 })).toBe('1-151');
-});
+  for (const tree of trees(3)) {
+    const chosen = state(group('all', [tree]));
 
-test('a pair of bounds the wrong way round is written the way it reads', () => {
-  // A reader can type the higher number into the lower box, and `cp2000-100` is a search that matches nothing out of
-  // two numbers that describe a span perfectly well.
-  expect(clause('cp', { from: 2000, to: 100 })).toBe('cp100-2000');
-});
+    expect({ shape: shape(roundTrip(chosen).tree), query: compose(roundTrip(chosen)).query }).toEqual({
+      shape: shape(chosen.tree),
+      query: compose(chosen).query,
+    });
 
-test('the string is the choices rather than the order they were clicked in', () => {
-  const first = state({ include: new Set(['water', 'fire', 'shiny']) });
-  const second = state({ include: new Set(['shiny', 'fire', 'water']) });
+    swept += 1;
+  }
 
-  // Two readers comparing what they built are then comparing the choices, so the clauses follow the tables: status
-  // before type, and the types in the order every type chart has shown them since 1999.
-  expect(compose(first).query).toBe('shiny&fire,water');
-  expect(compose(second).query).toBe(compose(first).query);
-
-  // The link is the other way round and carries insertion order, which is why it is read back through the tables
-  // rather than compared as a string: these two differ and restore to the same state.
-  expect(toFragment(first)).toBe('i=water.fire.shiny');
-  expect(toFragment(second)).not.toBe(toFragment(first));
-  expect(roundTrip(second)).toEqual(roundTrip(first));
-});
-
-test('the caveat is earned by mixing the two operators and by nothing else', () => {
-  // `status` AND's and `type` OR's, which is what lets one group produce each half of the mix.
-  expect([group('status').join, group('type').join]).toEqual(['&', undefined]);
-
-  // The game has no parentheses, so `shiny&fire,water` is open to being read either way round and the builder says so
-  // rather than quietly picking one. A string carrying only one of the two operators cannot raise the question.
-  expect(compose(state({ include: new Set(['shiny', 'fire', 'water']) })).ambiguous).toBe(true);
-  expect(compose(state({ include: new Set(['fire', 'water']) })).ambiguous).toBe(false);
-
-  const both = compose(state({ include: new Set(['shiny', 'lucky']) }));
-
-  expect([both.query, both.ambiguous]).toEqual(['shiny&lucky', false]);
-});
-
-/*
- * The expression box. What it converts to is `expression.test.ts`'s to prove; these are about it reaching the string
- * the same way a chip does — one composer, one clause count, one caveat — and about surviving a link, which it does on
- * different terms from everything else here, there being no table to read a written expression back through.
- */
-
-test("an expression's clauses are AND'd after the ones the tables wrote", () => {
-  const built = compose(
-    state({ text: 'pikachu', expression: '(fire&shiny),(water&lucky)', include: new Set(['legendary']) }),
-  );
-
-  // Last, because every clause ahead of it is written from the tables in a fixed order and the part a reader typed is
-  // the part they can already pick out of the string.
-  expect(built.query).toBe('pikachu&legendary&fire,water&fire,lucky&shiny,water&shiny,lucky');
-  expect(built.clauses).toBe(6);
-
-  // One ampersand between the expression's clauses and the rest, which is the whole of what makes them compose: the
-  // game's search is a conjunction, and an expression in this form is a list of its terms.
-  expect(compose(state({ expression: 'shiny' })).query).toBe('shiny');
-  expect(compose(state({ include: new Set(['legendary']), expression: 'shiny' })).query).toBe('legendary&shiny');
-});
-
-test('an expression earns the caveat on the same terms a chip does', () => {
-  // The mix is what raises the question, wherever the two operators came from — and an expression is the one input
-  // that can produce both halves of it by itself.
-  expect(compose(state({ expression: '(fire&shiny),(water&lucky)' })).ambiguous).toBe(true);
-  expect(compose(state({ expression: 'fire,water' })).ambiguous).toBe(false);
-  expect(compose(state({ expression: 'fire&shiny' })).ambiguous).toBe(false);
-});
-
-test('a broken expression says so and composes nothing, rather than quietly composing less', () => {
-  const broken = compose(state({ include: new Set(['legendary']), expression: '(fire&shiny' }));
-
-  // The chips still mean what they said, so the string stays theirs — but it is not the whole of what was asked for,
-  // which is why the page reads `error` and refuses to copy it.
-  expect(broken.query).toBe('legendary');
-  expect(broken.error).not.toBeNull();
-
-  expect(compose(state({ expression: '' })).error).toBeNull();
-  expect(compose(state({ expression: 'fire&shiny' })).error).toBeNull();
-});
-
-test('an expression carries the terms the game gets wrong behind a negation', () => {
-  // `!1hp` is a term the reader never typed — the bracket is what wrote it — and the game ignores the negation on it.
-  expect(compose(state({ expression: '!(1hp,shiny)' })).mishandled).toEqual([
-    { term: '!1hp', note: expect.stringContaining('ignores a negation') },
-  ]);
-
-  expect(compose(state({ expression: '1hp&shiny' })).mishandled).toEqual([]);
-});
-
-test('an expression survives the round trip, including the characters a fragment uses for itself', () => {
-  const chosen = state({ expression: '(pikachu&shiny),(#&!xxs)' });
-
-  // `&` separates the fragment's own parts and `#` is both the game's "has any tag" and the character a fragment
-  // begins with, so an expression carrying either would end the fragment early were it written out as itself.
-  expect(toFragment(chosen)).toBe('e=(pikachu%26shiny)%2C(%23%26!xxs)');
-  expect(roundTrip(chosen)).toEqual(chosen);
-
-  // Which is what `compose` then reads, so a followed link composes what its sender was looking at.
-  expect(compose(roundTrip(chosen)).query).toBe(compose(chosen).query);
-});
-
-test('an expression is carried trimmed, and whitespace alone is carried not at all', () => {
-  expect(toFragment(state({ expression: '  shiny  ' }))).toBe('e=shiny');
-  expect(toFragment(state({ expression: '   ' }))).toBe('');
-  expect(roundTrip(state({ expression: '  shiny  ' })).expression).toBe('shiny');
-});
-
-test('a link carrying nonsense fills the box with it rather than dropping it', () => {
-  // The other half of a fragment is checked against the tables and an id naming nothing is dropped. There is no table
-  // to check an expression against, so it arrives as written and the page says what is wrong with it — which is what
-  // a reader would have seen typing the same thing, and is recoverable where an emptied box is not.
-  const restored = fromFragment('e=%28shiny');
-
-  expect(restored.expression).toBe('(shiny');
-  expect(compose(restored).error).not.toBeNull();
+  // Enough shapes that the sweep is a sweep, pinned so a generator that stopped generating would be caught.
+  expect(swept).toBeGreaterThan(200);
 });

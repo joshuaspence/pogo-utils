@@ -321,88 +321,22 @@ body[data-page='search'] {
   }
 
   /**
-   * The box the names live in. What looks like a text field is this element rather than the input inside it, so the names
-   * already chosen can sit in it as chips: the border, the padding and the background are all here, and the input is left
-   * transparent and borderless at the end of the row. Wrapping, because a reader can choose more names than fit on a
-   * line.
+   * The name box, which carries its own border now that there is no field wrapped round it: a committed name leaves
+   * for the canvas as a pill, so what is left here is one ordinary input holding at most the name being typed.
    */
 
-  .field {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
+  #text {
+    width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--bg);
-    cursor: text;
-  }
-
-  /* The ring goes on the box, since the thing that has the focus is drawn as part of it and not as a field of its own. */
-
-  .field:focus-within {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  #text {
-    flex: 1;
-
-    /* Enough that a name being typed is readable beside the chips, and little enough to sit on a line with several. */
-    min-width: 9ch;
-    padding: 1px 2px;
-    border: 0;
-    background: none;
     color: var(--text);
     font: inherit;
     font-size: 14px;
   }
 
   #text:focus-visible {
-    outline: none;
-  }
-
-  .range input:focus-visible {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  /**
-   * A name already chosen. Coloured on --track rather than on the accent, which on this page means a term ruled out: a
-   * name is a value the reader has set, which is what --track already says on a range box they have filled in.
-   */
-
-  .field .name {
-    display: inline-flex;
-    gap: 5px;
-    align-items: center;
-    padding: 3px 5px 3px 9px;
-    border: 1px solid var(--track);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--track) 12%, var(--panel));
-    color: var(--text);
-    font-size: 12.5px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .field .name button {
-    padding: 0 3px;
-    border: 0;
-    background: none;
-    color: var(--muted);
-    font: inherit;
-    font-size: 11px;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  .field .name button:hover {
-    color: var(--accent);
-  }
-
-  .field .name button:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -521,9 +455,11 @@ body[data-page='search'] {
   }
 
   /**
-   * A chip's three states. Off is the page's own furniture; required takes the group's colour, so which group a choice
-   * came from reads without looking up the page; ruled out takes the accent red whatever the group, because refusing a
-   * Fire type and refusing a shiny mean the same thing and should not look like two different kinds of choice.
+   * A catalogue chip, which holds no state of its own: it is a thing to take a copy of rather than a toggle, so the
+   * three states it used to wear belong to the pill it makes. The category's hue is still here, so which category a
+   * chip came from reads without looking up the page.
+   *
+   * `touch-action` is what lets a finger drag one off the shelf instead of scrolling the page with it.
    */
 
   .chip {
@@ -539,7 +475,8 @@ body[data-page='search'] {
     color: var(--muted);
     font: inherit;
     font-size: 12px;
-    cursor: pointer;
+    cursor: grab;
+    touch-action: none;
     user-select: none;
   }
 
@@ -553,119 +490,279 @@ body[data-page='search'] {
     outline-offset: 2px;
   }
 
-  .chip[data-state='in'] {
-    border-color: var(--chip);
-    background: color-mix(in srgb, var(--chip) 16%, var(--panel));
-    color: var(--text);
-    font-weight: 600;
+  .chip .state {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    opacity: 0.45;
   }
 
-  .chip[data-state='out'] {
+  /**
+   * The canvas, which is the page's subject: the catalogue below it is a shelf, and this is the thing being built. It
+   * sits in the flow rather than sticking, the output box above it already being what stays in view.
+   */
+
+  .canvas {
+    margin-bottom: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+  }
+
+  /**
+   * One group. Nested groups are the same element at every depth, so the indent comes from the nesting itself rather
+   * than from a rule per level — which is the only way a tree of unknown depth can be drawn at all.
+   *
+   * The dashed border says *container* against the solid ones the panels wear: a group is somewhere pills go, and a
+   * reader has to be able to see the hole they are dropping into before anything is in it.
+   */
+
+  .group-node {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .group-node.root {
+    border-style: solid;
+    background: none;
+  }
+
+  /**
+   * The group a pill would land in. Lit on the border and the background both, because a drop target a reader has to
+   * look for is a drop target they will miss — and `--start` is the one colour on this page that already means *yes*.
+   */
+
+  .group-node.target {
+    border-color: var(--start);
+    border-style: solid;
+    background: color-mix(in srgb, var(--start) 10%, var(--panel));
+  }
+
+  /* The group a pressed chip goes into, which is quieter than a drop target: it is a standing state, not a gesture. */
+
+  .group-node.current:not(.target) {
+    border-color: var(--track);
+  }
+
+  .group-head {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .junction {
+    padding: 3px 10px;
+    border: 1px solid var(--track);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--track) 12%, var(--panel));
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+  }
+
+  .junction:hover {
+    background: color-mix(in srgb, var(--track) 22%, var(--panel));
+  }
+
+  .group-head .drop {
+    margin-left: auto;
+  }
+
+  .parts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+
+    /* Enough that an empty group is a space a pill can plainly be put into rather than a line of text. */
+    min-height: 34px;
+  }
+
+  /* A nested group takes a line of its own, a group being a block of the query rather than a word in it. */
+
+  .parts > .group-node {
+    flex: 1 0 100%;
+  }
+
+  .group-node .empty {
+    margin: 0;
+    align-self: center;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+
+  .group-node .add {
+    align-self: flex-start;
+    padding: 2px 8px;
+    border: 1px dashed var(--border);
+    border-radius: 999px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .group-node .add:hover {
+    border-color: var(--track);
+    border-style: solid;
+    color: var(--track);
+  }
+
+  /**
+   * A pill: the term, its state, and the two controls that move it. Built as a row of buttons rather than one button
+   * holding others, which nothing is allowed to be — pressing the face turns the pill round, and the two beside it
+   * pick it up and take it off.
+   */
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel);
+    white-space: nowrap;
+  }
+
+  .pill .face {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    padding: 4px 4px 4px 10px;
+    border: 0;
+    border-radius: 999px 0 0 999px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .pill.in {
+    border-color: var(--track);
+    background: color-mix(in srgb, var(--track) 12%, var(--panel));
+  }
+
+  .pill.out {
     border-color: var(--accent);
     background: var(--accent-soft);
     color: var(--accent);
-    font-weight: 600;
+  }
+
+  .pill.out .face .name {
     text-decoration: line-through;
     text-decoration-thickness: 1px;
   }
 
-  /**
-   * The state, said in a glyph as well as in colour and a strike — the three states have to be tellable apart by someone
-   * who cannot see the difference between a red chip and a teal one.
-   */
+  /* The pill a keyboard has picked up, which is waiting for a group to be clicked and says so by lifting. */
 
-  .chip .state {
+  .pill.carried {
+    border-color: var(--start);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .pill .state {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     text-decoration: none;
   }
 
-  .chip[data-state='off'] .state {
-    opacity: 0.35;
-  }
-
-  .ranges {
-    display: grid;
-    gap: 10px 16px;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  }
-
-  .range {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .range .name {
-    flex: 1;
-    font-size: 12px;
+  .pill .lift,
+  .pill .drop,
+  .group-head .drop {
+    padding: 0 6px;
+    border: 0;
+    background: none;
     color: var(--muted);
-  }
-
-  .range input {
-    width: 68px;
-    padding: 5px 8px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    color: var(--text);
     font: inherit;
-    font-size: 12px;
-    text-align: right;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
   }
 
-  .range .dash {
-    color: var(--muted);
+  .pill .lift[aria-pressed='true'] {
+    color: var(--start);
   }
 
-  /**
-   * A range that is set is worth spotting from across the panel, since it contributes to the string as silently as a chip
-   * does but looks like an empty box until you read the numbers in it.
-   */
-
-  .range.set input:not(:placeholder-shown) {
-    border-color: var(--track);
-    color: var(--text);
-    font-weight: 600;
+  .pill .drop:hover,
+  .group-head .drop:hover {
+    color: var(--accent);
   }
 
-  /**
-   * The expression box, monospaced and wearing the output box's face: what is typed here is the same kind of thing as
-   * what comes out of there, so the brackets line up under one another and `(pikachu&shiny)` reads as a string rather
-   * than as a sentence.
-   *
-   * `field-sizing: content` grows it to whatever was pasted, with `rows` as the floor the markup sets and a ceiling
-   * here so that a distributed monster cannot push the rest of the page off screen. Where it is unsupported the
-   * element keeps its two rows and scrolls, which is what a textarea has always done.
-   */
-
-  #expression {
-    width: 100%;
-    max-height: 40vh;
-    padding: 8px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    field-sizing: content;
-    resize: vertical;
-  }
-
-  #expression:focus-visible {
+  .pill .lift:focus-visible,
+  .pill .drop:focus-visible,
+  .pill .face:focus-visible,
+  .group-head .drop:focus-visible,
+  .junction:focus-visible,
+  .group-node .add:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
 
+  /* A span pill's own two boxes, narrow enough that the pill still reads as one thing. */
+
+  .pill .bounds {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    padding-right: 2px;
+  }
+
+  .pill .bounds input {
+    width: 54px;
+    padding: 2px 4px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--panel);
+    color: var(--text);
+    font: inherit;
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .pill .bounds input:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  .pill .bounds .dash {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
   /**
-   * An expression that does not parse yet. Painted on the box as well as said beside the Copy button, so that a reader
-   * part-way through a bracket can see which box the message up under the string is about.
+   * The pill under the pointer. Fixed and translated off its own corner so it hangs from the grab point, and
+   * `pointer-events: none` so that `elementFromPoint` reports the group beneath rather than the ghost itself — which
+   * is the whole of how the drop target is found.
    */
 
-  #expression[aria-invalid='true'] {
-    border-color: var(--accent);
+  .ghost {
+    position: fixed;
+    z-index: 50;
+    padding: 4px 10px;
+    border: 1px solid var(--track);
+    border-radius: 999px;
+    background: var(--panel);
+    box-shadow: var(--shadow-lift);
+    color: var(--text);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translate(-50%, -140%);
   }
 
   @media (width <= 560px) {

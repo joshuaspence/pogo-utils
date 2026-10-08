@@ -23,6 +23,7 @@ import {
   type State,
 } from '../pokedex/state.js';
 import { replaceQuery, toHash } from '../router.js';
+import { nameFragment } from '../search/query.js';
 
 const HUNT_LABELS = new Map(HUNTS.map(({ id, label }) => [id, label]));
 const CATEGORY_LABELS = new Map(CATEGORIES.map(({ id, label }) => [id, label]));
@@ -173,7 +174,7 @@ function Detail({ entry }: { entry: Entry }) {
               { text: 'Search for it', term: name },
               { text: 'Search its family', term: `+${name}` },
             ].map(({ text, term }) => (
-              <a key={term} class="ghost" href={toHash('search', `t=${encodeURIComponent(term)}`)}>
+              <a key={term} class="ghost" href={toHash('search', nameFragment(term))}>
                 {text}
               </a>
             ))}

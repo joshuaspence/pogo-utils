@@ -183,60 +183,65 @@ follows it.
 ## Search strings
 
 The **Search** page ([`src/pages/search.tsx`](src/pages/search.tsx)) builds a string for the search box on the game's
-Pokémon storage screen. Chips are three-state — click once to require a term, again to rule it out, again to drop it —
-and the string is written live, with a link that carries the choices so one can be shared or bookmarked.
+Pokémon storage screen. A catalogue of chips sits below the query; you drag one into a group to make a pill of it, and
+the arrangement of those pills _is_ the search. The string is written live, with a link that carries the whole
+arrangement so one can be shared or bookmarked.
 
-The terms live in one table, [`src/search/terms.ts`](src/search/terms.ts), and the page is rendered from it, so adding
-or correcting one is a single line. [`src/search/query.ts`](src/search/query.ts) turns the state into the string and
-holds no DOM, which is where to look to check what the builder actually writes.
+A group asks for **all** of its pills or **any** of them, holds other groups as well as pills, and turns round with one
+press. A pill is required or ruled out, which is one press on its face. That pair is complete over every search the game
+can express, and deliberately has no third thing in it: a negated group is the other junction with its pills negated —
+`!(a&b)` is `!a,!b` — so De Morgan is something the reader does by arranging rather than something the code has to do
+afterwards.
 
-Three things the composition decides, since none of them is obvious. Groups are AND'd together, and each group says how
-the terms picked within it join: most are OR (`fire,water`), because nothing is two types or two generations, so picking
-several can only mean either — while **Status** and **Moves** are AND (`shiny&lucky`), because a Pokémon is any number
-of those at once and a lucky shiny is the reason to search for two of them. A pair that is one slot therefore gets a
-group to itself rather than a place among the statuses: nothing is both Shadow and Purified, so those two OR. Terms
-ruled out are negated and AND'd whatever their group does (`!fire&!water`), since `!fire,!water` would match everything:
-everything is either not Fire or not Water. And Pokémon GO's search has no brackets, so a string mixing `,` and `&`
-cannot say which binds first; the builder writes its clauses in a fixed order and says so on the page when the question
-can arise, rather than picking a reading on your behalf.
+The terms live in one table, [`src/search/terms.ts`](src/search/terms.ts), and the catalogue is rendered from it, so
+adding or correcting one is still a single line.
+
+### What the tree is written as
+
+The game takes no brackets. What it does take is clauses separated by `&`, each a list of alternatives separated by `,`,
+`:` or `;`, each alternative a term or a term behind a `!` — and that shape is conjunctive normal form, which every
+boolean expression has one of. So [`src/search/clauses.ts`](src/search/clauses.ts) distributes whatever has been
+arranged into that form, and [`src/search/query.ts`](src/search/query.ts) joins the result with `&`. A shiny Pikachu or
+an XXL Pumpkaboo — two `all` groups inside an `any`, which the earlier fixed builder could not say at all — leaves as
+`pikachu,pumpkaboo&pikachu,xxl&shiny,pumpkaboo&shiny,xxl`, and not one of those four clauses is a search anybody would
+have thought to write.
+
+Three costs are worth knowing. An `any` **multiplies** where an `all` adds, so a few groups buy a great many characters;
+the converter refuses past a thousand clauses rather than build a string no search box could hold. The conversion only
+means what it says if a comma binds tighter than an ampersand, which is the reading the page has always taken and the
+one the warning above the string says the game will not confirm. And a clause that asks nothing is dropped — a pill with
+no bounds filled in yet, or a group with nothing in it, asks nothing and is read that way rather than guessed at.
+
+[`src/search/tree.ts`](src/search/tree.ts) owns the arrangement itself: what a pill writes, and the three edits a drag
+makes. A node is named by its **path** — `[2, 0]` is the first part of the third part of the root — which is what a
+render already knows and what a drop target already is, so nothing has to mint an identity and keep it in step. The cost
+is that `move` is the one operation that invalidates its own argument, taking a pill out shifting every sibling after it
+along, so it corrects its destination rather than trusting callers to.
+
+### Shortening
 
 **Shorten**, beside the character count, says the same thing in fewer characters — worth having because the game's
-search box is a small one and a long string is pasted with half of it out of sight. Both reductions are the same
-observation: the choices name the species at more length than the game needs. A name can lose its tail, since
-`charmander` and `charma` reach the same one species and so does the dex number `4`; and the generation chips, the
-dex-number boxes and a name that has become a number all write spans of the same numbers into clauses that are AND'd, so
-they collapse into their overlap — Gen 1 with Gen 2 is `1-251`, and `charmander` inside Gen 1 is just `4`. Occasionally
-that makes the string plainer as well as shorter: `shiny&1-151,152-251` mixes `,` with `&` and earns the warning above,
-where `shiny&1-251` says the same thing and does not.
+search box is a small one and a long string is pasted with half of it out of sight. The three reductions are the ones
+where the reader has named a species at more length than the game needs, or a category has said what its own terms
+already settle: a name can lose its tail, since `charmander` and `charma` reach the same one species and so does the dex
+number `4`; dex spans collapse, into their overlap where they are AND'd and their union where they are OR'd; and
+`terms.ts`'s `exclusive`, `exhaustive` and `covers` make `shadow&!purified` say `shadow`, every star rating at once say
+nothing at all, and the two backdrops say `background`.
 
-[`src/search/optimise.ts`](src/search/optimise.ts) rewrites the _state_ rather than the string, handing a second state
-to the same composer, so the short string goes through the same clause writer and the same ambiguity check as the long
-one — and the chips, the boxes and the link never stop carrying what was actually chosen, so switching the toggle back
-off restores the original rather than leaving a rewrite to undo. The substitutions are listed under the string, because
-one of them is not an equivalence: a name matches nicknames as well as species, where a dex number matches the species
-alone. What it will not do is turn `+charmander` into `4,5,6`, or shorten it to `+charm` by reaching the family through
-another of its members; both need to know which species share an evolution family, which is data this repository does
-not hold. A `+` keeps its name and gets the name shortening alone.
+**Every one of them is local to one group.** That is the whole of what the canvas changed about
+[`src/search/optimise.ts`](src/search/optimise.ts): the earlier page AND'd one clause per category, so "this category's
+terms" and "the terms AND'd with everything else" were the same set and a reduction could be written once against it. An
+arrangement can put a category's terms in two different groups, or inside an `any` the rest of the query is not AND'd
+with, so each reduction asks only about one group's own parts. A pill one group over is a pill it knows nothing about,
+which is the only reading that cannot make a search broader than it was.
 
-**Brackets**, the box at the foot of the page, is for the searches the chips cannot say at all. The chips build a
-conjunction — every group AND'd with every other — so there is no clicking together an _either_ that spans two of them,
-and `(pikachu&shiny),(pumpkaboo&xxl)` is a perfectly ordinary thing to want. Typing it there is the way to ask for it.
-
-The game takes no brackets, which is why this is a conversion rather than a passthrough. What it does take is clauses
-separated by `&`, each a list of alternatives separated by `,`, `:` or `;`, each alternative a term or a term behind a
-`!` — and that shape is conjunctive normal form, which every boolean expression has one of. So
-[`src/search/expression.ts`](src/search/expression.ts) reads the expression, pushes the negations down onto its terms,
-distributes it into that form and hands back the clauses; the example above leaves as `pikachu,pumpkaboo` and three
-more, not one of which anybody would have thought to write. Those clauses join the ones the chips and the boxes wrote,
-in the same composer and under the same character count and ambiguity warning, so an expression is another input to the
-page rather than a second tool sharing it.
-
-Two costs are worth knowing before reaching for it. Writing an _either_ out multiplies where writing an _and_ adds, so a
-few brackets buy a great many characters — the converter refuses past a thousand clauses rather than build a string no
-search box could hold. And the conversion only means what it says if a comma binds tighter than an ampersand, which is
-the reading the rest of the page already takes and the one the warning above says the game will not confirm. `|` is
-refused outright for the same reason read the other way: Niantic's list groups it with `&`, other converters read it as
-`,`, and a character whose two readings are opposites is better turned away than guessed at.
+It rewrites the _tree_ rather than the string, handing a second tree to the same composer, so the short string goes
+through the same distribution and the same ambiguity check as the long one — and the canvas and the link never stop
+carrying what was actually arranged, so switching the toggle back off restores the original rather than leaving a
+rewrite to undo. The substitutions are listed under the string, because one of them is not an equivalence: a name
+matches nicknames as well as species, where a dex number matches the species alone. What it will not do is turn
+`+charmander` into `4,5,6`, or shorten it to `+charm` by reaching the family through another of its members; both need
+to know which species share an evolution family, which is data this repository does not hold.
 
 ## Pokédex
 
