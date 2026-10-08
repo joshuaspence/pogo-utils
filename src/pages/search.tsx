@@ -358,12 +358,18 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    */
   const pressChip = (leaf: Leaf) => edit((tree) => cycle(tree, focus, leaf));
 
+  /**
+   * Back to the blank page, which is every box on it rather than the canvas alone: a typed query left behind would sit
+   * full above an output box saying nothing was arranged, and the name box is emptied here for the same reason.
+   */
   function clear() {
     setState((was) => ({ ...emptyState(), optimise: was.optimise }));
     setFocus([]);
     setHeld(null);
     setTyping('');
     setTypedBound(null);
+    setTyped('');
+    setTypedError(null);
     closeSuggestions();
   }
 
@@ -397,8 +403,14 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * has pasted a whole search means that search — and the arrangement they are replacing is one press of the browser's
    * own back button away, the link having carried it.
    *
-   * The box is emptied on success so that the canvas is the only place the query lives. A failure leaves both the text
-   * and the arrangement alone, there being nothing to put and no reason to take anything away.
+   * The text stays in the box afterwards, being what the reader typed: the query to correct a bracket in and press
+   * again, and the only record of what was asked for once the canvas is showing the clauses it came to rather than the
+   * brackets it was written with. Nothing but this function reads the box, so the two of them holding a query is no
+   * state to keep in step — the arrangement is still the page's only state, and pressing *Use it* twice replaces the
+   * tree with the same tree.
+   *
+   * A failure leaves the text and the arrangement alone, there being nothing to put and no reason to take anything
+   * away.
    */
   function importTyped() {
     const { tree, error } = read(typed);
@@ -412,8 +424,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setState((was) => ({ ...was, tree }));
     setFocus([]);
     setHeld(null);
+
+    // The digits in a span box belong to the pill the caret was in, which the replacement has just taken away.
     setTypedBound(null);
-    setTyped('');
   }
 
   /** One name finished with, which becomes a pill in the current group. A nickname works as well as a species. */
