@@ -169,6 +169,64 @@ export function update(root: Node, path: Path, change: (node: Node) => Node | nu
 export const append = (root: Node, path: Path, node: Node): Node =>
   update(root, path, (into) => (isGroup(into) ? { ...into, parts: [...into.parts, node] } : into));
 
+/** Which of three states a group puts a catalogue chip in: not in it, required, or ruled out. */
+export type ChipState = 'off' | 'in' | 'out';
+
+/**
+ * The first pill in this group naming the same catalogue entry, with the index it sits at. A name is never one of
+ * these: two names are two different searches, where a term or a range is the same entry however many times it is
+ * pressed, which is the whole of what makes the cycle below possible.
+ */
+function entryAt(into: Group, id: string) {
+  const at = into.parts.findIndex((part) => !isGroup(part) && part.kind !== 'name' && part.id === id);
+  const found = at < 0 ? null : into.parts[at];
+
+  return found === undefined || found === null || isGroup(found) || found.kind === 'name' ? null : { at, pill: found };
+}
+
+/** What the group at `path` says about a catalogue entry, which is what that entry's chip wears. */
+export function chipState(root: Node, path: Path, id: string): ChipState {
+  const into = nodeAt(root, path);
+  const found = into !== null && isGroup(into) ? entryAt(into, id) : null;
+
+  return found === null ? 'off' : found.pill.negated ? 'out' : 'in';
+}
+
+/**
+ * One press of a catalogue chip, on the group being filled: absent becomes required, required becomes ruled out, and
+ * ruled out goes. Three presses leave the group as they found it.
+ *
+ * The chips were a three-state toggle before the canvas and they are one again. What changed is the scope: a press
+ * reads the group it is filling rather than the whole query, which for a query built in the root alone — the state a
+ * reader spends most of their time in — is the behaviour the fixed builder had. The same term in *two* groups is a
+ * search worth having and is still reachable, by dragging a second copy somewhere else.
+ *
+ * The third press taking a span pill's bounds with it is deliberate rather than overlooked. A chip pressed three times
+ * is three deliberate presses with the pill in sight the whole way, and `✕` is the same loss in one.
+ */
+export function cycle(root: Node, path: Path, leaf: Leaf): Node {
+  const into = nodeAt(root, path);
+
+  if (into === null || !isGroup(into)) {
+    return root;
+  }
+
+  // A name has no chip and no cycle; what it has is a box, and the same name twice is one pill's worth of search.
+  if (leaf.kind === 'name') {
+    const already = into.parts.some((part) => !isGroup(part) && part.kind === 'name' && part.text === leaf.text);
+
+    return already ? root : append(root, path, leaf);
+  }
+
+  const found = entryAt(into, leaf.id);
+
+  if (found === null) {
+    return append(root, path, leaf);
+  }
+
+  return update(root, [...path, found.at], () => (found.pill.negated ? null : { ...found.pill, negated: true }));
+}
+
 /** Whether `inside` is `outside` or sits within it, which is the move a drop onto a group's own pill would ask for. */
 const within = (inside: Path, outside: Path) =>
   inside.length >= outside.length && outside.every((index, at) => inside[at] === index);

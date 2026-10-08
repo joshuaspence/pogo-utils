@@ -32,6 +32,8 @@ import { suggestions, written as speciesTerm, type Offer } from '../search/speci
 import { GROUPS, PRESETS, RANGES, type Range } from '../search/terms.js';
 import {
   append,
+  chipState,
+  cycle,
   group,
   isGroup,
   leafLabel,
@@ -39,6 +41,7 @@ import {
   move,
   nodeAt,
   update,
+  type ChipState,
   type Junction,
   type Leaf,
   type Node,
@@ -47,6 +50,17 @@ import {
 
 /** How far a press has to travel before it is a drag rather than a tap on the pill it started on. */
 const SLOP = 6;
+
+/**
+ * What a catalogue chip wears in each of its three states — the glyph, and the words a screen reader is given instead
+ * of the colour. The state is the chip's standing in the group being filled, which for a query built in the root alone
+ * is the whole query.
+ */
+const CHIP: Record<ChipState, { glyph: string; said: string }> = {
+  off: { glyph: '+', said: 'not used' },
+  in: { glyph: '✓', said: 'required' },
+  out: { glyph: '!', said: 'ruled out' },
+};
 
 /** What a junction's button says, and what it means — the words rather than `&` and `,`, which the string already has. */
 const JUNCTION: Record<Junction, { label: string; said: string }> = {
@@ -252,6 +266,15 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   /** A term from the catalogue, as the pill it will become. */
   const termLeaf = (id: string): Leaf => ({ kind: 'term', id, negated: false });
+
+  /** A numeric range from the catalogue, as the pill it will become: its own two boxes, neither filled in yet. */
+  const rangeLeaf = (id: string): Leaf => ({ kind: 'range', id, from: null, to: null, negated: false });
+
+  /**
+   * One press of a catalogue chip: the three-state toggle the chips have always been, read against the group being
+   * filled. Dragging is the other way in, and the one that can put a second copy of the same entry somewhere else.
+   */
+  const pressChip = (leaf: Leaf) => edit((tree) => cycle(tree, focus, leaf));
 
   function clear() {
     setState((was) => ({ ...emptyState(), optimise: was.optimise }));
@@ -524,8 +547,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       <header class="page">
         <h1>Pokémon GO Search Strings</h1>
         <p class="sub">
-          Build a string for the game's own search box. Drag pills from the catalogue into the query, and group them to
-          say <em>any of these</em>.
+          Build a string for the game's own search box. Press a chip once to require it, twice to rule it out, three
+          times to drop it — or drag one into a group to say <em>any of these</em>.
         </p>
       </header>
 
@@ -711,25 +734,28 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
               <h2 class="label">{category.label}</h2>
               <div class="chips">
-                {category.terms.map((term) => (
-                  <button
-                    key={term.id}
-                    type="button"
-                    class="chip"
-                    title={`${term.term} — drag into a group, or press to add it to the one you are filling`}
-                    aria-label={`Add ${term.label}`}
-                    onPointerDown={(event) =>
-                      onPointerDown(event, termLeaf(term.id), null, () =>
-                        edit((tree) => append(tree, focus, termLeaf(term.id))),
-                      )
-                    }
-                  >
-                    <span class="state" aria-hidden="true">
-                      +
-                    </span>
-                    <span>{term.label}</span>
-                  </button>
-                ))}
+                {category.terms.map((term) => {
+                  const chip = chipState(state.tree, focus, term.id);
+
+                  return (
+                    <button
+                      key={term.id}
+                      type="button"
+                      class="chip"
+                      data-state={chip}
+                      title={`${term.term} — press to require, again to rule out, again to drop; or drag into a group`}
+                      aria-label={`${term.label} — ${CHIP[chip].said} in the group you are filling`}
+                      onPointerDown={(event) =>
+                        onPointerDown(event, termLeaf(term.id), null, () => pressChip(termLeaf(term.id)))
+                      }
+                    >
+                      <span class="state" aria-hidden="true">
+                        {CHIP[chip].glyph}
+                      </span>
+                      <span>{term.label}</span>
+                    </button>
+                  );
+                })}
               </div>
               <p class="help">{category.help}</p>
             </section>
@@ -740,33 +766,33 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             Ranges
           </h2>
           <div class="chips">
-            {RANGES.map((range) => (
-              <button
-                key={range.id}
-                type="button"
-                class="chip"
-                title={`${range.prefix || 'a dex span'} — drag or press to add a span pill`}
-                onPointerDown={(event) =>
-                  onPointerDown(
-                    event,
-                    { kind: 'range', id: range.id, from: null, to: null, negated: false },
-                    null,
-                    () =>
-                      edit((tree) =>
-                        append(tree, focus, { kind: 'range', id: range.id, from: null, to: null, negated: false }),
-                      ),
-                  )
-                }
-              >
-                <span class="state" aria-hidden="true">
-                  +
-                </span>
-                <span>{range.label}</span>
-              </button>
-            ))}
+            {RANGES.map((range) => {
+              const chip = chipState(state.tree, focus, range.id);
+
+              return (
+                <button
+                  key={range.id}
+                  type="button"
+                  class="chip"
+                  data-state={chip}
+                  title={`${range.prefix || 'a dex span'} — press to add a span, again to rule it out, again to drop`}
+                  aria-label={`${range.label} — ${CHIP[chip].said} in the group you are filling`}
+                  onPointerDown={(event) =>
+                    onPointerDown(event, rangeLeaf(range.id), null, () => pressChip(rangeLeaf(range.id)))
+                  }
+                >
+                  <span class="state" aria-hidden="true">
+                    {CHIP[chip].glyph}
+                  </span>
+                  <span>{range.label}</span>
+                </button>
+              );
+            })}
           </div>
           <p class="help">
-            A span pill carries its own two boxes, and a box left empty falls back to that range's limit.
+            A span pill carries its own two boxes, and a box left empty falls back to that range's limit. Two spans of
+            the same range in one group is a search you reach by dragging the second one in, a press reading the one
+            already there.
           </p>
         </section>
       </main>

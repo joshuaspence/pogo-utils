@@ -15,6 +15,8 @@ import { expect, test } from 'vitest';
 import { RANGES, TERMS_BY_ID } from './terms.js';
 import {
   append,
+  chipState,
+  cycle,
   emptyTree,
   group,
   isGroup,
@@ -136,6 +138,75 @@ test('a pill is appended to the group a path names, and nowhere else', () => {
 
   // A path naming a pill rather than a group is a drop on something that cannot hold anything, and changes nothing.
   expect(shape(append(tree, [0], yes('lucky')))).toEqual(shape(tree));
+});
+
+test('a chip pressed three times leaves the group as it found it', () => {
+  // The three-state toggle the chips had before the canvas: absent, required, ruled out, gone.
+  const once = cycle(all(), [], yes('shiny'));
+  const twice = cycle(once, [], yes('shiny'));
+  const thrice = cycle(twice, [], yes('shiny'));
+
+  expect([shape(once), shape(twice), shape(thrice)]).toEqual([{ all: ['shiny'] }, { all: ['!shiny'] }, { all: [] }]);
+  expect([chipState(once, [], 'shiny'), chipState(twice, [], 'shiny'), chipState(thrice, [], 'shiny')]).toEqual([
+    'in',
+    'out',
+    'off',
+  ]);
+
+  // Nothing else in the group is disturbed on the way round, and the pill keeps the place it was put in.
+  const beside = all(yes('lucky'), yes('shiny'), yes('costume'));
+
+  expect(shape(cycle(beside, [], yes('shiny')))).toEqual({ all: ['lucky', '!shiny', 'costume'] });
+  expect(shape(cycle(cycle(beside, [], yes('shiny')), [], yes('shiny')))).toEqual({ all: ['lucky', 'costume'] });
+});
+
+test('a chip reads the group being filled and no other', () => {
+  /*
+   * The scope is what the canvas changed about the chips. A query built in the root alone — where a reader spends most
+   * of their time — behaves exactly as the fixed builder did; the same term in two groups is a search worth having,
+   * and a press on one group's chip must not reach into the other.
+   */
+  const tree = all(yes('shiny'), any(yes('shiny'), yes('fire')));
+
+  expect([chipState(tree, [], 'shiny'), chipState(tree, [1], 'shiny')]).toEqual(['in', 'in']);
+  expect(chipState(tree, [1], 'lucky')).toBe('off');
+
+  expect(shape(cycle(tree, [1], yes('shiny')))).toEqual({ all: ['shiny', { any: ['!shiny', 'fire'] }] });
+  expect(shape(cycle(tree, [], yes('shiny')))).toEqual({ all: ['!shiny', { any: ['shiny', 'fire'] }] });
+
+  // A path naming a pill rather than a group has no group to read, so a press on it changes nothing.
+  expect(shape(cycle(tree, [0], yes('lucky')))).toEqual(shape(tree));
+});
+
+test('a span chip cycles on its range rather than on its bounds', () => {
+  // The same entry however many times it is pressed, which is what makes a cycle possible at all — where a filled
+  // span and an empty one would be two different pills if the bounds were part of the question.
+  const filled: Leaf = { kind: 'range', id: 'cp', from: 1500, to: null, negated: false };
+  const tree = all(filled);
+
+  expect(chipState(tree, [], 'cp')).toBe('in');
+  expect(shape(cycle(tree, [], { kind: 'range', id: 'cp', from: null, to: null, negated: false }))).toEqual({
+    all: ['!cp1500-5000'],
+  });
+
+  // A different range is a different chip, so it lands beside rather than reading the first one.
+  expect(shape(cycle(tree, [], { kind: 'range', id: 'hp', from: null, to: null, negated: false }))).toEqual({
+    all: ['cp1500-5000', '…'],
+  });
+});
+
+test('a name has no chip and no cycle, but does not land twice in one group', () => {
+  // Two names are two searches, so a name never turns round the way a chip does. The same name twice is one pill's
+  // worth of search, and the box commits on Enter — which a reader can press twice without meaning anything by it.
+  const tree = all(named('pikachu'));
+
+  expect(shape(cycle(tree, [], named('pikachu')))).toEqual({ all: ['pikachu'] });
+  expect(shape(cycle(tree, [], named('eevee')))).toEqual({ all: ['pikachu', 'eevee'] });
+
+  // In another group it is another search, so it is not a duplicate at all.
+  const split = all(named('pikachu'), any());
+
+  expect(shape(cycle(split, [1], named('pikachu')))).toEqual({ all: ['pikachu', { any: ['pikachu'] }] });
 });
 
 test('a pill moved into another group arrives there', () => {

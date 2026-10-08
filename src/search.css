@@ -490,9 +490,41 @@ body[data-page='search'] {
     outline-offset: 2px;
   }
 
+  /**
+   * A chip's three states, read against the group being filled. Off is the page's own furniture; required takes the
+   * category's colour, so which category a choice came from reads without looking up the page; ruled out takes the
+   * accent red whatever the category, because refusing a Fire type and refusing a shiny mean the same thing and should
+   * not look like two different kinds of choice.
+   */
+
+  .chip[data-state='in'] {
+    border-color: var(--chip);
+    background: color-mix(in srgb, var(--chip) 16%, var(--panel));
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .chip[data-state='out'] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  /**
+   * The state, said in a glyph as well as in colour and a strike — the three have to be tellable apart by someone who
+   * cannot see the difference between a red chip and a teal one.
+   */
+
   .chip .state {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
+    text-decoration: none;
+  }
+
+  .chip[data-state='off'] .state {
     opacity: 0.45;
   }
 
