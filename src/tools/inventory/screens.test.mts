@@ -251,7 +251,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 206,
-    defects: { notes: ['the overlay reads as level 4 or 45 or 5, none of which this HP can be'] },
     file: 'burmy-plant.png',
     form: 'Plant',
     gender: 'male',
@@ -264,7 +263,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 196,
-    defects: { label: 'Burmy (Plant)' },
     file: 'burmy-sandy.png',
     form: 'Sandy',
     gender: 'female',
@@ -277,7 +275,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 47,
-    defects: { label: 'Burmy (Plant)' },
     file: 'burmy-trash.png',
     form: 'Trash',
     gender: 'male',
@@ -333,9 +330,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 979,
-    defects: {
-      notes: ['the overlay reads as level 2 or 27 or 7 or 1 or 11 or 10, none of which this HP can be'],
-    },
     file: 'castform-sunny.png',
     form: 'Sunny',
     gender: 'female',
@@ -361,7 +355,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1605,
-    defects: { notes: ['the overlay reads as level 5 or 8, none of which this HP can be'] },
+    defects: { notes: ['the overlay reads as level 9 or 5 or 8, none of which this HP can be'] },
     file: 'charizard-gigantamax.png',
     form: null,
     gender: 'male',
@@ -375,6 +369,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1025,
+    defects: { label: 'Cherrim (Sunny)' },
     file: 'cherrim-overcast.png',
     form: 'Overcast',
     gender: 'male',
@@ -400,7 +395,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1441,
-    defects: { notes: ['the overlay reads as level 9 or 1, none of which this HP can be'] },
     file: 'deoxys-attack.png',
     form: 'Attack',
     gender: null,
@@ -633,15 +627,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 813,
-    defects: {
-      cp: 765,
-      iv: { attack: 3, defense: 13, stamina: 3 },
-      levels: [11.5],
-      notes: [
-        'the overlay reads as level 1 or 12 or 2, none of which this HP can be',
-        'the screen reads CP 813, where this form at this level is 765',
-      ],
-    },
     file: 'rotom-wash.png',
     form: 'Wash',
     gender: null,
@@ -654,7 +639,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 340,
-    defects: { size: 'XS' },
     file: 'smoliv.png',
     form: null,
     gender: 'female',
@@ -846,6 +830,17 @@ const overlayOf = (fixture: Fixture) => {
   return { boxed, legible, levels: defects.levels ?? (legible ? [legible.level] : []) };
 };
 
+/**
+ * The notes a row claims `identify` answers: the ones it pins, or the `could also be …` one derived from its
+ * alternatives where it pins none. A function for the reason `overlayOf` is one — the test naming which captures a
+ * scan would read again counts the same thing, and two copies would be free to disagree about what the corpus holds.
+ */
+const notesOf = (fixture: Fixture) => {
+  const alternatives = fixture.defects?.alternatives ?? [];
+
+  return fixture.defects?.notes ?? (alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []);
+};
+
 for (const fixture of FIXTURES) {
   const defects = fixture.defects ?? {};
 
@@ -860,7 +855,7 @@ for (const fixture of FIXTURES) {
 
   const { boxed, legible, levels } = overlayOf(fixture);
   const alternatives = defects.alternatives ?? [];
-  const notes = defects.notes ?? (alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []);
+  const notes = notesOf(fixture);
 
   // A `describe` rather than one test with eighteen subtests inside it, because Vitest collects a file's tests
   // synchronously and so cannot be handed a test registered after an `await`. Each attribute therefore reads the
@@ -1240,16 +1235,16 @@ test('every stitch carries a `Viewport` smaller than itself, and no screen carri
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 39,
+  answeredAsThemselves: 40,
   oneLevel: 43,
-  crossCheckAgrees: 40,
-  crossCheckDisagrees: 3,
+  crossCheckAgrees: 41,
+  crossCheckDisagrees: 2,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 30,
+  noDefects: 36,
   noOverlayDrawn: 0,
   boxNotFound: 0,
-  overlayNotRead: 2,
+  overlayNotRead: 1,
 };
 
 test('the corpus is the shape `COVERAGE` says it is', () => {
@@ -1277,6 +1272,37 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
   // rows another has already claimed and the three could all be right while summing to the wrong thing.
   expect(COVERAGE.oneLevel + COVERAGE.severalLevels + COVERAGE.noLevel).toBe(COVERAGE.rows);
   expect(COVERAGE.crossCheckAgrees + COVERAGE.crossCheckDisagrees).toBe(COVERAGE.oneLevel);
+});
+
+/**
+ * Which of the pinned defects a scan can find for itself, which is what `scripts/inventory.mts` reads a screen again
+ * on: a note is the readers contradicting each other, and a scanner with the phone still on the Pokémon takes another
+ * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
+ * phone says what the Pokémon was.
+ *
+ * Five of the 43, against seven rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
+ * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
+ * raising a note without earning one fails there.
+ *
+ * The two it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it. Each
+ * is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses Basculin's
+ * two stripes, no icon signature recorded for either, and the artwork declines Cherrim's Overcast so the fold collapses
+ * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
+ * scan cannot either; only a second reader of the same thing could.
+ */
+test('the defects a scan can find for itself are the five captures that raise a note', () => {
+  // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
+  // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
+  expect(
+    FIXTURES.filter((f) => notesOf(f).length > 0).length,
+    'how many captures `identify` raises a note on has changed',
+  ).toBe(5);
+
+  expect(
+    FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
+    'a pinned defect that raises no note is one a scan cannot read again on',
+  ).toStrictEqual(['basculin-blue.png', 'cherrim-overcast.png']);
 });
 
 /**
@@ -1423,11 +1449,9 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  * Some capture must offer a level **above** its true one, which is what catches an HP test admitting any HP at or above
  * the one read — against a shortlist whose largest member is already the answer such a break cannot move anything. And
  * some shortlist must **not** contain its true level, which is what says the HP is the arbiter rather than a
- * tie-breaker. Four do:
- * `burmy-plant.png` `[4, 45, 5]` for 15, `castform-sunny.png` `[2, 27, 7, 1, 11, 10]` for 21,
- * `charizard-gigantamax.png` `[5, 8]` for 20 and `deoxys-attack.png` `[9, 1]` for 20 — each one a `defects.notes`
- * entry reporting the disagreement. Without any of them, a `levelsOf` that merely filtered the stated list would pass
- * every assertion here.
+ * tie-breaker. One does: `charizard-gigantamax.png` `[9, 5, 8]` for 20, a `defects.notes` entry reporting the
+ * disagreement, and the only one left because no treatment of its band reads the level plainly — `90`, `L` and `5 80`
+ * are the three. Without it, a `levelsOf` that merely filtered the stated list would pass every assertion here.
  */
 test(
   'the shortlists the overlay states both overshoot a true level and miss one',
@@ -1640,12 +1664,11 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
   const at = (Math.round(height.top - height.height * 1.9) * image.width + Math.round(height.left - height.height)) * 4;
   stray.data.set([255, 0, 0], at);
 
-  // Against the same capture unaltered rather than against `XXS`, which is what the badge says and what `sizeOf` no
-  // longer reads off it — `smoliv.png`'s row pins that disagreement as `defects.size`. The claim here is the stray
-  // pixel costing nothing, and stating it as invariance keeps the two apart: this goes on passing when the misread is
-  // fixed, where an `XXS` written out here would have to be remembered at the same time.
+  // Against the same capture unaltered rather than against `XXS` directly, which keeps the two claims apart: this one
+  // is the stray pixel costing nothing, and stated as invariance it held across the misread this capture used to pin
+  // and its fix. What the badge reads as is the line below, and the row's own `size` is what says that is right.
   expect(await sizeOf(stray, height)).toBe(await sizeOf(image, height));
-  expect(await sizeOf(image, height), 'what `sizeOf` reads off this badge has changed').toBe('XS');
+  expect(await sizeOf(image, height), 'what `sizeOf` reads off this badge has changed').toBe('XXS');
 });
 
 /**
@@ -1811,14 +1834,15 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * another, nothing `parseDetail` or the overlay reads being able to separate them. The whole map, so a reader that
  * gained one answer and lost another cannot come out even.
  *
- * Three answered and two declined, which is both halves rather than one: `MARGIN` mattering is something this would
- * now notice, where on a corpus that answered every one the margin could have been 0 unremarked. The declines are the
- * match's own doing rather than stale data — `ARTWORK` holds signatures of the game's icons, which no capture can
- * move — and their rows carry `defects.label` for what `identify` answers: `Burmy (Plant)` for both,
- * the fold's first cloak, with nothing beside it saying that was a choice.
+ * Four answered and one declined, which is both halves rather than one: `MARGIN` mattering is something this would
+ * now notice, where on a corpus that answered every one the margin could have been 0 unremarked. The decline is
+ * Cherrim's Overcast, whose nearest icon is **Sunny** by 0.229, so `MARGIN` is the whole of what stands between this
+ * and a confidently wrong answer. It is the match's own doing rather than stale data — `ARTWORK` holds signatures of
+ * the game's icons, which no capture can move — and the row carries `defects.label` for what `identify` answers:
+ * `Cherrim (Sunny)`, the fold's shorter name, with nothing beside it saying that was a choice.
  */
 test(
-  'the artwork settles three of five forms the numbers cannot, and declines two',
+  'the artwork settles four of five forms the numbers cannot, and declines one',
   async () => {
     const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
@@ -1852,9 +1876,9 @@ test(
 
     expect(Object.fromEntries(answers)).toStrictEqual({
       'burmy-plant.png': 'Burmy (Plant)',
-      'burmy-sandy.png': 'declined',
-      'burmy-trash.png': 'declined',
-      'cherrim-overcast.png': 'Cherrim (Overcast)',
+      'burmy-sandy.png': 'Burmy (Sandy)',
+      'burmy-trash.png': 'Burmy (Trash)',
+      'cherrim-overcast.png': 'declined',
       'cherrim-sunny.png': 'Cherrim (Sunny)',
     });
   },
@@ -2083,6 +2107,14 @@ test('the corpus reaches both sides of every attribute', () => {
     'a capture needs `defects.types` again, so `typesOf` has started reading no type off a screen that states one',
   ).toStrictEqual([]);
 
+  // And the size, which was pinned until the badge was read with no whitelist: `smoliv.png` read `XS` off its `XXS`,
+  // and all four badged captures now answer the band their row states. So this is the third key the corpus holds
+  // against a reader rather than for one.
+  expect(
+    FIXTURES.filter((f) => f.defects && 'size' in f.defects).map((f) => f.file),
+    'a capture needs `defects.size` again, so `sizeOf` has started misreading a badge',
+  ).toStrictEqual([]);
+
   // And both kinds of bracketed form: some captures carry a suffix that names a form of their species, and two carry
   // one that names no form at all, those being PGSharp's `[` and `\` for Unown's two punctuation forms.
   assert.ok(
@@ -2099,7 +2131,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'notes', 'size']);
+  ).toStrictEqual(['alternatives', 'cp', 'iv', 'label', 'levels', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.

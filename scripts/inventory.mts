@@ -43,6 +43,7 @@
 
 import { Device, KEY, typeable } from '../src/tools/inventory/adb.mts';
 import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
+import { bestOf, faultsOf } from '../src/tools/inventory/attempts.mts';
 import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { identify, type Identity } from '../src/tools/inventory/identify.mts';
@@ -576,7 +577,23 @@ async function scan() {
     /** Worked out while reading, since a reading is only accepted once something fits it; the row writer reuses it. */
     id: Identity;
     key: string | null;
+    /** The screenshot this reading was read from, which the `-detail` screen has to be to account for its row. */
     image: Image;
+    /**
+     * The last screenshot taken, which is `image` on every reading but one `bestOf` kept from an earlier attempt. The
+     * scroll owes `scrollFrames` a frame still on the screen and measures its swipe against one, where an attempt back
+     * is a `config.waits.swipe` and a `settled` older than that.
+     *
+     * Where the two differ the stitch is a later read of the screen than the row beside it, which the row says, since
+     * the stitch is the capture a fixture is promoted from and the row is what a reader would take its claims for.
+     */
+    latest: Image;
+    /**
+     * How much of this reading is in doubt, as a score to be got to zero. Recorded with the reading rather than worked
+     * out again when two are compared: `overlayBox` is found part way through a pass, and a score that moved with it
+     * would rank an earlier attempt differently for what a later one went on to learn.
+     */
+    faults: number;
   }
 
   /**
@@ -584,12 +601,15 @@ async function scan() {
    * Pokémon — only between phones — so it is worth finding once and keeping, which is the difference between a sweep
    * of the upper screen and one crop. Only a box that actually yielded a reading is kept: one that merely looked
    * right would go on being wrong for every Pokémon after it, where not keeping it costs another sweep.
+   *
+   * `sweep` is the caller's leave to spend one of the rationed searches, which it withholds on a look this Pokémon is
+   * being given for some other reason — the crop is still read, so a box already known still answers.
    */
-  const overlayOf = async (image: Image): Promise<Overlay | null> => {
+  const overlayOf = async (image: Image, sweep: boolean): Promise<Overlay | null> => {
     if (overlayBox) {
       const overlay = await readOverlay(image, overlayBox);
 
-      if (overlay || searchesLeft <= 0) {
+      if (overlay || !sweep || searchesLeft <= 0) {
         return overlay;
       }
 
@@ -606,7 +626,7 @@ async function scan() {
       return wider?.overlay ?? null;
     }
 
-    if (searchesLeft <= 0) {
+    if (!sweep || searchesLeft <= 0) {
       return null;
     }
 
@@ -627,27 +647,82 @@ async function scan() {
    * — a single bad read costs a whole member of a flag pass, and a member missed there is a Pokémon the full pass will
    * never learn was in the search. An `xxl` pass over a search the game said held five marked four, and the one it
    * dropped was the only one of them the full pass went on to read.
+   *
+   * A note `identify` raised is worth another look as well, and it is the only one of them that says the screen read
+   * *whole* and wrongly: a CP the settled form and level do not derive, a level shortlist no HP can be, a form the
+   * overlay names that no species has. What says a second read of the same Pokémon is worth taking is the corpus having
+   * been retaken — which captures misread their CP changed with it, three before and two after, so a misread is a
+   * property of the capture as much as of the reader. `screens.test.mts` pins which five of its 43 captures raise a
+   * note, and that every one of the five is a row carrying a `defects`.
+   *
+   * Which is five of the seven defects that file pins, and not the other two: those are the readers that answer
+   * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, and an
+   * artwork match that declined Cherrim's Overcast. Nothing here can be the check for those; only a second reader of
+   * the same thing could be.
+   *
+   * `could also be …` is counted with the rest, but only on a reading that has IVs: with none the search narrows on
+   * types alone and 21 of the game master's 1,024 species answer it for ever, so counting those would read every
+   * Deoxys, Dialga and Lycanroc three times on every pass for an answer no further look can change. Where there are
+   * IVs it costs one capture of the 43, and that one is a defect rather than an ambiguity: `castform-rainy.png` is
+   * answered as **Inteleon**, deriving CP 1512 for the 832 on its screen — the one wrong label in the corpus that names
+   * a different species, its nickname having sent the search across every species, and that note is the only one it
+   * raises. Leaving the note out would leave that out with it.
+   *
+   * What the stricter test costs if the last attempt is the one taken is a row rather than a note, which is why the
+   * reading kept is `bestOf`'s and not this loop's: a reading accepted before is now read again, a second look can come
+   * back worse, and one whose HP goes unread has no key at all — three of those in a row stop the pass. That decision
+   * sits there so `attempts.test.mts` can assert it, this being the one part of the walk no test could otherwise reach:
+   * a scan needs a phone, and the one command `cli.test.mts` drives without one is `parse`, which reads a file once.
    */
   const readDetail = async (): Promise<Reading> => {
-    for (let attempt = 0; ; attempt++) {
-      const image = await settled(device);
-      const detail = await parseDetail(await readLines(image), data, image);
-      // Only a detail screen is worth a sweep. The sweeps are rationed, and an empty search's grid or a tile still
-      // opening would otherwise spend them all before the first Pokémon, leaving every row without IVs.
-      const overlay = detail.hp === null ? null : await overlayOf(image);
-      const key = keyOf(detail, overlay);
-      const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
-      // Where no overlay has been found at all there is nothing to wait for, and insisting would cost three reads of
-      // every Pokémon on a phone that is not running PGSharp. A form that fits is the other half: the name, the types,
-      // the HP and the IVs agreeing is what a half-read screen cannot fake, and is a surer test than any one of them.
-      const whole = key !== null && (overlay !== null || overlayBox === null) && id.form !== null;
+    let latest: Image | null = null;
+    let lost: number | null = null;
 
-      if (whole || attempt === READ_ATTEMPTS - 1) {
-        return { detail, overlay, id, key, image };
-      }
+    // Minus `latest`, which is this function's to answer rather than an attempt's: an attempt only knows its own.
+    const best = await bestOf<Omit<Reading, 'latest'>>(
+      READ_ATTEMPTS,
+      ({ faults }) => faults,
+      async (attempt) => {
+        // Give the screen time to move on before looking again, which `settled` does not: it waits for the screen to
+        // stop moving, and an overlay PGSharp has not drawn yet is a still screen.
+        if (attempt > 0) {
+          await sleep(config.waits.swipe);
+        }
 
-      await sleep(config.waits.swipe);
-    }
+        const image = await settled(device);
+        latest = image;
+        const detail = await parseDetail(await readLines(image), data, image);
+
+        // Only a detail screen is worth a sweep, and on a retry only where the attempt before it lost a field. The
+        // sweeps are rationed over the whole run, so one granted on every attempt buys three tries of the same
+        // `findOverlay` on one Pokémon where the ration was five tries spread over five — and `findOverlay` is what
+        // varies by phone, its own docblock measuring it at nine of twelve captures from one and none from another.
+        const overlay = detail.hp === null ? null : await overlayOf(image, lost === null || lost > 0);
+        const key = keyOf(detail, overlay);
+        const id = identify(data, detail, overlay, artworkIn(image, overlayBox, icons));
+
+        // The key above the other two, not beside them: a reading with no key is the one `walk` counts as a miss and
+        // writes `detail screen not read`, so it must lose to any reading that got the HP however much else that one
+        // lost. The overlay's clause is the conditional one, since where no box has been found at all there is nothing
+        // to wait for; a form that fits is the surest of the three, the name, the types, the HP and the IVs agreeing
+        // being what a half-read screen cannot fake.
+        const keyless = Number(key === null);
+        const fields = Number(overlay === null && overlayBox !== null) + Number(id.form === null);
+
+        // Notes only where the overlay read, because the ones raised without IVs are the ones no further read can
+        // clear: with `iv === null` the search narrows on types alone, and 21 of the game master's 1,024 species then
+        // answer `could also be …` for ever. Counting those would read every one of them three times on every pass.
+        const notes = overlay === null ? 0 : id.notes.length;
+
+        lost = keyless + fields;
+
+        return { detail, overlay, id, key, image, faults: faultsOf(keyless, fields, notes) };
+      },
+    );
+
+    // The freshest screenshot, not the winning attempt's: `bestOf` hands back the whole of whichever reading ranked
+    // best, and an earlier one's screen has been swiped against since.
+    return { ...best, latest: latest ?? best.image };
   };
 
   /**
@@ -738,7 +813,7 @@ async function scan() {
   const started = Date.now();
 
   await walk(
-    async ({ detail, overlay, id, image }, index) => {
+    async ({ detail, overlay, id, image, latest }, index) => {
       const name = String(index + 1).padStart(5, '0');
       const notes: string[] = [];
       let moves: Moves = { fast: null, charged: [] };
@@ -763,13 +838,24 @@ async function scan() {
           // The same two halves `snap` takes: the screenshot already in hand as the first frame, rather than a second
           // photograph of a screen that has moved on, and the height it was drawn at recorded on the stitch.
           //
-          // Under the plain name, the stitch being the capture and `-detail` above the one frame it was built from.
+          // `latest` rather than `image`, since the frame handed over is the one `scrollFrames` does not wait for and
+          // the reading may have come from an attempt before it.
+          //
+          // Under the plain name, the stitch being the capture and `-detail` above the frame the row was read from.
           // `name` here is the scan's own index, so a capture kept for the corpus is still renamed to the Pokémon it
           // shows; what the plain name buys is that the suffix is no longer part of what has to come off.
-          const capture = await scrollFrames(device, image);
+          const capture = await scrollFrames(device, latest);
           scrolled = stitch(capture.frames, capture.offsets, config.scrollBand);
           back = capture.offsets.reduce((a, b) => a + b, 0);
-          keep(name, scrolled, { Viewport: `${image.width}x${image.height}` });
+          keep(name, scrolled, { Viewport: `${latest.width}x${latest.height}` });
+
+          // So the stitch and this row are a pair or say they are not. A fixture is promoted from the stitch while its
+          // expectations are derived from the committed png, so nothing downstream would report the two having been
+          // read a `config.waits.swipe` apart — and the readings that need a second look are the ones the corpus is
+          // collected for.
+          if (latest !== image) {
+            notes.push('the capture kept for this row is a later read of the screen than the row itself');
+          }
 
           if (capture.lost) {
             notes.push(`the scroll lost its place after frame ${capture.frames.length}`);
@@ -779,10 +865,11 @@ async function scan() {
           scrolled = await device.screenshot();
           keep(`${name}-moves`, scrolled);
 
-          // Measured against the screen before the swipe, on the same footing as the `--scroll` branch above. What the
-          // drag asked for is no bound on what it got: it asks for half the screen where a panel frequently has less
-          // than that left to give, and the distance that matters is the shorter of the two.
-          const moved = offsetBetween(image, scrolled, config.scrollBand);
+          // Measured against the screen before the swipe, on the same footing as the `--scroll` branch above and
+          // `latest` for the same reason. What the drag asked for is no bound on what it got: it asks for half the
+          // screen where a panel frequently has less than that left to give, and the distance that matters is the
+          // shorter of the two.
+          const moved = offsetBetween(latest, scrolled, config.scrollBand);
           const [grab, drop] = config.swipes.scrollDown;
           back = moved ?? (grab[1] - drop[1]) * shot.height;
 
