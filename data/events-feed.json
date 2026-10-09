@@ -406,8 +406,8 @@
     "heading": "Pokémon Spotlight Hour",
     "link": "https://leekduck.com/events/pokemonspotlighthour2026-10-08/",
     "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
-    "start": "2026-10-08T18:00:00.000",
-    "end": "2026-10-08T19:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "pokemonspotlighthour2026-10-15",
@@ -438,16 +438,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
     "start": "2026-10-29T18:00:00.000",
     "end": "2026-10-29T19:00:00.000"
-  },
-  {
-    "eventID": "raidhour20261007",
-    "name": "Yveltal Raid Hour",
-    "eventType": "raid-hour",
-    "heading": "Raid Hour",
-    "link": "https://leekduck.com/events/raidhour20261007/",
-    "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
-    "start": null,
-    "end": null
   },
   {
     "eventID": "raidhour20261014",
