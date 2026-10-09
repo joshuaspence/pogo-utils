@@ -142,11 +142,20 @@ test('an all asking for one term of an exclusive category drops the refusals bes
 
   // Purifying a Shadow Pokémon is what makes it Purified, so nothing is both and the refusal says nothing.
   expect(short(all(yes('shadow'), no('purified')))).toBe('shadow');
-  expect(short(all(yes('alola'), no('galar'), no('hisui')))).toBe(term('alola'));
+  expect(short(all(yes('star4'), no('star0')))).toBe(term('star4'));
 
   // A category that declares nothing gets nothing: a Pokémon can be any number of these at once.
   expect(category('status').exclusive).toBeUndefined();
   expect(short(all(yes('shiny'), no('lucky')))).toBe('shiny&!lucky');
+
+  /*
+   * The regional forms are the category that *reads* exclusive and is not, which is the whole of why they declare
+   * nothing: the community phrase list has Hisuian Decidueye — an Alola species — as the one Pokémon two regions
+   * together will find, so the refusal below takes away a Pokémon that `alola` on its own matches. Declaring the fact
+   * would have dropped the refusal and put that one back in.
+   */
+  expect(category('form').exclusive).toBeUndefined();
+  expect(short(all(yes('alola'), no('hisui')))).toBe('alola&!hisui');
 });
 
 test('an any of every term of an exhaustive category asks for nothing at all', () => {

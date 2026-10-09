@@ -524,11 +524,15 @@ body[data-page='search'] {
   }
 
   /**
-   * The name box, which carries its own border now that there is no field wrapped round it: a committed name leaves
-   * for the canvas as a pill, so what is left here is one ordinary input holding at most the name being typed.
+   * The three boxes a reader types a search into: the name, the `@` search and the tag. Each carries its own border
+   * now that there is no field wrapped round one, a committed text leaving for the canvas as a pill, so what is left
+   * is an ordinary input holding at most the one being typed.
+   *
+   * A class rather than three ids, the look being the gesture and the gesture the same in all three. `#text` keeps its
+   * id all the same: the suggestion list below is wired to it by name.
    */
 
-  #text {
+  .field {
     width: 100%;
     padding: 8px 10px;
     border: 1px solid var(--border);
@@ -539,7 +543,47 @@ body[data-page='search'] {
     font-size: 14px;
   }
 
-  #text:focus-visible {
+  .field:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /**
+   * An operator search written as one row: the slot it asks about, the text, and the press that makes a pill of them.
+   * The slot belongs in the row rather than above it because `@3crunch` is one search and reads as one field.
+   *
+   * The box takes whatever the other two leave, down to a floor: a `select` is as wide as its longest option whatever
+   * is picked, so without one a narrow phone would have squeezed the box the row is actually for to nothing.
+   */
+
+  .marked {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .marked .field {
+    flex: 1;
+    min-width: 6em;
+  }
+
+  .marked select,
+  .marked button {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .marked button:hover {
+    border-color: var(--track);
+  }
+
+  .marked select:focus-visible,
+  .marked button:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }

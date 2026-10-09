@@ -24,7 +24,7 @@
  * adjusting its destination rather than callers being trusted to.
  */
 
-import { RANGES, TERMS_BY_ID } from './terms.js';
+import { RANGES, TERMS_BY_ID, type Range } from './terms.js';
 
 /**
  * How deep a tree may be, which is one number because three readers build one: a fragment a stranger wrote, a typed
@@ -80,6 +80,13 @@ export const group = (junction: Junction, parts: readonly Node[] = []): Group =>
 
 /** Every numeric range by id, for the writer below — the same lookup `TERMS_BY_ID` is for a term. */
 const RANGES_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
+
+/**
+ * A span wrapped in its range's own phrase, which sits in front of the numbers for every range but the three IVs: `cp`
+ * writes `cp3000-` where `attack` writes `3-attack`. One function, so each of the four shapes below says which span it
+ * is and not one of them says where the phrase goes.
+ */
+const spanned = (range: Range, span: string) => `${range.prefix}${span}${range.suffix ?? ''}`;
 
 /**
  * What one pill writes into a clause, or null where it has nothing to write yet.
@@ -140,11 +147,11 @@ function text(leaf: Leaf): string | null {
      * `0` is claimed by `{phrase}{N}` alone, so it is the spelling with one reading, which is the whole of why it is
      * preferred. What the game actually answers for `-0` is not written down and is not guessed at here.
      */
-    return to === 0 || to === (range.min ?? 0) ? `${range.prefix}${to}` : `${range.prefix}-${to}`;
+    return to === 0 || to === (range.min ?? 0) ? spanned(range, `${to}`) : spanned(range, `-${to}`);
   }
 
   if (to == null) {
-    return `${range.prefix}${from}-`;
+    return spanned(range, `${from}-`);
   }
 
   // A reader can type the higher number into the lower box, and two numbers describe a span whichever way round.
@@ -154,7 +161,7 @@ function text(leaf: Leaf): string | null {
   // A span whose ends meet is the one number it holds, which is how the game reads a bare `{phrase}{N}` and two
   // characters shorter than saying it twice. The optimiser's dex collapse reaches this often — `charmander` inside
   // Gen 1 is one species, and `4-4` is a clumsy way to write `4`.
-  return low === high ? `${range.prefix}${low}` : `${range.prefix}${low}-${high}`;
+  return low === high ? spanned(range, `${low}`) : spanned(range, `${low}-${high}`);
 }
 
 /** What a pill calls itself on screen, which is the chip's label for a term and the text itself for the other two. */

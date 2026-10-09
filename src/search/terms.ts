@@ -22,8 +22,11 @@
  * Event backdrops and a search a reader would want.
  *
  * A group's `hue` tints its chips. Hues rather than the palette's tokens, these being categories of the page's own;
- * `theme.css` owns the colours that carry meaning across pages. Fifteen groups is as far as that carries — the widest
- * gap left on the wheel was 35°, so a sixteenth group wants a second cue rather than another hue.
+ * `theme.css` owns the colours that carry meaning across pages. Fifteen hues is as far as that carries: the widest gap
+ * left on the wheel is 30°, so a sixteenth would land within 15° of a neighbour and stop saying which group it is.
+ *
+ * Which is why the four groups that read a *type* share one. A hue names a category and all four of them are the
+ * eighteen types — what separates them is the operator, and that is in each chip's own label rather than in its colour.
  */
 
 import { GENERATIONS } from '../pokemon/generations.js';
@@ -52,6 +55,13 @@ export interface Range {
   label: string;
   max: number;
   min?: number;
+
+  /**
+   * The phrase after the span rather than in front of it, which the three IV ranges are the whole of: `hp{N}` is the
+   * stat where `{N}hp` is the IV, and the game reads `4hp`, `3-defense` and `-1attack` alike. A field rather than a
+   * second kind of range, since every reader of one already wraps a span in its prefix and now wraps it in both.
+   */
+  suffix?: string;
 }
 
 export interface Preset {
@@ -91,17 +101,34 @@ const TYPES = [
 
 const capitalise = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
+/**
+ * The eighteen types under one of the four operators that read them, as a group's worth of terms. The game spells each
+ * reading as a mark in front of the type — nothing for the type a Pokémon is, `<` for what hurts it, `>` for what it
+ * can hurt and `@` for a move it carries — so one function writes all four and no type name is transcribed four times.
+ *
+ * **The mark is in the label as well as in the term.** All four groups share a hue, the wheel having no room for a
+ * sixteenth: the mark is what tells a reader that the pill on the canvas is `<fire` and not `fire`, which the colour
+ * can no longer say. It is also the `id` prefix, ids being flat across every group and `fire` belonging to the first.
+ */
+const typeTerms = (id: string, mark: string): Term[] =>
+  TYPES.map((type) => ({ id: `${id}${type}`, term: `${mark}${type}`, label: `${mark} ${capitalise(type)}`.trim() }));
+
 export const GROUPS: readonly Group[] = [
   {
     id: 'status',
     label: 'Status',
     hue: 8,
     join: '&',
-    help: 'What a Pokémon is, however it was caught. Picking several asks for all of them at once — a lucky shiny.',
+    help:
+      'What a Pokémon is, or what has been put into it, however it was caught. Picking several asks for all of them ' +
+      'at once — a lucky shiny. Two are narrower than they read: `candyxl` passes over a Best Buddy boosted past 40, ' +
+      'and `hypertraining` finds the ones still training rather than the ones that have finished.',
     terms: [
       { id: 'shiny', term: 'shiny', label: 'Shiny' },
       { id: 'lucky', term: 'lucky', label: 'Lucky' },
       { id: 'costume', term: 'costume', label: 'Costume' },
+      { id: 'candyxl', term: 'candyxl', label: 'Powered past 40' },
+      { id: 'hypertraining', term: 'hypertraining', label: 'Hyper Training' },
     ],
   },
   {
@@ -173,11 +200,16 @@ export const GROUPS: readonly Group[] = [
     label: 'Moves',
     hue: 120,
     join: '&',
-    help: 'A move the Pokémon knows, or the weather right now. Picking several asks for all of them at once.',
+    help:
+      'A move the Pokémon knows, or the weather right now. Picking several asks for all of them at once. The last of ' +
+      'them reads the second charged slot, which the game fills with a placeholder named `move_name_0000` where ' +
+      'nothing has been unlocked — so `@3move` is the ones with the slot still shut, and ruling it out is the ones ' +
+      'with a second move.',
     terms: [
       { id: 'special', term: '@special', label: 'Exclusive move' },
       { id: 'adventureeffect', term: 'adventureeffect', label: 'Adventure Effect' },
       { id: 'weather', term: '@weather', label: 'Weather boosted' },
+      { id: 'secondmove', term: '@3move', label: 'No second charged move' },
     ],
   },
   {
@@ -204,6 +236,7 @@ export const GROUPS: readonly Group[] = [
       { id: 'megaraid', term: 'megaraid', label: 'Mega raid' },
       { id: 'primalraid', term: 'primalraid', label: 'Primal raid' },
       { id: 'research', term: 'research', label: 'Research' },
+      { id: 'party', term: 'party', label: 'Party Play' },
       { id: 'rocket', term: 'rocket', label: 'From Team GO Rocket' },
       { id: 'gbl', term: 'gbl', label: 'GO Battle League' },
       { id: 'snapshot', term: 'snapshot', label: 'Photobomb' },
@@ -275,9 +308,20 @@ export const GROUPS: readonly Group[] = [
     id: 'form',
     label: 'Regional forms',
     hue: 320,
-    exclusive: true,
-    help: 'A regional variant answers to its region.',
+
+    /*
+     * No `exclusive`, though five regions read as though nothing could be two of them. The community phrase list
+     * names the exception outright — the early generations "permanently exclude regional forms", which "also makes
+     * Hisuian Decidueye the only pokemon which can be found by searching for two regions together", Decidueye being
+     * an Alola species. So `alola&hisui` matches one Pokémon, and declaring the fact would license `optimise.js` to
+     * write `alola&!hisui` as `alola` — dropping exactly that one, quietly.
+     */
+    help:
+      'A regional variant answers to its region. `kanto` is the odd one of the five: it is the Kanto region with the ' +
+      'variants taken out, which is both what makes it the Kantonian form and what makes it narrower than the Gen 1 ' +
+      'chip — `1-151` matches an Alolan Vulpix, where `kanto` does not.',
     terms: [
+      { id: 'kanto', term: 'kanto', label: 'Kantonian' },
       { id: 'alola', term: 'alola', label: 'Alolan' },
       { id: 'galar', term: 'galar', label: 'Galarian' },
       { id: 'hisui', term: 'hisui', label: 'Hisuian' },
@@ -289,8 +333,47 @@ export const GROUPS: readonly Group[] = [
     label: 'Type',
     hue: 175,
     exhaustive: true,
-    help: 'Picking several matches any of them.',
-    terms: TYPES.map((type) => ({ id: type, term: type, label: capitalise(type) })),
+    help:
+      'The type the Pokémon is. Picking several matches any of them, and the three groups after this one read the ' +
+      'same eighteen words a different way.',
+    terms: typeTerms('', ''),
+  },
+  {
+    id: 'weakto',
+    label: 'Weak to',
+    hue: 175,
+    help:
+      'What the Pokémon takes super effective damage from, which its whole typing settles rather than either half ' +
+      'of it — a Fire that is also Water is not `<water`.',
+    terms: typeTerms('weak', '<'),
+  },
+  {
+    id: 'strongagainst',
+    label: 'Strong against',
+    hue: 175,
+    help:
+      'The Pokémon has an attack that is super effective against this type. Its second charged move is not counted ' +
+      'in that, which the community phrase list reports as a bug.',
+    terms: typeTerms('strong', '>'),
+  },
+  {
+    id: 'movetype',
+    label: 'Move type',
+    hue: 175,
+
+    /*
+     * Exhaustive and not exclusive, for the same reason Type above is: every Pokémon has a move and every move has one
+     * of these eighteen types, so all eighteen asked for at once is a search for everything — which is the reduction
+     * the flag buys. Several at once is ordinary, a moveset being two or three moves of two or three types.
+     *
+     * Neither fact is stated for the two groups above it. Whether every species is weak to something, and which types
+     * a moveset can reach, are both answers out of the type chart, and nothing in this repository holds one.
+     */
+    exhaustive: true,
+    help:
+      'A move of this type, in any of the slots. `@` reads a type before it reads a move name, so `@psychic` is the ' +
+      'type and the move of that name wants `@psychi`.',
+    terms: typeTerms('move', '@'),
   },
   {
     id: 'generation',
@@ -317,19 +400,66 @@ export const GROUPS: readonly Group[] = [
  * `max` bounds the input so a typo cannot write a range nothing can match, and is the ceiling the game itself has where
  * there is one — 1025 is the dex, and a CP above 5000 belongs to nothing.
  *
+ * **Where the game documents no ceiling, `max` is generous rather than tight.** `bounded` below *clamps* rather than
+ * refuses, so a ceiling set under what a search can really ask for turns that search into a different one in silence:
+ * the three counts take five digits, which is past any storage or candy total the game can hold, where a figure chosen
+ * to look plausible would have rewritten a real `countcandy50000`.
+ *
  * Buddy and Mega level belong here rather than among the terms above, even though the game documents them as the eleven
  * separate words `buddy0` to `buddy5` and `mega0` to `mega3`: they are levels, so a reader wants a span of them — `Good
- * Buddy or better` is `buddy2-5` — and eleven chips could not write that.
+ * Buddy or better` is `buddy2-5` — and eleven chips could not write that. The Max move levels and the two counts of
+ * unlocked Max moves are here for the same reason, and all five start at 1: a Max species has its attack unlocked from
+ * the first, so `{N}` counts from one and `dynamax0` is a search for nothing.
+ *
+ * A prefix that is the start of another prefix needs no ordering, `pill` in `parse.js` requiring the *tail* to be a
+ * span: `countcandy248-` is not a `count` search, because `candy248-` is not a number.
  */
 export const RANGES: readonly Range[] = [
   { id: 'cp', prefix: 'cp', label: 'CP', max: 5000 },
   { id: 'hp', prefix: 'hp', label: 'HP', max: 500 },
   { id: 'dex', prefix: '', label: 'Dex number', min: 1, max: 1025 },
+  { id: 'ivattack', prefix: '', suffix: 'attack', label: 'Attack IV', max: 4 },
+  { id: 'ivdefense', prefix: '', suffix: 'defense', label: 'Defence IV', max: 4 },
+  { id: 'ivhp', prefix: '', suffix: 'hp', label: 'HP IV', max: 4 },
   { id: 'buddylevel', prefix: 'buddy', label: 'Buddy level', max: 5 },
   { id: 'megalevel', prefix: 'mega', label: 'Mega level', max: 3 },
+  { id: 'dynamaxmoves', prefix: 'dynamax', label: 'Dynamax moves', min: 1, max: 3 },
+  { id: 'gigantamaxmoves', prefix: 'gigantamax', label: 'Gigantamax moves', min: 1, max: 3 },
+  { id: 'maxmove', prefix: 'maxmove', label: 'Max Attack level', min: 1, max: 3 },
+  { id: 'maxguard', prefix: 'maxguard', label: 'Max Guard level', min: 1, max: 3 },
+  { id: 'maxspirit', prefix: 'maxspirit', label: 'Max Spirit level', min: 1, max: 3 },
+  { id: 'count', prefix: 'count', label: 'Copies you have', min: 1, max: 99999 },
+  { id: 'countcandy', prefix: 'countcandy', label: 'Candy', max: 99999 },
+  { id: 'countcandyxl', prefix: 'countcandyxl', label: 'Candy XL', max: 99999 },
   { id: 'age', prefix: 'age', label: 'Age', max: 3650 },
   { id: 'distance', prefix: 'distance', label: 'Kilometres from home', max: 40000 },
   { id: 'year', prefix: 'year', label: 'Year caught', min: 2016, max: 2030 },
+];
+
+/**
+ * The phrases the game reads as a span rather than as the word they look like, each beside the range and the floor it
+ * stands for. The community phrase list calls them shortcuts and lists four: `mega` for `mega0-`, `count` for
+ * `count2-`, and `dynamax` and `gigantamax` for `dynamax1-` and `gigantamax1-`.
+ *
+ * The floor rather than the span, so the string is derived through the writer in `tree.js` wherever one is wanted and
+ * nothing here can drift from what a pill of that range composes.
+ *
+ * Two of the four are also terms above, where the chip's own word *is* the shortcut — so a typed `dynamax` arrives as
+ * the chip rather than as a span, both spellings asking the same thing and the chip's being shorter. That leaves the
+ * reading below for `mega` and `count`, and leaves all four to the caveat in `clauses.js`.
+ *
+ * `greedy` is whether the phrase still swallows a longer word that starts with it. All four did; the list records
+ * `mega` as patched in spring 2026 and the other three as remaining affected, which is what makes this a field.
+ *
+ * Read on the way in and never written on the way out. A reader pasting the game's own `count` gets the pill it stands
+ * for, which is the courtesy `parse.js` already pays `cp3000-0`; composing one back would hand that reader a string
+ * that is itself a shortcut, where the span spelled out is the one spelling nothing can swallow.
+ */
+export const SHORTCUTS: readonly { phrase: string; range: string; from: number; greedy: boolean }[] = [
+  { phrase: 'mega', range: 'megalevel', from: 0, greedy: false },
+  { phrase: 'count', range: 'count', from: 2, greedy: true },
+  { phrase: 'dynamax', range: 'dynamaxmoves', from: 1, greedy: true },
+  { phrase: 'gigantamax', range: 'gigantamaxmoves', from: 1, greedy: true },
 ];
 
 /**

@@ -217,6 +217,34 @@ afterwards.
 The terms live in one table, [`src/search/terms.ts`](src/search/terms.ts), and the catalogue is rendered from it, so
 adding or correcting one is still a single line.
 
+### What a phrase can be
+
+A phrase out of the [community list](https://leidwesen.github.io/SearchPhrases/) reaches the page as one of four things,
+and which one is the whole of what the table has to say about it.
+
+A **term** is a word the table owns, which is most of them — `shiny`, `candyxl`, `party`, `kanto`, `@special`. A
+**span** is a prefix and a range of numbers: `cp100-2000`, `countcandy248-`, `maxspirit1-`. A span's phrase sits
+_behind_ the numbers for the three IVs, `hp{N}` being the stat where `{N}hp` is the IV, which is the one shape a prefix
+alone could not write and the reason a range carries a `suffix` as well. And anything else is the reader's **own text**
+— a name, a nickname, `@hydro pump`, `#keepers` — which is what the game does with a word it does not know, and so needs
+no kind of its own.
+
+The eighteen types are read four ways, which is four groups rather than a mode over one: `fire` is the type, `<fire`
+what hurts it, `>fire` what it can hurt and `@fire` a move it carries. The four share a hue, there being room on the
+wheel for fifteen and no more, so the operator in each chip's label is what says which group a pill came from.
+
+Two shapes the catalogue cannot hold get a box each: the `@` search, where a slot dropdown and one text box write
+`@3crunch` as well as `@weather`, and the tag, where only the reader knows what they called theirs. The game's own
+priority is what lets one box serve the whole `@` family — a type is read before a move of the same name — and it is
+also the catch, so the move Psychic answers to `@psychi`.
+
+**Four phrases are a span wearing a word**, which the list calls shortcuts: `mega` is `mega0-`, `count` is `count2-`,
+and `dynamax` and `gigantamax` are those ranges open at the top. Those are read on the way in, so the game's own
+spelling arrives as the pill it stands for, and never written on the way out — a shortcut is exactly the thing the list
+says gets eaten by whatever is typed next to it, and the span spelled out is the spelling nothing can swallow. Which is
+also a caveat the page raises: a move or tag beginning with one of the three unpatched phrases is named under the
+string, beside the span the game reads instead of it.
+
 ### What the tree is written as
 
 The game takes no brackets. What it does take is clauses separated by `&`, each a list of alternatives separated by `,`,

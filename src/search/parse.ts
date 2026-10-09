@@ -21,7 +21,7 @@
  * the canvas can draw.
  */
 
-import { bounded, GROUPS, RANGES, SPAN } from './terms.js';
+import { bounded, GROUPS, RANGES, SHORTCUTS, SPAN, type Range } from './terms.js';
 import { group, NESTING, type Junction, type Leaf, type Node } from './tree.js';
 
 /** The punctuation, and what each piece of it is. Everything else is part of a term. */
@@ -51,12 +51,32 @@ export interface Read {
 }
 
 /**
+ * The span inside a range's own phrase, or null where the text is not that range's at all. The phrase is in front of
+ * the numbers for every range but the three IVs, which carry it behind, so `cp3000-` and `3-defense` are one shape read
+ * from either end.
+ *
+ * The phrase is matched folded, the game being case-insensitive, while the span is cut out of the text as it was typed:
+ * digits read the same either way, and a word that matches no range falls through to a name that keeps its capitals.
+ */
+function inside(text: string, range: Range): string | null {
+  const folded = text.toLowerCase();
+  const suffix = range.suffix ?? '';
+
+  if (!folded.startsWith(range.prefix) || !folded.endsWith(suffix)) {
+    return null;
+  }
+
+  return text.slice(range.prefix.length, text.length - suffix.length);
+}
+
+/**
  * The pill a word becomes.
  *
  * A catalogue term is tried first, so `shiny` arrives as the Status pill rather than as a name that happens to read
  * the same — which matters because the chip above it then shows as required, and the pill carries its category's
- * colour. It beats the ranges too, which is the one place the two overlap: `1-151` is both the Gen 1 term and a dex
- * span, and the two write the same thing, so the pill that says *Gen 1* is the better of the two to draw.
+ * colour. It beats the ranges and the shortcuts too, which is where the three overlap: `1-151` is both the Gen 1 term
+ * and a dex span, and `dynamax` both a Mega and Max chip and the shortcut for `dynamax1-`. Each pair asks the same
+ * thing, and in each the chip is the pill worth drawing — it says *Gen 1*, and it is the shorter of the two.
  *
  * Anything left is a name, which is what the game does with it: a word it does not know is matched against the names
  * and nicknames in storage.
@@ -68,12 +88,28 @@ function pill(text: string, negated: boolean): Leaf {
     return { kind: 'term', id: term, negated };
   }
 
+  /*
+   * A shortcut phrase is the span it stands for, which is the game's own reading of it and so the one this has to
+   * take: `terms.js` lists the four and says why none is written back out. The two that are chips were matched above,
+   * leaving `mega` and `count` — and a bound this repository wrote still goes through `bounded`, a pill out of any of
+   * the readers having to be one the other readers could have made.
+   */
+  const shortcut = SHORTCUTS.find((one) => one.phrase === text.toLowerCase());
+  const stands = shortcut ? RANGES.find((range) => range.id === shortcut.range) : undefined;
+
+  if (shortcut && stands) {
+    return { kind: 'range', id: stands.id, from: bounded(shortcut.from, stands), to: null, negated };
+  }
+
   for (const range of RANGES) {
-    const tail =
-      range.prefix === '' ? text : text.toLowerCase().startsWith(range.prefix) ? text.slice(range.prefix.length) : null;
+    const tail = inside(text, range);
     const [, low, dash, high] = (tail === null ? null : SPAN.exec(tail)) ?? [];
 
-    // A match with neither bound is not a span: `cp` alone, and the `-` the dex range sees in any text holding one.
+    /*
+     * A match with neither bound is not a span: `cp` alone, and the `-` the dex range sees in any text holding one.
+     * It is also the whole of why the table needs no ordering where one prefix starts another — `countcandy248-` has
+     * `candy248-` for its `count` tail, which is no number, so the range it really names is the one that takes it.
+     */
     if (low === undefined && high === undefined) {
       continue;
     }

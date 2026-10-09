@@ -86,6 +86,23 @@ const PANES: readonly { id: Pane; label: string; said: string }[] = [
   { id: 'advanced', label: 'Advanced', said: 'Write the search out yourself, brackets and all' },
 ];
 
+/**
+ * The move slots the game numbers, and what each of them is. A bare `@` asks about every slot at once, which is the
+ * common case and so where a fresh search starts.
+ *
+ * Slot 4 is the extra charged move a Mega can hold, and it is the one that takes a move *name* and nothing else: the
+ * community phrase list has `@4{criteria}` not working with a type, with `special` or with `weather`, which is a
+ * search a reader can write here and the game will not answer. Said in the help rather than by withholding the option,
+ * the slot itself working perfectly well for the move names it is mostly wanted for.
+ */
+const SLOTS: readonly { value: string; label: string }[] = [
+  { value: '', label: 'Any slot' },
+  { value: '1', label: 'Fast move' },
+  { value: '2', label: 'First charged' },
+  { value: '3', label: 'Second charged' },
+  { value: '4', label: 'Mega extra move' },
+];
+
 /** What a term chip's tooltip says: the word the game reads, then what pressing it does. */
 const chipTitle = (term: string) =>
   `${term} — press to require, again to rule out, again to drop; or drag into a group`;
@@ -104,9 +121,9 @@ const characters = (length: number) => `${length} character${length === 1 ? '' :
  * A sentence split on its backticks: prose at the even positions and the quoted characters at the odd ones, the string
  * having begun outside a pair.
  *
- * **An unpaired tick is prose rather than markup**, so the tail it opens is rejoined and left as text. One of the three
- * callers of `ticked` below is a refusal from `parse.js` that quotes a token the reader typed, and a reader can type a
- * tick — in a name, where the box splits on commas and leaves everything else alone. Pairing from the left and giving
+ * **An unpaired tick is prose rather than markup**, so the tail it opens is rejoined and left as text. One caller of
+ * `ticked` below is a refusal from `parse.js` that quotes a token the reader typed, and a reader can type a tick — in
+ * a name, where the box splits on commas and leaves everything else alone. Pairing from the left and giving
  * up on the last one is what keeps that from setting the rest of the refusal in `<code>`: `terms.test.js` holds the
  * help table to pairs, and this holds the strings that arrive from outside any table.
  *
@@ -122,8 +139,9 @@ export function spans(message: string): string[] {
  * A sentence's backticked parts set in `<code>`, so that prose written in this repository's convention reads on screen
  * the way the caveat beside it does rather than showing its own punctuation.
  *
- * Three callers: a refusal from `clauses.js`, a refusal from `parse.js`, and a category's own help in `terms.js` —
- * which was showing its ticks as ticks. `the game has no \`gen1\`` had been on the page since before the canvas.
+ * Four callers: the two refusals, from `clauses.js` and `parse.js`; a category's own help in `terms.js`, which was
+ * showing its ticks as ticks — `the game has no \`gen1\`` had been on the page since before the canvas; and the
+ * caveats beside a phrase the game mishandles, one of which quotes the span it reads a shortcut as instead.
  */
 const ticked = (message: string) =>
   spans(message).map((part, index) => (index % 2 === 0 ? part : <code key={index}>{part}</code>));
@@ -235,6 +253,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   const [typing, setTyping] = useState('');
 
+  /** The two operator searches being typed, and the slot the `@` one asks about. A slot sticks; the text does not. */
+  const [marking, setMarking] = useState('');
+  const [slot, setSlot] = useState('');
+  const [tagging, setTagging] = useState('');
+
   /** The span pill's box being typed in, if any — `boxText` above says why that is worth a piece of state. */
   const [typedBound, setTypedBound] = useState<Typed | null>(null);
 
@@ -280,6 +303,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setFocus([]);
     setHeld(null);
     setTyping('');
+    setMarking('');
+    setTagging('');
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
@@ -401,13 +426,19 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   /**
    * Back to the blank page, which is every box on it rather than the canvas alone: a typed query left behind would sit
-   * full above an output box saying nothing was arranged, and the name box is emptied here for the same reason.
+   * full above an output box saying nothing was arranged, and the three text boxes are emptied for the same reason.
+   *
+   * The move slot is not, and nor is the Shorten toggle above it. Both are settings for whatever the reader does next
+   * rather than leftovers of what they did last, and both say on screen which way they are set — where a box holds
+   * text that has already gone into a pill, and so says nothing true once the canvas is empty.
    */
   function clear() {
     setState((was) => ({ ...emptyState(), optimise: was.optimise }));
     setFocus([]);
     setHeld(null);
     setTyping('');
+    setMarking('');
+    setTagging('');
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
@@ -514,6 +545,28 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
     setTyping('');
     closeSuggestions();
+  }
+
+  /**
+   * One operator search finished with: the reader's own text behind the mark the game reads it by, as a pill in the
+   * group being filled. Answers whether it committed, so the caller empties its own box and only then.
+   *
+   * A `name` pill, which is what these are: the game matches a word it does not know against the names in storage, and
+   * `@hydro pump` and `#keepers` are two more texts the catalogue cannot hold. So they need no kind of their own —
+   * they compose, read back and shorten as any name does, the mark being what keeps the shortener off them.
+   *
+   * Through `cycle` for the reason `takeName` is: the same text twice is one pill's worth of search.
+   */
+  function takeMarked(mark: string, text: string) {
+    const written = text.trim();
+
+    if (written === '') {
+      return false;
+    }
+
+    edit((tree) => cycle(tree, focus, { kind: 'name', text: `${mark}${written}`, negated: false }));
+
+    return true;
   }
 
   function onNameKeyDown(event: KeyboardEvent) {
@@ -793,7 +846,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           <p class="caveat" hidden={mishandled.length === 0}>
             {mishandled.map(({ term, note }) => (
               <span key={term} class="mishandled">
-                <code>{term}</code> — {note}.
+                <code>{term}</code> — {ticked(note)}.
               </span>
             ))}
           </p>
@@ -897,6 +950,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <div class="combobox">
               <input
                 ref={textRef}
+                class="field"
                 id="text"
                 type="text"
                 value={typing}
@@ -964,6 +1018,116 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </p>
           </section>
 
+          {/*
+           * The `@` search, which is one box because the game's own priority is what sorts out what goes in it: a type
+           * is read before a move of the same name, and `special` and `weather` before either. So a reader types a
+           * move, a type or one of those two words, picks the slot, and the game resolves which they meant — where a
+           * box per kind would have been four boxes writing one string.
+           *
+           * The chips cover the slotless forms a catalogue can hold — the eighteen `@{type}` and the two keywords —
+           * and this is for the move names it cannot and for every slot of all of them.
+           */}
+          <section class="panel" aria-labelledby="moveLabel">
+            <h2 class="label" id="moveLabel">
+              Move or move criteria
+            </h2>
+
+            <div class="marked">
+              <select
+                aria-label="Which move slot"
+                value={slot}
+                onChange={(event) => setSlot(event.currentTarget.value)}
+              >
+                {SLOTS.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                class="field"
+                type="text"
+                value={marking}
+                placeholder="hydro pump"
+                autocomplete="off"
+                spellcheck={false}
+                aria-label="Move name, type, special or weather"
+                onInput={(event) => setMarking(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && takeMarked(`@${slot}`, marking)) {
+                    event.preventDefault();
+                    setMarking('');
+                  }
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (takeMarked(`@${slot}`, marking)) {
+                    setMarking('');
+                  }
+                }}
+              >
+                Add
+              </button>
+            </div>
+
+            <p class="help">
+              A move name, a type, <code>special</code> or <code>weather</code>, in any slot or in one of them — so{' '}
+              <em>Second charged</em> and <code>crunch</code> write <code>@3crunch</code>. Move names complete as you
+              go, in the game rather than here, so <code>@hydro</code> finds Hydro Pump and Hydro Cannon alike. Three
+              catches: a type is read ahead of a move named the same, so <code>@psychi</code> is how to ask for the move
+              Psychic; <em>Mega extra move</em> answers to a move name alone, not to a type or to those two words; and a
+              move beginning <code>count</code>, <code>dynamax</code> or <code>gigantamax</code> is read as that
+              shortcut phrase rather than as the move, which is a search the game has no spelling for.
+            </p>
+          </section>
+
+          <section class="panel" aria-labelledby="tagLabel">
+            <h2 class="label" id="tagLabel">
+              Tag
+            </h2>
+
+            <div class="marked">
+              <input
+                class="field"
+                type="text"
+                value={tagging}
+                placeholder="keepers"
+                autocomplete="off"
+                spellcheck={false}
+                aria-label="Tag name"
+                onInput={(event) => setTagging(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && takeMarked('#', tagging)) {
+                    event.preventDefault();
+                    setTagging('');
+                  }
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (takeMarked('#', tagging)) {
+                    setTagging('');
+                  }
+                }}
+              >
+                Add
+              </button>
+            </div>
+
+            <p class="help">
+              A tag by the name you gave it. Only you know what you called yours, so there is no chip for one — the{' '}
+              <em>Tagged</em> chip is <code>#</code>, the game's word for having any tag at all. Tag names complete in
+              the game here too. Keep the <code>#</code>: a tag searched without it is an ordinary word, and a tag named
+              after a search phrase loses to that phrase.
+            </p>
+          </section>
+
           <div class="groups">
             {GROUPS.map((category) => (
               <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
@@ -1027,7 +1191,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <p class="help">
               A span pill carries its own two boxes, and a box left empty leaves that end of the span open. Two spans of
               the same range in one group is a search you reach by dragging the second one in, a press reading the one
-              already there.
+              already there. Three of them are not the numbers they look like: an IV is the appraisal's own bucket,
+              where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10, <code>3</code> is 11–14
+              and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one. The Max move levels and
+              the counts of unlocked Max moves start at 1, a Max species having its attack from the first.
             </p>
           </section>
         </div>

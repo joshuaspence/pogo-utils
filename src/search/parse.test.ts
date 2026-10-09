@@ -15,7 +15,7 @@ import { expect, test } from 'vitest';
 
 import { clausesOf } from './clauses.js';
 import { read } from './parse.js';
-import { GROUPS, RANGES, TERMS_BY_ID } from './terms.js';
+import { GROUPS, RANGES, SHORTCUTS, TERMS_BY_ID } from './terms.js';
 import { group, isGroup, leafText, NESTING, type Leaf, type Node } from './tree.js';
 
 const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });
@@ -43,6 +43,20 @@ function treeFor(text: string): Node {
 
 /** What a typed query composes to, which is the whole point of typing one. */
 const stringFor = (text: string) => clausesOf(treeFor(text)).clauses.join('&');
+
+/** The one pill a single-term query reads as, the root always being a group whatever arrived. */
+function onlyPill(text: string): Node | null {
+  const tree = treeFor(text);
+
+  return isGroup(tree) ? (tree.parts[0] ?? null) : tree;
+}
+
+/** Which range a query landed on, or null where it landed on a term or a name instead. */
+function rangeFor(text: string): string | null {
+  const pill = onlyPill(text);
+
+  return pill !== null && !isGroup(pill) && pill.kind === 'range' ? pill.id : null;
+}
 
 /** The question a tree asks of one Pokémon, for the truth tables below. */
 function holds(node: Node, on: ReadonlySet<string>): boolean {
@@ -196,6 +210,97 @@ test('a span arrives as the range pill it is', () => {
   expect([stringFor('cp3000-0'), stringFor('cp3000-')]).toEqual(['cp3000-', 'cp3000-']);
 });
 
+test('an IV span carries its phrase behind the numbers, in each of the four shapes', () => {
+  /*
+   * The one range shape a prefix cannot write: `hp{N}` is the stat and `{N}hp` the IV, so the three IV ranges hold a
+   * `suffix` and the writer wraps a span in both ends. All four shapes are here because the suffix reaches each of
+   * them separately — a writer that wrapped only the closed span would have left `3-defense` spelled `3-` and the
+   * phrase dropped, which composes a search for a CP.
+   *
+   * The spellings are the phrase list's own examples, `'-1attack', '4HP', '3-defense'`, which is the point of taking
+   * them: these are the strings a reader pastes in from the reference.
+   */
+  const pills = Object.fromEntries(
+    ['4hp', '0-4hp', '3-defense', '-1attack', '0attack'].map((text) => [text, onlyPill(text)]),
+  );
+
+  expect(pills).toEqual({
+    '4hp': { kind: 'range', id: 'ivhp', from: 4, to: 4, negated: false },
+    '0-4hp': { kind: 'range', id: 'ivhp', from: 0, to: 4, negated: false },
+    '3-defense': { kind: 'range', id: 'ivdefense', from: 3, to: null, negated: false },
+    '-1attack': { kind: 'range', id: 'ivattack', from: null, to: 1, negated: false },
+
+    // No dash is no open end, so a bare number is both bounds — the bucket of nought rather than everything under it.
+    '0attack': { kind: 'range', id: 'ivattack', from: 0, to: 0, negated: false },
+  });
+
+  // Case is the game's to ignore on the phrase as much as on a term, and each of these composes what it was typed as.
+  for (const [typed, written] of [
+    ['4HP', '4hp'],
+    ['3-DEFENSE', '3-defense'],
+  ] as const) {
+    expect({ typed, written: stringFor(typed) }).toEqual({ typed, written });
+  }
+
+  // The stat keeps its own spelling beside the IV, which is the collision the two readings of `hp` would make.
+  expect(onlyPill('hp200-')).toEqual({ kind: 'range', id: 'hp', from: 200, to: null, negated: false });
+
+  // And a word that merely ends in a phrase is a name, the tail in front of it having to be a number.
+  expect(shape(treeFor('php'))).toEqual({ all: ['php'] });
+});
+
+test('a phrase that begins another phrase still lands on the range it names', () => {
+  /*
+   * Three of the counts share a prefix, and `pill` needs no ordering to tell them apart: a tail that is not a number
+   * is not a span, so `countcandy248-` offers `candy248-` to the `count` range and is turned down. Which is the whole
+   * of what keeps the table in the order it reads best in.
+   */
+  const ids = Object.fromEntries(
+    ['count10-', 'countcandy248-', 'countcandyxl296-', 'maxmove2', 'maxspirit1-', 'gigantamax2-'].map((text) => [
+      text,
+      rangeFor(text),
+    ]),
+  );
+
+  expect(ids).toEqual({
+    'count10-': 'count',
+    'countcandy248-': 'countcandy',
+    'countcandyxl296-': 'countcandyxl',
+    'maxmove2': 'maxmove',
+    'maxspirit1-': 'maxspirit',
+    'gigantamax2-': 'gigantamaxmoves',
+  });
+
+  // Each of them composes back the string it was read from, which is what says the right range took it.
+  for (const text of Object.keys(ids)) {
+    expect({ text, written: stringFor(text) }).toEqual({ text, written: text });
+  }
+});
+
+test('a shortcut phrase arrives as the span the game reads it as', () => {
+  /*
+   * The community phrase list has four phrases that are "internally a range", and reading one as the word it looks
+   * like is how a pasted `count` becomes a nickname search. Two of the four are chips, whose own word is the shortcut,
+   * so those arrive as the chip — the shorter spelling of the two, and the one that lights a chip up.
+   *
+   * This is the half that reads one. Nothing writes one back: `terms.js` says why, and the two strings below are what
+   * that costs — the span spelled out, which is the spelling no later keystroke can swallow.
+   */
+  expect(SHORTCUTS.map((one) => one.phrase)).toEqual(['mega', 'count', 'dynamax', 'gigantamax']);
+
+  expect(
+    Object.fromEntries(['count', 'mega', 'dynamax', 'gigantamax'].map((text) => [text, shape(treeFor(text))])),
+  ).toEqual({
+    count: { all: ['count2-'] },
+    mega: { all: ['mega0-'] },
+    dynamax: { all: ['dynamax'] },
+    gigantamax: { all: ['gigantamax'] },
+  });
+
+  // Case again, and a negation riding on the pill rather than on the phrase it was read from.
+  expect(shape(treeFor('!COUNT'))).toEqual({ all: ['!count2-'] });
+});
+
 test('a bare span that a generation chip already spells arrives as that chip', () => {
   // `1-151` is both the Gen 1 term and a dex span, and the two write the same string — so the pill that says *Gen 1*
   // is the better of the two to draw. Anything the table does not spell falls through to the dex range.
@@ -219,12 +324,20 @@ test('a typed span is bounded by the range, so it is a pill the number boxes cou
    * its own link reading back as `cp5000`. The last row is the sharp one: `Number` on a long enough digit run is a
    * float, and `1e+21` went into the search box as a term the game cannot read at all.
    */
+  /*
+   * The last row is the one where the clamp changes what is asked rather than only how it is spelled. A CP above 5000
+   * belongs to nothing, so `cp99999` and `cp5000` are the same search; an IV of 9 is not a bucket the game has, where
+   * `4hp` is every perfect one. That is what the clamp has always done to a range whose ceiling is a count of options
+   * — `buddy9` is `buddy5` and `mega9` is `mega3` — and the reason it still wins is the one `bounded` gives: a pill the
+   * boxes could not have made is one whose own link reads back as something else.
+   */
   for (const [typed, written] of [
     ['cp99999', 'cp5000'],
     ['cp0-99999', 'cp0-5000'],
     ['2020', '1025'],
     ['year5', 'year2016'],
     ['1000000000000000000000', '1025'],
+    ['9hp', '4hp'],
   ] as const) {
     expect({ typed, written: stringFor(typed), again: stringFor(stringFor(typed)) }).toEqual({
       typed,
@@ -272,6 +385,10 @@ test('a query that does not parse is refused, and says which thing is wrong', ()
  * `PUNCTUATION` deliberately leaves out — which is what lets `cp3000-` tokenise as a single term, and what leaves the
  * reader free to fill the bound back in. Do that and it comes back out spelled the other way round, which is the
  * disagreement a fixed point catches.
+ *
+ * One of them carries its phrase *behind* the span, which is the other way the two halves can part: the writer wraps
+ * `3-` in `attack` and the reader has to unwrap it from the same end. An open end is again the shape to take, the one
+ * where a dash is left for the reader to read the wrong thing out of.
  */
 function* trees(size: number): Generator<Node> {
   if (size <= 1) {
@@ -283,6 +400,7 @@ function* trees(size: number): Generator<Node> {
     yield { kind: 'range', id: 'cp', from: 3000, to: null, negated: false };
     yield { kind: 'range', id: 'hp', from: null, to: 100, negated: false };
     yield { kind: 'range', id: 'hp', from: 100, to: 100, negated: false };
+    yield { kind: 'range', id: 'ivattack', from: 3, to: null, negated: false };
     return;
   }
 
