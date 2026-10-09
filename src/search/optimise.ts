@@ -25,7 +25,7 @@
  */
 
 import POKEMON from '../pokemon/pokedex.js';
-import { GROUPS, RANGES, type Group as Category, type Term } from './terms.js';
+import { GROUPS, RANGES, SPAN, type Group as Category, type Term } from './terms.js';
 import { isGroup, leafText, type Group, type Leaf, type Node } from './tree.js';
 import type { State } from './query.js';
 
@@ -57,9 +57,6 @@ const SPECIES = Object.values(POKEMON).map((species) => ({
   spellable: !UNSPELLABLE.has(String(species)),
 }));
 
-/** A dex number or a span of them, which is how the game reads a number and how a pill is read back into one. */
-const SPAN = /^(\d+)(?:-(\d+))?$/;
-
 /** The dex range's own floor and ceiling, which is the span that says nothing and so earns no pill. */
 const DEX = RANGES.find((range) => range.id === 'dex');
 
@@ -71,16 +68,22 @@ if (!DEX) {
 
 const WHOLE: Span = [DEX.min ?? 0, DEX.max];
 
-/** One span from a piece of text, or null where that text is not a number at all. */
+/**
+ * One span from a piece of text, or null where that text is not a number at all.
+ *
+ * An end the dash leaves open is closed against `WHOLE`, a span here being a closed interval: `-151` is Gen 1 spelled
+ * the other way round, and the arithmetic below has to see it as the `[1, 151]` it is rather than refuse it. `parse.js`
+ * leaves the same end open, which is the difference between reading a span to compute with and reading one to draw.
+ */
 function spanOf(text: string): Span | null {
-  const found = SPAN.exec(text);
+  const [, low, dash, high] = SPAN.exec(text) ?? [];
 
-  if (!found) {
+  if (low === undefined && high === undefined) {
     return null;
   }
 
-  const from = Number(found[1]);
-  const to = found[2] == null ? from : Number(found[2]);
+  const from = low === undefined ? WHOLE[0] : Number(low);
+  const to = high === undefined ? (dash === undefined ? from : WHOLE[1]) : Number(high);
 
   return [Math.min(from, to), Math.max(from, to)];
 }

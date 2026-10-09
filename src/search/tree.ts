@@ -89,9 +89,14 @@ const RANGES_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
  * names nothing in the table is the one case that is a fault, and it answers null too — a link that rotted past a
  * rename drops the pill it can no longer spell rather than writing a term the game will not match.
  *
- * A bound left empty is filled from the range's own floor or ceiling rather than written as an open end, which is the
- * reading the earlier `rangeClause` took and the reason it gave: `cp3000-` may well be read the way it looks, where
- * `cp3000-5000` cannot be read any other way and nothing has a CP above the ceiling anyway.
+ * A bound left empty is written as an open end rather than filled from the range's own floor or ceiling. The community
+ * phrase list states both forms outright — "`{phrase}{N}-` matches values ≥ `{N}`", "`{phrase}-{N}` matches values ≤
+ * `{N}`" — which is what an earlier reading here lacked: it filled the bound in because `cp3000-` only *may well* be
+ * read the way it looks, and preferred a spelling that could not be read any other way.
+ *
+ * That preference is still the rule; it just no longer reaches the open ends. Where it does still reach is a nought on
+ * the right of the dash, the one irregularity the same list records: "If `{M}` is 0, the search is treated as
+ * `{phrase}{N}-` instead", which is the span's own opposite. So `-0` is written as the single value it is.
  */
 export function leafText(leaf: Leaf): string | null {
   const written = text(leaf);
@@ -114,8 +119,19 @@ function text(leaf: Leaf): string | null {
     return null;
   }
 
-  const from = leaf.from ?? range.min ?? 0;
-  const to = leaf.to ?? range.max;
+  const { from, to } = leaf;
+
+  if (from == null) {
+    // A nought is never written to the right of the dash, for the reason above. Nothing sits below it in any of these
+    // ranges, so the span it opens is the single value, which the bare form says and says unambiguously.
+    return to === 0 ? `${range.prefix}0` : `${range.prefix}-${to}`;
+  }
+
+  if (to == null) {
+    return `${range.prefix}${from}-`;
+  }
+
+  // A reader can type the higher number into the lower box, and two numbers describe a span whichever way round.
   const low = Math.min(from, to);
   const high = Math.max(from, to);
 

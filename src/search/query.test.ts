@@ -202,8 +202,8 @@ test('a bound from a stranger is clamped to the pill that could have produced it
     negated: false,
   });
 
-  // A bound that is not a number is the empty box it looks like, which the writer then fills from the table.
-  expect(shape(fromFragment('q=A1_Rdex..151').tree)).toEqual({ all: ['1-151'] });
+  // A bound that is not a number is the empty box it looks like, which the writer then leaves open.
+  expect(shape(fromFragment('q=A1_Rdex..151').tree)).toEqual({ all: ['-151'] });
   expect(shape(fromFragment('q=A1_Rdex.x.y').tree)).toEqual({ all: ['…'] });
 });
 

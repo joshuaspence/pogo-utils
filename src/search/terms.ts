@@ -311,8 +311,8 @@ export const GROUPS: readonly Group[] = [
 ];
 
 /**
- * The numeric ranges, each written as its prefix and a span: `cp100-2000`. A bound left empty falls back to the range's
- * own `min` or `max` rather than to an open end, so one box filled writes `cp3000-5000`; `rangeClause` says why.
+ * The numeric ranges, each written as its prefix and a span: `cp100-2000`. A bound left empty is left open rather than
+ * filled from the range's own `min` or `max`, so one box filled writes `cp3000-`; `tree.js` says why.
  *
  * `max` bounds the input so a typo cannot write a range nothing can match, and is the ceiling the game itself has where
  * there is one — 1025 is the dex, and a CP above 5000 belongs to nothing.
@@ -331,6 +331,18 @@ export const RANGES: readonly Range[] = [
   { id: 'distance', prefix: 'distance', label: 'Kilometres from home', max: 40000 },
   { id: 'year', prefix: 'year', label: 'Year caught', min: 2016, max: 2030 },
 ];
+
+/**
+ * The four shapes a span is written in, as one pattern: `100`, `100-200`, `100-` and `-200`. A match with neither bound
+ * is not a span at all — a lone `-`, or the empty tail a text that is only a prefix leaves — so both readers check for
+ * one before trusting the groups.
+ *
+ * One pattern because three readers share this grammar and `optimise.js` reads a dex pill back *through the writer that
+ * produced it*, so a copy loosened on its own would silently stop recognising what the other had just written. The two
+ * readers still differ in what they do with an open end, which is theirs to decide: `parse.js` leaves it open, where a
+ * span in `optimise.js` is a closed interval and closes it against the dex.
+ */
+export const SPAN = /^(\d+)?(-)?(\d+)?$/;
 
 /**
  * A number inside a range's own limits, which is the whole of what `max` above bounds.

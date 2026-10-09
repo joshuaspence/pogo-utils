@@ -146,7 +146,7 @@ export function readBound(value: string, range: Range) {
 /** Which end of a span a box edits, which is the field it writes. */
 type Edge = 'from' | 'to';
 
-/** What each end is called, and the limit its box falls back to where the reader leaves it empty. */
+/** What each end is called, and the limit its box shows greyed out — the range's own, not a bound it falls back to. */
 const EDGES: Record<Edge, { said: string; limit: (range: Range) => number }> = {
   from: { said: 'lowest', limit: (range) => range.min ?? 0 },
   to: { said: 'highest', limit: (range) => range.max },
@@ -1023,7 +1023,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               })}
             </div>
             <p class="help">
-              A span pill carries its own two boxes, and a box left empty falls back to that range's limit. Two spans of
+              A span pill carries its own two boxes, and a box left empty leaves that end of the span open. Two spans of
               the same range in one group is a search you reach by dragging the second one in, a press reading the one
               already there.
             </p>

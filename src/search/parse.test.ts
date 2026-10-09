@@ -157,6 +157,29 @@ test('a span arrives as the range pill it is', () => {
   const one = treeFor('hp100');
 
   expect(isGroup(one) && one.parts[0]).toEqual({ kind: 'range', id: 'hp', from: 100, to: 100, negated: false });
+
+  /*
+   * An open end arrives as the empty box it is, rather than as the limit the table could have filled it with. That is
+   * the reading the round trip below needs — a `cp3000-` read as `cp3000-5000` would compose back spelled the other
+   * way — and it is also what the reader sees, the box staying empty for them to fill.
+   *
+   * The dash is what makes an end open, so a bare number is still both bounds: `hp100` above, not `hp100-`.
+   */
+  const pills = Object.fromEntries(
+    ['cp3000-', 'cp-1500', '-151'].map((text) => {
+      const tree = treeFor(text);
+
+      return [text, isGroup(tree) ? tree.parts[0] : null];
+    }),
+  );
+
+  expect(pills).toEqual({
+    'cp3000-': { kind: 'range', id: 'cp', from: 3000, to: null, negated: false },
+    'cp-1500': { kind: 'range', id: 'cp', from: null, to: 1500, negated: false },
+
+    // The dex's own prefix is empty, so a leading dash is the whole of what marks this one as a span at all.
+    '-151': { kind: 'range', id: 'dex', from: null, to: 151, negated: false },
+  });
 });
 
 test('a bare span that a generation chip already spells arrives as that chip', () => {
@@ -229,6 +252,10 @@ test('a query that does not parse is refused, and says which thing is wrong', ()
  * One of the names carries punctuation, because a name is the one pill whose text a reader writes: the box splits on
  * commas and leaves the rest alone, so a dot and a space are as ordinary in one as a letter. What none of them carries
  * is the game's own punctuation, which is the boundary the test after the sweep draws.
+ *
+ * All three shapes of span are here. An open end is the one that writes a character the reader below also reads as
+ * punctuation, so it is the shape where the two halves are most easily made to disagree: a bound filled in on the way
+ * in comes back out spelled the other way round, and the fixed point is what catches that.
  */
 function* trees(size: number): Generator<Node> {
   if (size <= 1) {
@@ -237,6 +264,8 @@ function* trees(size: number): Generator<Node> {
     yield named('pikachu');
     yield named('Mr. Mime');
     yield { kind: 'range', id: 'cp', from: 1500, to: 3000, negated: false };
+    yield { kind: 'range', id: 'cp', from: 3000, to: null, negated: false };
+    yield { kind: 'range', id: 'hp', from: null, to: 100, negated: false };
     return;
   }
 

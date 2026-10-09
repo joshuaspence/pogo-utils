@@ -74,18 +74,33 @@ test('a pill with nothing to write yet writes nothing', () => {
   expect(leafText({ kind: 'range', id: 'nope', from: 1, to: 2, negated: false })).toBeNull();
 });
 
-test('a span pill fills an empty bound from its own range rather than writing an open end', () => {
-  // `cp3000-` may well be read the way it looks, where `cp3000-5000` cannot be read any other way and nothing has a
-  // CP above the ceiling anyway. The dex carries no prefix, a bare span being how the game searches dex numbers.
+test('a span pill leaves an empty bound open rather than filling it from its own range', () => {
+  /*
+   * The floor and the ceiling are asserted first so the strings below are known to be *omitting* a bound the table
+   * could have supplied rather than agreeing with one by accident — filling them is what wrote `cp3000-5000` and
+   * `1-151`. The dex carries no prefix, a bare span being how the game searches dex numbers, so its open low end is
+   * the bare leading dash the phrase list gives as its own example of the form.
+   */
   expect(range('cp').max).toBe(5000);
   expect([range('dex').prefix, range('dex').min]).toEqual(['', 1]);
 
-  expect(leafText({ kind: 'range', id: 'cp', from: 3000, to: null, negated: false })).toBe('cp3000-5000');
-  expect(leafText({ kind: 'range', id: 'dex', from: null, to: 151, negated: false })).toBe('1-151');
+  expect(leafText({ kind: 'range', id: 'cp', from: 3000, to: null, negated: false })).toBe('cp3000-');
+  expect(leafText({ kind: 'range', id: 'dex', from: null, to: 151, negated: false })).toBe('-151');
 
-  // A reader can type the higher number into the lower box, and `cp2000-100` is a search that matches nothing out of
-  // two numbers that describe a span perfectly well.
+  // Both boxes filled is the closed span it always was, including when the reader types the higher number into the
+  // lower box, and a span whose ends meet is the one number it holds.
+  expect(leafText({ kind: 'range', id: 'cp', from: 100, to: 2000, negated: false })).toBe('cp100-2000');
   expect(leafText({ kind: 'range', id: 'cp', from: 2000, to: 100, negated: false })).toBe('cp100-2000');
+  expect(leafText({ kind: 'range', id: 'cp', from: 100, to: 100, negated: false })).toBe('cp100');
+
+  /*
+   * The one case the preference for a spelling that cannot be read another way still reaches. "If `{M}` is 0, the
+   * search is treated as `{phrase}{N}-` instead", so a `-0` is at risk of being read as the *other* open end — every
+   * HP rather than none, which is as wrong as an answer gets. Nothing sits below nought in any of these ranges, so
+   * that span is the single value and the bare form says so and nothing else.
+   */
+  expect(leafText({ kind: 'range', id: 'hp', from: null, to: 0, negated: false })).toBe('hp0');
+  expect(leafText({ kind: 'range', id: 'hp', from: 0, to: null, negated: false })).toBe('hp0-');
 });
 
 test('a pill says the label its chip said, so the canvas and the catalogue agree', () => {
@@ -186,12 +201,12 @@ test('a span chip cycles on its range rather than on its bounds', () => {
 
   expect(chipState(tree, [], 'cp')).toBe('in');
   expect(shape(cycle(tree, [], { kind: 'range', id: 'cp', from: null, to: null, negated: false }))).toEqual({
-    all: ['!cp1500-5000'],
+    all: ['!cp1500-'],
   });
 
   // A different range is a different chip, so it lands beside rather than reading the first one.
   expect(shape(cycle(tree, [], { kind: 'range', id: 'hp', from: null, to: null, negated: false }))).toEqual({
-    all: ['cp1500-5000', '…'],
+    all: ['cp1500-', '…'],
   });
 });
 
