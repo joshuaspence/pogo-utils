@@ -149,9 +149,20 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
  * captures are the reason: each states a CP that separates its form from the others sharing its stamina, and each
  * reads nothing the pattern accepts.
  *
- * Unanchored and so unreliable — right 14 times, wrong twice and silent 4 over the 20 captures that reach it — which
- * is why these are candidates rather than an answer. A candidate is kept only where the arithmetic reproduces it, and
- * `19464` is no CP an Articuno can show.
+ * Unanchored and so unreliable — the CP the screen prints is among the candidates on 15 of the 20 captures that reach
+ * it, missing from the only one `meloetta-aria.png` offers and absent altogether on four — which is why these are
+ * candidates rather than an answer. A candidate is kept only where the arithmetic reproduces it, and `19464` is no CP
+ * an Articuno can show.
+ *
+ * The band is treated the three ways the anchored band is, which is what reaches the last two of those 15. Plain alone
+ * finds 13: `castform-rainy.png`'s 832 comes of the near-white pass and `castform-sunny.png`'s 979 of the brightened
+ * one. The first of those needs it — offered nothing, the capture answers Inteleon on a CP of 1512 and stands four
+ * alternatives.
+ *
+ * An extra read costs little here where in `wholeCp` it can be taken as the answer, nothing surviving that the
+ * arithmetic does not reproduce: `deoxys-normal.png` offers `172` beside its 1772 and `ho-oh.png` `238` beside its
+ * 2738, and both are dropped without a row moving. The three go together, so what they cost is one read's latency
+ * rather than three.
  */
 async function cpsIn(image: Image): Promise<number[]> {
   const band = crop(
@@ -161,9 +172,10 @@ async function cpsIn(image: Image): Promise<number[]> {
     image.width * CP_SWEEP.width,
     image.height * CP_SWEEP.height,
   );
-  const text = (await ocrLine(scale(band, 2), CP_ALPHABET)) ?? '';
+  const texts = await Promise.all(CP_TREATMENTS.map((treat) => ocrLine(scale(treat(band), 2), CP_ALPHABET)));
+  const digits = texts.flatMap((text) => [...(text ?? '').matchAll(/\d{3,5}/g)].map(([run]) => Number(run)));
 
-  return [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits));
+  return [...new Set(digits)];
 }
 
 /**

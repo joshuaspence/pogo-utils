@@ -292,11 +292,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 832,
-    defects: {
-      alternatives: ['Quaxwell', 'Finizen', 'Castform (Rainy)', 'Basculin (Red Striped)'],
-      cp: 1512,
-      label: 'Inteleon',
-    },
     file: 'castform-rainy.png',
     form: 'Rainy',
     gender: 'male',
@@ -1227,13 +1222,13 @@ test('every stitch carries a `Viewport` smaller than itself, and no screen carri
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 40,
+  answeredAsThemselves: 41,
   oneLevel: 43,
-  crossCheckAgrees: 42,
-  crossCheckDisagrees: 1,
+  crossCheckAgrees: 43,
+  crossCheckDisagrees: 0,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 38,
+  noDefects: 39,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1272,7 +1267,7 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Three of the 43, against five rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * Two of the 43, against four rows carrying a `defects` — so the trigger costs an extra read on a defect and on
  * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
  * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
  * raising a note without earning one fails there.
@@ -1283,13 +1278,13 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
  * scan cannot either; only a second reader of the same thing could.
  */
-test('the defects a scan can find for itself are the three captures that raise a note', () => {
+test('the defects a scan can find for itself are the two captures that raise a note', () => {
   // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
   // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
   expect(
     FIXTURES.filter((f) => notesOf(f).length > 0).length,
     'how many captures `identify` raises a note on has changed',
-  ).toBe(3);
+  ).toBe(2);
 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
@@ -2101,10 +2096,15 @@ test('the corpus reaches both sides of every attribute', () => {
   // read, a suffix that reads as nothing — and a truth test would file those as absent. A key nothing pins is a reader
   // free to change its answer unremarked, which is the same hazard an unasserted field is and reads exactly the same
   // way.
+  //
+  // `cp` and `alternatives` are two such keys now, no row pinning either: nothing disagrees with a screen about the
+  // CP the arithmetic derives, which `COVERAGE.crossCheckDisagrees` states as a zero, and no capture is left with a
+  // shortlist it cannot narrow. So the `defects.cp` and `defects.alternatives` branches of the loop above go
+  // unexercised, and `Defects` keeps both fields against a capture needing them again rather than because one does.
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'label', 'notes']);
+  ).toStrictEqual(['label', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
