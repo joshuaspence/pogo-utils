@@ -1370,10 +1370,8 @@ test(
     });
 
     // And which of them it reads *wrongly*, derived from the map rather than listed again, a row already stating what
-    // the screen shows. One is left, `unown-question.png` gaining a trailing digit and reading `4864` for 486. The two
-    // were called a pair, on the grounds that a band wide enough to rescue `growlithe-nickname.png`'s leading digit
-    // takes in more of the line; they are not. Brightness recovered the 738 at the pad already being tried, where the
-    // `4864` comes of the wider pad, so the two never met.
+    // the screen shows. One is left: `unown-question.png` gains a trailing digit off the wider pad and reads `4864`
+    // for the 486 it prints, which its row pins as a `defects.notes` entry.
     expect(
       FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
       'which captures misread their CP has changed',
@@ -1580,9 +1578,6 @@ test('a name that is another species is a nickname once the numbers say otherwis
 
   expect(identity.form && label(identity.form)).toBe('Growlithe (Hisuian)');
   expect(identity.nickname).toBe('Eevee');
-  // Two notes and not three. A third was the capture's own — it read `CP 38` for the 738 it prints — listed here
-  // rather than filtered out so a note arriving or leaving would be as loud here as anywhere else. It left when the
-  // band was brightened, and this is one of the places that showed.
   expect(identity.notes).toStrictEqual([
     'the numbers do not fit any form of Eevee; searched every species',
     'the overlay says form "Zz", which is no form of any species that fits',

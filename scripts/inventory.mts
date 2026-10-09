@@ -651,10 +651,9 @@ async function scan() {
    * A note `identify` raised is worth another look as well, and it is the only one of them that says the screen read
    * *whole* and wrongly: a CP the settled form and level do not derive, a level shortlist no HP can be, a form the
    * overlay names that no species has. What says a second read of the same Pokémon is worth taking is the corpus having
-   * been retaken — which captures misread their CP changed with it, three before the retake and two after it, and one
-   * now that the CP band is brightened, so a misread is a property of the capture as much as of the reader.
-   * `screens.test.mts` pins which three of its 43 captures raise a note, and that every one of the three is a row
-   * carrying a `defects`.
+   * been retaken — which captures misread their CP changed with it, three before the retake and two after it, so a
+   * misread is a property of the capture as much as of the reader. `screens.test.mts` pins which three of its 43
+   * captures raise a note, and that every one of the three is a row carrying a `defects`.
    *
    * Which is three of the five defects that file pins, and not the other two: those are the readers that answer
    * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, and an

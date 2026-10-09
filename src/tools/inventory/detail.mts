@@ -173,27 +173,44 @@ async function cpsIn(image: Image): Promise<number[]> {
  * 1569 and 1705 once named here are still what their rows state, with no label line left on the stitch for this to
  * anchor on.
  *
- * Accepted only where the band's number **begins or ends with** the line's and is longer, which makes this a rescue
- * rather than a second opinion: it says the band found more of the same number, so a band that misreads outright is
- * rejected for disagreeing. Bounded by a CP's own length, so a `15` is not rescued into a five-digit `15691`.
+ * A line already as long as a CP goes cannot be extended by anything, so no band of it is read at all: `rescue` wants a
+ * number longer than the line's and no longer than `longest`, which is unsatisfiable once the two are equal. That is
+ * eight of the 23 and 48 passes — the corpus costs 81 where three treatments unguarded cost 129 and two cost 89.
  */
 async function wholeCp(image: Image, line: Line, read: string, longest: number): Promise<string | null> {
+  if (read.length >= longest) {
+    return null;
+  }
+
   for (const reach of CP_PADS) {
     const pad = Math.round(line.height * reach);
     const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
 
     for (const treat of CP_TREATMENTS) {
-      const text = (await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? '';
+      const whole = rescue((await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? '', read, longest);
 
-      for (const digits of text.match(/\d+/g) ?? []) {
-        if (
-          digits.length > read.length &&
-          digits.length <= longest &&
-          (digits.startsWith(read) || digits.endsWith(read))
-        ) {
-          return digits;
-        }
+      if (whole !== null) {
+        return whole;
       }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * What a treated band's text offers the line's own reading, or null where it offers nothing. Taken only where the
+ * band's number **begins or ends with** the line's and is longer, which makes this a rescue rather than a second
+ * opinion: it says the band found more of the same number, so a band that misreads outright is turned down for
+ * disagreeing. Bounded by a CP's own length, so a `15` is not rescued into a five-digit `15691`.
+ *
+ * Exported because nothing else states what it takes: `screens.test.mts` asserts the CP each capture ends with, which
+ * this rule arrives at from any of several band readings. `detail.test.mts` pins the rule itself.
+ */
+export function rescue(text: string, read: string, longest: number): string | null {
+  for (const digits of text.match(/\d+/g) ?? []) {
+    if (digits.length > read.length && digits.length <= longest && (digits.startsWith(read) || digits.endsWith(read))) {
+      return digits;
     }
   }
 
@@ -369,14 +386,15 @@ const cpDigits = (data: GameData) => {
 const CP_SWEEP = { x: 0.3, y: 0.055, width: 0.4, height: 0.035 };
 
 /**
- * How far round the line the CP band reaches, in that line's own heights, in the order to try. Two because neither
- * suits every capture, and `wholeCp`'s acceptance rule bounds what trying both can cost rather than preventing it: 0.35
- * is what both rescues read at, where `articuno-kanto.png` needed 0.6 to reach a digit lost off the back. A single
- * wider pad will not do, `deoxys-defense.png` reading `1569` at 0.35 and losing it at 0.6.
+ * How far round the line the CP band reaches, in that line's own heights, in the order to try. 0.35 is what both
+ * rescues read at. 0.6 earns nothing measurable: it spends 38 of the corpus's 81 passes and accepts once, on the one CP
+ * the corpus reads wrongly — `unown-question.png`'s `4864` against the 486 on its screen.
  *
- * Neither reaches `wholeCp` now, no label line being found on either, so 0.6 fails the standard `overlay.mts` sets for
- * a floor: nothing is legible at 0.6 and illegible at 0.35. Dropping it would not fix the one row it changes, only take
- * `unown-question.png` from the wrong `4864` to the wrong `48`, so that is a change of its own.
+ * It was added for `articuno-kanto.png`, which needed it for a digit lost off the back, against `deoxys-defense.png`
+ * reading `1569` at 0.35 and losing it at 0.6. Neither capture reaches `wholeCp` any more, no label line being found on
+ * either, so that evidence is spent rather than standing, and by the floor standard `overlay.mts` sets this does not
+ * earn its place: nothing is legible at 0.6 and illegible at 0.35. Dropping it would not fix the row it changes, only
+ * take it to the `48` its line reads, so that is a change of its own.
  */
 const CP_PADS = [0.35, 0.6];
 
@@ -386,11 +404,11 @@ const CP_PADS = [0.35, 0.6];
  * `unown-question.png`'s `4864` is exactly that, and is taken.
  *
  * Brightness is here for `growlithe-nickname.png`, which neither of the others reaches: at pad 0.35 its band reads `38`
- * plain and near-white and `738` brightened. Going last is a precaution rather than a measured effect — where two
- * treatments are accepted at one pad they agree — and no protection for a line already read right, a pass reading that
- * number back being the same length and so leaving the loop running. It runs at 0.35 on 22 of the 23, and what holds
- * its noise down is the four-digit cap: `charizard-gigantamax.png` reads `1605` on the line and `691605` brightened at
- * 0.6.
+ * plain and near-white and `738` brightened. Going last decides nothing the corpus can show, the loop returning on the
+ * first acceptance so that a second is never read, and it is no protection for a line already read right — a pass
+ * reading that number back is the same length, so the rule turns it down and the loop carries on. It costs 26 of the
+ * corpus's 81 passes, and what bounds its noise is the four-digit cap, which `wholeCp` now applies before any band is
+ * read rather than after three.
  */
 const CP_TREATMENTS = [
   (band: Image) => band,
@@ -399,10 +417,14 @@ const CP_TREATMENTS = [
 ];
 
 /**
- * How bright a channel has to be for the CP band's brightening to keep it. 120 rather than the 180 and 200 also swept,
- * which read `38` where this reads `growlithe-nickname.png`'s `738` — the artwork behind the number being light enough
- * that a higher floor keeps it along with the digits. Nor lower: at 100 the same band reads `9738` at the wider pad,
- * which the rule would take, and only `CP_PADS`' order keeps it unreached.
+ * How bright a channel has to be for the CP band's brightening to keep it. `brighten` keeps a pixel where a channel
+ * reaches the floor, so raising the floor keeps strictly less: ink on `growlithe-nickname.png`'s band falls from 14.8%
+ * at 100 to 9.6% at 200, and what 180 and 200 lose is the `7` itself, its strokes falling under the floor.
+ *
+ * 120 is not the middle of a window. Swept in fives over that band the digit comes back at 100, 105, 110, 120, 125 and
+ * 130 and is lost at 115 and from 135 up — a jagged region with a failure five units below the value chosen, which is a
+ * fit to OCR's noise rather than to the artwork. A Tesseract bump or a retaken capture can flip the single read this
+ * treatment exists for, and the CP map in `screens.test.mts` is what would fail.
  *
  * Its own number rather than `overlay.mts`'s private `OVERLAY_BRIGHTNESS`, also 120, which is set low enough to hold
  * the overlay's colour-coded IV percentage — a glyph this band has none of, where this floor answers to the artwork.
