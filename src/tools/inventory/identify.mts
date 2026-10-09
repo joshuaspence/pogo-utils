@@ -133,8 +133,14 @@ export function identify(
   // narrowing did; where it was not, every level the HP admits is asked instead.
   //
   // `detail.cps` is on the same footing as the single read, which is what reaches the captures whose label went
-  // unrecognised. Requiring the arithmetic to reproduce one exactly is what makes the wrong ones inert, `19464` being
-  // no form's CP at any level.
+  // unrecognised. Requiring the arithmetic to reproduce one exactly is what makes a wrong one inert, and `cpsIn` is
+  // where what it offers is measured.
+  //
+  // Nothing reports it when that fails, the disagreement below being gated on `detail.cp` — null on exactly the
+  // captures the sweep reads — so a sweep number that does reproduce a candidate answers a form or a level silently.
+  // The margin, measured over the shortlists `readOverlay` offers rather than the one level a row states: 13 of the 20
+  // swept captures have a wrong CP reachable, nearest 16 away, where `1585` for `deoxys-defense.png`'s 1569 would
+  // answer an Espeon in a Go Fest 2024 scarf. This corpus's floor, not a bound on what a phone hands in.
   const printed = [detail.cp, ...detail.cps].filter((n): n is number => n !== null);
 
   const shows = (f: Form, level: number) => {

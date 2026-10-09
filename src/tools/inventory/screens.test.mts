@@ -1375,6 +1375,73 @@ test(
 );
 
 /**
+ * The other half of that: which captures the CP region is *swept* for, and every number a sweep offers. The two maps
+ * partition the corpus, `cps` being read on exactly the captures `cp` is null on, and only this one says what the
+ * generosity costs — one capture pinned a `cps` before this, so a band that started offering five numbers where it
+ * offered one changed nothing a test could see.
+ *
+ * The whole map, empties included, the four that read nothing being as much a measurement as the fifteen that read
+ * right. The strays are **derived** from it for the reason the misreads above are, and what one costs is nothing only
+ * while the arithmetic cannot reproduce it — `identify` says where that floor is, and this is what would move it.
+ */
+test(
+  'which captures the CP region is swept for, and what each sweep offers',
+  async () => {
+    const swept = new Map<string, readonly number[]>();
+
+    for (const fixture of FIXTURES) {
+      const { detail } = await readingOf(fixture.file);
+
+      if (detail.cp === null) {
+        swept.set(fixture.file, detail.cps);
+      }
+    }
+
+    expect(Object.fromEntries(swept), 'which captures are swept, or what a sweep offers, has changed').toStrictEqual({
+      'applin.png': [286],
+      'articuno-kanto.png': [1705],
+      'burmy-trash.png': [],
+      'castform-normal.png': [],
+      'castform-rainy.png': [832],
+      'castform-snowy.png': [],
+      'castform-sunny.png': [979],
+      'chansey-dynamax.png': [693],
+      'cherrim-sunny.png': [1658],
+      'deoxys-defense.png': [1569],
+      'deoxys-normal.png': [1772, 172],
+      'eevee-background.png': [451],
+      'ho-oh.png': [2738, 238],
+      'meloetta-aria.png': [169],
+      'meowth-galar.png': [571],
+      'meowth-kanto.png': [423],
+      'pikachu-santa-hat.png': [],
+      'snorlax-purified.png': [2304],
+      'spinda-04.png': [511],
+      'unown-m.png': [839],
+    });
+
+    // And the figures `cpsIn`'s docblock quotes, derived from the map rather than transcribed under it, so a sweep that
+    // changed what it offered cannot leave that prose standing. `stray` is every number offered that the capture's own
+    // row does not state.
+    const offered = [...swept].map(([file, cps]) => ({ cps, cp: FIXTURES.find((f) => f.file === file)?.cp }));
+
+    expect(
+      {
+        swept: offered.length,
+        carryTheirOwn: offered.filter(({ cps, cp }) => cp !== undefined && cps.includes(cp)).length,
+        silent: offered.filter(({ cps }) => cps.length === 0).length,
+        stray: [...swept]
+          .map(([file, cps]) => cps.filter((n) => n !== FIXTURES.find((f) => f.file === file)?.cp))
+          .flat()
+          .toSorted((a, b) => a - b),
+      },
+      "`cpsIn`'s docblock quotes these figures; update both or neither",
+    ).toStrictEqual({ swept: 20, carryTheirOwn: 15, silent: 4, stray: [169, 172, 238] });
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
  * What the bracketed form on `fixtures/spinda-04.png` is worth, which is more than a cross-check: Spinda's 20 forms are
  * identical in every field the screen shows, so the fold leaves `00` standing and the bracketed `(04)` PGSharp draws is
  * the **only** thing on the screen that can say which of the 20 it is. With the overlay unread the answer is not an
