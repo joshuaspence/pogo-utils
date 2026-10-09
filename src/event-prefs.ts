@@ -43,14 +43,29 @@ export const KEYS = {
  * The unqualified names these five carried before the prefix, which is what a reader who visited between the
  * one-object split and the rename still holds. Spelled out rather than derived by stripping the prefix: what a key
  * used to be called is a fact about the past, and renaming the prefix again must not silently restate it.
+ *
+ * `Partial`, so a key added after the rename declares no earlier name at all. An exhaustive `Record` would make a
+ * sixth key a `tsc` error here until it invented one, and the next load would claim that `events:*` name off the
+ * shared origin — the harm the prefix exists to prevent, arriving through the type meant to help.
  */
-const UNPREFIXED_KEYS: Record<keyof typeof KEYS, string> = {
+const UNPREFIXED_KEYS: Partial<Record<keyof typeof KEYS, string>> = {
   hiddenTypes: 'events:hidden-types',
   hiddenByView: 'events:hidden-by-view',
   filterScope: 'events:filter-scope',
   dismissed: 'events:dismissed',
   seen: 'events:seen',
 };
+
+/**
+ * When this app stops touching those names. Reading one, and removing it, claims a name off an origin
+ * `joshuaspence.github.io` shares with every repository published there — deliberate, since that is where a reader's
+ * own choices are sitting, but worth it only while someone still holds them. They were current for eight days, so the
+ * population needing the hop only shrinks from here.
+ *
+ * A date rather than a one-shot sentinel because a sentinel has to be written, and a store too full to accept that
+ * write is exactly the store whose hop would then run forever.
+ */
+const UNPREFIXED_UNTIL = Date.parse('2027-01-01T00:00:00Z');
 
 /** The single object those five replaced, held by a reader whose last visit predates the split. */
 const LEGACY_OBJECT_KEY = 'pgo-events:prefs';
@@ -75,13 +90,23 @@ export const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battl
 /** The same list as a set, for the per-event lookups `isNew` and `settleSeen` do over every event on every render. */
 export const RECURRING = new Set(RECURRING_TYPES);
 
+/** One stored value as it stands, or null where the key has never been written or storage cannot be read at all. */
+function readRaw(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * One stored value, parsed, or null where the key has never been written or storage cannot be read at all. `unknown`
  * rather than what `JSON.parse` answers, so each reader has to say what it expects before it can use it.
  */
 function readJSON(key: string): unknown {
+  const stored = readRaw(key);
+
   try {
-    const stored = localStorage.getItem(key);
     return stored === null ? null : JSON.parse(stored);
   } catch {
     return null;
@@ -123,20 +148,47 @@ function readSetsByView(key: string): Record<string, Set<string>> {
 }
 
 /**
- * Carry a reader's choices onto the names this version reads, from either older shape still out there. Each half
- * catches for itself, so a legacy object that will not parse cannot stop the rename beside it. Order decides a browser
- * holding both — one whose migration failed partway, say: the unqualified keys are the later state, so they go second
- * and win.
+ * Carry a reader's choices onto the names this version reads, from either older shape still out there. Each hop
+ * catches for itself and fills only a name nothing has filled yet, so a prefixed value already in place outlives both.
+ * The unqualified keys go first, being the later of the two older shapes.
  */
 function migrateLegacy() {
-  carryLegacyObject();
   carryUnprefixedKeys();
+  carryLegacyObject();
 }
 
 /**
- * The single object's sets, written under the current names and then dropped. Both are written even where the object
- * carried neither, since an absent key would read as a first visit and hand the defaults back to someone who had
- * unticked them. A value that will not parse is left in place rather than deleted.
+ * Each unqualified key copied under its prefixed name and the old one dropped, as the raw string rather than reparsed
+ * and rewritten. Copying the bytes is what makes the rename invisible: absent stays absent, empty stays empty, and a
+ * value that will not parse arrives to be read exactly as it was read before.
+ *
+ * A name the prefix already holds is left alone on both sides, since that value is the later one — and an earlier pass
+ * that stopped partway, one write refused, is how a stale unqualified key comes to be sitting beside a fresh one.
+ */
+function carryUnprefixedKeys() {
+  if (Date.now() >= UNPREFIXED_UNTIL) {
+    return;
+  }
+
+  try {
+    for (const [name, unprefixed] of Object.entries(UNPREFIXED_KEYS) as [keyof typeof KEYS, string][]) {
+      const stored = localStorage.getItem(unprefixed);
+
+      if (stored !== null && localStorage.getItem(KEYS[name]) === null) {
+        localStorage.setItem(KEYS[name], stored);
+        localStorage.removeItem(unprefixed);
+      }
+    }
+  } catch {
+    /* Storage is unavailable or full; `keyFor` reads the unqualified name where it stands instead. */
+  }
+}
+
+/**
+ * The single object's sets, written under the current names and then dropped. A name already filled is left as it is;
+ * the rest are written even where the object carried neither, since an absent key would read as a first visit and hand
+ * the defaults back to someone who had unticked them. A value that will not parse is left in place rather than
+ * deleted.
  */
 function carryLegacyObject() {
   try {
@@ -149,7 +201,9 @@ function carryLegacyObject() {
     const parsed: Record<string, unknown> = JSON.parse(stored);
 
     for (const name of LEGACY_SETS) {
-      localStorage.setItem(KEYS[name], JSON.stringify(stringsOf(parsed?.[name]) ?? []));
+      if (localStorage.getItem(KEYS[name]) === null) {
+        localStorage.setItem(KEYS[name], JSON.stringify(stringsOf(parsed?.[name]) ?? []));
+      }
     }
 
     localStorage.removeItem(LEGACY_OBJECT_KEY);
@@ -159,40 +213,36 @@ function carryLegacyObject() {
 }
 
 /**
- * Each unqualified key moved under its prefixed name, as the raw string rather than reparsed and rewritten. Copying
- * the bytes is what makes the rename invisible: absent stays absent, empty stays empty, and a value that will not
- * parse arrives to be read exactly as it was read before.
+ * Which name to read one preference from: its own, or the unqualified name it used to have where the value is still
+ * sitting there. `carryUnprefixedKeys` normally moves it, but `localStorage` quota is per origin and this app shares
+ * one, so a store a sibling has filled refuses that write for good rather than for this visit. Reading through is what
+ * keeps a reader's saved choices visible instead of handing back the defaults they had unticked.
  */
-function carryUnprefixedKeys() {
-  try {
-    for (const [name, unprefixed] of Object.entries(UNPREFIXED_KEYS) as [keyof typeof KEYS, string][]) {
-      const stored = localStorage.getItem(unprefixed);
+function keyFor(name: keyof typeof KEYS): string {
+  const unprefixed = UNPREFIXED_KEYS[name];
 
-      if (stored !== null) {
-        localStorage.setItem(KEYS[name], stored);
-        localStorage.removeItem(unprefixed);
-      }
-    }
-  } catch {
-    /* Storage is unavailable or full; whatever is left behind is carried on a later visit. */
+  if (unprefixed === undefined || Date.now() >= UNPREFIXED_UNTIL) {
+    return KEYS[name];
   }
+
+  return readRaw(KEYS[name]) === null ? unprefixed : KEYS[name];
 }
 
 export function loadPrefs(): Prefs {
   migrateLegacy();
 
   return {
-    hiddenTypes: readSet(KEYS.hiddenTypes) ?? new Set(DEFAULT_HIDDEN),
-    hiddenByView: readSetsByView(KEYS.hiddenByView),
+    hiddenTypes: readSet(keyFor('hiddenTypes')) ?? new Set(DEFAULT_HIDDEN),
+    hiddenByView: readSetsByView(keyFor('hiddenByView')),
 
     // Anything but 'view' is global, so an unwritten or unreadable value lands on the default rather than on a scope
     // no view answers to, which would filter by a set nothing can reach to edit.
-    filterScope: readJSON(KEYS.filterScope) === 'view' ? 'view' : 'global',
+    filterScope: readJSON(keyFor('filterScope')) === 'view' ? 'view' : 'global',
 
-    dismissed: readSet(KEYS.dismissed) ?? new Set(),
+    dismissed: readSet(keyFor('dismissed')) ?? new Set(),
 
     // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
-    seen: readSet(KEYS.seen),
+    seen: readSet(keyFor('seen')),
   };
 }
 

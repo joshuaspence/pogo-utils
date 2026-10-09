@@ -1,4 +1,4 @@
-import { beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { DEFAULT_HIDDEN, hiddenFor, KEYS, loadPrefs, persist, RECURRING, type Prefs } from './event-prefs.js';
 import RECURRING_TYPES from './recurring-types.js';
@@ -8,6 +8,11 @@ let storage: FakeStorage;
 
 beforeEach(() => {
   storage = installFakeStorage();
+});
+
+// The two window cases set the clock, and a faked one left installed would silently follow every later test.
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 const store = (key: keyof typeof KEYS, value: unknown) => storage.setItem(KEYS[key], JSON.stringify(value));
@@ -263,8 +268,8 @@ test('the unprefixed keys win over a legacy object holding both', () => {
 });
 
 /**
- * The two halves catch for themselves, so a legacy object that will not parse — which is left in place by design —
- * cannot stop the rename beside it. One `try` around both would lose the second hop to the first one's throw.
+ * A legacy object that will not parse — which is left in place by design — does not stop the rename beside it: the
+ * unqualified hop has already run by the time the object is parsed, and each half catches for itself besides.
  */
 test('an unparseable legacy object does not block the rename', () => {
   storage.setItem('pgo-events:prefs', '{oh no');
@@ -273,6 +278,55 @@ test('an unparseable legacy object does not block the rename', () => {
   expect(loadPrefs().dismissed).toEqual(new Set(['event-a']));
   expect(storage.getItem('events:dismissed')).toBeNull();
   expect(storage.getItem('pgo-events:prefs')).toBe('{oh no');
+});
+
+/**
+ * A prefixed name already holding something outlives the unqualified one beside it. Both exist where an earlier pass
+ * stopped partway — one write refused — and the reader then saved a choice under the new name, so carrying the old one
+ * over the top would revert that choice on the next visit.
+ */
+test('an unprefixed key does not overwrite the prefixed name it was moved to', () => {
+  storage.setItem('events:dismissed', '["stale"]');
+  storage.setItem(KEYS.dismissed, '["fresh"]');
+
+  expect(loadPrefs().dismissed).toEqual(new Set(['fresh']));
+  expect(storage.getItem(KEYS.dismissed)).toBe('["fresh"]');
+});
+
+/**
+ * A store that answers reads but refuses writes still shows a reader their saved choices. Quota is per origin and this
+ * app shares one, so a store a sibling has filled is a store the move never gets to make — and handing back the
+ * defaults to a reader who had unticked every type is the failure the whole absent-versus-empty design exists to stop.
+ */
+test('a store that cannot be written is still read, under the unprefixed name', () => {
+  storage.setItem('events:hidden-types', '[]');
+  storage.refusesWrites = true;
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set());
+  expect(storage.getItem('events:hidden-types')).toBe('[]');
+});
+
+/**
+ * Past `UNPREFIXED_UNTIL` the unqualified names are no longer this app's business: an `events:*` key is a name the
+ * origin's other sites can hold too, so claiming one is bounded to the window where a reader of ours might still be
+ * holding it. The companion case below runs the same store inside the window, so this one fails for the date alone.
+ */
+test('past the migration window an unprefixed key is left where it stands', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2027-06-01T00:00:00Z'));
+  storage.setItem('events:hidden-types', '["Raid Hour"]');
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(DEFAULT_HIDDEN));
+  expect(storage.snapshot()).toEqual({ 'events:hidden-types': '["Raid Hour"]' });
+});
+
+test('inside the migration window that same key is carried', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-10T00:00:00Z'));
+  storage.setItem('events:hidden-types', '["Raid Hour"]');
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(storage.snapshot()).toEqual({ [KEYS.hiddenTypes]: '["Raid Hour"]' });
 });
 
 const prefsFor = (over: Partial<Prefs>): Prefs => ({
