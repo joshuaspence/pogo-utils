@@ -1442,6 +1442,63 @@ test(
 );
 
 /**
+ * What a sweep number would have to be worth to be *taken*, which is the margin `identify`'s comment on `printed`
+ * quotes and the one figure in that paragraph nothing else holds: the map above pins what the sweep offers, not what
+ * `identify` does with it, and the figure has been wrong twice for being derived rather than driven.
+ *
+ * So it is driven. One number is forged into `cps` and the answer compared against the one the capture gives as it
+ * stands, outwards from the CP on its screen until something is answered **differently and silently** — a form or a
+ * level that is not the right one, with no alternatives and no notes. Silence is the hazard rather than wrongness:
+ * `detail.cp` is null on exactly these captures, so the disagreement note cannot fire, and a number the arithmetic
+ * merely agreed with is reported by nothing at all.
+ *
+ * Nothing nearer than an arithmetic reach of `CP_SWEEP`'s own band is interesting, so the search stops at 190, which
+ * is where the last of the three sits. Measuring it is what makes the comment's claim falsifiable rather than a
+ * reassurance, and what would catch a later change widening the generosity.
+ */
+test(
+  'the nearest band reading answered with a wrong form and no note is 73 CP away',
+  async () => {
+    const REACH = 190;
+    const shape = (identity: { form: Form | null; levels: readonly number[] }) =>
+      `${identity.form ? label(identity.form) : 'none'} at ${identity.levels.join(' or ')}`;
+    const floors = new Map<string, string>();
+
+    for (const fixture of FIXTURES) {
+      const { detail, overlay, artwork } = await readingOf(fixture.file);
+
+      if (detail.cp !== null) {
+        // The anchored read is what those captures answer on; only a swept one takes a candidate on trust.
+        continue;
+      }
+
+      const right = shape(identify(DATA, detail, overlay, artwork));
+
+      for (let away = 1; away <= REACH && !floors.has(fixture.file); away++) {
+        for (const offset of [-away, away]) {
+          const taken = identify(DATA, { ...detail, cps: [fixture.cp + offset] }, overlay, artwork);
+
+          if (taken.alternatives.length === 0 && taken.notes.length === 0 && shape(taken) !== right) {
+            floors.set(fixture.file, `${away} away, answered as ${shape(taken)}`);
+            break;
+          }
+        }
+      }
+    }
+
+    expect(
+      Object.fromEntries(floors),
+      "`identify`'s comment on `printed` quotes this floor; update both or neither",
+    ).toStrictEqual({
+      'castform-rainy.png': '73 away, answered as Quaxwell at 18',
+      'deoxys-normal.png': '161 away, answered as Deoxys (Speed) at 20',
+      'deoxys-defense.png': '190 away, answered as Deoxys (Attack) at 25',
+    });
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
  * What the bracketed form on `fixtures/spinda-04.png` is worth, which is more than a cross-check: Spinda's 20 forms are
  * identical in every field the screen shows, so the fold leaves `00` standing and the bracketed `(04)` PGSharp draws is
  * the **only** thing on the screen that can say which of the 20 it is. With the overlay unread the answer is not an

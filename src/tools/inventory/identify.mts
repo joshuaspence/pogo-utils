@@ -138,9 +138,16 @@ export function identify(
   //
   // Nothing reports it when that fails, the disagreement below being gated on `detail.cp` — null on exactly the
   // captures the sweep reads — so a sweep number that does reproduce a candidate answers a form or a level silently.
-  // The margin, measured over the shortlists `readOverlay` offers rather than the one level a row states: 13 of the 20
-  // swept captures have a wrong CP reachable, nearest 16 away, where `1585` for `deoxys-defense.png`'s 1569 would
-  // answer an Espeon in a Go Fest 2024 scarf. This corpus's floor, not a bound on what a phone hands in.
+  // What that takes is 73 CP on this corpus: `castform-rainy.png` read as `905` answers **Quaxwell**, no alternatives
+  // and no notes. Three of the 20 swept captures have such a number within 190 and the other 17 have none, which
+  // `screens.test.mts` pins by forging one.
+  //
+  // The floor is a property of the candidate list rather than of the arithmetic, and the two differ by more than an
+  // order of magnitude. `castform-rainy.png` is the floor because its nickname leaves no species established, so the
+  // list is every form that fits; where a species *is* recognised the list is that species' forms and the nearest
+  // sibling is far — 161 on `deoxys-normal.png`, 190 on `deoxys-defense.png`. Arithmetic alone says 16 there, an
+  // Espeon reaching 1585 at the level its HP admits, but line 101 is reached only on an empty list and Deoxys' forms
+  // fill it, so that number comes back flagged as an unseparated Deoxys instead.
   const printed = [detail.cp, ...detail.cps].filter((n): n is number => n !== null);
 
   const shows = (f: Form, level: number) => {
