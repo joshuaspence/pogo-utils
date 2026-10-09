@@ -100,8 +100,12 @@ export function spans(message: string): string[] {
 const ticked = (message: string) =>
   spans(message).map((part, index) => (index % 2 === 0 ? part : <code key={index}>{part}</code>));
 
-/** A bound as the tree should hold it: a number inside the range's limits, or nothing where the box is empty. */
-function readBound(value: string, range: Range) {
+/**
+ * A bound as the tree should hold it: a number inside the range's limits, or nothing where the box is empty.
+ *
+ * Exported for the test, which walks a year in beside `boxText` below.
+ */
+export function readBound(value: string, range: Range) {
   if (value.trim() === '') {
     return null;
   }
@@ -109,6 +113,54 @@ function readBound(value: string, range: Range) {
   const parsed = Number.parseInt(value, 10);
 
   return Number.isNaN(parsed) ? null : bounded(parsed, range);
+}
+
+/** Which end of a span a box edits, which is the field it writes. */
+type Edge = 'from' | 'to';
+
+/** What each end is called, and the limit its box falls back to where the reader leaves it empty. */
+const EDGES: Record<Edge, { said: string; limit: (range: Range) => number }> = {
+  from: { said: 'lowest', limit: (range) => range.min ?? 0 },
+  to: { said: 'highest', limit: (range) => range.max },
+};
+
+/**
+ * A span pill with one of its ends written. Anything else is handed back as it is: a box's path names its own pill,
+ * which the narrowing says rather than a cast asserting it.
+ */
+function withBound(node: Node, edge: Edge, bound: number | null): Node {
+  if (node.kind !== 'range') {
+    return node;
+  }
+
+  return edge === 'from' ? { ...node, from: bound } : { ...node, to: bound };
+}
+
+/** The box a reader has their caret in, and the digits they have typed into it. */
+interface Typed {
+  path: Path;
+  edge: Edge;
+  text: string;
+}
+
+/**
+ * What one of a span pill's boxes shows: the digits the reader is typing in *that* box, and the bound the tree holds
+ * in every other one.
+ *
+ * **A box cannot show the clamp back to the reader typing in it.** Every part of a year short of the whole is below
+ * the floor of 2016, so a box echoing its own clamp rewrites the text under the caret and the next digit lands on the
+ * end of that instead — `year` had two reachable values. The tree still takes a bounded number from every keystroke,
+ * a pill the boxes make being one a typed query or a link could have made, which is what `bounded` in `terms.js` is
+ * for.
+ *
+ * Exported for the test, which walks a year in a digit at a time.
+ */
+export function boxText(typed: Typed | null, path: Path, edge: Edge, bound: number | null): string {
+  if (typed !== null && typed.edge === edge && same(typed.path, path)) {
+    return typed.text;
+  }
+
+  return bound === null ? '' : String(bound);
 }
 
 /**
@@ -158,6 +210,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   const [typing, setTyping] = useState('');
 
+  /** The span pill's box being typed in, if any — `boxText` above says why that is worth a piece of state. */
+  const [typedBound, setTypedBound] = useState<Typed | null>(null);
+
   /** The query being typed into the import box, and why the last attempt at it went nowhere. */
   const [typed, setTyped] = useState('');
   const [typedError, setTypedError] = useState<string | null>(null);
@@ -183,6 +238,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setFocus([]);
     setHeld(null);
     setTyping('');
+    setTypedBound(null);
     setTyped('');
     setTypedError(null);
     closeSuggestions();
@@ -217,6 +273,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   function commit(node: Node, from: Path | null, to: Path) {
     edit((tree) => (from === null ? append(tree, to, node) : move(tree, from, to)));
     setFocus(to);
+
+    // A path names a pill only until something moves, and a box whose pill has gone would hand its digits to whatever
+    // takes that path next. Pressing a pill's own face does not blur its boxes, the press preventing the default.
+    setTypedBound(null);
   }
 
   /** The group under a point, for a drag to light up and drop into. */
@@ -301,6 +361,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setFocus([]);
     setHeld(null);
     setTyping('');
+    setTypedBound(null);
     closeSuggestions();
   }
 
@@ -349,6 +410,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setState((was) => ({ ...was, tree }));
     setFocus([]);
     setHeld(null);
+    setTypedBound(null);
     setTyped('');
   }
 
@@ -402,6 +464,33 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
+   * One end of a span pill: the reader's own text while their caret is in it, and the bound once it has left, which
+   * `boxText` above gives the reason for.
+   */
+  function renderBound(path: Path, range: Range, edge: Edge, bound: number | null) {
+    const { said, limit } = EDGES[edge];
+
+    return (
+      <input
+        type="number"
+        min={String(range.min ?? 0)}
+        max={String(range.max)}
+        placeholder={String(limit(range))}
+        value={boxText(typedBound, path, edge, bound)}
+        aria-label={`${range.label}, ${said}`}
+        onPointerDown={(event) => event.stopPropagation()}
+        onInput={(event) => {
+          const { value } = event.currentTarget;
+
+          setTypedBound({ path, edge, text: value });
+          edit((tree) => update(tree, path, (node) => withBound(node, edge, readBound(value, range))));
+        }}
+        onBlur={() => setTypedBound(null)}
+      />
+    );
+  }
+
+  /**
    * One pill. A term and a name say themselves; a range carries its two boxes, because a span is the only pill whose
    * content the reader goes on editing after placing it.
    *
@@ -439,41 +528,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
         {range && leaf.kind === 'range' && (
           <span class="bounds">
-            <input
-              type="number"
-              min={String(range.min ?? 0)}
-              max={String(range.max)}
-              placeholder={String(range.min ?? 0)}
-              value={leaf.from ?? ''}
-              aria-label={`${range.label}, lowest`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onInput={(event) =>
-                edit((tree) =>
-                  update(tree, path, (node) => ({
-                    ...(node as Leaf),
-                    from: readBound(event.currentTarget.value, range),
-                  })),
-                )
-              }
-            />
+            {renderBound(path, range, 'from', leaf.from)}
             <span class="dash">–</span>
-            <input
-              type="number"
-              min={String(range.min ?? 0)}
-              max={String(range.max)}
-              placeholder={String(range.max)}
-              value={leaf.to ?? ''}
-              aria-label={`${range.label}, highest`}
-              onPointerDown={(event) => event.stopPropagation()}
-              onInput={(event) =>
-                edit((tree) =>
-                  update(tree, path, (node) => ({
-                    ...(node as Leaf),
-                    to: readBound(event.currentTarget.value, range),
-                  })),
-                )
-              }
-            />
+            {renderBound(path, range, 'to', leaf.to)}
           </span>
         )}
 
