@@ -475,7 +475,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 738,
-    defects: { notes: ['the screen reads CP 38, where this form at this level is 738'] },
     file: 'growlithe-nickname.png',
     form: 'Hisuian',
     gender: 'male',
@@ -1234,7 +1233,7 @@ const COVERAGE = {
   crossCheckDisagrees: 1,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 37,
+  noDefects: 38,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1273,7 +1272,7 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Four of the 43, against six rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * Three of the 43, against five rows carrying a `defects` — so the trigger costs an extra read on a defect and on
  * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
  * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
  * raising a note without earning one fails there.
@@ -1284,13 +1283,13 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
  * scan cannot either; only a second reader of the same thing could.
  */
-test('the defects a scan can find for itself are the four captures that raise a note', () => {
+test('the defects a scan can find for itself are the three captures that raise a note', () => {
   // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
   // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
   expect(
     FIXTURES.filter((f) => notesOf(f).length > 0).length,
     'how many captures `identify` raises a note on has changed',
-  ).toBe(4);
+  ).toBe(3);
 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
@@ -1328,10 +1327,10 @@ test('the vended game master is the shape the readers are asserted against', () 
  * Asserted as the whole map rather than as a count, so a reader losing one capture and gaining another cannot come out
  * even, and the misreads are then **derived** from it rather than transcribed a second time: a row already states what
  * the screen shows, so the disagreement is a filter and not a list to keep in step. A misread here is a digit or two
- * lost off one end of the number to the artwork behind it.
+ * lost or gained off one end of the number; the one left gains, `unown-question.png` reading `4864` for 486.
  */
 test(
-  'which captures the CP is read off, and which two of them it reads wrongly',
+  'which captures the CP is read off, and which one of them it reads wrongly',
   async () => {
     const states = new Map<string, number>();
 
@@ -1354,7 +1353,7 @@ test(
       'deoxys-speed.png': 2009,
       'dialga-altered.png': 2848,
       'dialga-origin.png': 2845,
-      'growlithe-nickname.png': 38,
+      'growlithe-nickname.png': 738,
       'meowth-alola.png': 431,
       'pikachu-ash-hat.png': 489,
       'pikachu-willows-assistant.png': 385,
@@ -1370,14 +1369,12 @@ test(
     });
 
     // And which of them it reads *wrongly*, derived from the map rather than listed again, a row already stating what
-    // the screen shows. The two fail in opposite directions, which is worth more than the count:
-    // `growlithe-nickname.png` loses the leading digit and reads `38` for 738, where `unown-question.png` gains a
-    // trailing one and reads `4864` for 486. A band wide enough to rescue the first takes in more of the line, which
-    // is what produces the second, so the two are a pair rather than two instances.
+    // the screen shows. One is left: `unown-question.png` gains a trailing digit off the wider pad and reads `4864`
+    // for the 486 it prints, which its row pins as a `defects.notes` entry.
     expect(
       FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
       'which captures misread their CP has changed',
-    ).toStrictEqual(['growlithe-nickname.png', 'unown-question.png']);
+    ).toStrictEqual(['unown-question.png']);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -1554,13 +1551,9 @@ test('a name that is another species is a nickname once the numbers say otherwis
 
   expect(identity.form && label(identity.form)).toBe('Growlithe (Hisuian)');
   expect(identity.nickname).toBe('Eevee');
-  // The third note is the capture's own and not this test's doing: `growlithe-nickname.png` reads `CP 38` for the 738
-  // it prints, which its row pins as `defects.notes`. It is listed rather than filtered out so that a note arriving or
-  // leaving is as loud here as anywhere else.
   expect(identity.notes).toStrictEqual([
     'the numbers do not fit any form of Eevee; searched every species',
     'the overlay says form "Zz", which is no form of any species that fits',
-    'the screen reads CP 38, where this form at this level is 738',
   ]);
 });
 
