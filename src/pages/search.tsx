@@ -146,11 +146,8 @@ export function readBound(value: string, range: Range) {
 /** Which end of a span a box edits, which is the field it writes. */
 type Edge = 'from' | 'to';
 
-/** What each end is called, and the limit its box shows greyed out — the range's own, not a bound it falls back to. */
-const EDGES: Record<Edge, { said: string; limit: (range: Range) => number }> = {
-  from: { said: 'lowest', limit: (range) => range.min ?? 0 },
-  to: { said: 'highest', limit: (range) => range.max },
-};
+/** What each end of a span is called, which is the whole of what its box needs beyond the range's own two limits. */
+const EDGES: Record<Edge, string> = { from: 'lowest', to: 'highest' };
 
 /**
  * A span pill with one of its ends written. Anything else is handed back as it is: a box's path names its own pill,
@@ -558,18 +555,23 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   /**
    * One end of a span pill: the reader's own text while their caret is in it, and the bound once it has left, which
    * `boxText` above gives the reason for.
+   *
+   * The greyed-out limit is this box's own `min` or `max` rather than a second spelling of one. It is a limit the
+   * input enforces and no longer a bound an empty box composes to, so a placeholder transcribed separately would be
+   * free to advertise one the input refuses and nothing would fail.
    */
   function renderBound(path: Path, range: Range, edge: Edge, bound: number | null) {
-    const { said, limit } = EDGES[edge];
+    const floor = String(range.min ?? 0);
+    const ceiling = String(range.max);
 
     return (
       <input
         type="number"
-        min={String(range.min ?? 0)}
-        max={String(range.max)}
-        placeholder={String(limit(range))}
+        min={floor}
+        max={ceiling}
+        placeholder={edge === 'from' ? floor : ceiling}
         value={boxText(typedBound, path, edge, bound)}
-        aria-label={`${range.label}, ${said}`}
+        aria-label={`${range.label}, ${EDGES[edge]}`}
         onPointerDown={(event) => event.stopPropagation()}
         onInput={(event) => {
           const { value } = event.currentTarget;

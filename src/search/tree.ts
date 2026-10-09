@@ -96,7 +96,8 @@ const RANGES_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
  *
  * That preference is still the rule; it just no longer reaches the open ends. Where it does still reach is a nought on
  * the right of the dash, the one irregularity the same list records: "If `{M}` is 0, the search is treated as
- * `{phrase}{N}-` instead", which is the span's own opposite. So `-0` is written as the single value it is.
+ * `{phrase}{N}-` instead", which is the span's own opposite. So `-0` is written as the single value it is, and
+ * `parse.js` reads `{N}-0` as the open top the rule makes it rather than as a bound to swap round.
  */
 export function leafText(leaf: Leaf): string | null {
   const written = text(leaf);
@@ -122,9 +123,17 @@ function text(leaf: Leaf): string | null {
   const { from, to } = leaf;
 
   if (from == null) {
-    // A nought is never written to the right of the dash, for the reason above. Nothing sits below it in any of these
-    // ranges, so the span it opens is the single value, which the bare form says and says unambiguously.
-    return to === 0 ? `${range.prefix}0` : `${range.prefix}-${to}`;
+    /*
+     * Two spans open at the bottom need no dash, and they are two tests rather than one because the ranges whose
+     * floor is not nought separate them.
+     *
+     * A span open below the range's *own floor* is the single value sitting on it, `min` being the whole of what a
+     * bound can be and `bounded` enforcing that on every builder — so `-1` is the dex number 1, and `year-2016` is
+     * every catch there has ever been. And a nought is never written to the right of a dash whatever the floor is,
+     * the rule above turning `{N}-0` into the opposite span: `0` is a dex number the game cannot match, where a `-0`
+     * read that way would match the whole box.
+     */
+    return to === 0 || to === (range.min ?? 0) ? `${range.prefix}${to}` : `${range.prefix}-${to}`;
   }
 
   if (to == null) {

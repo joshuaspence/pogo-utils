@@ -94,11 +94,28 @@ test('a span pill leaves an empty bound open rather than filling it from its own
   expect(leafText({ kind: 'range', id: 'cp', from: 100, to: 100, negated: false })).toBe('cp100');
 
   /*
-   * The one case the preference for a spelling that cannot be read another way still reaches. "If `{M}` is 0, the
-   * search is treated as `{phrase}{N}-` instead", so a `-0` is at risk of being read as the *other* open end — every
-   * HP rather than none, which is as wrong as an answer gets. Nothing sits below nought in any of these ranges, so
-   * that span is the single value and the bare form says so and nothing else.
+   * A span open at the bottom needs no dash in two cases, and the two are separate tests because the ranges whose
+   * floor is not nought pull them apart — `to === (range.min ?? 0)` alone would write the `-0` the second forbids,
+   * and `to === 0` alone would leave the first spelling a dash it has no use for.
+   *
+   * On the floor, the span is the single value sitting on it: `min` is the whole of what a bound can be, which is
+   * what `bounded` holds every builder to.
    */
+  expect([range('dex').min, range('year').min]).toEqual([1, 2016]);
+  expect(leafText({ kind: 'range', id: 'dex', from: null, to: 1, negated: false })).toBe('1');
+  expect(leafText({ kind: 'range', id: 'year', from: null, to: 2016, negated: false })).toBe('year2016');
+
+  /*
+   * And a nought never goes to the right of a dash, whatever the floor. "If `{M}` is 0, the search is treated as
+   * `{phrase}{N}-` instead", so a `-0` read that way is the *other* open end — the whole box rather than none of it,
+   * which is as wrong as an answer gets. Below the dex's floor of 1 the two cases come apart: `0` is a dex number the
+   * game cannot match, which is what a span of nothing should say.
+   */
+  expect(leafText({ kind: 'range', id: 'dex', from: null, to: 0, negated: false })).toBe('0');
+  expect(leafText({ kind: 'range', id: 'year', from: null, to: 0, negated: false })).toBe('year0');
+
+  // Where the floor *is* nought the two cases are one, which is six of the eight ranges.
+  expect(range('hp').min).toBeUndefined();
   expect(leafText({ kind: 'range', id: 'hp', from: null, to: 0, negated: false })).toBe('hp0');
   expect(leafText({ kind: 'range', id: 'hp', from: 0, to: null, negated: false })).toBe('hp0-');
 });

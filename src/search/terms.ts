@@ -337,10 +337,11 @@ export const RANGES: readonly Range[] = [
  * is not a span at all — a lone `-`, or the empty tail a text that is only a prefix leaves — so both readers check for
  * one before trusting the groups.
  *
- * One pattern because three readers share this grammar and `optimise.js` reads a dex pill back *through the writer that
- * produced it*, so a copy loosened on its own would silently stop recognising what the other had just written. The two
- * readers still differ in what they do with an open end, which is theirs to decide: `parse.js` leaves it open, where a
- * span in `optimise.js` is a closed interval and closes it against the dex.
+ * One pattern because the two readers of it — `parse.js` and `optimise.js` — sit on either side of `tree.js`, which
+ * writes these and reads none: `optimise.js` reads a dex pill back *through that writer*, so a copy loosened on its own
+ * would silently stop recognising what the writer had just produced. What the readers do with an open end is still
+ * theirs to decide, and they differ: `parse.js` leaves it open, where a span in `optimise.js` is a closed interval and
+ * closes it against the dex.
  */
 export const SPAN = /^(\d+)?(-)?(\d+)?$/;
 
