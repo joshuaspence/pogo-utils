@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+import postcss, { type Declaration } from 'postcss';
 import { expect, test } from 'vitest';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -134,26 +135,38 @@ test('no stylesheet gives one class name to two kinds of element', () => {
 });
 
 /**
- * The rules that hide an element by its `hidden` attribute, split by whether the declaration is `!important`.
+ * The rules keyed on the `hidden` attribute, split by what they do with it: `weak` hides the element but can be
+ * outranked, `strong` hides it unconditionally, and `kept` is a rule that styles a hidden element without hiding it —
+ * a dimming like the one `.chip.off` gives an off chip, which there is nothing to report about.
  *
- * The selector is read from after the last `;` of the capture, because a nested rule can follow declarations of the
- * wrapper it sits in: `pokedex.css` puts `[hidden] {…}` directly under the wrapper's own `--content-w`.
+ * Parsed rather than matched. Every selector in these sheets is nested inside a `body[data-page='…']` wrapper, and a
+ * regex over `{…}` cannot read a rule that holds a nested child, a selector list or a descendant without either
+ * missing it or taking a declaration above it for part of its selector. A `display` is read off the rule's own
+ * declarations rather than through `walkDecls`, which would reach into a nested child and credit its `display` here.
  */
 function hiddenHides(css: string) {
   const weak: string[] = [];
   const strong: string[] = [];
-  const bare = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+  const kept: string[] = [];
 
-  for (const [, before, body] of bare.matchAll(/([^{}]*\[hidden\][^{}]*)[{]([^{}]*)[}]/g)) {
-    const selector = (before ?? '').split(';').at(-1)?.replace(/\s+/g, ' ').trim();
-    const hides = /display\s*:\s*none\s*(!important)?/.exec(body ?? '');
-
-    if (selector !== undefined && selector !== '' && hides) {
-      (hides[1] === undefined ? weak : strong).push(selector);
+  postcss.parse(css).walkRules((rule) => {
+    if (!rule.selector.includes('[hidden]')) {
+      return;
     }
-  }
 
-  return { weak, strong };
+    const hides = rule.nodes.findLast(
+      (node): node is Declaration => node.type === 'decl' && node.prop === 'display' && node.value.trim() === 'none',
+    );
+    const selector = rule.selector.replace(/\s+/g, ' ').trim();
+
+    if (hides === undefined) {
+      kept.push(selector);
+    } else {
+      (hides.important ? strong : weak).push(selector);
+    }
+  });
+
+  return { weak, strong, kept };
 }
 
 test('every rule that hides an element by its `hidden` attribute outranks the sheet around it', () => {
@@ -170,29 +183,20 @@ test('every rule that hides an element by its `hidden` attribute outranks the sh
   let found = 0;
 
   for (const sheet of sources('.css')) {
-    const css = readFileSync(sheet, 'utf8');
-    const hides = hiddenHides(css);
-    const read = hides.weak.length + hides.strong.length;
+    const hides = hiddenHides(readFileSync(sheet, 'utf8'));
 
-    found += read;
+    found += hides.weak.length + hides.strong.length + hides.kept.length;
     weak.push(...hides.weak.map((selector) => `${sheet.slice(ROOT.length + 1)} hides ${selector} without !important`));
-
-    /*
-     * Counted a second time by something that is not the body, because a declaration pattern gone stale would answer
-     * with nothing to check rather than an error, and every sheet would then look like it had no hiding rule at all.
-     */
-    const keyed = (css.replace(/\/\*[\s\S]*?\*\//g, ' ').match(/\[hidden\]\s*[{]/g) ?? []).length;
-
-    if (read !== keyed) {
-      throw new Error(`${sheet.slice(ROOT.length + 1)}: read ${read} hiding rule(s) out of ${keyed} keyed on [hidden]`);
-    }
   }
 
   // Named rather than counted, so a failure says which rule can be outranked and in which sheet.
   expect(weak.sort()).toEqual([]);
 
-  // And that there were rules to check at all, rather than a walk that found no sheets. A floor rather than the count,
-  // the `read` against `keyed` above being what catches a pattern gone stale — this only has to refuse an empty run.
+  /*
+   * And that there were rules to check at all, rather than a walk that found no sheets. A floor and nothing more: a
+   * parser either reads the sheet or throws on it, so there is no pattern here that can quietly stop matching and no
+   * second count to hold it to.
+   */
   expect(found).toBeGreaterThan(0);
 });
 
@@ -318,22 +322,53 @@ test('the check can tell a missing id from a present one', () => {
 });
 
 test('the hiding check can tell an outranked rule from an unconditional one', () => {
-  // The same reason the other three have one: a body regex that matched nothing would report no weak rules however
-  // many there were.
-  expect(hiddenHides('.pane[hidden] { display: none }')).toEqual({ weak: ['.pane[hidden]'], strong: [] });
-  expect(hiddenHides('.pane[hidden] { display: none !important }')).toEqual({ weak: [], strong: ['.pane[hidden]'] });
+  // The same reason the other three have one: a reader that found nothing would report no weak rules however many
+  // there were.
+  expect(hiddenHides('.pane[hidden] { display: none }')).toEqual({ weak: ['.pane[hidden]'], strong: [], kept: [] });
+  expect(hiddenHides('.pane[hidden] { display: none !important }')).toEqual({
+    weak: [],
+    strong: ['.pane[hidden]'],
+    kept: [],
+  });
 
   // A rule nested under the wrapper's own declarations keeps its selector and nothing of theirs, which is the shape
   // `pokedex.css` is in.
   expect(hiddenHides("body[data-page='x'] { --w: 9px; [hidden] { display: none !important } }")).toEqual({
     weak: [],
     strong: ['[hidden]'],
+    kept: [],
   });
 
-  // `hidden` is not the only attribute a sheet selects on, and a rule keyed on it that sets something else is not a
-  // hiding rule — neither is anything to report.
-  expect(hiddenHides('.tab[aria-selected] { display: flex } .chip[hidden] { opacity: 0 }')).toEqual({
+  /*
+   * The four shapes a regex over `{…}` got wrong, each of which is valid CSS this check has no business failing: a
+   * rule keyed on `[hidden]` that dims rather than hides, one that hides a descendant of the hidden element, one in a
+   * selector list, and one holding a nested child. The first is the shape `.chip.off` is in two rules along.
+   */
+  expect(hiddenHides('.chip[hidden] { opacity: 0 }')).toEqual({ weak: [], strong: [], kept: ['.chip[hidden]'] });
+  expect(hiddenHides('.pane[hidden] .x { display: none !important }')).toEqual({
+    weak: [],
+    strong: ['.pane[hidden] .x'],
+    kept: [],
+  });
+  expect(hiddenHides('.a[hidden],\n.b { display: none !important }')).toEqual({
+    weak: [],
+    strong: ['.a[hidden], .b'],
+    kept: [],
+  });
+  expect(hiddenHides('.a[hidden] { display: none !important; & .y { color: red } }')).toEqual({
+    weak: [],
+    strong: ['.a[hidden]'],
+    kept: [],
+  });
+
+  // A nested child's own `display` is the child's, not the hiding rule's, so a rule that only hides through one of
+  // those is still a rule that does not hide the hidden element.
+  expect(hiddenHides('.a[hidden] { color: red; & .y { display: none } }')).toEqual({
     weak: [],
     strong: [],
+    kept: ['.a[hidden]'],
   });
+
+  // `hidden` is not the only attribute a sheet selects on, and one it is not keyed on is not this check's business.
+  expect(hiddenHides('.tab[aria-selected] { display: flex }')).toEqual({ weak: [], strong: [], kept: [] });
 });

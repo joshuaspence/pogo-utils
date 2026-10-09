@@ -49,6 +49,7 @@
     "html-validate": "11.16.2",
     "leaflet": "^1.9.4",
     "npm-run-all2": "^9.0.3",
+    "postcss": "8.5.28",
     "preact": "^11.0.0",
     "prettier": "3.9.9",
     "stylelint": "17.16.0",
