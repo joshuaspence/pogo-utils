@@ -502,10 +502,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setState((was) => ({ ...was, tree }));
     setFocus([]);
     setHeld(null);
-    setUsed(typed);
-
-    // The digits in a span box belong to the pill the caret was in, which the replacement has just taken away.
     setTypedBound(null);
+    setUsed(typed);
   }
 
   /** One name finished with, which becomes a pill in the current group. A nickname works as well as a species. */
