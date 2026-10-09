@@ -3,8 +3,9 @@
  *
  * **A row says what the Pokémon is, not what the readers answered.** A `Fixture` is the screen; a `Defects` beside it
  * is where some reader answers something else, pinned rather than softened away — fixing one is a change to the code
- * and so a pull request of its own. Everything after that is derived from the pair, so a consequence cannot drift from
- * its cause, and `COVERAGE` pins the counts rather than leaving them to prose nothing checks.
+ * and so a pull request of its own, bar the `unseparated` ones, which name forms the screen never stated and so have no
+ * fix a reader could be. Everything after that is derived from the pair, so a consequence cannot drift from its cause,
+ * and `COVERAGE` pins the counts rather than leaving them to prose nothing checks.
  *
  * `NEGATIVE` holds the captures that are not detail screens, asserting the readers do not invent on a screen none of
  * them was written for. `no-pgsharp.png` and `pgsharp-no-overlay.png` are one Squirtle captured twice and so a control
@@ -18,7 +19,7 @@ import { ambiguous, nearest, signatureOf, type Signature } from './artwork.mts';
 import { decodePng, screenIn } from './png.mts';
 import { sizeOf, type Gender, type Size } from './badges.mts';
 import { HEIGHT, parseDetail, readLines } from './detail.mts';
-import { identify, label } from './identify.mts';
+import { clearable, identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
 import { dexOn } from './pokedex.mts';
 import { parseMoves, type Moves } from './moves.mts';
@@ -116,13 +117,18 @@ interface Defects {
   cp?: number;
   alternatives?: string[];
   /**
-   * Every note `identify` answers, in its order — including the `could also be …` one, which is derived from
-   * `alternatives` where this is absent and has to be written out where it is present.
+   * The forms `identify` answers as sharing every number this one does, which nothing on the screen could have
+   * separated. A defect in that the row states one Pokémon and the readers reach several, but not one a fix could take
+   * away: what would answer it is a field the game does not print.
+   */
+  unseparated?: string[];
+  /**
+   * Every note `identify` answers, in its order — including the two that are derived from `alternatives` and from
+   * `unseparated` where this is absent, and which have to be written out where it is present.
    *
-   * The whole list rather than the rest of it, because `could also be …` is not always first: on
-   * `charizard-gigantamax.png` a misread triple fits no form of Charizard at all, and the note saying so is answered
-   * ahead of it. A row that could only append could not state that order, and the order is the half that says which
-   * note came of which.
+   * The whole list rather than the rest of it, because a derived note is not always last: on `charizard-gigantamax.png`
+   * the unseparated clone is reported ahead of the level shortlist no HP can be. A row that could only append could not
+   * state that order, and the order is the half that says which note came of which.
    */
   notes?: string[];
 }
@@ -242,7 +248,10 @@ const FIXTURES: readonly Fixture[] = [
     gender: 'male',
     height: 1.02,
     hp: 51,
-    defects: { label: 'Basculin (Red Striped)' },
+    defects: {
+      label: 'Basculin (Red Striped)',
+      unseparated: ['Basculin (Blue Striped)', 'Basculin (White Striped)'],
+    },
     overlay: { iv: { attack: 8, defense: 3, stamina: 5 }, level: 5 },
     species: 'Basculin',
     types: ['Water'],
@@ -349,7 +358,13 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1605,
-    defects: { notes: ['the overlay reads as level 9 or 5 or 8, none of which this HP can be'] },
+    defects: {
+      notes: [
+        'nothing on the screen separates it from Charizard (Copy 2019)',
+        'the overlay reads as level 9 or 5 or 8, none of which this HP can be',
+      ],
+      unseparated: ['Charizard (Copy 2019)'],
+    },
     file: 'charizard-gigantamax.png',
     form: null,
     gender: 'male',
@@ -488,6 +503,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 2738,
+    defects: { unseparated: ['Ho-Oh (S)'] },
     favourite: true,
     file: 'ho-oh.png',
     form: null,
@@ -554,6 +570,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 69,
+    defects: { unseparated: ['Pikachu (Copy 2019)'] },
     file: 'pikachu.png',
     form: null,
     gender: 'male',
@@ -567,6 +584,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     costume: "Ash's red-and-white cap",
     cp: 489,
+    defects: { unseparated: ['Pikachu (Copy 2019)'] },
     file: 'pikachu-ash-hat.png',
     form: null,
     gender: 'female',
@@ -580,6 +598,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     costume: 'a Santa hat',
     cp: 577,
+    defects: { unseparated: ['Pikachu (Copy 2019)'] },
     favourite: true,
     file: 'pikachu-santa-hat.png',
     form: null,
@@ -594,6 +613,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     costume: "Willow's lab coat and goggles",
     cp: 385,
+    defects: { unseparated: ['Pikachu (Copy 2019)'] },
     file: 'pikachu-willows-assistant.png',
     form: null,
     gender: 'male',
@@ -607,6 +627,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     costume: 'a purple witch hat',
     cp: 625,
+    defects: { unseparated: ['Pikachu (Copy 2019)'] },
     file: 'pikachu-witch-hat.png',
     form: null,
     gender: 'female',
@@ -829,8 +850,14 @@ const overlayOf = (fixture: Fixture) => {
  */
 const notesOf = (fixture: Fixture) => {
   const alternatives = fixture.defects?.alternatives ?? [];
+  const unseparated = fixture.defects?.unseparated ?? [];
 
-  return fixture.defects?.notes ?? (alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []);
+  return (
+    fixture.defects?.notes ?? [
+      ...(alternatives.length > 0 ? [`could also be ${alternatives.join(', ')}`] : []),
+      ...(unseparated.length > 0 ? [`nothing on the screen separates it from ${unseparated.join(', ')}`] : []),
+    ]
+  );
 };
 
 for (const fixture of FIXTURES) {
@@ -847,6 +874,7 @@ for (const fixture of FIXTURES) {
 
   const { boxed, legible, levels } = overlayOf(fixture);
   const alternatives = defects.alternatives ?? [];
+  const unseparated = defects.unseparated ?? [];
   const notes = notesOf(fixture);
 
   // A `describe` rather than one test with eighteen subtests inside it, because Vitest collects a file's tests
@@ -911,6 +939,12 @@ for (const fixture of FIXTURES) {
 
     test('identify alternatives', async () =>
       expect((await readingOf(fixture.file)).identity.alternatives.map(label)).toStrictEqual(alternatives));
+
+    // Apart from the alternatives, because the two are what a second read can and cannot clear: a scan reads the screen
+    // again for the first and reports the second, so a reader that moved a form between them would change what a pass
+    // costs without changing an answer.
+    test('identify unseparated', async () =>
+      expect((await readingOf(fixture.file)).identity.unseparated.map(label)).toStrictEqual(unseparated));
 
     test('identify notes', async () => expect((await readingOf(fixture.file)).identity.notes).toStrictEqual(notes));
 
@@ -1233,7 +1267,8 @@ const COVERAGE = {
   crossCheckDisagrees: 0,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 40,
+  noDefects: 34,
+  unseparated: 8,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1253,6 +1288,7 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
       severalLevels: FIXTURES.filter((f) => overlayOf(f).levels.length > 1).length,
       noLevel: FIXTURES.filter((f) => overlayOf(f).levels.length === 0).length,
       noDefects: FIXTURES.filter((f) => f.defects === undefined).length,
+      unseparated: FIXTURES.filter((f) => f.defects?.unseparated !== undefined).length,
       noOverlayDrawn: FIXTURES.filter((f) => f.overlay === null).length,
       boxNotFound: FIXTURES.filter((f) => f.defects && 'box' in f.defects).length,
       overlayNotRead: FIXTURES.filter((f) => f.defects && 'iv' in f.defects).length,
@@ -1272,29 +1308,61 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Two of the 43, against three rows carrying a `defects` — so the trigger costs an extra read on a defect and on
- * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
- * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
- * raising a note without earning one fails there.
+ * Two of the 43, where nine raise a note at all — so the trigger costs an extra read on a reading that could improve
+ * and on nothing else. That it costs one *there* is held by the `identify notes` test above rather than here: that one
+ * asserts what `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture
+ * that starts raising a note without earning one fails there.
  *
- * The one it cannot reach is named rather than counted, being the limit of the approach rather than a gap in it: the
- * fold collapses Basculin's two stripes with no icon signature recorded for either, which is a reader answering
- * confidently where nothing else on the screen can contradict it. No number of further reads can find that, so a scan
- * cannot either; only a second reader of the same thing could.
+ * The seven it does not reach are the ones `unseparated` names, and they are a limit rather than a gap: a form sharing
+ * every number the screen prints is the artwork's to separate, and it has either declined or had no icon for every
+ * member. `basculin-blue.png` is the severest — the overlay is drawn over the fish's head, which is the only part of it
+ * that differs between the three stripes, so the screen never stated which. A second read of the same screen cannot
+ * invent a field the game does not print; only a second reader of the same thing could.
  */
-test('the defects a scan can find for itself are the two captures that raise a note', () => {
-  // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
-  // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
-  expect(
-    FIXTURES.filter((f) => notesOf(f).length > 0).length,
-    'how many captures `identify` raises a note on has changed',
-  ).toBe(2);
+test(
+  'the defects a scan reads a screen again for are the two notes another read could clear',
+  async () => {
+    // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
+    // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
+    expect(
+      FIXTURES.filter((f) => notesOf(f).length > 0).length,
+      'how many captures `identify` raises a note on has changed',
+    ).toBe(9);
 
-  expect(
-    FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
-    'a pinned defect that raises no note is one a scan cannot read again on',
-  ).toStrictEqual(['basculin-blue.png']);
-});
+    // Off `clearable` and the readings themselves rather than the rows, that function being the one the scan's own
+    // fault count calls: a copy of its arithmetic here could pass while the trigger it stands for had changed.
+    const chased: string[] = [];
+    const reported: string[] = [];
+
+    for (const fixture of FIXTURES) {
+      const { identity } = await readingOf(fixture.file);
+
+      if (clearable(identity) > 0) {
+        chased.push(fixture.file);
+      } else if (identity.notes.length > 0) {
+        reported.push(fixture.file);
+      }
+    }
+
+    expect(chased, 'which captures a scan reads a second time has changed').toStrictEqual([
+      'charizard-gigantamax.png',
+      'unown-question.png',
+    ]);
+
+    // And the other side of the split, which is what says the eight captures `unseparated` reaches cost a scan nothing:
+    // their note is reported and never chased.
+    expect(reported, 'a note no second read could clear is one a scan must report rather than chase').toStrictEqual([
+      'basculin-blue.png',
+      'ho-oh.png',
+      'pikachu.png',
+      'pikachu-ash-hat.png',
+      'pikachu-santa-hat.png',
+      'pikachu-willows-assistant.png',
+      'pikachu-witch-hat.png',
+    ]);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
 
 /**
  * The vended game master's own shape, each figure what `pnpm vend:game-master` printed as it wrote the file. This is
@@ -1504,12 +1572,13 @@ test(
 
 /**
  * What the bracketed form on `fixtures/spinda-04.png` is worth, which is more than a cross-check: Spinda's 20 forms are
- * identical in every field the screen shows, so the fold leaves `00` standing and the bracketed `(04)` PGSharp draws is
- * the **only** thing on the screen that can say which of the 20 it is. With the overlay unread the answer is not an
- * ambiguity but a confident wrong form, exactly as it is for Unown below.
+ * identical in every field the screen shows, so the bracketed `(04)` PGSharp draws is the **only** thing on the screen
+ * that can say which of the 20 it is. With the overlay unread the answer is `00` and the nineteen it cannot be told
+ * from, which is the largest unseparated set the corpus reaches.
  *
- * Which is also the case for keeping all 20 in `FORMS` where the costume fold would otherwise justify one, and the test
- * is posed so that it says so: the same detail, read once, handed to `identify` twice, with the suffix and without.
+ * Both halves of the `unseparated` partition are asserted here rather than only the one, because the suffix is what
+ * empties it: a reader that stopped narrowing on the bracket would answer the same twenty either way, and a fold that
+ * went back to collapsing them would answer `00` alone with nothing saying the other nineteen fit.
  */
 test('the overlay fixtures/spinda-04.png does not read would have named one form of twenty', async () => {
   const fixture = FIXTURES.find((f) => f.file === 'spinda-04.png');
@@ -1524,9 +1593,14 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
   const named = identify(DATA, detail, { ...stated, form: overlay.suffix });
 
   expect(blind.form && label(blind.form)).toBe('Spinda (00)');
-  expect(blind.alternatives, 'the fold no longer collapses the 20, so this test is obsolete').toStrictEqual([]);
+  expect(blind.alternatives, 'forms with these numbers are unseparated rather than alternatives').toStrictEqual([]);
+  expect(blind.unseparated, 'the fold is collapsing the 20 again, so nothing says the other nineteen fit').toHaveLength(
+    19,
+  );
+
   expect(named.form && label(named.form)).toBe(`Spinda (${overlay.suffix})`);
   expect(named.cp, 'the CP the bracket buys no longer agrees with the screen').toBe(fixture.cp);
+  expect(named.unseparated, 'the bracketed form left something it could not separate').toStrictEqual([]);
   expect(named.notes, 'the readers disagree with each other').toStrictEqual([]);
 });
 
@@ -1758,7 +1832,7 @@ test('a stray coloured pixel beside the size pill does not cost the badge', asyn
  * What `identify` answers for a screen with no Pokémon on it, which it declines without comment. One definition, and a
  * whole object, so a field added to `Identity` fails each screen asserted against it until it is accounted for.
  */
-const DECLINED = { form: null, cp: null, alternatives: [], levels: [], nickname: null, notes: [] };
+const DECLINED = { form: null, cp: null, alternatives: [], unseparated: [], levels: [], nickname: null, notes: [] };
 
 /**
  * `fixtures/overworld.png` is the map, and this is what the detail readers answer on it: nothing, in every field. That
@@ -1901,7 +1975,14 @@ test('a species read off the Pokédex leaves the nickname alone', async () => {
   // under the nickname taken for the name, and a `96%` written out here would have been a second thing to remember.
   expect(identity.nickname, 'the dex override swallowed the nickname the screen prints').toBe(without.nickname);
   expect(without.nickname, 'what `ho-oh.png` reads as its nickname has changed').toBe('96%');
-  expect(identity.notes, 'the Pokédex and the numbers agree, so there is nothing to report').toStrictEqual([]);
+
+  // Stated as invariance for the same reason the nickname is: the Pokédex and the numbers agree here, so the override
+  // may not add a note of its own — and the one note this capture does raise is the artwork declining its two icons,
+  // which the override has no part in.
+  expect(identity.notes, 'the dex override reports something the capture did not').toStrictEqual(without.notes);
+  expect(without.notes, 'what `ho-oh.png` raises a note about has changed').toStrictEqual([
+    'nothing on the screen separates it from Ho-Oh (S)',
+  ]);
 });
 
 /**
@@ -2240,7 +2321,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['label', 'notes']);
+  ).toStrictEqual(['label', 'notes', 'unseparated']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.

@@ -1,8 +1,8 @@
 /**
  * Telling two forms apart by the artwork, for the ones the numbers cannot reach. HP is a function of `stamina` alone,
  * so two forms sharing their types and all three base stats are identical in every field the detail screen states —
- * Deerling's four seasons, Burmy's three, Genesect's five and more. `identify` folds them to one and answers with no
- * alternatives and no notes, which is a wrong answer that flags nothing.
+ * Deerling's four seasons, Burmy's three, Genesect's five and more. Without this `identify` answers one of them and
+ * reports the rest as unseparated, which is honest and still names no form.
  *
  * **The backdrop is the whole problem, not the colours.** The game blurs an arbitrary scene behind the model and will
  * put a photograph there, against which a small model is a minority of any fixed box. So the subject is bounded by the
@@ -65,8 +65,10 @@ const GROW = 6;
  * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
  * captures anything above 0.190 and at or below 0.531 is right wherever it answers: the widest lead a wrong icon takes
  * is `ho-oh.png`'s 0.190 and the narrowest right answer leads by 0.531 (`burmy-sandy.png`). 0.3 sits inside that with
- * 0.110 of headroom over the first. No margin reaches `basculin-blue.png`: its own stripe leads by 0.142, beneath wrong
- * leads that admitting it would admit, so its row pins the fold's answer instead.
+ * 0.110 of headroom over the first. No margin reaches `basculin-blue.png`: its family's icons are 0.221 apart at their
+ * closest, which caps any lead a capture of one can take beneath the wrong leads above, and the 0.142 its own icon
+ * takes there is the water behind the fish rather than the fish — PGSharp's box covers the head, which is the only part
+ * of it the three stripes differ in. So that row pins the forms it cannot be told from instead.
  */
 export const MARGIN = 0.3;
 

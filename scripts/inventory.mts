@@ -46,7 +46,7 @@ import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/ar
 import { bestOf, faultsOf } from '../src/tools/inventory/attempts.mts';
 import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
-import { identify, type Identity } from '../src/tools/inventory/identify.mts';
+import { clearable, identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
@@ -653,12 +653,13 @@ async function scan() {
    * overlay names that no species has. What says a second read of the same Pokémon is worth taking is the corpus having
    * been retaken — which captures misread their CP changed with it, three before the retake and two after it, and one
    * fewer now that the sweep runs every treatment, so a misread is a property of the capture as much as of the reader.
-   * `screens.test.mts` pins which two of its 43 captures raise a note, and that both of the two are rows carrying a
-   * `defects`.
+   * `screens.test.mts` pins which two of its 43 captures a scan reads again, against the nine that raise a note at all,
+   * and that every one of the nine is a row carrying a `defects`.
    *
-   * Which is two of the three defects that file pins, and not the third: that one is a reader answering confidently
-   * with nothing on the screen to contradict it — a fold that collapses Basculin's two stripes, no icon being recorded
-   * for either. Nothing here can be the check for it; only a second reader of the same thing could be.
+   * The seven in that gap are `unseparated`, which is reported and not chased: those forms share every number the
+   * screen prints, so what would settle them is a field the game never drew. `basculin-blue.png` is the severest —
+   * PGSharp's own box covers the fish's head, the only part of it that differs between the three stripes. Nothing here
+   * can be the check for those; only a second reader of the same thing could be.
    *
    * `could also be …` is counted with the rest, but only on a reading that has IVs: with none the search narrows on
    * types alone and 21 of the game master's 1,024 species answer it for ever, so counting those would read every
@@ -712,7 +713,8 @@ async function scan() {
         // Notes only where the overlay read, because the ones raised without IVs are the ones no further read can
         // clear: with `iv === null` the search narrows on types alone, and 21 of the game master's 1,024 species then
         // answer `could also be …` for ever. Counting those would read every one of them three times on every pass.
-        const notes = overlay === null ? 0 : id.notes.length;
+        // `clearable` is the same argument applied to one note more, and 8 of the 43 committed captures raise it.
+        const notes = overlay === null ? 0 : clearable(id);
 
         lost = keyless + fields;
 

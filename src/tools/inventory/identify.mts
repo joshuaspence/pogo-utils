@@ -1,7 +1,9 @@
 /**
  * The end of the pipeline, which reads no screen at all: which species and form a reading is, and at what level. The
  * name narrows the candidates when it is a species' name, the types narrow them further, PGSharp's bracketed suffix and
- * then the artwork separate what the numbers cannot, and a fold keeps one form per `(dex, stats, types)`.
+ * then the artwork separate what the numbers cannot, and a fold keeps one form where a costume repeats it. What none of
+ * them settles is answered as the shortest name of the forms left, with the rest beside it: `unseparated` is the half
+ * of the answer that says the screen never stated which.
  *
  * Here rather than in `detail.mts` because it consumes a reading instead of producing one — it is the only module that
  * asks the readers to agree with each other rather than each being separately right.
@@ -40,8 +42,15 @@ export interface Identity {
    * ambiguous, since two levels are two CPs and guessing between them would be worse than saying nothing.
    */
   cp: number | null;
-  /** Other forms the numbers fit equally well, when they cannot be told apart. */
+  /** Other forms the numbers fit equally well, which a better reading of the same screen could still separate. */
   alternatives: Form[];
+  /**
+   * Forms the screen cannot separate from the answer at all, sharing its dex, its types and all three base stats. The
+   * artwork is the only reader that could, and it has either declined or had no icon for every member — so this is
+   * apart from `alternatives` because a scan reads a screen again for a reading that might improve, and a second look
+   * cannot invent a field the game does not print.
+   */
+  unseparated: Form[];
   levels: number[];
   nickname: string | null;
   notes: string[];
@@ -183,7 +192,7 @@ export function identify(
   }
 
   // The artwork, all that is left where the numbers are identical: Deerling's four seasons share
-  // `115/100/155 Normal+Grass` exactly, so the fold below would keep whichever has the shorter name.
+  // `115/100/155 Normal+Grass` exactly, so without it they come back as one answer and three it cannot separate.
   //
   // Every candidate has to carry a signature, or a form the game draws no icon for would be dropped for having no
   // artwork rather than for losing on its colours — which is why Spinda is never narrowed here. Costumes are left out:
@@ -205,18 +214,24 @@ export function identify(
     }
   }
 
-  // Costumes repeat their base form's stats and types exactly, so they are the same answer twice.
+  // Costumes repeat their base form's stats and types exactly, so they are the same answer twice. Two forms that are
+  // not costumes are two answers however identical their numbers: collapsing them answered the shortest name of a
+  // Deerling's four seasons whichever one it was, so what the screen cannot separate is reported below instead.
   const distinct: Form[] = [];
 
   for (const f of [...candidates].sort(
     (a, b) => Number(a.costume) - Number(b.costume) || a.form.length - b.form.length,
   )) {
-    if (!distinct.some((d) => sameNumbers(d, f))) {
+    if (!f.costume || !distinct.some((d) => sameNumbers(d, f))) {
       distinct.push(f);
     }
   }
 
-  const [form = null, ...alternatives] = distinct;
+  const [form = null, ...rest] = distinct;
+
+  // Split on what a second read could do about them, which is nothing where every number is the same.
+  const unseparated = form === null ? [] : rest.filter((f) => sameNumbers(form, f));
+  const alternatives = form === null ? rest : rest.filter((f) => !sameNumbers(form, f));
 
   // A name that does not read as the species answered, which is not the same as one reading as no species at all: a
   // Vaporeon called `Eevee` matches a species and is still nicknamed. Read against the answer rather than against
@@ -241,6 +256,12 @@ export function identify(
     notes.push(`could also be ${alternatives.map(label).join(', ')}`);
   }
 
+  // Named rather than counted, and after the note above because this is the weaker claim of the two: the forms are
+  // there, and which of them this is was never on the screen to read.
+  if (unseparated.length > 0) {
+    notes.push(`nothing on the screen separates it from ${unseparated.map(label).join(', ')}`);
+  }
+
   if (stated.length > 0 && consistent.length > 0 && agreed.length === 0) {
     notes.push(`the overlay reads as level ${stated.join(' or ')}, none of which this HP can be`);
   }
@@ -259,12 +280,23 @@ export function identify(
     notes.push(`the screen reads CP ${detail.cp}, where this form at this level is ${cp}`);
   }
 
-  return { form, cp, alternatives, levels, nickname, notes };
+  return { form, cp, alternatives, unseparated, levels, nickname, notes };
 }
 
 export function label(f: Form): string {
   return f.form ? `${f.species} (${f.form})` : f.species;
 }
+
+/**
+ * How many of a reading's notes another look at the same screen could clear, which is what a scan reads one again for.
+ * Every note but the one `unseparated` raises: those forms share every number the screen prints, so a second read of it
+ * answers the same thing, and chasing them would read every Pikachu twice for ever.
+ *
+ * Here rather than in the scan because `screens.test.mts` asserts which captures it reaches, and a second copy of the
+ * arithmetic would be free to disagree with the one that decides what a pass costs.
+ */
+export const clearable = (identity: Identity): number =>
+  identity.notes.length - Number(identity.unseparated.length > 0);
 
 function sameTypes(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((t) => b.includes(t));
