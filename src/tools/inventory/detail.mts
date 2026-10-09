@@ -183,6 +183,16 @@ async function cpsIn(image: Image): Promise<number[]> {
  * A line already as long as a CP goes cannot be extended by anything, so no band of it is read at all: `rescue` wants a
  * number longer than the line's and no longer than `longest`, which is unsatisfiable once the two are equal. That is
  * eight of the 23 and 48 passes — the corpus costs 81 where three treatments unguarded cost 129 and two cost 89.
+ *
+ * The treatments at a pad go together rather than in turn, being three pure functions of the one band, and what is
+ * taken is still the first accepted in array order. What that gives up is stopping early within a pad, which costs
+ * three passes over the corpus — 96 against 93 — and what it buys is the latency of a screen read on its own, as
+ * `scripts/inventory.mts` reads one: `pikachu.png` runs all six passes and accepts none, reading in 246ms against
+ * 515ms, where `unown-b.png` accepts on the first treatment and pays 133ms against 114ms. The pads stay in turn, 0.35
+ * having to be refused before 0.6 is tried.
+ *
+ * The corpus suite shows none of this. It keeps enough reads in flight to saturate the cores either way, which is the
+ * same contention `vitest.config.mjs` raises its timeout for and `ocr.mts` pins `OMP_THREAD_LIMIT=1` against.
  */
 async function wholeCp(image: Image, line: Line, read: string, longest: number): Promise<string | null> {
   if (read.length >= longest) {
@@ -193,8 +203,10 @@ async function wholeCp(image: Image, line: Line, read: string, longest: number):
     const pad = Math.round(line.height * reach);
     const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
 
-    for (const treat of CP_TREATMENTS) {
-      const whole = rescue((await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? '', read, longest);
+    const texts = await Promise.all(CP_TREATMENTS.map((treat) => ocrLine(scale(treat(band), 2), CP_ALPHABET)));
+
+    for (const text of texts) {
+      const whole = rescue(text ?? '', read, longest);
 
       if (whole !== null) {
         return whole;
