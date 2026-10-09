@@ -448,11 +448,16 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * both focused and opened. `Home` and `End` are left out — with two tabs they would be the arrows under other
    * names.
    *
-   * Focus is moved by hand because the tabs are not a roving `tabindex`: pressing an arrow has to land on the other
-   * button for the next press to come back, and selecting without moving focus would leave the reader arrowing from
-   * the tab they are no longer on.
+   * **The step counts from the tab the key was pressed on, not from the open one.** Keeping both tabs in the tab
+   * order is what lets focus sit on a tab that is not selected, and read off the selection the arrows there did the
+   * wrong thing twice over: with two panes, `at + 1` and `at - 1` are the same index, so both keys selected the
+   * focused tab and neither moved focus. A roving `tabindex` is what ordinarily keeps the two from diverging, so the
+   * reading that gets away with the selection is the one this tablist is not.
+   *
+   * Focus is then moved by hand, since pressing an arrow has to land on the other button for the next press to come
+   * back.
    */
-  function onPaneKeyDown(event: KeyboardEvent) {
+  function onPaneKeyDown(event: KeyboardEvent, from: Pane) {
     const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
 
     if (step === 0) {
@@ -461,7 +466,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
     event.preventDefault();
 
-    const at = PANES.findIndex((one) => one.id === pane);
+    const at = PANES.findIndex((one) => one.id === from);
     const next = PANES[(at + step + PANES.length) % PANES.length];
 
     if (next) {
@@ -831,7 +836,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               aria-selected={pane === id}
               aria-controls={`panel-${id}`}
               onClick={() => setPane(id)}
-              onKeyDown={onPaneKeyDown}
+              onKeyDown={(event) => onPaneKeyDown(event, id)}
             >
               {label}
             </button>
@@ -1075,8 +1080,13 @@ export default function SearchPage({ query: fragment }: { query: string }) {
              * Disabled over the text the arrangement was built from, which also closes the Enter that would submit the
              * form: a browser's implicit submission goes through the default button and does nothing where that button
              * is disabled, so the one guard covers both ways of pressing it.
+             *
+             * Compared trimmed, as the emptiness test beside it is. A space on either end is not a change to the
+             * query — the tokeniser trims each term — so re-enabling over one would hand back the press that
+             * overwrites the canvas while asking for nothing. Whitespace *inside* the query still counts as a change,
+             * which is a deliberate edit of its characters rather than a stray keystroke.
              */}
-            <button type="submit" class="use" disabled={typed.trim() === '' || typed === used}>
+            <button type="submit" class="use" disabled={typed.trim() === '' || typed.trim() === used?.trim()}>
               Use it
             </button>
           </form>
