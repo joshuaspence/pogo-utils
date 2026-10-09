@@ -156,15 +156,25 @@ body[data-page='pokedex'] {
     margin: 12px 0 0;
   }
 
-  .tally dt {
+  /**
+   * The figure reads above its word, which is the reverse of the order HTML wants: a `<dt>` is the term and has to come
+   * first, so the column is turned over rather than the markup.
+   */
+
+  .tally div {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .tally dd {
+    margin: 0;
     font-size: 22px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.1;
   }
 
-  .tally dd {
-    margin: 0;
+  .tally dt {
     color: var(--muted);
     font-size: 11px;
   }
@@ -250,8 +260,8 @@ body[data-page='pokedex'] {
    * where a reader expects it rather than collapsing the row it sits in.
    *
    * No `image-rendering: pixelated`, deliberately: these are the game's own 256×256 renders and this scales them down,
-   * which nearest-neighbour makes a mess of. Smooth is wrong only for the three released species with no render —
-   * Scatterbug, Spewpa and Silvally — whose pixel sprite scales up a little soft.
+   * which nearest-neighbour makes a mess of. Smooth is wrong only for the two released species with no render —
+   * Scatterbug and Spewpa — whose pixel sprite scales up a little soft.
    */
 
   .sprite {
@@ -310,6 +320,18 @@ body[data-page='pokedex'] {
   .card:hover .num,
   .card:focus-visible .num {
     opacity: 1;
+  }
+
+  /**
+   * A phone has no hover and a tap on a button is no `:focus-visible`, so the reveal above never fires there and the
+   * number would go unpainted for the whole visit — on the narrowest screen, where the tiles are smallest and it is
+   * the other thing the box above filters on. Shown outright instead.
+   */
+
+  @media (hover: none) {
+    .card .num {
+      opacity: 1;
+    }
   }
 
   .card .marks {

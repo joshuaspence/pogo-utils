@@ -328,9 +328,14 @@ the same 256×256 renders [`src/tools/inventory/game-master.mts`](src/tools/inve
 screenshot against, so the two cannot disagree about what a species looks like. Most of the dex is `pm{dex}.icon.png`,
 which the number alone derives; `build:sprites` ([`scripts/build-sprites.mts`](scripts/build-sprites.mts)) writes the
 113 it does not, read out of the committed game master so the build reaches no network. 961 species draw a render that
-way. The other 64 have no artwork in the game at all — 61 of them are species it has not released — and fall back to
-[PokeAPI](https://github.com/PokeAPI/sprites), which covers the dex by number. A species whose picture does not load
-keeps its name and number.
+way. The other 64 have no artwork in the game at all — 62 of them are species it has not released, the exceptions being
+Scatterbug and Spewpa — and fall back to [PokeAPI](https://github.com/PokeAPI/sprites), which covers the dex by number.
+A species whose picture does not load keeps its name and number.
+
+A species the game draws only as a form — Unown, Burmy, Mimikyu — has no picture of its own, so the table names one of
+its forms. Which one comes from [`src/pokemon/pokedex.ts`](src/pokemon/pokedex.ts): `addForms` lists a species' forms in
+the game's order, so the first is the one that stands for the species. Only Spinda reaches no answer that way, its
+patterns being numbered where that table names them, and the build says so when it happens.
 
 ## Import into PGSharp
 

@@ -81,8 +81,33 @@ test('`build:sprites` names every species whose icon the dex number cannot deriv
    */
   expect(icons).toHaveProperty('902', null);
 
-  // The form-only species, whose icon is the game's own default rather than the species' own name.
-  expect(icons).toMatchObject({ 201: 'pm201.fUNOWN_A.icon.png', 327: 'pm327.f00.icon.png' });
+  /*
+   * The form-only species, whose icon is the one `pokedex.ts` declares first. Every one of these is a species the
+   * fixture lists its forms for alphabetically, so taking the first would name a form the game does not show for the
+   * species — Mimikyu with its disguise already broken, the white Galarian Darmanitan for the plain Unovan one,
+   * Aegislash drawn in its blade stance. Each is spelled out because the alphabetical pick is green against a count.
+   */
+  expect(icons).toMatchObject({
+    201: 'pm201.fUNOWN_A.icon.png',
+    412: 'pm412.fBURMY_PLANT.icon.png',
+    422: 'pm422.fWEST_SEA.icon.png',
+    550: 'pm550.fRED_STRIPED.icon.png',
+    555: 'pm555.fSTANDARD.icon.png',
+    666: 'pm666.fICY_SNOW.icon.png',
+    669: 'pm669.fORANGE.icon.png',
+    681: 'pm681.fSHIELD.icon.png',
+    745: 'pm745.fMIDDAY.icon.png',
+    778: 'pm778.fDISGUISED.icon.png',
+    854: 'pm854.fPHONY.icon.png',
+    876: 'pm876.fMALE.icon.png',
+    888: 'pm888.fHERO.icon.png',
+    925: 'pm925.fFAMILY_OF_THREE.icon.png',
+    982: 'pm982.fTWO.icon.png',
+    1012: 'pm1012.fCOUNTERFEIT.icon.png',
+  });
+
+  // Spinda is the one species the declared form cannot name, its patterns being numbered, so it does take the first.
+  expect(icons).toHaveProperty('327', 'pm327.f00.icon.png');
 
   // And the ordinary case is absent, so the derivation above is what those cards actually use.
   expect(Object.keys(icons)).not.toContain('25');

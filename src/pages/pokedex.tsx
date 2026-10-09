@@ -34,24 +34,26 @@ const CATEGORY_LABELS = new Map(CATEGORIES.map(({ id, label }) => [id, label]));
  * A sprite that says nothing when it fails. The name over it is the card; a hotlinked picture that does not arrive —
  * offline, or blocked — should leave a blank tile rather than the browser's broken-image glyph.
  *
- * The failure is this component's own state rather than a class added to the node, which is also what resets it: the
- * shiny toggle in the dialog changes `src`, and a fresh `src` deserves a fresh chance to load rather than inheriting the
- * last one's failure.
+ * What failed is remembered as the URL rather than as a boolean, because a fresh `src` deserves a fresh chance to load
+ * and a flag would deny it one. `key` on the `<img>` cannot do that job: it replaces the child node while this
+ * component's own instance — same type, same position — is reused, so a hook on it survives. The icon table landing is
+ * exactly that case, changing the `src` of the 113 species it holds a row for after the derived name has 404d; and a
+ * 404 that resolves late calls back into a live component whichever way the two race, so only comparing against the
+ * `src` in hand can tell a stale failure from this one's.
  */
 function Sprite({ src, size, eager }: { src: string; size: number; eager?: boolean }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
   return (
     <img
-      key={src}
-      class={failed ? 'sprite missing' : 'sprite'}
+      class={failed === src ? 'sprite missing' : 'sprite'}
       src={src}
       alt=""
       width={size}
       height={size}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setFailed(src)}
     />
   );
 }
@@ -305,9 +307,13 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
         </p>
 
         {/*
-         * The counts over what the filters leave, which is also how the page says a filter did anything: it is the one
-         * part of the controls that answers, so it carries the live region rather than a second line of text saying
-         * the same number again.
+         * The counts over what the filters leave, which is also how the page says a filter did anything: it is the
+         * only part of the page that answers them, so it carries the live region rather than a second line of text
+         * saying the same number again.
+         *
+         * The word is the `<dt>` and the figure its `<dd>` — "species, which is 1025" — rather than the other way
+         * round, which would be markup defining the number. Source order is the one HTML allows, and the stylesheet is
+         * what paints the figure above its word.
          */}
         <dl class="tally" aria-live="polite">
           {[
@@ -316,8 +322,8 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
             { label: 'with a shiny', of: visible.filter((entry) => entry.shiny) },
           ].map(({ label, of }) => (
             <div key={label}>
-              <dt>{of.length}</dt>
-              <dd>{label}</dd>
+              <dt>{label}</dt>
+              <dd>{of.length}</dd>
             </div>
           ))}
         </dl>
