@@ -157,6 +157,43 @@ test('a span arrives as the range pill it is', () => {
   const one = treeFor('hp100');
 
   expect(isGroup(one) && one.parts[0]).toEqual({ kind: 'range', id: 'hp', from: 100, to: 100, negated: false });
+
+  /*
+   * An open end arrives as the empty box it is, rather than as the limit the table could have filled it with. That is
+   * the reading the round trip below needs — a `cp3000-` read as `cp3000-5000` would compose back spelled the other
+   * way — and it is also what the reader sees, the box staying empty for them to fill.
+   *
+   * The dash is what makes an end open, so a bare number is still both bounds: `hp100` above, not `hp100-`.
+   */
+  const pills = Object.fromEntries(
+    ['cp3000-', 'cp-1500', '-151', 'cp3000-0', 'cp-0'].map((text) => {
+      const tree = treeFor(text);
+
+      return [text, isGroup(tree) ? tree.parts[0] : null];
+    }),
+  );
+
+  expect(pills).toEqual({
+    'cp3000-': { kind: 'range', id: 'cp', from: 3000, to: null, negated: false },
+    'cp-1500': { kind: 'range', id: 'cp', from: null, to: 1500, negated: false },
+
+    // The dex's own prefix is empty, so a leading dash is the whole of what marks this one as a span at all.
+    '-151': { kind: 'range', id: 'dex', from: null, to: 151, negated: false },
+
+    /*
+     * "If `{M}` is 0, the search is treated as `{phrase}{N}-` instead", so this is the open top above and not a bound
+     * of nought. Read as the bound it looks like, it was the *complement* of what the game answers: the swap saw 3000
+     * above 0 and turned the span round, so pasting the game's own spelling composed `cp0-3000` — every Pokémon the
+     * search does not match, silently and with no caveat.
+     */
+    'cp3000-0': { kind: 'range', id: 'cp', from: 3000, to: null, negated: false },
+
+    // And only where there is an `{N}` for the rule to leave behind, which a bare `-0` has not.
+    'cp-0': { kind: 'range', id: 'cp', from: null, to: 0, negated: false },
+  });
+
+  // The whole of the point: the game's spelling and this page's own compose the same search.
+  expect([stringFor('cp3000-0'), stringFor('cp3000-')]).toEqual(['cp3000-', 'cp3000-']);
 });
 
 test('a bare span that a generation chip already spells arrives as that chip', () => {
@@ -229,6 +266,12 @@ test('a query that does not parse is refused, and says which thing is wrong', ()
  * One of the names carries punctuation, because a name is the one pill whose text a reader writes: the box splits on
  * commas and leaves the rest alone, so a dot and a space are as ordinary in one as a letter. What none of them carries
  * is the game's own punctuation, which is the boundary the test after the sweep draws.
+ *
+ * All four shapes of span are here, `terms.js` naming them. An open end is the shape where the two halves are most
+ * easily made to disagree, since the `-` carrying it is the one character of the game's own span grammar that
+ * `PUNCTUATION` deliberately leaves out — which is what lets `cp3000-` tokenise as a single term, and what leaves the
+ * reader free to fill the bound back in. Do that and it comes back out spelled the other way round, which is the
+ * disagreement a fixed point catches.
  */
 function* trees(size: number): Generator<Node> {
   if (size <= 1) {
@@ -237,6 +280,9 @@ function* trees(size: number): Generator<Node> {
     yield named('pikachu');
     yield named('Mr. Mime');
     yield { kind: 'range', id: 'cp', from: 1500, to: 3000, negated: false };
+    yield { kind: 'range', id: 'cp', from: 3000, to: null, negated: false };
+    yield { kind: 'range', id: 'hp', from: null, to: 100, negated: false };
+    yield { kind: 'range', id: 'hp', from: 100, to: 100, negated: false };
     return;
   }
 

@@ -89,9 +89,18 @@ const RANGES_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
  * names nothing in the table is the one case that is a fault, and it answers null too — a link that rotted past a
  * rename drops the pill it can no longer spell rather than writing a term the game will not match.
  *
- * A bound left empty is filled from the range's own floor or ceiling rather than written as an open end, which is the
- * reading the earlier `rangeClause` took and the reason it gave: `cp3000-` may well be read the way it looks, where
- * `cp3000-5000` cannot be read any other way and nothing has a CP above the ceiling anyway.
+ * A bound left empty is written as an open end rather than filled from the range's own floor or ceiling. The community
+ * phrase list states both forms outright — "`{phrase}{N}-` matches values ≥ `{N}`", "`{phrase}-{N}` matches values ≤
+ * `{N}`" — which is what an earlier reading here lacked: it filled the bound in because `cp3000-` only *may well* be
+ * read the way it looks, and preferred a spelling that could not be read any other way.
+ *
+ * That preference is still the rule; it just no longer reaches the open ends. What it reaches instead is the nought the
+ * same list makes an irregularity of: "If `{M}` is 0, the search is treated as `{phrase}{N}-` instead".
+ *
+ * Those are two cases and only the first is settled. A `{N}-0` *is* the span's own opposite, which is why `parse.js`
+ * reads one as an open top rather than as a bound to swap round — `cp3000-0` is CP at or above 3000 and came back as
+ * `cp0-3000`. A bare `-0` has no `{N}` for the rule to leave behind, so the rule and `{phrase}-{N}` both claim it and
+ * the list settles neither; `text` below writes the one spelling a single rule claims and guesses at nothing.
  */
 export function leafText(leaf: Leaf): string | null {
   const written = text(leaf);
@@ -114,8 +123,31 @@ function text(leaf: Leaf): string | null {
     return null;
   }
 
-  const from = leaf.from ?? range.min ?? 0;
-  const to = leaf.to ?? range.max;
+  const { from, to } = leaf;
+
+  if (from == null) {
+    /*
+     * Two spans open at the bottom need no dash, and they are two tests rather than one because the two ranges whose
+     * floor is not nought separate them — six of the eight make these the same test.
+     *
+     * A span open below the range's *own floor* is the single value sitting on it, `min` being the whole of what a
+     * bound can be and `bounded` enforcing that on every builder — so `-1` is the dex number 1, and `year-2016` is
+     * every catch there has ever been.
+     *
+     * And a nought is never written to the right of a dash whatever the floor is, because `-0` is the one spelling
+     * *two* of the list's rules both claim: `{phrase}-{N}` makes it values at or below nought, where a `{M}` of nought
+     * makes it `{phrase}{N}-` — which has no `{N}` here to leave behind — and the list does not say which rule wins.
+     * `0` is claimed by `{phrase}{N}` alone, so it is the spelling with one reading, which is the whole of why it is
+     * preferred. What the game actually answers for `-0` is not written down and is not guessed at here.
+     */
+    return to === 0 || to === (range.min ?? 0) ? `${range.prefix}${to}` : `${range.prefix}-${to}`;
+  }
+
+  if (to == null) {
+    return `${range.prefix}${from}-`;
+  }
+
+  // A reader can type the higher number into the lower box, and two numbers describe a span whichever way round.
   const low = Math.min(from, to);
   const high = Math.max(from, to);
 

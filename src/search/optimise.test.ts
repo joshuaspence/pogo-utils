@@ -96,6 +96,22 @@ test('dex spans AND’d collapse into their overlap, and OR’d into their union
   expect(short(all(named('charmander'), yes('gen1')))).toBe('4');
   expect(short(all(span(1, 151), yes('gen1')))).toBe('1-151');
   expect(short(all(span(100, 400), yes('gen1')))).toBe('100-151');
+
+  /*
+   * So does a span with an end left open, which the writer spells as a dash with nothing after it. A dex pill is read
+   * back *through that writer*, so the open end has to be closed against the dex here or the pill drops out of the
+   * arithmetic silently — leaving both it and the generation it should have absorbed in the string, which looks like a
+   * reduction that merely declined rather than one that could not read its own input.
+   *
+   * **What comes back out is closed at both ends on purpose, though an open one would be a character shorter.** A
+   * collapse landing on the dex's own floor could write `-151` where this writes `1-151`, and the answer is the
+   * generation chips: `1-151` is the Gen 1 term as well as a dex span, so the page's own shortened output reads back
+   * as the chip that says *Gen 1* where `-151` reads back as an anonymous span. A reduction is shown to the reader to
+   * be checked, and one character is not worth the spelling they can recognise. The character is only ever on offer
+   * where a bound sits exactly on `WHOLE`, which is the overlap a generation has with the ends of the dex.
+   */
+  expect(short(all(span(null, 400), yes('gen1')))).toBe('1-151');
+  expect(short(all(span(100, null), yes('gen1')))).toBe('100-151');
 });
 
 test('spans covering the whole dex earn no clause either way', () => {

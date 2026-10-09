@@ -21,7 +21,7 @@
  * the canvas can draw.
  */
 
-import { bounded, GROUPS, RANGES } from './terms.js';
+import { bounded, GROUPS, RANGES, SPAN } from './terms.js';
 import { group, NESTING, type Junction, type Leaf, type Node } from './tree.js';
 
 /** The punctuation, and what each piece of it is. Everything else is part of a term. */
@@ -43,9 +43,6 @@ interface Token {
 
 /** Every catalogue term by the text the game reads it as, which is what a reader will have typed. */
 const IDS_BY_TERM = new Map(GROUPS.flatMap((category) => category.terms).map((term) => [term.term, term.id]));
-
-/** A number or a span of them, which is the tail of every range and the whole of a dex term. */
-const SPAN = /^(\d+)(?:-(\d+))?$/;
 
 /** What a typed query came to, for the page to put on the canvas or to complain about. */
 export interface Read {
@@ -74,16 +71,38 @@ function pill(text: string, negated: boolean): Leaf {
   for (const range of RANGES) {
     const tail =
       range.prefix === '' ? text : text.toLowerCase().startsWith(range.prefix) ? text.slice(range.prefix.length) : null;
-    const found = tail === null ? null : SPAN.exec(tail);
+    const [, low, dash, high] = (tail === null ? null : SPAN.exec(tail)) ?? [];
 
-    if (found) {
-      // Bounded on the way in, so a typed span is a pill the number boxes could have made. A digit run of 22 or more
-      // is a float `String` writes in exponential form, and `1e+21` went into the search box as the term it is not.
-      const from = bounded(Number(found[1]), range);
-      const to = found[2] === undefined ? from : bounded(Number(found[2]), range);
-
-      return { kind: 'range', id: range.id, from: Math.min(from, to), to: Math.max(from, to), negated };
+    // A match with neither bound is not a span: `cp` alone, and the `-` the dex range sees in any text holding one.
+    if (low === undefined && high === undefined) {
+      continue;
     }
+
+    /*
+     * Which ends the dash leaves open. One stays open rather than being filled from the range, which is what lets the
+     * writer put the same string back: a `cp3000-` read as `cp3000-5000` would come out spelled the other way. Without
+     * a dash there is no open end at all — a bare `{phrase}{N}` is the one value, which is both bounds at once.
+     *
+     * A nought on the right of the dash opens the top too, that being the one irregularity the phrase list records:
+     * "If `{M}` is 0, the search is treated as `{phrase}{N}-` instead". Read as the bound it looks like, `cp3000-0`
+     * came back as the *complementary* half of the range — the swap below saw 3000 above 0 and turned the span round
+     * into `cp0-3000` — so a reader pasting the game's own spelling got the Pokémon it does not match. `tree.js`
+     * refuses to write that string; this is the same rule on the half that reads one.
+     *
+     * Only where there is an `{N}` for the rule to leave behind. A bare `-0` has none, so it stays the `{phrase}-{N}`
+     * it looks like, which `tree.js` then writes as the single value nothing sits below.
+     */
+    const opened = dash !== undefined && (high === undefined || (low !== undefined && Number(high) === 0));
+
+    /*
+     * Bounded on the way in, so a typed span is a pill the number boxes could have made. A digit run of 22 or more is
+     * a float `String` writes in exponential form, and `1e+21` went into the search box as the term it is not.
+     */
+    const from = low === undefined ? null : bounded(Number(low), range);
+    const to = opened ? null : high === undefined ? from : bounded(Number(high), range);
+    const turned = from !== null && to !== null && from > to;
+
+    return { kind: 'range', id: range.id, from: turned ? to : from, to: turned ? from : to, negated };
   }
 
   return { kind: 'name', text, negated };
