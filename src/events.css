@@ -62,7 +62,7 @@ body[data-page='events'] {
    */
 
   .newly[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .newly .new-count {
@@ -235,7 +235,7 @@ body[data-page='events'] {
    */
 
   .filters[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .toggles,
@@ -298,7 +298,7 @@ body[data-page='events'] {
    */
 
   .chip[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .chip:hover {

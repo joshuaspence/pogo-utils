@@ -134,6 +134,69 @@ test('no stylesheet gives one class name to two kinds of element', () => {
 });
 
 /**
+ * The rules that hide an element by its `hidden` attribute, split by whether the declaration is `!important`.
+ *
+ * The selector is read from after the last `;` of the capture, because a nested rule can follow declarations of the
+ * wrapper it sits in: `pokedex.css` puts `[hidden] {…}` directly under the wrapper's own `--content-w`.
+ */
+function hiddenHides(css: string) {
+  const weak: string[] = [];
+  const strong: string[] = [];
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, ' ');
+
+  for (const [, before, body] of bare.matchAll(/([^{}]*\[hidden\][^{}]*)[{]([^{}]*)[}]/g)) {
+    const selector = (before ?? '').split(';').at(-1)?.replace(/\s+/g, ' ').trim();
+    const hides = /display\s*:\s*none\s*(!important)?/.exec(body ?? '');
+
+    if (selector !== undefined && selector !== '' && hides) {
+      (hides[1] === undefined ? weak : strong).push(selector);
+    }
+  }
+
+  return { weak, strong };
+}
+
+test('every rule that hides an element by its `hidden` attribute outranks the sheet around it', () => {
+  /*
+   * An author `display` beats the UA stylesheet's `[hidden] {display: none}`, so a sheet that lays an element out has
+   * to hide it back — and the rule doing that has to win against every other `display` the sheet gives the same
+   * element. Specificity is not enough to promise it: an attribute selector scores as a class, so `.pane[hidden]` ties
+   * `.pane.panel` and loses to it on order, which painted the whole Advanced pane under the Builder tab.
+   *
+   * `!important` is what makes the hide unconditional, and it is the one declaration in these sheets that wants to be:
+   * nothing on any page has a reason to lay out an element the markup has hidden.
+   */
+  const weak: string[] = [];
+  let found = 0;
+
+  for (const sheet of sources('.css')) {
+    const css = readFileSync(sheet, 'utf8');
+    const hides = hiddenHides(css);
+    const read = hides.weak.length + hides.strong.length;
+
+    found += read;
+    weak.push(...hides.weak.map((selector) => `${sheet.slice(ROOT.length + 1)} hides ${selector} without !important`));
+
+    /*
+     * Counted a second time by something that is not the body, because a declaration pattern gone stale would answer
+     * with nothing to check rather than an error, and every sheet would then look like it had no hiding rule at all.
+     */
+    const keyed = (css.replace(/\/\*[\s\S]*?\*\//g, ' ').match(/\[hidden\]\s*[{]/g) ?? []).length;
+
+    if (read !== keyed) {
+      throw new Error(`${sheet.slice(ROOT.length + 1)}: read ${read} hiding rule(s) out of ${keyed} keyed on [hidden]`);
+    }
+  }
+
+  // Named rather than counted, so a failure says which rule can be outranked and in which sheet.
+  expect(weak.sort()).toEqual([]);
+
+  // And that there were rules to check at all, rather than a walk that found no sheets. A floor rather than the count,
+  // the `read` against `keyed` above being what catches a pattern gone stale — this only has to refuse an empty run.
+  expect(found).toBeGreaterThan(0);
+});
+
+/**
  * The page names a sheet scopes itself to, out of its `body[data-page='…']` wrappers. Comments are stripped first, as
  * `selectedIds` does, because the wrapper is discussed in prose in most of these sheets.
  */
@@ -252,4 +315,25 @@ test('the check can tell a missing id from a present one', () => {
 
   // More than one in a list, and more than one in a selector.
   expect(selectedIds('#a .x, #b .y { color: red }')).toEqual(new Set(['a', 'b']));
+});
+
+test('the hiding check can tell an outranked rule from an unconditional one', () => {
+  // The same reason the other three have one: a body regex that matched nothing would report no weak rules however
+  // many there were.
+  expect(hiddenHides('.pane[hidden] { display: none }')).toEqual({ weak: ['.pane[hidden]'], strong: [] });
+  expect(hiddenHides('.pane[hidden] { display: none !important }')).toEqual({ weak: [], strong: ['.pane[hidden]'] });
+
+  // A rule nested under the wrapper's own declarations keeps its selector and nothing of theirs, which is the shape
+  // `pokedex.css` is in.
+  expect(hiddenHides("body[data-page='x'] { --w: 9px; [hidden] { display: none !important } }")).toEqual({
+    weak: [],
+    strong: ['[hidden]'],
+  });
+
+  // `hidden` is not the only attribute a sheet selects on, and a rule keyed on it that sets something else is not a
+  // hiding rule — neither is anything to report.
+  expect(hiddenHides('.tab[aria-selected] { display: flex } .chip[hidden] { opacity: 0 }')).toEqual({
+    weak: [],
+    strong: [],
+  });
 });

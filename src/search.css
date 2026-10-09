@@ -369,7 +369,7 @@ body[data-page='search'] {
    */
 
   .output .rewritten[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .output .rewrite {
@@ -450,10 +450,14 @@ body[data-page='search'] {
     gap: 14px;
   }
 
-  /* Paired with the `display: flex` above, which the UA stylesheet's `[hidden] {display: none}` would lose to. */
+  /**
+   * Paired with the `display: flex` above, which the UA stylesheet's `[hidden] {display: none}` would lose to.
+   * `!important` because the rule below ties this one's specificity — an attribute selector and a class score alike —
+   * and wins on order, which painted the whole Advanced pane, *Your query* and all, under the Builder tab.
+   */
 
   .pane[hidden] {
-    display: none;
+    display: none !important;
   }
 
   /**
