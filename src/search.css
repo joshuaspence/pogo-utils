@@ -99,10 +99,41 @@ body[data-page='search'] {
     background: var(--bg);
   }
 
+  /**
+   * The two rows a query is read on: the one it is typed into, down in the Advanced pane, and the clauses it comes to,
+   * up in the card. Laid out alike, and with the label and button widths below they line up down the page across the
+   * tab bar between them — they are the same search said the two ways, and the pairing is what the page does.
+   */
+
+  .import,
   .output .string {
     display: flex;
     align-items: stretch;
     gap: 10px;
+  }
+
+  /**
+   * Which of the two rows is which. A fixed column so the fields line up down the card — the labels are what tells two
+   * mono rows apart, and ragged ones would read as two unrelated boxes that happen to sit together.
+   *
+   * `9em` is against the 11px below rather than the column's 13px, a flex basis in `em` resolving against the
+   * element's own font size: 99px, against the 90.94px *For the game* wants set this way and the 79.05px *Your query*
+   * does. Wide enough for one line each is the whole of what the column is for — wrapped to two, a label stands taller
+   * than the field beside it and the pair stops reading as a pair, and an earlier basis short by 0.42px did exactly
+   * that. The margin left is deliberate: these are measured in one browser's metrics for a face named in a stack of
+   * five.
+   */
+
+  .side {
+    display: flex;
+    flex: 0 0 9em;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.25;
+    color: var(--muted);
   }
 
   /**
@@ -132,7 +163,52 @@ body[data-page='search'] {
     user-select: none;
   }
 
+  /**
+   * The box the query is typed into, set in the same mono face as the string below it at the same size: what a reader
+   * pastes in and what they copy out are the same kind of text, and a proportional face here would read as a name box.
+   */
+
+  #typed {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  #typed:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  #typed[aria-invalid='true'] {
+    border-color: var(--accent);
+  }
+
+  /**
+   * The two buttons are one geometry, the rows being a pair, and differ only in fill: *Use it* starts the page's job
+   * and *Copy* ends it, so the outline reads as the step before the filled one rather than as a lesser action. It is
+   * the same outline the Copy button takes when it has nothing to copy, for the reason given below it.
+   *
+   * The width is held rather than left to the labels, which is what makes the rows a pair down their right edge as
+   * well as their left: two fields a couple of pixels apart read as a near miss rather than as an alignment. `5.75em`
+   * is 74.75px at the 13px below, and it is the *enabled* widths that have to fit, this pair being what a reader looks
+   * at with a query in the box — `Use it` wants 73.41px at the 600 below and `Copy` 70.5px, where disabled at 500 they
+   * are 71.23px and 68.36px and a narrower hold would have looked right in that state alone.
+   *
+   * The Copy button still grows for its own transient labels, `Copied` at 82.06px and the clipboard fallback's
+   * `Press ⌘C` at 99.42px. Holding those would set the resting width a third wider than its word for a moment that
+   * lasts 1.4 seconds.
+   */
+
+  button.use,
   .output button.copy {
+    min-width: 5.75em;
     padding: 0 18px;
     border: 1px solid var(--accent);
     border-radius: 8px;
@@ -143,8 +219,26 @@ body[data-page='search'] {
     cursor: pointer;
   }
 
+  button.use {
+    background: transparent;
+    color: var(--accent);
+  }
+
+  button.use:hover:not(:disabled),
   .output button.copy:hover:not(:disabled) {
     filter: brightness(1.05);
+  }
+
+  button.use:disabled {
+    border-color: var(--border);
+    color: var(--muted);
+    font-weight: 500;
+    cursor: default;
+  }
+
+  button.use:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
   }
 
   /**
@@ -231,8 +325,8 @@ body[data-page='search'] {
     line-height: 1.5;
   }
 
-  .output .caveat code,
-  .output .broken code {
+  .caveat code,
+  .broken code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
 
@@ -242,7 +336,7 @@ body[data-page='search'] {
    * elsewhere on the site, against the amber the caveat uses for a reading it cannot settle.
    */
 
-  .output .broken {
+  .broken {
     margin: 0;
     padding: 8px 10px;
     border-left: 3px solid var(--accent);
@@ -284,6 +378,99 @@ body[data-page='search'] {
 
   .output .rewritten .lossy {
     flex: 1 0 100%;
+  }
+
+  /**
+   * The pane switch: a segmented pair rather than the underlined tabs `nav.css` draws across the top of every page.
+   * Those are destinations and these are two views of one query, so they are deliberately not the same control —
+   * underlined the same way, a reader would read *Builder* as a sixth page and expect Back to leave the Search page.
+   *
+   * It sits below the sticky card rather than inside it: the string is the page's answer whichever pane composed it,
+   * and a switch that scrolled away with the panes would still be the switch for the card above.
+   */
+
+  /**
+   * An outlined track with the open pane filled inside it, and no more than its two words wide — a switch between two
+   * things, not a banner across the page.
+   *
+   * The track takes no fill of its own: `--panel` on the pane below is what reads as raised, and both themes put the
+   * page itself at `--bg`, so a `--bg` track would be a declaration that paints nothing. The border is what says
+   * where the control ends.
+   *
+   * The accent is spent on the fill of *Copy* and the outline of *Use it*, which are the two things on this page that
+   * *do* something. A third accent fill here put the loudest mark on the page on a control that only changes what is
+   * on show, and it read as the action beside the two that are.
+   */
+
+  .panes {
+    display: flex;
+    align-self: start;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+
+  .pane-tab {
+    padding: 7px 22px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .pane-tab:hover:not([aria-selected='true']) {
+    color: var(--text);
+  }
+
+  .pane-tab[aria-selected='true'] {
+    background: var(--panel);
+    box-shadow: var(--shadow);
+    color: var(--accent);
+    cursor: default;
+  }
+
+  .pane-tab:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 1px;
+  }
+
+  /**
+   * A pane carries the column's own gap, the panels inside it having been direct children of `.builder` before there
+   * were panes to put them in. Without this they would stack flush against each other.
+   */
+
+  .pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Paired with the `display: flex` above, which the UA stylesheet's `[hidden] {display: none}` would lose to. */
+
+  .pane[hidden] {
+    display: none;
+  }
+
+  /**
+   * The Advanced pane is one card rather than a column of them, so it lays its own contents out the way every other
+   * panel does: in block flow, spaced by their margins. The 14px gap above is for cards and reached past them —
+   * `.help` added its own 10px on top of it for 24px where every other panel's help sits 10px under its content, and
+   * the refusal stood 14px off the box where the output card's identical one sits at that card's own 8px.
+   */
+
+  .pane.panel {
+    display: block;
+  }
+
+  /* The gap the output card gives its refusal through `gap`, said as a margin where there is none to give it. */
+
+  .pane.panel .broken {
+    margin-top: 8px;
   }
 
   .panel,
@@ -573,81 +760,6 @@ body[data-page='search'] {
   }
 
   /**
-   * The row a query is typed into, which fills the canvas below it rather than composing anything of its own. Laid out
-   * as one line so it reads as an instruction to the canvas and not as a second place a search could live.
-   */
-
-  .import {
-    display: flex;
-    gap: 8px;
-    align-items: stretch;
-  }
-
-  #typed {
-    flex: 1;
-    min-width: 0;
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg);
-    color: var(--text);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12.5px;
-  }
-
-  #typed:focus-visible {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  #typed[aria-invalid='true'] {
-    border-color: var(--accent);
-  }
-
-  .import button {
-    padding: 0 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted);
-    font: inherit;
-    font-size: 12px;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .import button:hover:not(:disabled) {
-    border-color: var(--track);
-    color: var(--track);
-  }
-
-  .import button:disabled {
-    cursor: default;
-    opacity: 0.5;
-  }
-
-  .import button:focus-visible {
-    outline: 2px solid var(--track);
-    outline-offset: 1px;
-  }
-
-  /* The refusal sits where the output box's does, so a reader meets the same shape wherever a string is turned away. */
-
-  .canvas .broken {
-    margin: 0;
-    padding: 8px 10px;
-    border-left: 3px solid var(--accent);
-    border-radius: 4px;
-    background: var(--accent-soft);
-    font-size: 11.5px;
-    line-height: 1.5;
-  }
-
-  .canvas .broken code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-
-  /**
    * One group. Nested groups are the same element at every depth, so the indent comes from the nesting itself rather
    * than from a rule per level — which is the only way a tree of unknown depth can be drawn at all.
    *
@@ -915,10 +1027,29 @@ body[data-page='search'] {
       padding-inline: 22px;
     }
 
+    .import,
     .output .string {
       flex-direction: column;
+      gap: 6px;
     }
 
+    /* Stacked, the label is a heading over its field rather than a column beside it, so it stops reserving one. */
+
+    .side {
+      flex-basis: auto;
+    }
+
+    /* Across the column rather than shrunk to two words, which is the wider tap target where taps are what it gets. */
+
+    .panes {
+      align-self: stretch;
+    }
+
+    .pane-tab {
+      flex: 1;
+    }
+
+    button.use,
     .output button.copy {
       padding: 9px 18px;
     }
