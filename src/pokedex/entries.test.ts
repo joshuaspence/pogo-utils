@@ -153,7 +153,7 @@ test('a form of a regional variant is named by both, so it is not read as a form
   // not assignable to parameter of type 'string'` on that line, because `''` leaves the form nullable in the branch
   // that names it.
   expect(entry('Articuno').variants.map(({ name }) => name)).toEqual(['Galarian Articuno']);
-  expect(entry('Flabébé').variants[0]?.name).toBe('Flabébé (Orange Flower)');
+  expect(entry('Flabébé').variants[0]?.name).toBe('Flabébé (Red Flower)');
 });
 
 test('the searchable name is folded from what the page shows rather than from the constant', () => {

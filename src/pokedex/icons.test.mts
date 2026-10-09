@@ -94,7 +94,6 @@ test('`build:sprites` names every species whose icon the dex number cannot deriv
     550: 'pm550.fRED_STRIPED.icon.png',
     555: 'pm555.fSTANDARD.icon.png',
     666: 'pm666.fICY_SNOW.icon.png',
-    669: 'pm669.fORANGE.icon.png',
     681: 'pm681.fSHIELD.icon.png',
     745: 'pm745.fMIDDAY.icon.png',
     778: 'pm778.fDISGUISED.icon.png',
@@ -108,6 +107,20 @@ test('`build:sprites` names every species whose icon the dex number cannot deriv
 
   // Spinda is the one species the declared form cannot name, its patterns being numbered, so it does take the first.
   expect(icons).toHaveProperty('327', 'pm327.f00.icon.png');
+
+  /*
+   * The four species that declare their forms across more than one `addForms` call, which is where the game's order
+   * and a reading of the declaration can come apart: a second call exists to scope a trailing `isRegional()` and says
+   * nothing about display order, so the leading group has to be the one the game shows. These are the cases that make
+   * that a property of `pokedex.ts` rather than an accident of it, and pinning the wrong form here is what held the
+   * bug in place last round.
+   */
+  expect(icons).toMatchObject({
+    669: 'pm669.fRED.icon.png',
+    670: 'pm670.fRED.icon.png',
+    671: 'pm671.fRED.icon.png',
+    931: 'pm931.fGREEN.icon.png',
+  });
 
   // And the ordinary case is absent, so the derivation above is what those cards actually use.
   expect(Object.keys(icons)).not.toContain('25');

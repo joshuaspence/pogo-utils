@@ -29,9 +29,14 @@ for (const form of data.forms) {
 }
 
 /**
- * The form `pokedex.ts` declares first for a species, by dex number. `addForms` lists a species' forms in the game's
- * own order, so the first is the one the game shows for the species itself — Shellos's west sea, Aegislash's shield,
+ * The form `pokedex.ts` declares first for a species, by dex number — Shellos's west sea, Aegislash's shield,
  * Mimikyu's disguise.
+ *
+ * It is the game's own because that table is written that way, not because the builders enforce it. `addForms`
+ * *replaces* the cursor a trailing modifier lands on, so a species declaring its forms across two calls is scoping an
+ * `isRegional()` to a subset and saying nothing about display order — Flabébé and Squawkabilly both led with the group
+ * the game does not show until this was corrected, and `icons.test.mts` pins all four of those species for that
+ * reason.
  *
  * Read as text rather than imported: that module reaches its `Pokemon` class through `'./pokemon.js'`, which Node
  * resolves literally when it strips types to run this, so importing it is an `ERR_MODULE_NOT_FOUND` whatever the
@@ -39,22 +44,29 @@ for (const form of data.forms) {
  * (`withRegion(GALAR)`), so the first quoted argument after a `new Pokemon(…)` is that species' first form and never
  * its region.
  */
-function readSpecies(): { first: ReadonlyMap<number, string>; last: number } {
+function readSpecies(): { first: ReadonlyMap<number, string>; last: number; split: number[] } {
   const source = readFileSync(SPECIES, 'utf8');
   const first = new Map<number, string>();
   const dexes: number[] = [];
+  const split: number[] = [];
 
   // Split on the constructor so each chunk holds one species, then take the first quoted argument in it.
   const chunks = source.split(/new Pokemon\((\d+)\)/).slice(1);
 
   for (let at = 0; at + 1 < chunks.length; at += 2) {
     const dex = Number(chunks[at]);
-    const form = /'([A-Z0-9_]+)'/.exec(chunks[at + 1] ?? '')?.[1];
+    const body = chunks[at + 1] ?? '';
+    const form = /'([A-Z0-9_]+)'/.exec(body)?.[1];
 
     dexes.push(dex);
 
     if (form !== undefined) {
       first.set(dex, form);
+    }
+
+    // Where the leading group is load-bearing rather than incidental, which is what the report at the end names.
+    if ((body.match(/addForms?\(/g) ?? []).length > 1) {
+      split.push(dex);
     }
   }
 
@@ -76,10 +88,10 @@ function readSpecies(): { first: ReadonlyMap<number, string>; last: number } {
     );
   }
 
-  return { first, last: Math.max(...dexes) };
+  return { first, last: Math.max(...dexes), split };
 }
 
-const { first: declared, last } = readSpecies();
+const { first: declared, last, split } = readSpecies();
 
 /** How often the pick below had to fall back, which only Spinda should reach. */
 const guessed: number[] = [];
@@ -164,4 +176,14 @@ console.error(
 // tally nobody reads. Spinda is the standing one: its patterns are numbered where `pokedex.ts` names them.
 if (guessed.length > 0) {
   console.error(`${POKEMON_ICONS}: no declared form matched for ${guessed.join(', ')}, so the first was taken`);
+}
+
+/*
+ * The species whose leading `addForms` group is doing work the builders do not check. A second call scopes a trailing
+ * modifier and carries no claim to display order, so for these the order in that file is the only thing saying which
+ * form stands for the species — printed so that adding one is a line in the build log rather than a silent wrong
+ * picture. Flabébé, Floette, Florges and Squawkabilly each led with the wrong group once.
+ */
+if (split.length > 0) {
+  console.error(`${POKEMON_ICONS}: ${split.length} species split their forms over several calls — ${split.join(', ')}`);
 }
