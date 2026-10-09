@@ -5,12 +5,16 @@
  * `help` in `terms.js` is prose this repository authors, and `terms.test.js` holds it to balanced ticks; a refusal from
  * `parse.js` quotes a token the reader typed, which no table can hold. So this is the other half of that invariant,
  * taken from the side the page does not get to author.
+ *
+ * A span pill's boxes are the other thing here, and the one with a reader at the far end of it: what a box shows and
+ * what the tree takes from it are two answers rather than one, which `boxText` carries and the keystrokes below walk.
  */
 
 import { expect, test } from 'vitest';
 
 import { read } from '../search/parse.js';
-import { spans } from './search.js';
+import { RANGES, type Range } from '../search/terms.js';
+import { boxText, readBound, spans } from './search.js';
 
 /**
  * Both halves of what `spans` promises, for any message at all: an odd number of pieces, so the last one is prose and
@@ -24,6 +28,77 @@ const faithful = (message: string) => ({
 });
 
 const kept = (message: string) => ({ message, prose: true, joined: message });
+
+/** One range from the table, so a test pins the floor and ceiling its literals were derived from. */
+function range(id: string) {
+  const found = RANGES.find((entry) => entry.id === id);
+
+  if (!found) {
+    throw new Error(`\`terms.js\` carries no ${id} range`);
+  }
+
+  return found;
+}
+
+/**
+ * A number typed into one of a span pill's boxes, a digit at a time: what the box shows while the caret is in it, what
+ * the tree took from the last keystroke, and what the box shows once the caret has left.
+ *
+ * Each digit lands at the end of whatever the box is showing, which is where a controlled box just rewritten puts the
+ * caret. What this cannot hold is that the page hands the digits in only for the box the caret is in — the render is
+ * what does that, and a browser is where it was checked.
+ */
+function typing(digits: string, which: Range) {
+  const path = [0];
+  let text = '';
+  let bound: number | null = null;
+
+  for (const digit of digits) {
+    text = boxText({ path, edge: 'from', text }, path, 'from', bound) + digit;
+    bound = readBound(text, which);
+  }
+
+  return {
+    shown: boxText({ path, edge: 'from', text }, path, 'from', bound),
+    bound,
+    left: boxText(null, path, 'from', bound),
+  };
+}
+
+test('a box takes the digits of a bound its own floor is wider than', () => {
+  const year = range('year');
+  const cp = range('cp');
+
+  expect([year.min, year.max]).toEqual([2016, 2030]);
+  expect([cp.min ?? 0, cp.max]).toEqual([0, 5000]);
+
+  /*
+   * Every prefix of a year is below the floor, which is what a box showing its own clamp could not survive: `2`
+   * clamped up to 2016, the clamp landed in the box with the caret behind it, `20160` clamped down to the ceiling,
+   * and every further digit stayed there. 2016 and 2030 were the only two years the boxes could reach.
+   */
+  expect(typing('2019', year)).toEqual({ shown: '2019', bound: 2019, left: '2019' });
+
+  // The clamp is still what the tree takes, and what the box shows as soon as the caret leaves it.
+  expect(typing('20', year)).toEqual({ shown: '20', bound: 2016, left: '2016' });
+
+  // The ceiling never had the same trouble: no prefix of a number inside a range is above it, only the number itself.
+  expect(typing('600', cp)).toEqual({ shown: '600', bound: 600, left: '600' });
+  expect(typing('6000', cp)).toEqual({ shown: '6000', bound: 5000, left: '5000' });
+});
+
+test('the digits stay in the box they were typed into', () => {
+  const typed = { path: [0], edge: 'from', text: '20' } as const;
+
+  expect(boxText(typed, [0], 'from', 2019)).toBe('20');
+
+  // The pill beside it and this pill's other end are both boxes the caret is not in, so both show the bound.
+  expect(boxText(typed, [1], 'from', 2019)).toBe('2019');
+  expect(boxText(typed, [0], 'to', 2019)).toBe('2019');
+
+  // A bound the reader has not filled in is an empty box rather than the floor, which the placeholder says instead.
+  expect(boxText(null, [0], 'from', null)).toBe('');
+});
 
 test('a sentence is split on its backtick pairs', () => {
   expect(spans('the game has no `gen1`')).toEqual(['the game has no ', 'gen1', '']);
