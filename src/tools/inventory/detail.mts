@@ -2,8 +2,9 @@
  * The detail screen's own text, scrolled to the top. Every field is located by what sits beside it rather than by a
  * coordinate, which is what holds across phones of different resolutions.
  *
- * `parseDetail` fills one `Detail` from these text readers and `badges.mts`'s pixel readers. `wholeCp` re-reads the CP
- * band under three treatments, the CP being white text over artwork as PGSharp's digits are.
+ * `parseDetail` fills one `Detail` from these text readers and `badges.mts`'s pixel readers. The CP band is re-read
+ * under three treatments by `wholeCp` where a label line anchors it and by `cpsIn` where none was found, the CP being
+ * white text over artwork as PGSharp's digits are.
  */
 
 import { closest, cpOf, type GameData } from './game-master.mts';
@@ -15,9 +16,9 @@ export interface Detail {
   /** What OCR made of the CP, which is white over the artwork and read on about half the captures. */
   cp: number | null;
   /**
-   * What the CP region reads where no line carrying the label was recognised at all. Not to be trusted — right 14
-   * times and wrong twice over the captures that reach it — so never `cp`. It is for narrowing a choice of forms, and
-   * only where the arithmetic reproduces one exactly, a test both wrong reads fail.
+   * What the CP region reads where no line carrying the label was recognised at all. Not to be trusted, so never `cp`:
+   * it is for narrowing a choice of forms, and only where the arithmetic reproduces one exactly. `cpsIn` is where the
+   * figures for it live.
    */
   cps: number[];
   name: string | null;
@@ -149,9 +150,11 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
  * captures are the reason: each states a CP that separates its form from the others sharing its stamina, and each
  * reads nothing the pattern accepts.
  *
- * Unanchored and so unreliable — right 14 times, wrong twice and silent 4 over the 20 captures that reach it — which
- * is why these are candidates rather than an answer. A candidate is kept only where the arithmetic reproduces it, and
- * `19464` is no CP an Articuno can show.
+ * Unanchored and so unreliable, which is why these are candidates rather than an answer: a candidate is kept only
+ * where the arithmetic reproduces it, so a number no form can show narrows nothing. Over the 20 captures that reach it,
+ * 15 carry the CP their screen prints — two of them beside a stray — one carries only a wrong `169` for 1679, and four
+ * read nothing. The one place those figures live, the callers pointing here; `screens.test.mts` pins them capture by
+ * capture, so they fail there rather than going stale.
  */
 async function cpsIn(image: Image): Promise<number[]> {
   const band = crop(
@@ -161,9 +164,13 @@ async function cpsIn(image: Image): Promise<number[]> {
     image.width * CP_SWEEP.width,
     image.height * CP_SWEEP.height,
   );
-  const text = (await ocrLine(scale(band, 2), CP_ALPHABET)) ?? '';
+  // Every treatment, since plain alone misses what the others read: `castform-rainy.png` answers `C 2` plain and
+  // `P832` near-white, `castform-sunny.png` `P99` plain and `P979` brightened.
+  const texts = await Promise.all(
+    CP_TREATMENTS.map(async (treat) => (await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? ''),
+  );
 
-  return [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits));
+  return [...new Set(texts.flatMap((text) => [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits))))];
 }
 
 /**
@@ -403,12 +410,19 @@ const CP_PADS = [0.35, 0.6];
  * risk of trying each is `wholeCp`'s acceptance rule — which turns down a *different* number, not a longer wrong one:
  * `unown-question.png`'s `4864` is exactly that, and is taken.
  *
+ * Both the order and that rule are `wholeCp`'s. `cpsIn` is the other caller and has neither: it runs all three and
+ * unions what they read, so what bounds a wrong number there is `identify` refusing a candidate the arithmetic cannot
+ * reproduce. A treatment added or reordered answers to both.
+ *
  * Brightness is here for `growlithe-nickname.png`, which neither of the others reaches: at pad 0.35 its band reads `38`
  * plain and near-white and `738` brightened. Going last decides nothing the corpus can show, the loop returning on the
  * first acceptance so that a second is never read, and it is no protection for a line already read right — a pass
  * reading that number back is the same length, so the rule turns it down and the loop carries on. It costs 26 of the
  * corpus's 81 passes, and what bounds its noise is the four-digit cap, which `wholeCp` now applies before any band is
  * read rather than after three.
+ *
+ * None of that reaches `cpsIn`, which has no guard to skip a band and no acceptance to return on: it reads all three
+ * on every capture it sweeps, 60 passes over the 20 where reading the band plain cost 20.
  */
 const CP_TREATMENTS = [
   (band: Image) => band,

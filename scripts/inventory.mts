@@ -651,11 +651,12 @@ async function scan() {
    * A note `identify` raised is worth another look as well, and it is the only one of them that says the screen read
    * *whole* and wrongly: a CP the settled form and level do not derive, a level shortlist no HP can be, a form the
    * overlay names that no species has. What says a second read of the same Pokémon is worth taking is the corpus having
-   * been retaken — which captures misread their CP changed with it, three before the retake and two after it, so a
-   * misread is a property of the capture as much as of the reader. `screens.test.mts` pins which three of its 43
-   * captures raise a note, and that every one of the three is a row carrying a `defects`.
+   * been retaken — which captures misread their CP changed with it, three before the retake and two after it, and one
+   * fewer now that the sweep runs every treatment, so a misread is a property of the capture as much as of the reader.
+   * `screens.test.mts` pins which two of its 43 captures raise a note, and that both of the two are rows carrying a
+   * `defects`.
    *
-   * Which is three of the five defects that file pins, and not the other two: those are the readers that answer
+   * Which is two of the four defects that file pins, and not the other two: those are the readers that answer
    * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, and an
    * artwork match that declined Cherrim's Overcast. Nothing here can be the check for those; only a second reader of
    * the same thing could be.
@@ -663,10 +664,10 @@ async function scan() {
    * `could also be …` is counted with the rest, but only on a reading that has IVs: with none the search narrows on
    * types alone and 21 of the game master's 1,024 species answer it for ever, so counting those would read every
    * Deoxys, Dialga and Lycanroc three times on every pass for an answer no further look can change. Where there are
-   * IVs it costs one capture of the 43, and that one is a defect rather than an ambiguity: `castform-rainy.png` is
-   * answered as **Inteleon**, deriving CP 1512 for the 832 on its screen — the one wrong label in the corpus that names
-   * a different species, its nickname having sent the search across every species, and that note is the only one it
-   * raises. Leaving the note out would leave that out with it.
+   * IVs it now costs no capture of the 43 — `castform-rainy.png` was the one, answered as **Inteleon** until the CP
+   * sweep read the 832 that settles it — so the cost is unmeasured rather than measured at nothing. It is kept because
+   * the case it was argued on is the case it is for: a nickname sends the search across every species, and a Pokémon
+   * the numbers cannot then separate is exactly the one worth looking at twice.
    *
    * What the stricter test costs if the last attempt is the one taken is a row rather than a note, which is why the
    * reading kept is `bestOf`'s and not this loop's: a reading accepted before is now read again, a second look can come

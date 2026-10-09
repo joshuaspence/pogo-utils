@@ -292,11 +292,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 832,
-    defects: {
-      alternatives: ['Quaxwell', 'Finizen', 'Castform (Rainy)', 'Basculin (Red Striped)'],
-      cp: 1512,
-      label: 'Inteleon',
-    },
     file: 'castform-rainy.png',
     form: 'Rainy',
     gender: 'male',
@@ -1227,13 +1222,13 @@ test('every stitch carries a `Viewport` smaller than itself, and no screen carri
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 40,
+  answeredAsThemselves: 41,
   oneLevel: 43,
-  crossCheckAgrees: 42,
-  crossCheckDisagrees: 1,
+  crossCheckAgrees: 43,
+  crossCheckDisagrees: 0,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 38,
+  noDefects: 39,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1272,7 +1267,7 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Three of the 43, against five rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * Two of the 43, against four rows carrying a `defects` — so the trigger costs an extra read on a defect and on
  * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
  * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
  * raising a note without earning one fails there.
@@ -1283,13 +1278,13 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
  * scan cannot either; only a second reader of the same thing could.
  */
-test('the defects a scan can find for itself are the three captures that raise a note', () => {
+test('the defects a scan can find for itself are the two captures that raise a note', () => {
   // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
   // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
   expect(
     FIXTURES.filter((f) => notesOf(f).length > 0).length,
     'how many captures `identify` raises a note on has changed',
-  ).toBe(3);
+  ).toBe(2);
 
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
@@ -1375,6 +1370,130 @@ test(
       FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
       'which captures misread their CP has changed',
     ).toStrictEqual(['unown-question.png']);
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
+ * The other half of that: which captures the CP region is *swept* for, and every number a sweep offers. The two maps
+ * partition the corpus, `cps` being read on exactly the captures `cp` is null on, and only this one says what the
+ * generosity costs — one capture pinned a `cps` before this, so a band that started offering five numbers where it
+ * offered one changed nothing a test could see.
+ *
+ * The whole map, empties included, the four that read nothing being as much a measurement as the fifteen that read
+ * right. The strays are **derived** from it for the reason the misreads above are, and what one costs is nothing only
+ * while the arithmetic cannot reproduce it — `identify` says where that floor is, and this is what would move it.
+ */
+test(
+  'which captures the CP region is swept for, and what each sweep offers',
+  async () => {
+    const swept = new Map<string, readonly number[]>();
+
+    for (const fixture of FIXTURES) {
+      const { detail } = await readingOf(fixture.file);
+
+      if (detail.cp === null) {
+        swept.set(fixture.file, detail.cps);
+      }
+    }
+
+    expect(Object.fromEntries(swept), 'which captures are swept, or what a sweep offers, has changed').toStrictEqual({
+      'applin.png': [286],
+      'articuno-kanto.png': [1705],
+      'burmy-trash.png': [],
+      'castform-normal.png': [],
+      'castform-rainy.png': [832],
+      'castform-snowy.png': [],
+      'castform-sunny.png': [979],
+      'chansey-dynamax.png': [693],
+      'cherrim-sunny.png': [1658],
+      'deoxys-defense.png': [1569],
+      'deoxys-normal.png': [1772, 172],
+      'eevee-background.png': [451],
+      'ho-oh.png': [2738, 238],
+      'meloetta-aria.png': [169],
+      'meowth-galar.png': [571],
+      'meowth-kanto.png': [423],
+      'pikachu-santa-hat.png': [],
+      'snorlax-purified.png': [2304],
+      'spinda-04.png': [511],
+      'unown-m.png': [839],
+    });
+
+    // And the figures `cpsIn`'s docblock quotes, derived from the map rather than transcribed under it, so a sweep that
+    // changed what it offered cannot leave that prose standing. `stray` is every number offered that the capture's own
+    // row does not state.
+    const offered = [...swept].map(([file, cps]) => ({ cps, cp: FIXTURES.find((f) => f.file === file)?.cp }));
+
+    expect(
+      {
+        swept: offered.length,
+        carryTheirOwn: offered.filter(({ cps, cp }) => cp !== undefined && cps.includes(cp)).length,
+        silent: offered.filter(({ cps }) => cps.length === 0).length,
+        stray: [...swept]
+          .map(([file, cps]) => cps.filter((n) => n !== FIXTURES.find((f) => f.file === file)?.cp))
+          .flat()
+          .toSorted((a, b) => a - b),
+      },
+      "`cpsIn`'s docblock quotes these figures; update both or neither",
+    ).toStrictEqual({ swept: 20, carryTheirOwn: 15, silent: 4, stray: [169, 172, 238] });
+  },
+  WHOLE_CORPUS_TIMEOUT,
+);
+
+/**
+ * What a sweep number would have to be worth to be *taken*, which is the margin `identify`'s comment on `printed`
+ * quotes and the one figure in that paragraph nothing else holds: the map above pins what the sweep offers, not what
+ * `identify` does with it, and the figure has been wrong twice for being derived rather than driven.
+ *
+ * So it is driven. One number is forged into `cps` and the answer compared against the one the capture gives as it
+ * stands, outwards from the CP on its screen until something is answered **differently and silently** — a form or a
+ * level that is not the right one, with no alternatives and no notes. Silence is the hazard rather than wrongness:
+ * `detail.cp` is null on exactly these captures, so the disagreement note cannot fire, and a number the arithmetic
+ * merely agreed with is reported by nothing at all.
+ *
+ * Nothing nearer than an arithmetic reach of `CP_SWEEP`'s own band is interesting, so the search stops at 190, which
+ * is where the last of the three sits. Measuring it is what makes the comment's claim falsifiable rather than a
+ * reassurance, and what would catch a later change widening the generosity.
+ */
+test(
+  'the nearest band reading answered with a wrong form and no note is 73 CP away',
+  async () => {
+    const REACH = 190;
+    const shape = (identity: { form: Form | null; levels: readonly number[] }) =>
+      `${identity.form ? label(identity.form) : 'none'} at ${identity.levels.join(' or ')}`;
+    const floors = new Map<string, string>();
+
+    for (const fixture of FIXTURES) {
+      const { detail, overlay, artwork } = await readingOf(fixture.file);
+
+      if (detail.cp !== null) {
+        // The anchored read is what those captures answer on; only a swept one takes a candidate on trust.
+        continue;
+      }
+
+      const right = shape(identify(DATA, detail, overlay, artwork));
+
+      for (let away = 1; away <= REACH && !floors.has(fixture.file); away++) {
+        for (const offset of [-away, away]) {
+          const taken = identify(DATA, { ...detail, cps: [fixture.cp + offset] }, overlay, artwork);
+
+          if (taken.alternatives.length === 0 && taken.notes.length === 0 && shape(taken) !== right) {
+            floors.set(fixture.file, `${away} away, answered as ${shape(taken)}`);
+            break;
+          }
+        }
+      }
+    }
+
+    expect(
+      Object.fromEntries(floors),
+      "`identify`'s comment on `printed` quotes this floor; update both or neither",
+    ).toStrictEqual({
+      'castform-rainy.png': '73 away, answered as Quaxwell at 18',
+      'deoxys-normal.png': '161 away, answered as Deoxys (Speed) at 20',
+      'deoxys-defense.png': '190 away, answered as Deoxys (Attack) at 25',
+    });
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -2075,10 +2194,22 @@ test('the corpus reaches both sides of every attribute', () => {
     'a capture needs `defects.size` again, so `sizeOf` has started misreading a badge',
   ).toStrictEqual([]);
 
-  // And the triple and the level it carries, the fourth and fifth: `readOverlay` now reads a triple on every capture
+  // And the two the CP cross-check used to need, the fourth and fifth, now that it agrees with the screen on all 43.
+  // What still exercises its note is the other direction, a CP *read* off a screen disagreeing with the derived one,
+  // which `unown-question.png` does.
+  expect(
+    FIXTURES.filter((f) => f.defects && 'cp' in f.defects).map((f) => f.file),
+    'a capture needs `defects.cp` again, so the cross-check has started disagreeing with a screen',
+  ).toStrictEqual([]);
+  expect(
+    FIXTURES.filter((f) => f.defects && 'alternatives' in f.defects).map((f) => f.file),
+    'a capture needs `defects.alternatives` again, so `identify` has started leaving a form unseparated',
+  ).toStrictEqual([]);
+
+  // And the triple and the level it carries, the sixth and seventh: `readOverlay` now reads a triple on every capture
   // that has one — the last on the line rather than the first got `rotom-wash.png`, and assembling the fields across
   // the passes got `articuno-galar.png`. `COVERAGE.overlayNotRead` already counts the first of these, so what the pair
-  // adds is the reader named in the failure, as for the three above.
+  // adds is the reader named in the failure, as for the five above.
   expect(
     FIXTURES.filter((f) => f.defects && 'iv' in f.defects).map((f) => f.file),
     'a capture needs `defects.iv` again, so `readOverlay` has started misreading a triple',
@@ -2104,7 +2235,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['alternatives', 'cp', 'label', 'notes']);
+  ).toStrictEqual(['label', 'notes']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
