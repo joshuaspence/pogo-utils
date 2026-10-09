@@ -100,7 +100,7 @@ body[data-page='search'] {
   }
 
   /**
-   * The two rows a query is read on: the one it is typed into, down in the Brackets pane, and the clauses it comes to,
+   * The two rows a query is read on: the one it is typed into, down in the Advanced pane, and the clauses it comes to,
    * up in the card. Laid out alike, and with the label and button widths below they line up down the page across the
    * tab bar between them — they are the same search said the two ways, and the pairing is what the page does.
    */
@@ -454,6 +454,23 @@ body[data-page='search'] {
 
   .pane[hidden] {
     display: none;
+  }
+
+  /**
+   * The Advanced pane is one card rather than a column of them, so it lays its own contents out the way every other
+   * panel does: in block flow, spaced by their margins. The 14px gap above is for cards and reached past them —
+   * `.help` added its own 10px on top of it for 24px where every other panel's help sits 10px under its content, and
+   * the refusal stood 14px off the box where the output card's identical one sits at that card's own 8px.
+   */
+
+  .pane.panel {
+    display: block;
+  }
+
+  /* The gap the output card gives its refusal through `gap`, said as a margin where there is none to give it. */
+
+  .pane.panel .broken {
+    margin-top: 8px;
   }
 
   .panel,

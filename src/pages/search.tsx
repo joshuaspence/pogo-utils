@@ -246,6 +246,16 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const [typedError, setTypedError] = useState<string | null>(null);
 
   /**
+   * The text the arrangement was last built from, which is what *Use it* is disabled over.
+   *
+   * Pressing it replaces the arrangement, and the text staying in the box means it can be pressed a second time with
+   * the canvas since edited — which would rebuild the typed query over that work, silently, from a pane where the
+   * canvas is not even on screen. Holding the text that was used closes it: the button says *this query is already
+   * applied* until the reader changes the query, which is the press they kept the text for.
+   */
+  const [used, setUsed] = useState<string | null>(null);
+
+  /**
    * Which pane is open. Not in the link and not stored: the arrangement is what a link carries, and it draws in either
    * pane, so the pane is how *this* reader is working rather than anything about the query. Builder to begin with,
    * being the one that needs no syntax known in advance.
@@ -276,6 +286,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
+    setUsed(null);
     closeSuggestions();
   }, [fragment]);
 
@@ -403,6 +414,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
+    setUsed(null);
     closeSuggestions();
   }
 
@@ -432,18 +444,46 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }, [copyLabel]);
 
   /**
+   * The arrow keys a tablist promises: left and right step between the tabs, wrapping, and the tab stepped onto is
+   * both focused and opened. `Home` and `End` are left out — with two tabs they would be the arrows under other
+   * names.
+   *
+   * Focus is moved by hand because the tabs are not a roving `tabindex`: pressing an arrow has to land on the other
+   * button for the next press to come back, and selecting without moving focus would leave the reader arrowing from
+   * the tab they are no longer on.
+   */
+  function onPaneKeyDown(event: KeyboardEvent) {
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+
+    if (step === 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const at = PANES.findIndex((one) => one.id === pane);
+    const next = PANES[(at + step + PANES.length) % PANES.length];
+
+    if (next) {
+      setPane(next.id);
+      document.getElementById(`pane-${next.id}`)?.focus();
+    }
+  }
+
+  /**
    * A typed query put on the canvas, replacing whatever was there. Replacing rather than merging, because a reader who
-   * has pasted a whole search means that search — and the arrangement they are replacing is one press of the browser's
-   * own back button away, the link having carried it.
+   * has written a whole search means that search — and it is destructive, which is what `used` above is for: the
+   * arrangement it overwrites is gone, there being nothing to restore it from. `replaceQuery` is `replaceState`
+   * (`router.js`), so the link in the address bar is the new arrangement and the browser's Back button leaves the page
+   * rather than stepping back through arrangements.
    *
    * The text stays in the box afterwards, being what the reader typed: the query to correct a bracket in and press
    * again, and the only record of what was asked for once the canvas is showing the clauses it came to rather than the
    * brackets it was written with. Nothing but this function reads the box, so the two of them holding a query is no
-   * state to keep in step — the arrangement is still the page's only state, and pressing *Use it* twice replaces the
-   * tree with the same tree.
+   * state the page has to keep in step — the arrangement is still its only state.
    *
-   * A failure leaves the text and the arrangement alone, there being nothing to put and no reason to take anything
-   * away.
+   * A failure leaves the text and the arrangement alone, and leaves `used` alone with them, there being nothing to put
+   * and no reason to take anything away.
    */
   function importTyped() {
     const { tree, error } = read(typed);
@@ -457,6 +497,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setState((was) => ({ ...was, tree }));
     setFocus([]);
     setHeld(null);
+    setUsed(typed);
 
     // The digits in a span box belong to the pill the caret was in, which the replacement has just taken away.
     setTypedBound(null);
@@ -771,9 +812,12 @@ export default function SearchPage({ query: fragment }: { query: string }) {
          * The two ways to write the query. Ordinary buttons rather than links, the choice being a view of one state and
          * not a place: a link would put the pane in history beside the arrangements, so Back would step through panes.
          *
-         * Both tabs stay in the tab order rather than taking a roving `tabindex`. The arrow keys a tablist usually
-         * carries are what *makes* a roving one reachable, so the pair is two features or neither, and with two tabs
-         * the Tab key alone costs a reader nothing.
+         * `role="tablist"` is announced as a tablist — *Builder, tab, selected, 1 of 2* — and that announcement is a
+         * promise about the arrow keys whatever the `tabindex` says, which is why `onPaneKeyDown` is here. Selection
+         * follows focus, the panes being a show-and-hide rather than anything to fetch.
+         *
+         * Both tabs keep their place in the tab order rather than taking a roving `tabindex`. With two of them it costs
+         * a reader nothing to Tab past one, and it leaves the arrows as a second way across rather than the only one.
          */}
         <div class="panes" role="tablist" aria-label="How to write the query">
           {PANES.map(({ id, label, said }) => (
@@ -787,6 +831,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               aria-selected={pane === id}
               aria-controls={`panel-${id}`}
               onClick={() => setPane(id)}
+              onKeyDown={onPaneKeyDown}
             >
               {label}
             </button>
@@ -1026,7 +1071,12 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 setTypedError(null);
               }}
             />
-            <button type="submit" class="use" disabled={typed.trim() === ''}>
+            {/*
+             * Disabled over the text the arrangement was built from, which also closes the Enter that would submit the
+             * form: a browser's implicit submission goes through the default button and does nothing where that button
+             * is disabled, so the one guard covers both ways of pressing it.
+             */}
+            <button type="submit" class="use" disabled={typed.trim() === '' || typed === used}>
               Use it
             </button>
           </form>
@@ -1038,9 +1088,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           <p class="help" id="importHelp">
             <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are{' '}
             <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
-            <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> is the shiny Pikachu and the XXL Pumpkaboo. The game
-            takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above writes it
-            back as clauses the game does take.
+            <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
+            The game takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above
+            writes it back as clauses the game does take.
           </p>
         </div>
       </main>
