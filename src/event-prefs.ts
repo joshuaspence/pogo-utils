@@ -27,8 +27,24 @@ export interface Prefs {
  * One key per set rather than one object, so each carries its own absent-versus-empty distinction and writing one
  * cannot settle another. `hiddenByView` is the exception: there the distinction is per view and survives inside the
  * object, a view with no slot never having been filtered on its own.
+ *
+ * The `pogo-utils:` prefix is the Pages path segment, since `localStorage` is keyed by origin and
+ * `joshuaspence.github.io` serves every repository published there — an unqualified name is not this app's to claim.
  */
 export const KEYS = {
+  hiddenTypes: 'pogo-utils:events:hidden-types',
+  hiddenByView: 'pogo-utils:events:hidden-by-view',
+  filterScope: 'pogo-utils:events:filter-scope',
+  dismissed: 'pogo-utils:events:dismissed',
+  seen: 'pogo-utils:events:seen',
+};
+
+/**
+ * The unqualified names these five carried before the prefix, which is what a reader who visited between the
+ * one-object split and the rename still holds. Spelled out rather than derived by stripping the prefix: what a key
+ * used to be called is a fact about the past, and renaming the prefix again must not silently restate it.
+ */
+const UNPREFIXED_KEYS: Record<keyof typeof KEYS, string> = {
   hiddenTypes: 'events:hidden-types',
   hiddenByView: 'events:hidden-by-view',
   filterScope: 'events:filter-scope',
@@ -36,11 +52,8 @@ export const KEYS = {
   seen: 'events:seen',
 };
 
-/**
- * The single object these keys replaced — see `migrateLegacy`. It keeps the `pgo-` prefix the others have dropped
- * because this one is not ours to name: it is the key already sitting in readers' browsers.
- */
-const LEGACY_KEY = 'pgo-events:prefs';
+/** The single object those five replaced, held by a reader whose last visit predates the split. */
+const LEGACY_OBJECT_KEY = 'pgo-events:prefs';
 
 /**
  * The sets that object carried. `seen` is deliberately not among them: writing it empty would mark every event new for
@@ -110,13 +123,24 @@ function readSetsByView(key: string): Record<string, Set<string>> {
 }
 
 /**
- * Carry a reader's choices over from the single object the separate keys replaced, then drop it. Both sets are written
- * even when empty, since an absent key would read as a first visit and hand the defaults back to someone who had
- * unticked them. A value that will not parse is left in place rather than deleted.
+ * Carry a reader's choices onto the names this version reads, from either older shape still out there. Each half
+ * catches for itself, so a legacy object that will not parse cannot stop the rename beside it. Order decides a browser
+ * holding both — one whose migration failed partway, say: the unqualified keys are the later state, so they go second
+ * and win.
  */
 function migrateLegacy() {
+  carryLegacyObject();
+  carryUnprefixedKeys();
+}
+
+/**
+ * The single object's sets, written under the current names and then dropped. Both are written even where the object
+ * carried neither, since an absent key would read as a first visit and hand the defaults back to someone who had
+ * unticked them. A value that will not parse is left in place rather than deleted.
+ */
+function carryLegacyObject() {
   try {
-    const stored = localStorage.getItem(LEGACY_KEY);
+    const stored = localStorage.getItem(LEGACY_OBJECT_KEY);
 
     if (stored === null) {
       return;
@@ -128,9 +152,29 @@ function migrateLegacy() {
       localStorage.setItem(KEYS[name], JSON.stringify(stringsOf(parsed?.[name]) ?? []));
     }
 
-    localStorage.removeItem(LEGACY_KEY);
+    localStorage.removeItem(LEGACY_OBJECT_KEY);
   } catch {
     /* Nothing to carry over, or storage is unavailable. */
+  }
+}
+
+/**
+ * Each unqualified key moved under its prefixed name, as the raw string rather than reparsed and rewritten. Copying
+ * the bytes is what makes the rename invisible: absent stays absent, empty stays empty, and a value that will not
+ * parse arrives to be read exactly as it was read before.
+ */
+function carryUnprefixedKeys() {
+  try {
+    for (const [name, unprefixed] of Object.entries(UNPREFIXED_KEYS) as [keyof typeof KEYS, string][]) {
+      const stored = localStorage.getItem(unprefixed);
+
+      if (stored !== null) {
+        localStorage.setItem(KEYS[name], stored);
+        localStorage.removeItem(unprefixed);
+      }
+    }
+  } catch {
+    /* Storage is unavailable or full; whatever is left behind is carried on a later visit. */
   }
 }
 

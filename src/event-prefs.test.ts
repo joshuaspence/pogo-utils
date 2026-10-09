@@ -13,6 +13,34 @@ beforeEach(() => {
 const store = (key: keyof typeof KEYS, value: unknown) => storage.setItem(KEYS[key], JSON.stringify(value));
 
 /**
+ * The names themselves, spelled out once. Every other test in this file indexes through `KEYS`, so a rename would
+ * leave all of them green while moving the keys out from under readers' browsers — this is the one that would fail.
+ */
+test('the keys are the names readers hold', () => {
+  expect(KEYS).toEqual({
+    hiddenTypes: 'pogo-utils:events:hidden-types',
+    hiddenByView: 'pogo-utils:events:hidden-by-view',
+    filterScope: 'pogo-utils:events:filter-scope',
+    dismissed: 'pogo-utils:events:dismissed',
+    seen: 'pogo-utils:events:seen',
+  });
+});
+
+/**
+ * The rule those names keep, which the list above only happens to satisfy: each is namespaced to this app, and names a
+ * page under that namespace. `localStorage` is keyed by origin and `joshuaspence.github.io` serves every repository
+ * published there, so an unqualified key is one another site could be holding too.
+ */
+test('every key is namespaced to this app, and names a page under it', () => {
+  const prefix = 'pogo-utils:';
+
+  for (const key of Object.values(KEYS)) {
+    expect(key.startsWith(prefix)).toBe(true);
+    expect(key.slice(prefix.length)).toContain(':');
+  }
+});
+
+/**
  * A first visit, which is the case the whole absent-versus-empty distinction exists for: no key has been written, so
  * the hidden types are the default rather than nothing, and `seen` is null rather than an empty set — null being what
  * tells a first visit from a reader who has acknowledged everything.
@@ -164,6 +192,86 @@ test('an unparseable legacy object is left alone', () => {
   storage.setItem('pgo-events:prefs', '{oh no');
 
   expect(loadPrefs().hiddenTypes).toEqual(new Set(DEFAULT_HIDDEN));
+  expect(storage.getItem('pgo-events:prefs')).toBe('{oh no');
+});
+
+/**
+ * The unqualified keys are moved rather than reparsed, so each arrives under its prefixed name byte for byte and the
+ * old name is gone — which is what the snapshot says in both directions at once. All five, since `seen` is the one the
+ * legacy object's hop deliberately skips and a case covering four would not say that this hop does not.
+ */
+test('the unprefixed keys are carried across and removed', () => {
+  storage.setItem('events:hidden-types', '["Raid Hour"]');
+  storage.setItem('events:hidden-by-view', '{"cards":["Community Day"]}');
+  storage.setItem('events:filter-scope', '"view"');
+  storage.setItem('events:dismissed', '["event-a"]');
+  storage.setItem('events:seen', '["event-b"]');
+
+  const prefs = loadPrefs();
+
+  expect(prefs.hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(prefs.hiddenByView).toEqual({ cards: new Set(['Community Day']) });
+  expect(prefs.filterScope).toBe('view');
+  expect(prefs.dismissed).toEqual(new Set(['event-a']));
+  expect(prefs.seen).toEqual(new Set(['event-b']));
+
+  expect(storage.snapshot()).toEqual({
+    [KEYS.hiddenTypes]: '["Raid Hour"]',
+    [KEYS.hiddenByView]: '{"cards":["Community Day"]}',
+    [KEYS.filterScope]: '"view"',
+    [KEYS.dismissed]: '["event-a"]',
+    [KEYS.seen]: '["event-b"]',
+  });
+});
+
+/**
+ * An unqualified key that was never written leaves its prefixed name unwritten too. This is the absent-versus-empty
+ * distinction surviving the rename, and `seen` is where it bites: arriving with an empty one rather than none would
+ * mark every event on the page new for a reader who had been reading it all week.
+ */
+test('an unprefixed key that was never written stays absent', () => {
+  storage.setItem('events:hidden-types', '["Raid Hour"]');
+
+  expect(loadPrefs().seen).toBeNull();
+  expect(storage.getItem(KEYS.seen)).toBeNull();
+});
+
+/**
+ * A value that will not parse is carried across as it stands. It reads as a first visit from either name, so moving it
+ * changes nothing a reader sees — but it leaves one key holding it rather than two, which is the point of the rename.
+ */
+test('an unparseable unprefixed value is carried across as it stands', () => {
+  storage.setItem('events:hidden-types', '{oh no');
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(DEFAULT_HIDDEN));
+  expect(storage.snapshot()).toEqual({ [KEYS.hiddenTypes]: '{oh no' });
+});
+
+/**
+ * A browser can hold both older shapes at once — a legacy migration that failed partway leaves the object behind — and
+ * the unqualified keys are the later state, so they are what survives where the two disagree.
+ */
+test('the unprefixed keys win over a legacy object holding both', () => {
+  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: ['Raid Hour'], dismissed: ['from-object'] }));
+  storage.setItem('events:dismissed', '["from-key"]');
+
+  const prefs = loadPrefs();
+
+  expect(prefs.dismissed).toEqual(new Set(['from-key']));
+  expect(prefs.hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(storage.getItem('pgo-events:prefs')).toBeNull();
+});
+
+/**
+ * The two halves catch for themselves, so a legacy object that will not parse — which is left in place by design —
+ * cannot stop the rename beside it. One `try` around both would lose the second hop to the first one's throw.
+ */
+test('an unparseable legacy object does not block the rename', () => {
+  storage.setItem('pgo-events:prefs', '{oh no');
+  storage.setItem('events:dismissed', '["event-a"]');
+
+  expect(loadPrefs().dismissed).toEqual(new Set(['event-a']));
+  expect(storage.getItem('events:dismissed')).toBeNull();
   expect(storage.getItem('pgo-events:prefs')).toBe('{oh no');
 });
 
