@@ -54,9 +54,10 @@ const TAGS = [
 const TAG_SLACK = 0.3;
 
 /**
- * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
- * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
- * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
+ * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of the file that
+ * form's own `icon` names — no template of the label reaches it, the blank Ho-Oh being `pm250.icon.png` against
+ * `Ho-Oh (S)`'s `pm250.fS.icon.png` — and recorded here for the same reason the forms and the CP multipliers are: a
+ * test of a reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
  *
  * Three families, two of which land: Burmy's three icons are 1.85 apart at their closest and Cherrim's two 1.62,
  * against a margin of 0.3. Ho-Oh's two are 0.25 apart, which is the third one's reason for being here — a lead can

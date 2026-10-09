@@ -26,8 +26,9 @@ const BINS = 12;
 /**
  * How saturated and how bright a pixel has to be to carry form information. Below these it is the game's own
  * furniture, a shadow or the panel — and the white UI falling out for free is why the arc, the CP, the star and
- * PGSharp's overlay need no excluding by position. Which is a claim about the histogram alone, and `subject` is where
- * the furniture had to be excluded by what it is: a run of it carries no hue and so cannot be the subject.
+ * PGSharp's overlay need no excluding by position. Which is a claim about the histogram alone: an edge can weld the
+ * furniture to the model and keep it inside the run, and `subject` is where that loses — to the run carrying more hue,
+ * the furniture itself contributing none of it.
  */
 const SATURATION = 0.35;
 const VALUE = 0.2;
@@ -127,8 +128,8 @@ function hsv(r: number, g: number, b: number): [number, number, number] {
   return [hue / 6, max === 0 ? 0 : span / max, max / 255];
 }
 
-/** The histogram of a list of pixels, and how many of them carried any hue at all. */
-function histogram(pixels: Iterable<[number, number, number]>): { signature: Signature; counted: number } {
+/** The histogram of a list of pixels, over however many of them carry a hue. */
+function histogram(pixels: Iterable<[number, number, number]>): Signature {
   const bins = new Array<number>(BINS).fill(0);
   let counted = 0;
 
@@ -144,7 +145,7 @@ function histogram(pixels: Iterable<[number, number, number]>): { signature: Sig
     counted++;
   }
 
-  return { signature: bins.map((n) => n / (counted || 1)), counted };
+  return bins.map((n) => n / (counted || 1));
 }
 
 /** Grown by `radius` in both directions, done as two passes since a square structuring element separates. */
@@ -189,13 +190,14 @@ function grow(mask: Uint8Array, width: number, height: number, radius: number): 
 }
 
 /**
- * The connected run of the mask holding the most colour, which is the subject rather than the scenery or the game's own
- * furniture. The Pokémon is one large run where a backdrop's own detail — bubbles, leaves, bokeh edges — is many small
- * ones, and `colour` is what breaks the tie by what the histogram will go on to count rather than by extent: PGSharp's
- * box is a long sharp-edged run of grey, and on `cherrim-overcast.png` it ran into the model's pink head and took the
- * mask, leaving the purple body — which is the whole of what separates it from its Sunny form — outside it.
+ * The one connected run of the mask carrying the most hued pixels, with that count, which is the subject rather than
+ * the scenery or the game's own furniture. Hue count is the whole of the ranking and extent plays no part in it: a run
+ * is worth what the histogram will go on to count of it, so a backdrop's own detail — bubbles, leaves, bokeh edges —
+ * takes the mask only by carrying more colour than the model does. Ranked by extent instead, PGSharp's box is a long
+ * sharp-edged run of grey, and on `cherrim-overcast.png` it ran into the model's pink head and took the mask, leaving
+ * the purple body — which is the whole of what separates it from its Sunny form — in two smaller runs outside it.
  */
-function subject(mask: Uint8Array, colour: Uint8Array, width: number, height: number): Uint8Array {
+function subject(mask: Uint8Array, colour: Uint8Array, width: number, height: number): { run: number[]; hues: number } {
   const seen = new Uint8Array(mask.length);
   const stack: number[] = [];
   let best: number[] = [];
@@ -242,13 +244,7 @@ function subject(mask: Uint8Array, colour: Uint8Array, width: number, height: nu
     }
   }
 
-  const out = new Uint8Array(mask.length);
-
-  for (const p of best) {
-    out[p] = 1;
-  }
-
-  return out;
+  return { run: best, hues: most };
 }
 
 /**
@@ -269,14 +265,22 @@ export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null
     return null;
   }
 
-  // Read once rather than per neighbour, since each pixel is compared against four others.
+  // Read once rather than per neighbour, since each pixel is compared against four others — and whether it carries a
+  // hue, which `subject` ranks runs by, falls out of the same read.
   const luminance = new Float64Array(width * height);
+  const colour = new Uint8Array(width * height);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = ((top + y) * image.width + left + x) * 4;
-      luminance[y * width + x] =
-        0.2126 * (image.data[i] ?? 0) + 0.7152 * (image.data[i + 1] ?? 0) + 0.0722 * (image.data[i + 2] ?? 0);
+      const r = image.data[i] ?? 0;
+      const g = image.data[i + 1] ?? 0;
+      const b = image.data[i + 2] ?? 0;
+      const [, saturation, value] = hsv(r, g, b);
+      const p = y * width + x;
+
+      luminance[p] = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      colour[p] = hued(saturation, value) ? 1 : 0;
     }
   }
 
@@ -301,29 +305,13 @@ export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null
     }
   }
 
-  const colour = new Uint8Array(width * height);
+  const { run, hues } = subject(grow(edges, width, height, GROW), colour, width, height);
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const [, saturation, value] = hsv(...rgb(image, left + x, top + y));
-      colour[y * width + x] = hued(saturation, value) ? 1 : 0;
-    }
+  if (hues < COUNTED) {
+    return null;
   }
 
-  const mask = subject(grow(edges, width, height, GROW), colour, width, height);
-  const pixels: [number, number, number][] = [];
-
-  for (let y = top; y < bottom; y++) {
-    for (let x = left; x < right; x++) {
-      if (mask[(y - top) * width + (x - left)]) {
-        pixels.push(rgb(image, x, y));
-      }
-    }
-  }
-
-  const { signature, counted } = histogram(pixels);
-
-  return counted < COUNTED ? null : signature;
+  return histogram(run.map((p) => rgb(image, left + (p % width), top + Math.floor(p / width))));
 }
 
 /** The signature of one of the game's own form icons, which is flat art over transparency. */
@@ -338,7 +326,7 @@ export function signatureOfIcon(image: Image): Signature {
     }
   }
 
-  return histogram(pixels).signature;
+  return histogram(pixels);
 }
 
 /** How far apart two signatures are, as the sum of the differences per bin. 0 is identical and 2 shares no hue. */
