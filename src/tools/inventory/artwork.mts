@@ -16,7 +16,8 @@
  */
 
 import { join } from 'node:path';
-import { cachedAs, ICON_BASE, type Form, type GameData } from './game-master.mts';
+import { ICON_BASE } from '../../pokedex/icons.ts';
+import { cachedAs, type Form, type GameData } from './game-master.mts';
 import { decodePng, rgb, type Image } from './png.mts';
 import { progress } from './progress.mts';
 

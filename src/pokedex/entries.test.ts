@@ -6,16 +6,7 @@
 
 import { expect, test } from 'vitest';
 
-import {
-  CATEGORIES,
-  ENTRIES,
-  GENERATION_NUMBERS,
-  HUNTS,
-  generationOf,
-  numbered,
-  spriteOf,
-  type Entry,
-} from './entries.js';
+import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, generationOf, numbered, type Entry } from './entries.js';
 import { GENERATIONS } from '../pokemon/generations.js';
 import { fold } from '../pokemon/names.js';
 
@@ -189,15 +180,8 @@ test('the rows are the whole dex in strictly ascending order', () => {
   expect([ENTRIES[0]?.name, ENTRIES.at(-1)?.name]).toEqual(['Bulbasaur', 'Pecharunt']);
 });
 
-test('a dex number is printed four wide and the shiny sprites are a directory rather than a suffix', () => {
-  const sprites = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
-
+test('a dex number is printed four wide', () => {
   // The games print `#0001`, and the padding is what makes a column of numbers line up. `padStart` does not truncate,
   // which is why the four-digit end of the dex is worth asserting beside the one-digit start.
   expect([numbered(1), numbered(151), numbered(1025)]).toEqual(['#0001', '#0151', '#1025']);
-
-  // The shiny set is a path segment before the number, so a URL built by appending to the name would 404 on every
-  // shiny card while the ordinary ones carried on loading.
-  expect(spriteOf(25)).toBe(`${sprites}/25.png`);
-  expect(spriteOf(25, true)).toBe(`${sprites}/shiny/25.png`);
 });

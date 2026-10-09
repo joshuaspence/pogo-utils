@@ -137,10 +137,36 @@ body[data-page='pokedex'] {
   .controls .meta {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 10px;
     font-size: 11px;
     color: var(--muted);
+  }
+
+  /**
+   * The counts over what the filters leave, read as three figures rather than a sentence. In the page header rather
+   * than among the controls: it is the answer to them, and the controls are pinned over a scrolling grid where a
+   * number that changed under the pointer would be the one thing moving.
+   */
+
+  .tally {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 28px;
+    margin: 12px 0 0;
+  }
+
+  .tally dt {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .tally dd {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
   }
 
   .ghost {
@@ -167,23 +193,27 @@ body[data-page='pokedex'] {
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
+  /**
+   * The artwork is the tile: square, filled edge to edge, with the name laid over it rather than under. Across 1025 of
+   * them the picture is what a reader scans by, so it gets the whole tile and everything else sits on top of it.
+   */
+
   .card {
     position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: block;
     width: 100%;
-    height: 100%;
-    padding: 8px 8px 10px;
+    aspect-ratio: 1;
+    padding: 0;
+    overflow: hidden;
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 10px;
     background: var(--panel);
     box-shadow: var(--shadow);
     color: var(--text);
@@ -216,39 +246,79 @@ body[data-page='pokedex'] {
   }
 
   /**
-   * The sprite's box is held whether or not the image arrives, so a card that failed to load a picture stays the height
-   * of its neighbours rather than collapsing the row it sits in.
+   * The sprite's box is held whether or not the image arrives, so a card that failed to load a picture keeps its name
+   * where a reader expects it rather than collapsing the row it sits in.
+   *
+   * No `image-rendering: pixelated`, deliberately: these are the game's own 256×256 renders and this scales them down,
+   * which nearest-neighbour makes a mess of. Smooth is wrong only for the three released species with no render —
+   * Scatterbug, Spewpa and Silvally — whose pixel sprite scales up a little soft.
    */
 
   .sprite {
     display: block;
-    width: 96px;
-    height: 96px;
-    image-rendering: pixelated;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 
   .sprite.missing {
     visibility: hidden;
   }
 
-  .card .num {
-    color: var(--muted);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 11px;
+  /**
+   * The name over the top of the picture, on a scrim that fades out rather than ending on a line: the artwork behind it
+   * is a different colour on every card, and a flat band would be a bar across all 1025.
+   */
+
+  .card .label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 5px 7px 14px;
+    background: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--panel) 92%, transparent) 0%,
+      color-mix(in srgb, var(--panel) 45%, transparent) 55%,
+      transparent 100%
+    );
+    text-align: left;
   }
 
+  /* A long name wraps rather than being cut, the scrim growing with it: the tile below is artwork either way. */
+
   .card .name {
+    display: block;
+    font-size: 11px;
     font-weight: 600;
-    text-align: center;
+    line-height: 1.15;
+  }
+
+  /**
+   * Shown on hover and on focus, as the box above filters on it: it is worth a glance and not worth a line of the tile
+   * when the picture and the name have already said which species this is.
+   */
+
+  .card .num {
+    display: block;
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+    opacity: 0;
+  }
+
+  .card:hover .num,
+  .card:focus-visible .num {
+    opacity: 1;
   }
 
   .card .marks {
     position: absolute;
-    top: 6px;
-    right: 8px;
+    right: 5px;
+    bottom: 4px;
     display: flex;
     gap: 2px;
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .empty {
@@ -333,9 +403,16 @@ body[data-page='pokedex'] {
     font-size: 13px;
   }
 
+  /**
+   * The picture spans both rows and is the taller column, and grid shares a spanning item's excess height out over
+   * every row it crosses. Pinning the first to its content is what keeps that height off the facts, so it lands under
+   * the links instead of opening a gap in the middle of them.
+   */
+
   .detail .grid2 {
     display: grid;
     grid-template-columns: auto 1fr;
+    grid-template-rows: min-content 1fr;
     gap: 4px 20px;
     align-items: start;
   }
@@ -349,9 +426,15 @@ body[data-page='pokedex'] {
     margin: 0;
   }
 
+  /**
+   * Roomy, because a render is drawn at the species' own size rather than scaled to fill its frame: Pikachu covers 41%
+   * of its 256px square where Kilowattrel covers 93%, so a box that suits the big ones shows the small ones as a
+   * thumbnail.
+   */
+
   .detail .picture .sprite {
-    width: 192px;
-    height: 192px;
+    width: 240px;
+    height: 240px;
   }
 
   .facts {
@@ -455,8 +538,8 @@ body[data-page='pokedex'] {
     }
 
     .grid {
-      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+      gap: 5px;
     }
 
     .detail .grid2 {

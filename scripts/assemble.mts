@@ -23,7 +23,7 @@ const PUBLISHED = [
   'favicon.svg',
   'manifest.json',
 
-  // `src/generated.ts`'s two indexes are in here, so neither is named separately: `publish` throws rather than copying
+  // `src/generated.ts`'s three indexes are in here, so none is named separately: `publish` throws rather than copying
   // a path twice, and the directory is what the pages fetch them under.
   'data',
 ];

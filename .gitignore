@@ -15,6 +15,7 @@
 # Generated files
 /data/entries-by-event.json
 /data/gpx-paths.json
+/data/pokemon-icons.json
 
 # NodeJS
 /node_modules/
