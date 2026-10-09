@@ -656,10 +656,9 @@ async function scan() {
    * `screens.test.mts` pins which two of its 43 captures raise a note, and that both of the two are rows carrying a
    * `defects`.
    *
-   * Which is two of the four defects that file pins, and not the other two: those are the readers that answer
-   * confidently with nothing on the screen to contradict them — a fold that collapsed Basculin's two stripes, and an
-   * artwork match that declined Cherrim's Overcast. Nothing here can be the check for those; only a second reader of
-   * the same thing could be.
+   * Which is two of the three defects that file pins, and not the third: that one is a reader answering confidently
+   * with nothing on the screen to contradict it — a fold that collapses Basculin's two stripes, no icon being recorded
+   * for either. Nothing here can be the check for it; only a second reader of the same thing could be.
    *
    * `could also be …` is counted with the rest, but only on a reading that has IVs: with none the search narrows on
    * types alone and 21 of the game master's 1,024 species answer it for ever, so counting those would read every

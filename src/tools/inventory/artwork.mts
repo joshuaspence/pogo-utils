@@ -6,13 +6,13 @@
  *
  * **The backdrop is the whole problem, not the colours.** The game blurs an arbitrary scene behind the model and will
  * put a photograph there, against which a small model is a minority of any fixed box. So the subject is bounded by the
- * panel below it and by sharpness, edges being what a blurred scene lacks, and only the largest connected run of what
- * those edges enclose is kept — a flat backdrop with crisp shapes on it has edges too, and growing the mask from them
- * would flood it.
+ * panel below it and by sharpness, edges being what a blurred scene lacks, and only the one connected run of what those
+ * edges enclose that holds the most colour is kept — a flat backdrop with crisp shapes on it has edges too, and growing
+ * the mask from them would flood it.
  *
  * **Judge it on the margin.** Seventeen committed captures fall in a reachable family; at `MARGIN` the match answers
- * four and is right on all four, and eleven of the thirteen it declines are nearest an icon that is not their own. So
- * the margin is what stands between the match and being confidently wrong eleven times.
+ * five and is right on all five, and ten of the twelve it declines are nearest an icon that is not their own. So the
+ * margin is what stands between the match and being confidently wrong ten times.
  */
 
 import { join } from 'node:path';
@@ -26,7 +26,8 @@ const BINS = 12;
 /**
  * How saturated and how bright a pixel has to be to carry form information. Below these it is the game's own
  * furniture, a shadow or the panel — and the white UI falling out for free is why the arc, the CP, the star and
- * PGSharp's overlay need no excluding by position.
+ * PGSharp's overlay need no excluding by position. Which is a claim about the histogram alone, and `subject` is where
+ * the furniture had to be excluded by what it is: a run of it carries no hue and so cannot be the subject.
  */
 const SATURATION = 0.35;
 const VALUE = 0.2;
@@ -60,10 +61,10 @@ const GROW = 6;
 
 /**
  * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
- * captures anything above 0.229 and at or below 0.531 is right wherever it answers: the widest lead a wrong icon takes
- * is `cherrim-overcast.png`'s 0.229 and the narrowest right answer leads by 0.531 (`burmy-sandy.png`). 0.3 sits inside
- * that with 0.071 of headroom over the first. No margin reaches `basculin-blue.png`: its own stripe leads by 0.142,
- * beneath wrong leads that admitting it would admit, so its row pins the fold's answer instead.
+ * captures anything above 0.190 and at or below 0.531 is right wherever it answers: the widest lead a wrong icon takes
+ * is `ho-oh.png`'s 0.190 and the narrowest right answer leads by 0.531 (`burmy-sandy.png`). 0.3 sits inside that with
+ * 0.110 of headroom over the first. No margin reaches `basculin-blue.png`: its own stripe leads by 0.142, beneath wrong
+ * leads that admitting it would admit, so its row pins the fold's answer instead.
  */
 export const MARGIN = 0.3;
 
@@ -103,6 +104,9 @@ function panelTop(image: Image): number {
   return Math.round(image.height * 0.34);
 }
 
+/** Whether a pixel carries a form's colour at all, which is what the histogram counts and what a run is worth. */
+const hued = (saturation: number, value: number): boolean => saturation >= SATURATION && value >= VALUE;
+
 /** Hue in turns, saturation and value, which is what separates a body's colour from the lighting on it. */
 function hsv(r: number, g: number, b: number): [number, number, number] {
   const max = Math.max(r, g, b);
@@ -131,7 +135,7 @@ function histogram(pixels: Iterable<[number, number, number]>): { signature: Sig
   for (const [r, g, b] of pixels) {
     const [hue, saturation, value] = hsv(r, g, b);
 
-    if (saturation < SATURATION || value < VALUE) {
+    if (!hued(saturation, value)) {
       continue;
     }
 
@@ -185,13 +189,17 @@ function grow(mask: Uint8Array, width: number, height: number, radius: number): 
 }
 
 /**
- * The biggest connected run of the mask, which is the subject rather than the scenery. The Pokémon is one large
- * component where a backdrop's own detail — bubbles, leaves, bokeh edges — is many small ones.
+ * The connected run of the mask holding the most colour, which is the subject rather than the scenery or the game's own
+ * furniture. The Pokémon is one large run where a backdrop's own detail — bubbles, leaves, bokeh edges — is many small
+ * ones, and `colour` is what breaks the tie by what the histogram will go on to count rather than by extent: PGSharp's
+ * box is a long sharp-edged run of grey, and on `cherrim-overcast.png` it ran into the model's pink head and took the
+ * mask, leaving the purple body — which is the whole of what separates it from its Sunny form — outside it.
  */
-function largest(mask: Uint8Array, width: number, height: number): Uint8Array {
+function subject(mask: Uint8Array, colour: Uint8Array, width: number, height: number): Uint8Array {
   const seen = new Uint8Array(mask.length);
   const stack: number[] = [];
   let best: number[] = [];
+  let most = 0;
 
   for (let start = 0; start < mask.length; start++) {
     if (!mask[start] || seen[start]) {
@@ -199,11 +207,13 @@ function largest(mask: Uint8Array, width: number, height: number): Uint8Array {
     }
 
     const blob: number[] = [];
+    let hues = 0;
     seen[start] = 1;
     stack.push(start);
 
     for (let p = stack.pop(); p !== undefined; p = stack.pop()) {
       blob.push(p);
+      hues += colour[p] ?? 0;
       const x = p % width;
       const y = (p - x) / width;
 
@@ -226,8 +236,9 @@ function largest(mask: Uint8Array, width: number, height: number): Uint8Array {
       }
     }
 
-    if (blob.length > best.length) {
+    if (hues > most) {
       best = blob;
+      most = hues;
     }
   }
 
@@ -290,7 +301,16 @@ export function signatureOf(image: Image, from = ARTWORK_FROM): Signature | null
     }
   }
 
-  const mask = largest(grow(edges, width, height, GROW), width, height);
+  const colour = new Uint8Array(width * height);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [, saturation, value] = hsv(...rgb(image, left + x, top + y));
+      colour[y * width + x] = hued(saturation, value) ? 1 : 0;
+    }
+  }
+
+  const mask = subject(grow(edges, width, height, GROW), colour, width, height);
   const pixels: [number, number, number][] = [];
 
   for (let y = top; y < bottom; y++) {
