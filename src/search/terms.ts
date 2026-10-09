@@ -327,7 +327,7 @@ export const RANGES: readonly Range[] = [
   { id: 'dex', prefix: '', label: 'Dex number', min: 1, max: 1025 },
   { id: 'buddylevel', prefix: 'buddy', label: 'Buddy level', max: 5 },
   { id: 'megalevel', prefix: 'mega', label: 'Mega level', max: 3 },
-  { id: 'age', prefix: 'age', label: 'Caught in the last … days', max: 3650 },
+  { id: 'age', prefix: 'age', label: 'Age', max: 3650 },
   { id: 'distance', prefix: 'distance', label: 'Kilometres from home', max: 40000 },
   { id: 'year', prefix: 'year', label: 'Year caught', min: 2016, max: 2030 },
 ];
