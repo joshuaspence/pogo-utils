@@ -2,7 +2,8 @@
  * The species worth hunting for a shiny — the roll fed to the "Shiny Hunting" filter, and the one "Regional Shiny
  * Hunting" narrows to the region-locked members, so the regionals are a slice of this rather than a second list.
  *
- * Two forms sharing a dex number are distinct members here, and collapsing them stays `pgsharp/filters.js`'s job.
+ * Two forms sharing a dex number are distinct members here, and collapsing them stays `narrow.js`'s job — both the
+ * PGSharp feed and the Live PokeMap display filter reach it through there.
  */
 
 import type Pokemon from '../pokemon/pokemon.js';

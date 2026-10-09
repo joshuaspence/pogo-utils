@@ -7,9 +7,10 @@
  * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
  * why that is the only one of the four hunts worth sending.
  *
- * The Java codec is nearly all of this chunk's 89,484 bytes and nothing else uses it, which is why the page is reached
- * through `import()`. The display filter rides that chunk rather than taking one of its own: it emits 1,396 characters
- * of JSON, and both panels are on this one page, so whoever opens it loads both regardless of how they are split.
+ * The Java codec is nearly all of this chunk and nothing else uses it, which is why the page is reached through
+ * `import()`. The display filter rides along rather than taking a chunk of its own: it is a kilobyte or so of JSON
+ * beside a codec two orders of magnitude larger, and both panels are on this one page anyway, so whoever opens it loads
+ * both however they are split. No byte count is quoted because nothing here would fail when one drifted.
  */
 
 import { useState } from 'preact/hooks';
@@ -131,7 +132,7 @@ export default function IntegrationsPage() {
     setFilterStatus(
       copied
         ? {
-            message: `Copied ${listed} species. Paste into Live PokeMap's filter import.`,
+            message: `Copied ${listed} species. Press Import under Live PokeMap's display filters.`,
             kind: 'ok',
           }
         : {
@@ -238,8 +239,8 @@ export default function IntegrationsPage() {
 
           <p class="note">
             Importing replaces your Live PokeMap display filters entirely — anything not set here, your IV and level
-            bounds among it, goes back to its default. Paste it into Live PokeMap&apos;s own filter import, which takes
-            the text rather than a file.
+            bounds among it, goes back to its default. Then press <strong>Import</strong> under Live PokeMap&apos;s own
+            display filters: it reads the clipboard itself, so there is nothing to paste into.
           </p>
 
           <button class="run" type="button" onClick={() => void runFilter()}>

@@ -4,8 +4,9 @@
  * Live PokeMap has two separate import formats and only this one can carry a species list. Its settings file — the
  * `{_version: 1, settings: {…}}` one its own Config export writes — honours a seven-key allowlist of UI preferences and
  * silently drops everything else, so a hunt list cannot be expressed in it at all. Display filters round-trip instead
- * as the JSON below, sentinel and all, pasted into its import box — which is why the page copies this to the clipboard
- * rather than offering a file: that format has no picker.
+ * as the JSON below, sentinel and all. Its Import button takes no file and offers no field: it calls
+ * `navigator.clipboard.readText()` and hands what it finds to `importFilters`, which is why the page copies this rather
+ * than downloading it.
  *
  * Only the shiny hunt is written. XXL, XXS and 100% are thresholds rather than lists — `filterXXL`, `filterXXS` and
  * `minIV` say them without naming a species, and Live PokeMap surfaces all three unconditionally anyway, its
