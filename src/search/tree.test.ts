@@ -12,7 +12,7 @@
 
 import { expect, test } from 'vitest';
 
-import { RANGES, TERMS_BY_ID } from './terms.js';
+import { bounded, RANGES, TERMS_BY_ID } from './terms.js';
 import {
   append,
   chipState,
@@ -106,13 +106,22 @@ test('a span pill leaves an empty bound open rather than filling it from its own
   expect(leafText({ kind: 'range', id: 'year', from: null, to: 2016, negated: false })).toBe('year2016');
 
   /*
-   * And a nought never goes to the right of a dash, whatever the floor. "If `{M}` is 0, the search is treated as
-   * `{phrase}{N}-` instead", so a `-0` read that way is the *other* open end — the whole box rather than none of it,
-   * which is as wrong as an answer gets. Below the dex's floor of 1 the two cases come apart: `0` is a dex number the
-   * game cannot match, which is what a span of nothing should say.
+   * And a nought never goes to the right of a dash, whatever the floor, because `-0` is the one spelling two of the
+   * list's rules both claim — `{phrase}-{N}` reads it as values at or below nought, and "If `{M}` is 0, the search is
+   * treated as `{phrase}{N}-` instead" reads it as an `{N}` that is not there — with nothing saying which wins. `0`
+   * is claimed by `{phrase}{N}` alone. Preferring one reading over two is the whole of the reason and the only one
+   * the list supports; what the game answers for `-0` is not written down.
+   *
+   * **Not the round trip, which cannot tell these two apart where the arm does its work.** `bounded` clamps a nought
+   * to the floor, so below a floor above nought *neither* spelling composes itself: `-0` reads back `{ null, 1 }` and
+   * `0` reads back `{ 1, 1 }`, and both write `1`. The property only separates them where the floor is nought, and
+   * there the test above has already fired.
    */
   expect(leafText({ kind: 'range', id: 'dex', from: null, to: 0, negated: false })).toBe('0');
   expect(leafText({ kind: 'range', id: 'year', from: null, to: 0, negated: false })).toBe('year0');
+
+  // Both unreachable through `bounded`, which is what makes this an invariant held rather than a bug fixed.
+  expect([bounded(0, range('dex')), bounded(0, range('year'))]).toEqual([1, 2016]);
 
   // Where the floor *is* nought the two cases are one, which is six of the eight ranges.
   expect(range('hp').min).toBeUndefined();
