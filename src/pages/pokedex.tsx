@@ -518,7 +518,8 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
       <footer>
         <p>
           Read from the same Pokédex and hunt lists the PGSharp backup is built from, so the two cannot disagree.
-          Sprites are PokeAPI's. The link updates as you filter, so a view can be shared or bookmarked.
+          Pictures are the game's own, from PokeMiners, with PokeAPI's sprite for a species the game has no artwork for.
+          The link updates as you filter, so a view can be shared or bookmarked.
         </p>
         <p>This site is unofficial.</p>
       </footer>
