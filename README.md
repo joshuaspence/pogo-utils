@@ -141,8 +141,8 @@ of the [ScrapedDuck](https://github.com/bigfoott/ScrapedDuck) mirror kept here r
 visit. That is what holds the two in step — a browser reading the mirror live and a generator that had read it hours
 earlier could disagree — and it gives the feed a history, ScrapedDuck's own being a single commit force-pushed on every
 scrape, so `git log -p data/events-feed.json` says when an event appeared, was renamed, moved or lost its dates.
-[`scripts/vend-feed.mts`](scripts/vend-feed.mts) takes the copy and the [Vend workflow](.github/workflows/vend.yml) runs
-it hourly:
+[`scripts/vend-feed.mts`](scripts/vend-feed.mts) takes the copy and the [Vend workflow](.github/workflows/vend.yaml)
+runs it hourly:
 
 ```sh
 pnpm vend:events
@@ -155,7 +155,7 @@ differs, and the run passes without a commit when it does not. An empty list or 
 rather than written, an empty list being what a broken scrape looks like.
 
 [`data/events.json`](data/events.json), this repository's own list, is not replaced wholesale but pruned: the
-[Prune workflow](.github/workflows/prune.yml) runs [`scripts/prune-events.mts`](scripts/prune-events.mts) daily, which
+[Prune workflow](.github/workflows/prune.yaml) runs [`scripts/prune-events.mts`](scripts/prune-events.mts) daily, which
 removes every event that has ended everywhere — a naive end once it has passed at UTC−12 — along with any `<pgr:event>`
 naming one. An event with no announced end is kept, and so is one the feed also carries: that entry overrides the feed's
 rather than being the only copy of it, so removing it would uncover upstream's, which by then is usually the same event
@@ -183,7 +183,7 @@ keep in step. The generator reads no clock and makes no request, which is why it
 `pnpm lint:types` _is_ `pnpm build`, so a generator that fetched would put somebody else's server in front of every
 lint. A local run therefore produces exactly the bytes a deploy does.
 
-Nothing is on a timer. The [Pages workflow](.github/workflows/pages.yml) deploys on a push, and since a push made with
+Nothing is on a timer. The [Pages workflow](.github/workflows/pages.yaml) deploys on a push, and since a push made with
 the default `GITHUB_TOKEN` raises no workflow run, the Vend workflow asks for the deploy itself once it has committed a
 change. So a quiet stretch upstream deploys nothing at all rather than republishing identical bytes, and the page and
 the subscription are always siblings of one deploy. Two things follow: data on the page is up to an hour old where it

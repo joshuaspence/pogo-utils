@@ -1,34 +1,34 @@
 ---
 name: 'Bug report'
-description: 'Something invoice-tool did that it should not have'
+description: 'Something the site did that it should not have'
 labels:
   - 'bug'
 
 body:
-  - type: 'input'
-    id: 'version'
+  - type: 'dropdown'
+    id: 'page'
     attributes:
-      label: 'Version'
-      description: 'The commit you ran -- `git rev-parse --short HEAD` -- or a release, if you are on one.'
-      placeholder: '1a2b3c4'
+      label: 'Page'
+      description: 'The tab it happened on.'
+      options:
+        - 'Events'
+        - 'Map'
+        - 'Search'
+        - 'Pokédex'
+        - 'Integrations'
+        - 'The whole site'
     validations:
       required: true
 
   - type: 'input'
-    id: 'command'
+    id: 'link'
     attributes:
-      label: 'Command'
-      description: 'The invocation, exactly as you ran it.'
-      placeholder: 'invoice-tool download --merchant woolworths --scope 3m'
+      label: 'Link'
+      description:
+        'The address bar, copied. The fragment carries the state a page was left in, so this is what reproduces it.'
+      placeholder: 'https://joshuaspence.github.io/pogo-utils/#/pokedex?q=pika&n=25'
     validations:
       required: true
-
-  - type: 'input'
-    id: 'merchant'
-    attributes:
-      label: 'Merchant'
-      description: 'The recipe this is about. Leave it empty if the bug is in the engine rather than in one merchant.'
-      placeholder: 'woolworths'
 
   - type: 'textarea'
     id: 'expected'
@@ -44,18 +44,16 @@ body:
     validations:
       required: true
 
-  - type: 'textarea'
-    id: 'output'
+  - type: 'input'
+    id: 'browser'
     attributes:
-      label: 'Output'
-      description: 'What the run printed. `--debug` adds the stack trace.'
-      render: 'shell'
+      label: 'Browser'
+      description: 'Which browser and version, and whether on a phone or a desktop.'
+      placeholder: 'Chrome 141 on Android'
 
-  - type: 'checkboxes'
-    id: 'sanitised'
+  - type: 'textarea'
+    id: 'console'
     attributes:
-      label: 'Before posting'
-      description: 'This repository is public.'
-      options:
-        - label: 'The output above carries no cookies, tokens or session data.'
-          required: true
+      label: 'Console'
+      description: 'Anything the browser console printed. Leave it empty if you did not look.'
+      render: 'shell'

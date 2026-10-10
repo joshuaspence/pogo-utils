@@ -1,6 +1,6 @@
 ---
 name: 'Feature request'
-description: 'Something invoice-tool should do and does not'
+description: 'Something the site should do and does not'
 labels:
   - 'enhancement'
 
@@ -34,5 +34,5 @@ body:
     id: 'scope'
     attributes:
       label: 'Scope'
-      description: 'The part this touches -- the engine, a recipe by name, the CLI, the documentation.'
-      placeholder: 'woolworths'
+      description: 'The part this touches — a page by name, the event data, the build, the documentation.'
+      placeholder: 'the Pokédex page'

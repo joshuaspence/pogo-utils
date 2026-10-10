@@ -9,7 +9,7 @@ updates:
 
     groups:
       # `@vitest/coverage-v8` peer-depends on an exact `vitest` version, so the two cannot land separately.
-      vitest:
+      'vitest':
         patterns:
           - 'vitest'
           - '@vitest/*'
