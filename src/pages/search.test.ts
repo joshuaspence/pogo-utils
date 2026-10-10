@@ -14,7 +14,7 @@ import { expect, test } from 'vitest';
 
 import { read } from '../search/parse.js';
 import { RANGES, type Range } from '../search/terms.js';
-import { boxText, rangeTitle, readBound, spans, unmarked } from './search.js';
+import { boxText, marked, rangeTitle, readBound, spans, unmarked } from './search.js';
 
 /**
  * Both halves of what `spans` promises, for any message at all: an odd number of pieces, so the last one is prose and
@@ -127,6 +127,50 @@ test('a range chip names its own phrase, whichever end the phrase sits on', () =
 
   // And no other range borrows the dex's words, which is the whole of what went wrong.
   expect(RANGES.filter((entry) => shapes[entry.id] === 'a dex span').map((entry) => entry.id)).toEqual(['dex']);
+});
+
+test('each part of a comma-separated paste is unmarked, not just the head of it', () => {
+  /*
+   * The two halves of this were each right and wrong together. Unmarking ran on the whole string and `names` split
+   * what came out, so only the first part was ever unmarked and every later one took a second mark: a pasted
+   * `#keepers,#dupes` composed `#keepers` and `##dupes`, which is the silent miss the unmarking exists to stop, one
+   * comma along. A table over `unmarked` alone passed straight over it, never having walked two parts — so this is
+   * over `marked`, which is the composition, and the single-value rows are here to show the order changed nothing
+   * about them.
+   */
+  expect(
+    Object.fromEntries(
+      (
+        [
+          ['#', '#keepers,#dupes'],
+          ['@3', '@3crunch,@3bite'],
+          ['@', '@3crunch,@3bite'],
+          ['#', 'keepers,dupes'],
+          ['@3', 'crunch,bite'],
+          ['#', '#keepers'],
+          ['@3', '@3crunch'],
+
+          // The spaces around a name are the reader's, not the name's, and an empty part is no pill at all.
+          ['#', ' #keepers , #dupes '],
+          ['#', '#keepers,,'],
+          ['#', ''],
+        ] as const
+      ).map(([mark, typed]) => [`${mark} + ${JSON.stringify(typed)}`, marked(mark, typed)]),
+    ),
+  ).toEqual({
+    '# + "#keepers,#dupes"': ['#keepers', '#dupes'],
+    '@3 + "@3crunch,@3bite"': ['@3crunch', '@3bite'],
+
+    // *Any slot* drops each pasted slot, the dropdown owning it — the same rule as a single value, applied per part.
+    '@ + "@3crunch,@3bite"': ['@crunch', '@bite'],
+    '# + "keepers,dupes"': ['#keepers', '#dupes'],
+    '@3 + "crunch,bite"': ['@3crunch', '@3bite'],
+    '# + "#keepers"': ['#keepers'],
+    '@3 + "@3crunch"': ['@3crunch'],
+    '# + " #keepers , #dupes "': ['#keepers', '#dupes'],
+    '# + "#keepers,,"': ['#keepers'],
+    '# + ""': [],
+  });
 });
 
 test('a mark the reader typed is dropped rather than doubled', () => {

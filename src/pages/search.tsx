@@ -119,6 +119,36 @@ const SLOTS: readonly { value: string; label: string }[] = [
  */
 export const unmarked = (mark: string, text: string) => text.replace(mark.startsWith('@') ? /^@\d*/ : /^#/, '');
 
+/**
+ * The pills one of the marked boxes makes of what a reader typed: the text split the way the name box splits it, each
+ * part behind the mark the game reads it by.
+ *
+ * These are `name` pills, which is what they are: the game matches a word it does not know against the names in
+ * storage, and `@hydro pump` and `#keepers` are two more texts the catalogue cannot hold. So they need no kind of
+ * their own — they compose, read back and shorten as any name does, the mark being what keeps the shortener off them.
+ *
+ * **Split on the comma**, through the same `names` the name box uses. A pill is one alternative within a clause and a
+ * comma inside one is the game's own *or*, so `crunch,bite` left whole composed `@3crunch,bite` out of a single pill:
+ * the game reads two alternatives there, `parse.js` reads it back as an `any` of two, and the canvas goes on showing
+ * one pill that asks neither.
+ *
+ * **Split first, unmark second**, which is the order and not an arrangement of it. Unmarking the string instead took
+ * the mark off its head alone, so a pasted `#keepers,#dupes` came out `#keepers` and `##dupes` — the same silent miss
+ * the unmarking was added to stop, one comma along. The two halves were each right and wrong together, which is why
+ * this is one exported function rather than two: a test of the pieces passed over it.
+ *
+ * The rest of the game's punctuation is left alone, and **what that costs is a silent split rather than a refusal.**
+ * `parse.js` reads four of those characters as operators and says nothing: `&` and `|` come back as two pills in an
+ * `all`, `;` and `:` as two in an `any`, and in each the mark is lost off everything after the first — so a tag
+ * genuinely called `a&b` composes `#a&b` and reads back as a pill asking for the ordinary word `b`. Only `!`, `(` and
+ * `)` are refused. It is left alone because the game has no quoting syntax either and no string searches that tag, and
+ * because it is a limitation of all three boxes rather than of these two; `parse.test.js` pins it from the other side,
+ * `a|b` composing and reading back as `a&b`.
+ *
+ * Exported whole for the test rather than in pieces, for the reason the ordering above gives.
+ */
+export const marked = (mark: string, text: string) => names(text).map((part) => `${mark}${unmarked(mark, part)}`);
+
 /** What a term chip's tooltip says: the word the game reads, then what pressing it does. */
 const chipTitle = (term: string) =>
   `${term} — press to require, again to rule out, again to drop; or drag into a group`;
@@ -580,29 +610,17 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * One operator search finished with: the reader's own text behind the mark the game reads it by, as a pill in the
-   * group being filled. Answers whether it committed anything, so the caller empties its own box and only then.
+   * One operator search finished with, as pills in the group being filled. Answers whether it committed anything, so
+   * the caller empties its own box and only then.
    *
-   * A `name` pill, which is what these are: the game matches a word it does not know against the names in storage, and
-   * `@hydro pump` and `#keepers` are two more texts the catalogue cannot hold. So they need no kind of their own —
-   * they compose, read back and shorten as any name does, the mark being what keeps the shortener off them.
-   *
-   * **Split on the comma, through the same `names` the name box uses.** A pill is one alternative within a clause and
-   * a comma inside one is the game's own *or*, so `crunch,bite` left whole composed `@3crunch,bite` out of a single
-   * pill: the game reads two alternatives there, `parse.js` reads it back as an `any` of two, and the canvas goes on
-   * showing one pill that asks neither. Each part takes the mark of its own, so nothing is lost off the second.
-   *
-   * The rest of the game's punctuation is left alone, which is the line the name box already draws and `README.md`
-   * already documents. A tag really called `a&b` composes `#a&b`, one clause here and two to the game, and there is no
-   * quoting syntax to spell it with because the game has none either — so the honest answer is the refusal `parse.js`
-   * gives on the way back rather than a syntax the search box would not read.
+   * `marked` above is the whole of what the text becomes; this is the part that needs the canvas. Through `cycle` for
+   * the reason `takeName` is: the same text twice is one pill's worth of search.
    */
   function takeMarked(mark: string, text: string) {
-    const parts = names(unmarked(mark, text));
+    const parts = marked(mark, text);
 
-    // Through `cycle` for the reason `takeName` is: the same text twice is one pill's worth of search.
     for (const part of parts) {
-      edit((tree) => cycle(tree, focus, { kind: 'name', text: `${mark}${part}`, negated: false }));
+      edit((tree) => cycle(tree, focus, { kind: 'name', text: part, negated: false }));
     }
 
     return parts.length > 0;
