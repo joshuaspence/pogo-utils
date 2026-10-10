@@ -165,10 +165,9 @@ async function cpsIn(image: Image): Promise<number[]> {
     image.height * CP_SWEEP.height,
   );
   // Every treatment, since plain alone misses what the others read: `castform-rainy.png` answers `C 2` plain and
-  // `P832` near-white, `castform-sunny.png` `P99` plain and `P979` brightened.
-  const texts = await Promise.all(
-    CP_TREATMENTS.map(async (treat) => (await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? ''),
-  );
+  // `P832` near-white, `castform-sunny.png` `P99` plain and `P979` brightened. All three are wanted here, so a read
+  // that fails is this sweep's failure.
+  const texts = await Promise.all(readTreated(band));
 
   return [...new Set(texts.flatMap((text) => [...text.matchAll(/\d{3,5}/g)].map(([digits]) => Number(digits))))];
 }
@@ -182,14 +181,16 @@ async function cpsIn(image: Image): Promise<number[]> {
  *
  * A line already as long as a CP goes cannot be extended by anything, so no band of it is read at all: `rescue` wants a
  * number longer than the line's and no longer than `longest`, which is unsatisfiable once the two are equal. That is
- * eight of the 23 and 48 passes — the corpus costs 81 where three treatments unguarded cost 129 and two cost 89.
+ * eight of the 23 and 48 passes — the corpus costs 84 where three treatments unguarded cost 132 and two cost 90.
  *
  * The treatments at a pad go together rather than in turn, being three pure functions of the one band, and what is
  * taken is still the first accepted in array order. What that gives up is stopping early within a pad, which costs
- * three passes over the corpus — 96 against 93 — and what it buys is the latency of a screen read on its own, as
- * `scripts/inventory.mts` reads one: `pikachu.png` runs all six passes and accepts none, reading in 246ms against
- * 515ms, where `unown-b.png` accepts on the first treatment and pays 133ms against 114ms. The pads stay in turn, 0.35
- * having to be refused before 0.6 is tried.
+ * three passes over the corpus — 84 against 81 — and what it buys is the latency of a screen read on its own, as
+ * `scripts/inventory.mts` reads one. Best of three on 22 cores: `pikachu.png` runs all six passes and accepts none,
+ * reading in 246ms against 515ms, where `unown-b.png` accepts on the first treatment and pays 133ms against 114ms. The
+ * core count is part of those figures rather than context for them — a pad dispatches three reads where it dispatched
+ * one, and how many cores there are decides whether that is parallel or queued. The pads stay in turn, 0.35 having to
+ * be refused before 0.6 is tried.
  *
  * The corpus suite shows none of this. It keeps enough reads in flight to saturate the cores either way, which is the
  * same contention `vitest.config.mjs` raises its timeout for and `ocr.mts` pins `OMP_THREAD_LIMIT=1` against.
@@ -203,10 +204,16 @@ async function wholeCp(image: Image, line: Line, read: string, longest: number):
     const pad = Math.round(line.height * reach);
     const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
 
-    const texts = await Promise.all(CP_TREATMENTS.map((treat) => ocrLine(scale(treat(band), 2), CP_ALPHABET)));
+    // Settled rather than all-or-nothing, then examined in order, which is what keeps a read the answer does not need
+    // from failing the capture: a rejection is thrown only where it is reached, and one past the accepted treatment
+    // never is. Thrown rather than swallowed because `ocr.mts` rejects for the machine's reasons and resolves for the
+    // image's, so a Tesseract missing or killed would otherwise read as a band with nothing on it.
+    for (const settled of await Promise.allSettled(readTreated(band))) {
+      if (settled.status === 'rejected') {
+        throw settled.reason;
+      }
 
-    for (const text of texts) {
-      const whole = rescue(text ?? '', read, longest);
+      const whole = rescue(settled.value, read, longest);
 
       if (whole !== null) {
         return whole;
@@ -406,7 +413,7 @@ const CP_SWEEP = { x: 0.3, y: 0.055, width: 0.4, height: 0.035 };
 
 /**
  * How far round the line the CP band reaches, in that line's own heights, in the order to try. 0.35 is what both
- * rescues read at. 0.6 earns nothing measurable: it spends 38 of the corpus's 81 passes and accepts once, on the one CP
+ * rescues read at. 0.6 earns nothing measurable: it spends 39 of the corpus's 84 passes and accepts once, on the one CP
  * the corpus reads wrongly — `unown-question.png`'s `4864` against the 486 on its screen.
  *
  * It was added for `articuno-kanto.png`, which needed it for a digit lost off the back, against `deoxys-defense.png`
@@ -422,25 +429,37 @@ const CP_PADS = [0.35, 0.6];
  * risk of trying each is `wholeCp`'s acceptance rule — which turns down a *different* number, not a longer wrong one:
  * `unown-question.png`'s `4864` is exactly that, and is taken.
  *
- * Both the order and that rule are `wholeCp`'s. `cpsIn` is the other caller and has neither: it runs all three and
- * unions what they read, so what bounds a wrong number there is `identify` refusing a candidate the arithmetic cannot
- * reproduce. A treatment added or reordered answers to both.
+ * `readTreated` is the one reader, for `wholeCp` and `cpsIn` alike, so a treatment added or reordered answers to both.
+ * Both the order and that rule are `wholeCp`'s: `cpsIn` unions what the three read, so what bounds a wrong number
+ * there is `identify` refusing a candidate the arithmetic cannot reproduce.
  *
  * Brightness is here for `growlithe-nickname.png`, which neither of the others reaches: at pad 0.35 its band reads `38`
- * plain and near-white and `738` brightened. Going last decides nothing the corpus can show, the loop returning on the
- * first acceptance so that a second is never read, and it is no protection for a line already read right — a pass
- * reading that number back is the same length, so the rule turns it down and the loop carries on. It costs 26 of the
- * corpus's 81 passes, and what bounds its noise is the four-digit cap, which `wholeCp` now applies before any band is
- * read rather than after three.
+ * plain and near-white and `738` brightened. Going last decides nothing the corpus can show, but not because a second
+ * is never read — every treatment is read at every pad entered. What the order picks between is acceptances, and the
+ * one pad where two of them accept is `unown-b.png`'s 0.35, where plain and near-white both rescue `487`. Nor is going
+ * last protection for a line already read right: a pass reading that number back is the same length, so the rule turns
+ * it down and the loop carries on. It costs 28 of the corpus's 84 passes, and what bounds its noise is the four-digit
+ * cap, which `wholeCp` now applies before any band is read rather than after three.
  *
- * None of that reaches `cpsIn`, which has no guard to skip a band and no acceptance to return on: it reads all three
- * on every capture it sweeps, 60 passes over the 20 where reading the band plain cost 20.
+ * What `cpsIn` has neither of is the guard that skips a band and the acceptance that ends a pad. Reading all three is
+ * what both do; `cpsIn` does it on every capture it sweeps, 60 passes over the 20 where reading the band plain cost 20.
  */
 const CP_TREATMENTS = [
   (band: Image) => band,
   (band: Image) => isolate(band, OVERLAY_LUMINANCE, OVERLAY_CHROMA),
   (band: Image) => brighten(band, CP_BRIGHTNESS),
 ];
+
+/**
+ * A CP band read under every treatment, in `CP_TREATMENTS` order and all three already in flight. The one place that
+ * says how a band becomes text, both callers wanting the same scale and alphabet of it and neither gaining anything by
+ * reading in turn: the treatments are pure functions of the one band and their readings are independent.
+ *
+ * The reads rather than their texts, because what a failed read means is the caller's to decide — `cpsIn` wants all
+ * three and takes a rejection as its own, where `wholeCp` stops at the treatment it accepts and never looks past it.
+ */
+const readTreated = (band: Image): Promise<string>[] =>
+  CP_TREATMENTS.map(async (treat) => (await ocrLine(scale(treat(band), 2), CP_ALPHABET)) ?? '');
 
 /**
  * How bright a channel has to be for the CP band's brightening to keep it. `brighten` keeps a pixel where a channel
