@@ -53,10 +53,21 @@ test('a species the game has no artwork for falls back to a pixel sprite', () =>
 });
 
 test('`build:sprites` names every species whose icon the dex number cannot derive', async () => {
-  await run('node', ['scripts/build-sprites.mts'], { cwd: ROOT });
+  const { stderr } = await run('node', ['scripts/build-sprites.mts'], { cwd: ROOT });
 
   const icons: Icons = JSON.parse(readFileSync(new URL(POKEMON_ICONS, new URL('../../', import.meta.url)), 'utf8'));
   const rows = Object.entries(icons);
+
+  /*
+   * The species that declare their forms over more than one `addForms`, held here and not only printed. For these the
+   * order in `pokedex.ts` is the only thing saying which form stands for the species — a second call scopes a trailing
+   * modifier and claims nothing about display order — so a thirteenth is a species whose leading group is suddenly
+   * load-bearing and which nobody has checked. That is the case this list exists to stop passing quietly; the four
+   * pinned below are the ones that were already wrong.
+   */
+  expect(stderr).toContain(
+    '12 species split their forms over several calls — 327, 479, 550, 555, 648, 666, 669, 670, 671, 800, 931, 999',
+  );
 
   /*
    * The counts a re-vend of `game-master.json` moves, pinned for the reason that file's own counts are: a species
