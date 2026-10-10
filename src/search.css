@@ -365,7 +365,9 @@ body[data-page='search'] {
 
   /**
    * Paired with the `display: flex` above, which the UA stylesheet's own `[hidden] {display: none}` loses to: without
-   * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load.
+   * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load. `!important`
+   * because the keying alone only outranks a bare class: a second one ties it and wins on order, which is the bug
+   * `.pane[hidden]` below carries the account of.
    */
 
   .output .rewritten[hidden] {

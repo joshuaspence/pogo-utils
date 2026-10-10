@@ -135,6 +135,28 @@ test('no stylesheet gives one class name to two kinds of element', () => {
 });
 
 /**
+ * A selector with every `:not(…)` removed, innermost first until it stops changing. `:not([hidden])` selects an element
+ * that is *shown*, so a rule keyed on one has nothing to do with hiding and must not be asked to hide unconditionally —
+ * `.filters:not([hidden]) ~ .x {display: none}` hides a sibling while the panel is open, and an `!important` there
+ * would be wrong. It is the likeliest such shape to arrive, being the alternative the three comments in `events.css`
+ * discuss and reject.
+ *
+ * What this does not reach is a `[hidden]` nested inside another bracketed form inside the `:not` —
+ * `:not(.a:has([hidden]))` still reads as keyed. Closing that needs a selector parser; nothing writes it.
+ */
+function withoutNot(selector: string) {
+  let bare = selector;
+  let was: string;
+
+  do {
+    was = bare;
+    bare = bare.replace(/:not\([^()]*\)/g, '');
+  } while (bare !== was);
+
+  return bare;
+}
+
+/**
  * The rules keyed on the `hidden` attribute, split by what they do with it: `weak` hides the element but can be
  * outranked, `strong` hides it unconditionally, and `kept` is a rule that styles a hidden element without hiding it —
  * a dimming like the one `.chip.off` gives an off chip, which there is nothing to report about.
@@ -150,7 +172,7 @@ function hiddenHides(css: string) {
   const kept: string[] = [];
 
   postcss.parse(css).walkRules((rule) => {
-    if (!rule.selector.includes('[hidden]')) {
+    if (!withoutNot(rule.selector).includes('[hidden]')) {
       return;
     }
 
@@ -371,4 +393,34 @@ test('the hiding check can tell an outranked rule from an unconditional one', ()
 
   // `hidden` is not the only attribute a sheet selects on, and one it is not keyed on is not this check's business.
   expect(hiddenHides('.tab[aria-selected] { display: flex }')).toEqual({ weak: [], strong: [], kept: [] });
+});
+
+test('a rule keyed on a shown element is not a hiding rule', () => {
+  /*
+   * `:not([hidden])` is the other way round — it selects what is *on* screen — so neither of these is this check's
+   * business, and the first is ordinary CSS an `!important` would be wrong on: hide a sibling while the panel is open.
+   */
+  expect(hiddenHides('.filters:not([hidden]) ~ .x { display: none }')).toEqual({ weak: [], strong: [], kept: [] });
+  expect(hiddenHides('.newly:not([hidden]) { display: flex }')).toEqual({ weak: [], strong: [], kept: [] });
+
+  // Both forms in one selector is still keyed, the `.b[hidden]` half being a hide that can be outranked.
+  expect(hiddenHides('.a:not([hidden]) .b[hidden] { display: none }')).toEqual({
+    weak: ['.a:not([hidden]) .b[hidden]'],
+    strong: [],
+    kept: [],
+  });
+
+  // Stripping is innermost-first and repeats, so a stack of them goes.
+  expect(hiddenHides('.a:not(.b):not([hidden]) { display: flex }')).toEqual({ weak: [], strong: [], kept: [] });
+
+  /*
+   * And the limit `withoutNot` documents, pinned rather than left to be discovered: a `[hidden]` behind a second
+   * bracketed form inside the `:not` is not reached, so this reads as keyed. No sheet writes it, and closing it needs
+   * a selector parser — this asserts what the check does today rather than what it ideally would.
+   */
+  expect(hiddenHides('.z:not(.a:has([hidden])) { display: none }')).toEqual({
+    weak: ['.z:not(.a:has([hidden]))'],
+    strong: [],
+    kept: [],
+  });
 });
