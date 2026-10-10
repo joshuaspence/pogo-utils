@@ -1,8 +1,43 @@
 /**
- * The DOM helpers every page needs: one to build an element, one to find one. An id matching nothing, or matching a
- * tag it did not used to, is a broken page rather than a case to handle, so `byId` throws where the disagreement is
- * instead of letting a `null` travel until something further along trips over it.
+ * The DOM helpers every page needs: one to build an element, one to find one, one to put text on the clipboard. An id
+ * matching nothing, or matching a tag it did not used to, is a broken page rather than a case to handle, so `byId`
+ * throws where the disagreement is instead of letting a `null` travel until something further along trips over it.
  */
+
+/**
+ * Copy text to the clipboard, falling back to `execCommand` for insecure contexts (e.g. served over plain HTTP, where
+ * the async Clipboard API is unavailable). Returns a promise that resolves to true on success.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+
+      return true;
+    }
+  } catch {
+    /* fall through to legacy path */
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+
+    const ok = document.execCommand('copy');
+
+    document.body.removeChild(ta);
+
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * An element, optionally with a class and some text. An empty `className` is skipped where an empty `text` is not, so

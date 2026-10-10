@@ -2,9 +2,9 @@
  * The species whose XXL is still wanted — the checklist a "XXL" filter is fed. It starts as the whole dex and shrinks
  * as one is caught, so the list says the hunt rather than the Pokédex.
  *
- * One entry per species rather than per form, a size filter not telling two forms of one dex number apart. Where a
- * form is worth chasing on its own, name it by hand and `pgsharp/filters.js` collapses the pair. A family straddling
- * two generations is named in each, the grouping following the dex rather than the chain.
+ * One entry per species rather than per form, a size filter not telling two forms of one dex number apart. Where a form
+ * is worth chasing on its own, name it by hand and `narrow.js` collapses the pair. A family straddling two generations
+ * is named in each, the grouping following the dex rather than the chain.
  */
 
 import type Pokemon from '../pokemon/pokemon.js';

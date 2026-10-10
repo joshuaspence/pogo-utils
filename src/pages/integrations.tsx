@@ -1,17 +1,25 @@
 /**
- * The Integrations page. Its one panel builds a PGSharp backup from the repository's GPX files, ported from pgsedit.
- * PGSData.dat is a serialized `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is
- * Points, from `<wpt>`, and `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so
- * importing it leaves the rest of the profile be.
+ * The Integrations page: handing this collection's own data to the third-party tools that will take it, a panel each.
  *
- * The codec is 152KB of the artifact and nothing else uses it, which is why this page is reached through `import()`.
+ * The PGSharp panel builds a backup from the repository's GPX files, ported from pgsedit. PGSData.dat is a serialized
+ * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
+ * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
+ * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
+ * why that is the only one of the four hunts worth sending.
+ *
+ * The Java codec is nearly all of this chunk and nothing else uses it, which is why the page is reached through
+ * `import()`. The display filter rides along rather than taking a chunk of its own: it is a kilobyte or so of JSON
+ * beside a codec two orders of magnitude larger, and both panels are on this one page anyway, so whoever opens it loads
+ * both however they are split. No byte count is quoted because nothing here would fail when one drifted.
  */
 
 import { useState } from 'preact/hooks';
 
+import { copyText } from '../dom.js';
 import { said } from '../errors.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
+import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filter.js';
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
@@ -99,10 +107,40 @@ interface Status {
   kind?: 'ok' | 'err';
 }
 
+/** Said once because both panels have a status line, and a third would be a third copy of this expression. */
+const statusClass = (status: Status | null) => (status?.kind ? `status ${status.kind}` : 'status');
+
 export default function IntegrationsPage() {
   const [ticked, setTicked] = useState<ReadonlySet<Control>>(() => new Set(CONTROLS));
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<Status | null>(null);
+
+  /**
+   * Put the display filter on the clipboard, which is where Live PokeMap's own filter import reads one from — it offers
+   * no file picker for this format. Nothing is caught: `species` can throw on a list holding something `pokemon.js`
+   * does not define, but `pgsharp/controls.js` has already made the identical call at module scope, so that failure
+   * arrives as a failed chunk load rather than here. Only the clipboard can fail at this point.
+   *
+   * The count comes off the list that was actually copied, as the backup's summary does.
+   */
+  async function runFilter() {
+    const filter = shinyHuntFilter();
+    const listed = filter.config.speciesFilterList.length;
+    const copied = await copyText(displayFilterText(filter));
+
+    setFilterStatus(
+      copied
+        ? {
+            message: `Copied ${listed} species. Press Import under Live PokeMap's display filters.`,
+            kind: 'ok',
+          }
+        : {
+            message: 'Could not reach the clipboard. This page needs HTTPS, or a browser that permits copying.',
+            kind: 'err',
+          },
+    );
+  }
 
   /**
    * Build the file and hand it over. Everything between the favourites and the bytes is `buildBackup`'s, so what is left
@@ -187,7 +225,29 @@ export default function IntegrationsPage() {
             Generate &amp; download
           </button>
 
-          <div class={status?.kind ? `status ${status.kind}` : 'status'}>{status?.message ?? ''}</div>
+          <div class={statusClass(status)}>{status?.message ?? ''}</div>
+        </div>
+
+        <div class="body">
+          <h2>Live PokeMap display filters</h2>
+
+          <p>
+            Copy a Live PokeMap display filter that allowlists every species still wanted for a shiny — the same list
+            the backup above hands PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are
+            thresholds rather than lists, and Live PokeMap shows all three without being told which species to watch.
+          </p>
+
+          <p class="note">
+            Importing replaces your Live PokeMap display filters entirely — anything not set here, your IV and level
+            bounds among it, goes back to its default. Then press <strong>Import</strong> under Live PokeMap&apos;s own
+            display filters: it reads the clipboard itself, so there is nothing to paste into.
+          </p>
+
+          <button class="run" type="button" onClick={() => void runFilter()}>
+            Copy to clipboard
+          </button>
+
+          <div class={statusClass(filterStatus)}>{filterStatus?.message ?? ''}</div>
         </div>
       </main>
     </>

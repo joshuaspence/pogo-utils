@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 import COUNTRIES from '../countries.js';
 import { byKey, fmtDist, gpxEntries, routeDistance, type Route, type Waypoint } from '../routes.js';
-import { el } from '../dom.js';
+import { copyText, el } from '../dom.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
 import { said } from '../errors.js';
@@ -116,41 +116,6 @@ function routeStyle(route: Route): L.PolylineOptions {
 
 function cityStyle(place: Waypoint): L.CircleMarkerOptions {
   return { radius: 5, color: '#fff', weight: 2, fillColor: cssVar(place.event ? '--event' : '--city'), fillOpacity: 1 };
-}
-
-/**
- * Copy text to the clipboard, falling back to `execCommand` for insecure contexts (e.g. served over plain HTTP, where
- * the async Clipboard API is unavailable). Returns a promise that resolves to true on success.
- */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text);
-
-      return true;
-    }
-  } catch {
-    /* fall through to legacy path */
-  }
-
-  try {
-    const ta = document.createElement('textarea');
-
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-
-    const ok = document.execCommand('copy');
-
-    document.body.removeChild(ta);
-
-    return ok;
-  } catch {
-    return false;
-  }
 }
 
 /**
