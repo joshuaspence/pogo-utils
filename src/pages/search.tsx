@@ -39,6 +39,7 @@ import {
   move,
   NESTING,
   nodeAt,
+  spanned,
   update,
   type ChipState,
   type Junction,
@@ -103,9 +104,40 @@ const SLOTS: readonly { value: string; label: string }[] = [
   { value: '4', label: 'Mega extra move' },
 ];
 
+/**
+ * The reader's own text with a mark they typed themselves taken off the front, so a phrase pasted out of the reference
+ * is not marked a second time: `#keepers` into the tag box composed `##keepers` and `@3crunch` into the move box
+ * `@@3crunch`, neither of which matches anything or says so anywhere.
+ *
+ * **Digits go with an `@` and stay with a `#`.** A slot is part of the `@` mark, so the dropdown beside the box is
+ * what settles which slot the pill ends up in and a pasted `@3` is dropped with the rest of the mark — which is the
+ * one rule here that can ignore something the reader typed, and it is the rule that never writes a string the game
+ * cannot read: taking the paste instead would make *First charged* and a pasted `@3` into `@23crunch`. A tag, on the
+ * other hand, has every right to be called `3things`, and stripping its digits would search a tag nobody has.
+ *
+ * Exported for the test, which walks both marks over text that carries one and text that does not.
+ */
+export const unmarked = (mark: string, text: string) => text.replace(mark.startsWith('@') ? /^@\d*/ : /^#/, '');
+
 /** What a term chip's tooltip says: the word the game reads, then what pressing it does. */
 const chipTitle = (term: string) =>
   `${term} — press to require, again to rule out, again to drop; or drag into a group`;
+
+/**
+ * What a range chip's tooltip says: the shape a span of it is written in, then what pressing the chip does.
+ *
+ * The shape comes through `spanned`, the writer that owns which end of a span a phrase sits on, so `cp{N}` and
+ * `{N}attack` are one answer rather than two spellings. The dex is the one range with no phrase at either end and so
+ * nothing for that to show, which is what the words are for — and reaching them off an empty `prefix` is what gave
+ * all three IVs the dex's tooltip, every one of them having an empty prefix too.
+ *
+ * Exported for the test, which holds every range in the table to naming its own phrase.
+ */
+export const rangeTitle = (range: Range) => {
+  const shape = range.prefix === '' && range.suffix === undefined ? 'a dex span' : spanned(range, '{N}');
+
+  return `${shape} — press to add a span, again to rule it out, again to drop`;
+};
 
 /** A path as an attribute, and back. The root group is the empty string, which is still an attribute that is there. */
 const pathAttribute = (path: Path) => path.join('.');
@@ -549,24 +581,31 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   /**
    * One operator search finished with: the reader's own text behind the mark the game reads it by, as a pill in the
-   * group being filled. Answers whether it committed, so the caller empties its own box and only then.
+   * group being filled. Answers whether it committed anything, so the caller empties its own box and only then.
    *
    * A `name` pill, which is what these are: the game matches a word it does not know against the names in storage, and
    * `@hydro pump` and `#keepers` are two more texts the catalogue cannot hold. So they need no kind of their own —
    * they compose, read back and shorten as any name does, the mark being what keeps the shortener off them.
    *
-   * Through `cycle` for the reason `takeName` is: the same text twice is one pill's worth of search.
+   * **Split on the comma, through the same `names` the name box uses.** A pill is one alternative within a clause and
+   * a comma inside one is the game's own *or*, so `crunch,bite` left whole composed `@3crunch,bite` out of a single
+   * pill: the game reads two alternatives there, `parse.js` reads it back as an `any` of two, and the canvas goes on
+   * showing one pill that asks neither. Each part takes the mark of its own, so nothing is lost off the second.
+   *
+   * The rest of the game's punctuation is left alone, which is the line the name box already draws and `README.md`
+   * already documents. A tag really called `a&b` composes `#a&b`, one clause here and two to the game, and there is no
+   * quoting syntax to spell it with because the game has none either — so the honest answer is the refusal `parse.js`
+   * gives on the way back rather than a syntax the search box would not read.
    */
   function takeMarked(mark: string, text: string) {
-    const written = text.trim();
+    const parts = names(unmarked(mark, text));
 
-    if (written === '') {
-      return false;
+    // Through `cycle` for the reason `takeName` is: the same text twice is one pill's worth of search.
+    for (const part of parts) {
+      edit((tree) => cycle(tree, focus, { kind: 'name', text: `${mark}${part}`, negated: false }));
     }
 
-    edit((tree) => cycle(tree, focus, { kind: 'name', text: `${mark}${written}`, negated: false }));
-
-    return true;
+    return parts.length > 0;
   }
 
   function onNameKeyDown(event: KeyboardEvent) {
@@ -1076,7 +1115,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
             <p class="help">
               A move name, a type, <code>special</code> or <code>weather</code>, in any slot or in one of them — so{' '}
-              <em>Second charged</em> and <code>crunch</code> write <code>@3crunch</code>. Move names complete as you
+              <em>Second charged</em> and <code>crunch</code> write <code>@3crunch</code>. The <code>@</code> and the
+              slot are added for you, the dropdown being what settles the slot, so a phrase pasted here can keep its own
+              and will take that one. Several at once go in comma-separated, a pill apiece. Move names complete as you
               go, in the game rather than here, so <code>@hydro</code> finds Hydro Pump and Hydro Cannon alike. Three
               catches: a type is read ahead of a move named the same, so <code>@psychi</code> is how to ask for the move
               Psychic; <em>Mega extra move</em> answers to a move name alone, not to a type or to those two words; and a
@@ -1123,8 +1164,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <p class="help">
               A tag by the name you gave it. Only you know what you called yours, so there is no chip for one — the{' '}
               <em>Tagged</em> chip is <code>#</code>, the game's word for having any tag at all. Tag names complete in
-              the game here too. Keep the <code>#</code>: a tag searched without it is an ordinary word, and a tag named
-              after a search phrase loses to that phrase.
+              the game here too. The <code>#</code> is added for you, and it earns its place: a tag searched without one
+              is an ordinary word, which a tag named after a search phrase then loses to.
             </p>
           </section>
 
@@ -1174,7 +1215,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                     type="button"
                     class="chip"
                     data-state={chip}
-                    title={`${range.prefix || 'a dex span'} — press to add a span, again to rule it out, again to drop`}
+                    title={rangeTitle(range)}
                     aria-label={`${range.label} — ${CHIP[chip].said} in the group you are filling`}
                     onPointerDown={(event) =>
                       onPointerDown(event, rangeLeaf(range.id), null, () => pressChip(rangeLeaf(range.id)))

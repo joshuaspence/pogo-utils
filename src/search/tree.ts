@@ -85,8 +85,12 @@ const RANGES_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
  * A span wrapped in its range's own phrase, which sits in front of the numbers for every range but the three IVs: `cp`
  * writes `cp3000-` where `attack` writes `3-attack`. One function, so each of the four shapes below says which span it
  * is and not one of them says where the phrase goes.
+ *
+ * Exported because the catalogue's own chips want the same answer about a shape rather than a value — `spanned(range,
+ * '{N}')` is `cp{N}` and `{N}attack`. Spelling that at the chip instead left every range with an empty `prefix`
+ * sharing the dex's tooltip, so all three IVs advertised themselves as a dex span.
  */
-const spanned = (range: Range, span: string) => `${range.prefix}${span}${range.suffix ?? ''}`;
+export const spanned = (range: Range, span: string) => `${range.prefix}${span}${range.suffix ?? ''}`;
 
 /**
  * What one pill writes into a clause, or null where it has nothing to write yet.

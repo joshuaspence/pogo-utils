@@ -219,8 +219,10 @@ adding or correcting one is still a single line.
 
 ### What a phrase can be
 
-A phrase out of the [community list](https://leidwesen.github.io/SearchPhrases/) reaches the page as one of four things,
-and which one is the whole of what the table has to say about it.
+A phrase out of the [community list](https://leidwesen.github.io/SearchPhrases/) reaches the page as one of three
+things, and which one is the whole of what the table has to say about it. A shortcut is not a fourth: the list's four
+are spans wearing a word, which is why they are read as the spans they stand for and why they turn up below under spans
+rather than beside them.
 
 A **term** is a word the table owns, which is most of them — `shiny`, `candyxl`, `party`, `kanto`, `@special`. A
 **span** is a prefix and a range of numbers: `cp100-2000`, `countcandy248-`, `maxspirit1-`. A span's phrase sits

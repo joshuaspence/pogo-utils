@@ -322,13 +322,19 @@ function swallowed(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
     clauses
       .flat()
       .filter((leaf) => leaf.kind === 'name')
-      .map((leaf) => written(leaf).replace(/^!/, '')),
+      .map(written),
   );
 
   const named: Mishandled[] = [];
 
   for (const text of supplied) {
-    const folded = text.toLowerCase();
+    /*
+     * The negation comes off to find the phrase and goes back on to name it. `term` is the text as the reader will see
+     * it in the string, which `Mishandled` says and `mishandling` below honours by putting the `!` back — a caveat
+     * reported against `counter` beside a query reading `!counter` points at a string that is not there, and a negated
+     * nickname is exactly the case where a swallowed phrase is hardest to spot.
+     */
+    const folded = text.toLowerCase().replace(/^!/, '');
     const marked = folded.startsWith('@');
     const rest = marked ? folded.slice(1) : folded;
 

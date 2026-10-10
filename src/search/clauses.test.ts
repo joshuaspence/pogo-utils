@@ -442,6 +442,48 @@ test('a word a shortcut phrase swallows is named, with the span the game reads i
   }
 });
 
+test('a swallowed phrase is named as the reader will see it, negation and all', () => {
+  /*
+   * `Mishandled.term` is the text as it appears in the string, which is what `mishandling` honours by putting the `!`
+   * back. This stripped it to find the phrase and then reported the stripped form, so a query reading `!counter&shiny`
+   * carried a caveat pointing at `counter` — a string it does not contain. A negated nickname is also the case where a
+   * swallowed phrase is hardest to spot, the reader believing they have ruled something out.
+   */
+  expect(clausesOf(all(named('counter'), yes('shiny')))).toEqual({
+    clauses: ['!counter', 'shiny'],
+    error: null,
+    mishandled: [{ term: '!counter', note: expect.stringContaining('`count2-`') }],
+  });
+
+  // Both polarities of one word are two strings and two caveats, each naming the text that is actually in the query.
+  expect(
+    clausesOf(any(all(named('counter', false), yes('shiny')), all(named('counter'), yes('lucky')))).mishandled.map(
+      (one) => one.term,
+    ),
+  ).toEqual(['counter', '!counter']);
+});
+
+/*
+ * A pill is one alternative within a clause, so the game's own separators inside one are a search the canvas is not
+ * showing. The two new boxes split on the comma for this reason — `takeMarked` in `pages/search.js` — where the rest
+ * of the punctuation is the line the name box already draws and `parse.js` refuses on the way back.
+ */
+
+test('a comma inside one pill is the game’s own or, which is why the boxes split on it', () => {
+  const whole = clausesOf(all(named('@3crunch,bite', false), yes('shiny')));
+
+  // One pill on the canvas, two alternatives in the clause the game reads.
+  expect(whole.clauses).toEqual(['@3crunch,bite', 'shiny']);
+  expect(whole.clauses[0]?.split(',')).toHaveLength(2);
+
+  // Split instead, each part carrying the mark, it is the two pills it looks like and each is its own clause.
+  expect(clausesOf(all(named('@3crunch', false), named('@3bite', false), yes('shiny'))).clauses).toEqual([
+    '@3crunch',
+    '@3bite',
+    'shiny',
+  ]);
+});
+
 test('a phrase the shortcut leaves alone is not named', () => {
   const cases: Node[] = [
     // The `#` is the way out the phrase list names, so a tag written as one is the tag and not the span.
