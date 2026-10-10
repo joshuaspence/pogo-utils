@@ -365,11 +365,13 @@ body[data-page='search'] {
 
   /**
    * Paired with the `display: flex` above, which the UA stylesheet's own `[hidden] {display: none}` loses to: without
-   * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load.
+   * this the paragraph would sit on screen whenever nothing was rewritten, including on every page load. `!important`
+   * because the keying alone only outranks a bare class: a second one ties it and wins on order, which is the bug
+   * `.pane[hidden]` below carries the account of.
    */
 
   .output .rewritten[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .output .rewrite {
@@ -450,10 +452,14 @@ body[data-page='search'] {
     gap: 14px;
   }
 
-  /* Paired with the `display: flex` above, which the UA stylesheet's `[hidden] {display: none}` would lose to. */
+  /**
+   * Paired with the `display: flex` above, which the UA stylesheet's `[hidden] {display: none}` would lose to.
+   * `!important` because the rule below ties this one's specificity — an attribute selector and a class score alike —
+   * and wins on order, which painted the whole Advanced pane, *Your query* and all, under the Builder tab.
+   */
 
   .pane[hidden] {
-    display: none;
+    display: none !important;
   }
 
   /**

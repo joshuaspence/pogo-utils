@@ -58,11 +58,12 @@ body[data-page='events'] {
    * none}`, so the `hidden` the page sets whenever the count is zero would lay the line out regardless — leaving Mark all
    * as seen on screen with nothing to mark, and on every page load, since the markup ships hidden with an empty count.
    * Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a
-   * media query gives `.newly`.
+   * media query gives `.newly`, and `!important` because the keying alone only outranks a bare class: a second one ties
+   * it and wins on order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
    */
 
   .newly[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .newly .new-count {
@@ -231,11 +232,12 @@ body[data-page='events'] {
    * `[hidden] {display: none}`, so the `hidden` the markup ships with and render() maintains would lay the panel out
    * regardless — putting the whole thing on screen on every page load, which is the one thing it must not do. Keyed on
    * `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media
-   * query gives `.filters`.
+   * query gives `.filters`, and `!important` because the keying alone only outranks a bare class: a second one ties it
+   * and wins on order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
    */
 
   .filters[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .toggles,
@@ -294,11 +296,12 @@ body[data-page='events'] {
    * `[hidden] {display: none}`, so the `hidden` setView() puts on two of the reveals outside the cards view would lay
    * them out regardless — leaving Show ended and Show undated on screen in the calendar and tracks views, where neither
    * reveals anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any
-   * later `display` a media query gives `.chip`.
+   * later `display` a media query gives `.chip`, and `!important` because the keying alone only outranks a bare class:
+   * a second one ties it and wins on order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
    */
 
   .chip[hidden] {
-    display: none;
+    display: none !important;
   }
 
   .chip:hover {
