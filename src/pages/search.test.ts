@@ -14,7 +14,7 @@ import { expect, test } from 'vitest';
 
 import { read } from '../search/parse.js';
 import { RANGES, type Range } from '../search/terms.js';
-import { boxText, readBound, spans } from './search.js';
+import { boxText, marked, rangeTitle, readBound, spans, unmarked } from './search.js';
 
 /**
  * Both halves of what `spans` promises, for any message at all: an odd number of pieces, so the last one is prose and
@@ -98,6 +98,121 @@ test('the digits stay in the box they were typed into', () => {
 
   // A bound the reader has not filled in is an empty box rather than the floor, which the placeholder says instead.
   expect(boxText(null, [0], 'from', null)).toBe('');
+});
+
+test('a range chip names its own phrase, whichever end the phrase sits on', () => {
+  /*
+   * The tooltip used to be spelled at the chip as `range.prefix || 'a dex span'`, which was true while the dex was the
+   * only range with an empty prefix. The three IVs carry their phrase in `suffix` and so have an empty prefix too, and
+   * every one of them advertised itself as a dex span — the shape being read off the wrong end of the range.
+   *
+   * Over the whole table rather than over the IVs by name, since the fault was a fallback catching a case nobody had
+   * added yet. The dex is the one range with a phrase at neither end, so it is the only one the words are for.
+   */
+  const shapes = Object.fromEntries(RANGES.map((entry) => [entry.id, rangeTitle(entry).split(' — ')[0]]));
+
+  expect({
+    cp: shapes.cp,
+    dex: shapes.dex,
+    ivattack: shapes.ivattack,
+    ivhp: shapes.ivhp,
+    maxmove: shapes.maxmove,
+  }).toEqual({
+    cp: 'cp{N}',
+    dex: 'a dex span',
+    ivattack: '{N}attack',
+    ivhp: '{N}hp',
+    maxmove: 'maxmove{N}',
+  });
+
+  // And no other range borrows the dex's words, which is the whole of what went wrong.
+  expect(RANGES.filter((entry) => shapes[entry.id] === 'a dex span').map((entry) => entry.id)).toEqual(['dex']);
+});
+
+test('each part of a comma-separated paste is unmarked, not just the head of it', () => {
+  /*
+   * The two halves of this were each right and wrong together. Unmarking ran on the whole string and `names` split
+   * what came out, so only the first part was ever unmarked and every later one took a second mark: a pasted
+   * `#keepers,#dupes` composed `#keepers` and `##dupes`, which is the silent miss the unmarking exists to stop, one
+   * comma along. A table over `unmarked` alone passed straight over it, never having walked two parts — so this is
+   * over `marked`, which is the composition, and the single-value rows are here to show the order changed nothing
+   * about them.
+   */
+  expect(
+    Object.fromEntries(
+      (
+        [
+          ['#', '#keepers,#dupes'],
+          ['@3', '@3crunch,@3bite'],
+          ['@', '@3crunch,@3bite'],
+          ['#', 'keepers,dupes'],
+          ['@3', 'crunch,bite'],
+          ['#', '#keepers'],
+          ['@3', '@3crunch'],
+
+          // The spaces around a name are the reader's, not the name's, and an empty part is no pill at all.
+          ['#', ' #keepers , #dupes '],
+          ['#', '#keepers,,'],
+          ['#', ''],
+        ] as const
+      ).map(([mark, typed]) => [`${mark} + ${JSON.stringify(typed)}`, marked(mark, typed)]),
+    ),
+  ).toEqual({
+    '# + "#keepers,#dupes"': ['#keepers', '#dupes'],
+    '@3 + "@3crunch,@3bite"': ['@3crunch', '@3bite'],
+
+    // *Any slot* drops each pasted slot, the dropdown owning it — the same rule as a single value, applied per part.
+    '@ + "@3crunch,@3bite"': ['@crunch', '@bite'],
+    '# + "keepers,dupes"': ['#keepers', '#dupes'],
+    '@3 + "crunch,bite"': ['@3crunch', '@3bite'],
+    '# + "#keepers"': ['#keepers'],
+    '@3 + "@3crunch"': ['@3crunch'],
+    '# + " #keepers , #dupes "': ['#keepers', '#dupes'],
+    '# + "#keepers,,"': ['#keepers'],
+    '# + ""': [],
+  });
+});
+
+test('a mark the reader typed is dropped rather than doubled', () => {
+  /*
+   * The boxes add the mark, so a phrase pasted out of the reference carried one of its own: `#keepers` composed
+   * `##keepers` and `@3crunch` composed `@@3crunch`, neither matching anything nor saying so anywhere.
+   *
+   * The slot is the asymmetry worth pinning. Digits are part of an `@` mark, so the dropdown settles the slot and a
+   * pasted one is dropped with the rest of the mark — taking the paste instead would spell *First charged* beside a
+   * pasted `@3` as `@23crunch`. A tag can be called `3things`, so a `#` leaves digits alone.
+   */
+  expect(
+    Object.fromEntries(
+      (
+        [
+          ['@3', '@3crunch'],
+          ['@3', '@crunch'],
+          ['@3', 'crunch'],
+          ['@', '@3crunch'],
+          ['@', 'crunch'],
+          ['#', '#keepers'],
+          ['#', 'keepers'],
+          ['#', '#3things'],
+          ['#', '3things'],
+        ] as const
+      ).map(([mark, typed]) => [`${mark} + ${typed}`, `${mark}${unmarked(mark, typed)}`]),
+    ),
+  ).toEqual({
+    '@3 + @3crunch': '@3crunch',
+    '@3 + @crunch': '@3crunch',
+    '@3 + crunch': '@3crunch',
+
+    // A slot pasted where the dropdown says *Any slot* is dropped too, the dropdown being the one that owns it.
+    '@ + @3crunch': '@crunch',
+    '@ + crunch': '@crunch',
+    '# + #keepers': '#keepers',
+    '# + keepers': '#keepers',
+
+    // The digits of a tag's own name are the tag's, not the mark's.
+    '# + #3things': '#3things',
+    '# + 3things': '#3things',
+  });
 });
 
 test('a sentence is split on its backtick pairs', () => {

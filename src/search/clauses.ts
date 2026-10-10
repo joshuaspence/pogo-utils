@@ -27,6 +27,7 @@
  * normal form and De Morgan is the reader's own doing.
  */
 
+import { SHORTCUTS } from './terms.js';
 import { group, isGroup, leafText, type Leaf, type Node } from './tree.js';
 
 /**
@@ -67,7 +68,7 @@ const MISHANDLED = [
   },
 ];
 
-/** One term the game mishandles behind its `!`, written as the reader will see it, and what the game does instead. */
+/** One phrase the game mishandles, written as the reader will see it, and what the game does with it instead. */
 export interface Mishandled {
   term: string;
   note: string;
@@ -81,7 +82,7 @@ export interface Written {
   /** Why nothing came back, in words for the reader under the box rather than for a log. */
   error: string | null;
 
-  /** The negations the game is known to get wrong, each named once however many clauses it ended up in. */
+  /** The phrases the game is known to get wrong, each named once however many clauses it ended up in. */
   mishandled: readonly Mishandled[];
 }
 
@@ -291,6 +292,67 @@ function absorbed(all: readonly (readonly Leaf[])[]) {
     .map((mine) => mine.leaves);
 }
 
+/**
+ * The text a shortcut phrase swallows, each piece named once.
+ *
+ * The community phrase list calls these shortcuts "internally a range", and that is exactly what goes wrong with
+ * them: `{search}{text}` collapses to `{search}`, and `@{search}` loses its `@`. So a nickname, a tag or a move name
+ * that begins with one is searched as a span instead — `@counter` is `count2-`, which answers with everything you hold
+ * two of and looks entirely deliberate doing it.
+ *
+ * **Only the text a reader wrote is read**, which is the whole of what this can catch: a term comes out of `terms.js`
+ * and a span out of the writer, so `count10-` is the range search it looks like rather than a word being eaten. The
+ * one phrase the list records as patched is left out of it by its own `greedy`.
+ *
+ * A `#` is the way out and the list names it as one, the difficulty arising "for tags starting with a shortcut phrase
+ * (when not using '#')" — so `#counter` is the tag, and `counter` is not. An `@` is the opposite: it is dropped
+ * whatever follows it, so even an `@count` that swallows nothing is still read as the span.
+ *
+ * **A slot digit between the two is deliberately not named**, and the reason is where these notes stop. The list's
+ * bullets are `{search}{text}` and `@{search}`, both of them the phrase against the start of a token; `@3counter`
+ * puts a `3` in between and is a case the reference does not record, so there is no span to claim it comes to. These
+ * notes are the phrases the game is *known* to get wrong, which is the contract the negations above are held to as
+ * well — a reading nothing records belongs in the panel's own help, and `pages/search.js` carries it there.
+ *
+ * The span is spelled by the writer that composes one, rather than carried in the table beside the floor: a note
+ * quoting a string nothing produces is a note that can go stale on its own.
+ */
+function swallowed(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
+  const supplied = new Set(
+    clauses
+      .flat()
+      .filter((leaf) => leaf.kind === 'name')
+      .map(written),
+  );
+
+  const named: Mishandled[] = [];
+
+  for (const text of supplied) {
+    /*
+     * The negation comes off to find the phrase and goes back on to name it. `term` is the text as the reader will see
+     * it in the string, which `Mishandled` says and `mishandling` below honours by putting the `!` back — a caveat
+     * reported against `counter` beside a query reading `!counter` points at a string that is not there, and a negated
+     * nickname is exactly the case where a swallowed phrase is hardest to spot.
+     */
+    const folded = text.toLowerCase().replace(/^!/, '');
+    const marked = folded.startsWith('@');
+    const rest = marked ? folded.slice(1) : folded;
+
+    // Behind an `@` the phrase is the span whatever follows it, including nothing. In front of a word it has to have
+    // something to swallow, a phrase standing alone being the shortcut `parse.js` reads as the span it stands for.
+    const eaten = SHORTCUTS.find((one) => one.greedy && rest.startsWith(one.phrase) && (marked || rest !== one.phrase));
+    const span = eaten && leafText({ kind: 'range', id: eaten.range, from: eaten.from, to: null, negated: false });
+
+    if (eaten && span) {
+      const note = `\`${eaten.phrase}\` is a shortcut for \`${span}\`, and the game reads this as that`;
+
+      named.push({ term: text, note });
+    }
+  }
+
+  return named;
+}
+
 /** The negated terms the game gets wrong, each named once however many of the clauses it reached. */
 function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
   const negated = new Set(
@@ -317,10 +379,10 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
  * intermediate clauses the absorption above sees, so two of them surviving a nested `any` can come out the other way
  * round than they would unfactored.
  *
- * The negations are read off the clauses that survived rather than off everything the distribution produced. A clause
- * dropped for asking nothing takes its pills with it, so a query can spread a `!1hp` and then write no clause holding
- * one — naming it would have named a term the string does not contain, which is the one thing the page says these
- * notes are for.
+ * Both sets of notes are read off the clauses that survived rather than off everything the distribution produced. A
+ * clause dropped for asking nothing takes its pills with it, so a query can spread a `!1hp` and then write no clause
+ * holding one — naming it would have named a term the string does not contain, which is the one thing the page says
+ * these notes are for.
  */
 export function clausesOf(node: Node): Written {
   // Factored before it is measured, the point of factoring being to bring the measurement under the cap.
@@ -343,6 +405,6 @@ export function clausesOf(node: Node): Written {
   return {
     clauses: kept.map((leaves) => leaves.map(written).join(',')),
     error: null,
-    mishandled: mishandling(kept),
+    mishandled: [...mishandling(kept), ...swallowed(kept)],
   };
 }

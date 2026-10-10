@@ -367,6 +367,32 @@ test('a negation the game ignores is named, however the number was spelled', () 
   }
 });
 
+test('a negated IV span is named, which is the pill a chip now makes', () => {
+  /*
+   * The note above it was written against names alone, there being no IV range when it was: `{N}hp` puts its phrase
+   * behind the span, which no `prefix` could write, so the pattern it matches was unreachable from the catalogue and
+   * only a reader typing `!1hp` by hand ever saw the caveat. Both halves are worth pinning now — that a span pill
+   * reaches it, and that it reaches it through whichever of the four shapes the boxes were filled in.
+   */
+  const spans: [string, Leaf][] = [
+    ['!4hp', { kind: 'range', id: 'ivhp', from: 4, to: 4, negated: true }],
+    ['!0-2hp', { kind: 'range', id: 'ivhp', from: 0, to: 2, negated: true }],
+    ['!3-defense', { kind: 'range', id: 'ivdefense', from: 3, to: null, negated: true }],
+    ['!-1attack', { kind: 'range', id: 'ivattack', from: null, to: 1, negated: true }],
+  ];
+
+  for (const [written, pill] of spans) {
+    expect(clausesOf(all(pill, yes('shiny')))).toEqual({
+      clauses: [written, 'shiny'],
+      error: null,
+      mishandled: [{ term: written, note: expect.stringContaining('ignores a negation') }],
+    });
+  }
+
+  // The stat is a different range reading the same word, and the game handles a negation on it perfectly well.
+  expect(clausesOf(all({ kind: 'range', id: 'hp', from: 4, to: 4, negated: true })).mishandled).toEqual([]);
+});
+
 test('a negated mega level is named for answering with less than it was asked for', () => {
   expect(clausesOf(all(named('mega2'), yes('shiny'))).mishandled).toEqual([
     { term: '!mega2', note: expect.stringContaining('Mega Evolve') },
@@ -388,6 +414,101 @@ test('a term the game reads properly is not named, negated or otherwise', () => 
     all(named('attack')),
     all(named('5hp')),
     all(named('1spd')),
+  ];
+
+  for (const [at, node] of cases.entries()) {
+    expect({ at, mishandled: clausesOf(node).mishandled }).toEqual({ at, mishandled: [] });
+  }
+});
+
+/*
+ * The shortcut phrases, which are the other thing the game reads as something else. These need no negation to go
+ * wrong: the phrase list has them "internally a range", so a longer word beginning with one collapses to it and an `@`
+ * in front of one is dropped. A reader is owed that before they run the string, `@counter` answering with everything
+ * they hold two of and looking entirely deliberate while it does.
+ */
+
+test('a word a shortcut phrase swallows is named, with the span the game reads instead', () => {
+  for (const [text, span] of [
+    ['counter', 'count2-'],
+    ['@counter', 'count2-'],
+    ['@count', 'count2-'],
+    ['dynamax cannon', 'dynamax1-'],
+    ['gigantamaximum', 'gigantamax1-'],
+  ] as const) {
+    expect(clausesOf(all(named(text, false), yes('shiny'))).mishandled).toEqual([
+      { term: text, note: expect.stringContaining(`\`${span}\``) },
+    ]);
+  }
+});
+
+test('a swallowed phrase is named as the reader will see it, negation and all', () => {
+  /*
+   * `Mishandled.term` is the text as it appears in the string, which is what `mishandling` honours by putting the `!`
+   * back. This stripped it to find the phrase and then reported the stripped form, so a query reading `!counter&shiny`
+   * carried a caveat pointing at `counter` — a string it does not contain. A negated nickname is also the case where a
+   * swallowed phrase is hardest to spot, the reader believing they have ruled something out.
+   */
+  expect(clausesOf(all(named('counter'), yes('shiny')))).toEqual({
+    clauses: ['!counter', 'shiny'],
+    error: null,
+    mishandled: [{ term: '!counter', note: expect.stringContaining('`count2-`') }],
+  });
+
+  // Both polarities of one word are two strings and two caveats, each naming the text that is actually in the query.
+  expect(
+    clausesOf(any(all(named('counter', false), yes('shiny')), all(named('counter'), yes('lucky')))).mishandled.map(
+      (one) => one.term,
+    ),
+  ).toEqual(['counter', '!counter']);
+});
+
+/*
+ * A pill is one alternative within a clause, so the game's own separators inside one are a search the canvas is not
+ * showing. The two new boxes split on the comma for this reason — `takeMarked` in `pages/search.js` — where the rest
+ * of the punctuation is the line the name box already draws and `parse.js` refuses on the way back.
+ */
+
+test('a comma inside one pill is the game’s own or, which is why the boxes split on it', () => {
+  const whole = clausesOf(all(named('@3crunch,bite', false), yes('shiny')));
+
+  // One pill on the canvas, two alternatives in the clause the game reads.
+  expect(whole.clauses).toEqual(['@3crunch,bite', 'shiny']);
+  expect(whole.clauses[0]?.split(',')).toHaveLength(2);
+
+  // Split instead, each part carrying the mark, it is the two pills it looks like and each is its own clause.
+  expect(clausesOf(all(named('@3crunch', false), named('@3bite', false), yes('shiny'))).clauses).toEqual([
+    '@3crunch',
+    '@3bite',
+    'shiny',
+  ]);
+});
+
+test('a phrase the shortcut leaves alone is not named', () => {
+  const cases: Node[] = [
+    // The `#` is the way out the phrase list names, so a tag written as one is the tag and not the span.
+    all(named('#counter', false)),
+
+    // `mega` is the one the list records as patched, so a word beginning with it is a word again.
+    all(named('megalodon', false)),
+
+    // A span the writer produced, rather than a word a reader wrote: `count10-` is the search it looks like.
+    all({ kind: 'range', id: 'count', from: 10, to: null, negated: false }),
+
+    // And the shortcut itself swallows nothing, which is why `parse.js` reads one as the span it stands for.
+    all(named('count', false)),
+    all(named('dynamax', false)),
+
+    /*
+     * A slot digit between the `@` and the phrase, which is neither of the list's two bullets: both of those put the
+     * phrase against the start of a token, where this has a `3` in front of it. Left unnamed because there is no
+     * recorded reading to name it with — the Move panel's help is where a move called after a shortcut is warned
+     * about, that being all there is to say. Pinned so the boundary is a decision rather than something that fell out.
+     */
+    all(named('@3counter', false)),
+
+    // A chip whose own word is the shortcut, arriving as the chip.
+    all(yes('dynamax'), yes('gigantamax')),
   ];
 
   for (const [at, node] of cases.entries()) {
