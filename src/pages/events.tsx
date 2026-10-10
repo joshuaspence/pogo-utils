@@ -223,8 +223,8 @@ async function fetchRouteIndex(): Promise<RouteIndex> {
 
 /**
  * Hand text over as a download, a synthetic click on an `<a download>` being the only way a page can name a file.
- * `src/pages/integrations.tsx` has the same shape for bytes; the two are worth collapsing into `dom.ts` once that
- * page is not being rewritten under them.
+ * `downloadBytes` in `src/pages/integrations.tsx` is the same shape for bytes, and the two are worth collapsing into
+ * `dom.ts` as their own change — one that reaches a page this one does not touch.
  */
 function downloadText(text: string, name: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
