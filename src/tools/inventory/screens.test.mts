@@ -54,12 +54,16 @@ const TAGS = [
 const TAG_SLACK = 0.3;
 
 /**
- * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of
- * `pm{dex}.f{form}.icon.png` and recorded here for the same reason the forms and the CP multipliers are: a test of a
- * reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
+ * The hue signature of the game's own icon for each form the numbers cannot separate, read once out of the file that
+ * form's own `icon` names — no template of the label reaches it, the blank Ho-Oh being `pm250.icon.png` against
+ * `Ho-Oh (S)`'s `pm250.fS.icon.png` — and recorded here for the same reason the forms and the CP multipliers are: a
+ * test of a reader must not reach the network. Four decimal places, where the margin that decides an answer is 0.3.
  *
- * Two families, and both of them land: Burmy's three icons are 1.85 apart at their closest and Cherrim's two 1.62,
- * against a margin of 0.3.
+ * Three families, two of which land: Burmy's three icons are 1.85 apart at their closest and Cherrim's two 1.62,
+ * against a margin of 0.3. Ho-Oh's two are 0.25 apart, which is the third one's reason for being here — a lead can
+ * never exceed the distance between the two icons it is measured against, so that family is one no capture can settle
+ * and `MARGIN` is what says so. Without it the five that land are each nearest their own icon, and a margin of 0 would
+ * answer every one of them correctly with nothing below noticing.
  */
 const ARTWORK = new Map<string, Signature>([
   ['Burmy (Plant)', [0, 0.0527, 0.0288, 0.9173, 0.0012, 0, 0, 0, 0, 0, 0, 0]],
@@ -67,6 +71,8 @@ const ARTWORK = new Map<string, Signature>([
   ['Burmy (Trash)', [0.6469, 0.0088, 0.0064, 0, 0, 0, 0.0064, 0, 0, 0, 0, 0.3315]],
   ['Cherrim (Overcast)', [0.0235, 0, 0, 0.0294, 0.1917, 0.0002, 0, 0, 0.2918, 0.2974, 0.0092, 0.1568]],
   ['Cherrim (Sunny)', [0.1492, 0.5625, 0.0217, 0.001, 0.0097, 0, 0, 0, 0, 0, 0, 0.2559]],
+  ['Ho-Oh', [0.6891, 0.213, 0.0867, 0.0005, 0, 0, 0.0006, 0.0064, 0.0016, 0, 0.0009, 0.0011]],
+  ['Ho-Oh (S)', [0.5724, 0.272, 0.1522, 0.0002, 0, 0, 0, 0.0012, 0.0017, 0, 0, 0.0003]],
 ]);
 
 /** Those signatures against the forms they belong to, which is the shape `identify` takes them in. */
@@ -357,7 +363,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1025,
-    defects: { label: 'Cherrim (Sunny)' },
     file: 'cherrim-overcast.png',
     form: 'Overcast',
     gender: 'male',
@@ -1222,13 +1227,13 @@ test('every stitch carries a `Viewport` smaller than itself, and no screen carri
 const COVERAGE = {
   rows: 43,
   negatives: 3,
-  answeredAsThemselves: 41,
+  answeredAsThemselves: 42,
   oneLevel: 43,
   crossCheckAgrees: 43,
   crossCheckDisagrees: 0,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 39,
+  noDefects: 40,
   noOverlayDrawn: 0,
   boxNotFound: 0,
   overlayNotRead: 0,
@@ -1267,16 +1272,15 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Two of the 43, against four rows carrying a `defects` — so the trigger costs an extra read on a defect and on
+ * Two of the 43, against three rows carrying a `defects` — so the trigger costs an extra read on a defect and on
  * nothing else. That it does is held by the `identify notes` test above rather than here: that one asserts what
  * `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture that starts
  * raising a note without earning one fails there.
  *
- * The two it cannot reach are named rather than counted, being the limit of the approach rather than a gap in it. Each
- * is a reader answering confidently where nothing else on the screen can contradict it: the fold collapses Basculin's
- * two stripes, no icon signature recorded for either, and the artwork declines Cherrim's Overcast so the fold collapses
- * that pair too — an abstention costing nothing and fixing nothing. No number of further reads can find those, so a
- * scan cannot either; only a second reader of the same thing could.
+ * The one it cannot reach is named rather than counted, being the limit of the approach rather than a gap in it: the
+ * fold collapses Basculin's two stripes with no icon signature recorded for either, which is a reader answering
+ * confidently where nothing else on the screen can contradict it. No number of further reads can find that, so a scan
+ * cannot either; only a second reader of the same thing could.
  */
 test('the defects a scan can find for itself are the two captures that raise a note', () => {
   // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
@@ -1289,7 +1293,7 @@ test('the defects a scan can find for itself are the two captures that raise a n
   expect(
     FIXTURES.filter((f) => f.defects && notesOf(f).length === 0).map((f) => f.file),
     'a pinned defect that raises no note is one a scan cannot read again on',
-  ).toStrictEqual(['basculin-blue.png', 'cherrim-overcast.png']);
+  ).toStrictEqual(['basculin-blue.png']);
 });
 
 /**
@@ -1620,9 +1624,9 @@ test('without the level the overlay states, the CP still settles one', async () 
 });
 
 /**
- * What the artwork may settle, measured with icons made up for the purpose since the corpus signs only Burmy and
- * Cherrim. A costume carries no icon and must not stop the forms that do from being compared — `pikachu.png` against a
- * clone given its own signature is the clone — but forms with different numbers are the numbers' to separate, so
+ * What the artwork may settle, measured with icons made up for the purpose since the corpus signs only Burmy, Cherrim
+ * and Ho-Oh. A costume carries no icon and must not stop the forms that do from being compared — `pikachu.png` against
+ * a clone given its own signature is the clone — but forms with different numbers are the numbers' to separate, so
  * Deoxys' four, with the printed CP taken away, are left as alternatives however their colours fall.
  */
 test('the artwork chooses within one set of numbers, past the costumes and no further', async () => {
@@ -1913,15 +1917,15 @@ const distinct = (rows: readonly Fixture[], of: (row: Fixture) => unknown): stri
  * another, nothing `parseDetail` or the overlay reads being able to separate them. The whole map, so a reader that
  * gained one answer and lost another cannot come out even.
  *
- * Four answered and one declined, which is both halves rather than one: `MARGIN` mattering is something this would
- * now notice, where on a corpus that answered every one the margin could have been 0 unremarked. The decline is
- * Cherrim's Overcast, whose nearest icon is **Sunny** by 0.229, so `MARGIN` is the whole of what stands between this
- * and a confidently wrong answer. It is the match's own doing rather than stale data — `ARTWORK` holds signatures of
- * the game's icons, which no capture can move — and the row carries `defects.label` for what `identify` answers:
- * `Cherrim (Sunny)`, the fold's shorter name, with nothing beside it saying that was a choice.
+ * Five answered and one declined, which is both halves rather than one: `MARGIN` mattering is something this would
+ * notice, where on a corpus that answered every one the margin could have been 0 unremarked. The decline is `ho-oh.png`
+ * and it is the icons' doing rather than the capture's, the two being 0.25 apart; its own nearest is **Ho-Oh (S)** by
+ * 0.190, which is the wrong one. `identify` still answers `Ho-Oh` there, the fold keeping the shorter name — right by
+ * the same luck that made it wrong on Cherrim's Overcast, and the reason that capture's row pinned a `defects.label`
+ * until the mask stopped being PGSharp's box welded to a pink head.
  */
 test(
-  'the artwork settles four of five forms the numbers cannot, and declines one',
+  'the artwork settles five of six forms the numbers cannot, and declines the family it cannot separate',
   async () => {
     const { drawn } = ambiguous(DATA);
     const answers = new Map<string, string>();
@@ -1957,8 +1961,9 @@ test(
       'burmy-plant.png': 'Burmy (Plant)',
       'burmy-sandy.png': 'Burmy (Sandy)',
       'burmy-trash.png': 'Burmy (Trash)',
-      'cherrim-overcast.png': 'declined',
+      'cherrim-overcast.png': 'Cherrim (Overcast)',
       'cherrim-sunny.png': 'Cherrim (Sunny)',
+      'ho-oh.png': 'declined',
     });
   },
   WHOLE_CORPUS_TIMEOUT,
