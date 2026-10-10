@@ -141,8 +141,10 @@ test('no stylesheet gives one class name to two kinds of element', () => {
  * would be wrong. It is the likeliest such shape to arrive, being the alternative the three comments in `events.css`
  * discuss and reject.
  *
- * What this does not reach is a `[hidden]` nested inside another bracketed form inside the `:not` —
- * `:not(.a:has([hidden]))` still reads as keyed. Closing that needs a selector parser; nothing writes it.
+ * Two shapes it gets wrong, in opposite directions and neither of them written anywhere. A `[hidden]` behind a second
+ * bracketed form inside the `:not` is never reached, so `:not(.a:has([hidden]))` over-reports as keyed; and double
+ * negation strips twice, so `:not(:not([hidden]))` loses its key altogether and a hide this gate should hold goes
+ * unseen. Closing either wants a selector parser.
  */
 function withoutNot(selector: string) {
   let bare = selector;
@@ -414,12 +416,24 @@ test('a rule keyed on a shown element is not a hiding rule', () => {
   expect(hiddenHides('.a:not(.b):not([hidden]) { display: flex }')).toEqual({ weak: [], strong: [], kept: [] });
 
   /*
-   * And the limit `withoutNot` documents, pinned rather than left to be discovered: a `[hidden]` behind a second
-   * bracketed form inside the `:not` is not reached, so this reads as keyed. No sheet writes it, and closing it needs
-   * a selector parser — this asserts what the check does today rather than what it ideally would.
+   * Both limits `withoutNot` documents, pinned rather than left to be discovered, and they fall opposite ways. A
+   * `[hidden]` behind a second bracketed form inside the `:not` is never reached, so the first over-reports as keyed;
+   * double negation strips twice and the second loses its key, so a hide of a hidden element goes unseen. No sheet
+   * writes either, and closing them wants a selector parser — this says what the check does, not what it should.
    */
   expect(hiddenHides('.z:not(.a:has([hidden])) { display: none }')).toEqual({
     weak: ['.z:not(.a:has([hidden]))'],
+    strong: [],
+    kept: [],
+  });
+  expect(hiddenHides('.a:not(:not([hidden])) { display: none }')).toEqual({ weak: [], strong: [], kept: [] });
+
+  /*
+   * `:is`, `:where` and `:has` around a plain `[hidden]` stay keyed, which is the right answer rather than a limit:
+   * each selects the hidden element, where `:not` selects the shown one, so each is a hide to be held to the flag.
+   */
+  expect(hiddenHides('.a:is([hidden]) { display: none }')).toEqual({
+    weak: ['.a:is([hidden])'],
     strong: [],
     kept: [],
   });
