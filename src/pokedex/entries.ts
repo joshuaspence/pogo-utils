@@ -156,11 +156,3 @@ export const ENTRIES: readonly Entry[] = Object.entries(POKEMON).map(([constant,
  * The dex number zero-padded to four places, the way the games print it.
  */
 export const numbered = (dex: number) => `#${String(dex).padStart(4, '0')}`;
-
-/**
- * Where a species' picture comes from: PokeAPI's sprite set, which covers the national dex by number with a shiny
- * beside each. Hotlinked rather than vendored, 2050 images being most of this repository's weight; one that fails to
- * load leaves the card its number and name.
- */
-export const spriteOf = (dex: number, shiny = false) =>
-  `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${shiny ? 'shiny/' : ''}${dex}.png`;

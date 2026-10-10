@@ -10,7 +10,8 @@
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, spriteOf, type Entry } from '../pokedex/entries.js';
+import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, numbered, type Entry } from '../pokedex/entries.js';
+import { spriteOf, type Icons } from '../pokedex/icons.js';
 import {
   availabilityOf,
   emptyState,
@@ -21,6 +22,8 @@ import {
   toFragment,
   type State,
 } from '../pokedex/state.js';
+import { said } from '../errors.js';
+import { POKEMON_ICONS } from '../generated.js';
 import { replaceQuery, toHash } from '../router.js';
 import { nameFragment } from '../search/query.js';
 
@@ -28,30 +31,58 @@ const HUNT_LABELS = new Map(HUNTS.map(({ id, label }) => [id, label]));
 const CATEGORY_LABELS = new Map(CATEGORIES.map(({ id, label }) => [id, label]));
 
 /**
- * A sprite that says nothing when it fails. The name and number beside it are the card; a hotlinked picture that does
- * not arrive — offline, or blocked — should leave a blank tile rather than the browser's broken-image glyph.
+ * A sprite that says nothing when it fails. The name over it is the card; a hotlinked picture that does not arrive —
+ * offline, or blocked — should leave a blank tile rather than the browser's broken-image glyph.
  *
- * The failure is this component's own state rather than a class added to the node, which is also what resets it: the
- * shiny toggle in the dialog changes `src`, and a fresh `src` deserves a fresh chance to load rather than inheriting the
- * last one's failure.
+ * What failed is remembered as the URL rather than as a boolean, because a fresh `src` deserves a fresh chance to load
+ * and a flag would deny it one. `key` on the `<img>` cannot do that job: it replaces the child node while this
+ * component's own instance — same type, same position — is reused, so a hook on it survives. The icon table landing is
+ * exactly that case, changing the `src` of the 113 species it holds a row for after the derived name has 404d; and a
+ * 404 that resolves late calls back into a live component whichever way the two race, so only comparing against the
+ * `src` in hand can tell a stale failure from this one's.
  */
-function Sprite({ dex, shiny, size, eager }: { dex: number; shiny: boolean; size: number; eager?: boolean }) {
-  const [failed, setFailed] = useState(false);
-  const src = spriteOf(dex, shiny);
+function Sprite({ src, size, eager }: { src: string; size: number; eager?: boolean }) {
+  const [failed, setFailed] = useState<string | null>(null);
 
   return (
     <img
-      key={src}
-      class={failed ? 'sprite missing' : 'sprite'}
+      class={failed === src ? 'sprite missing' : 'sprite'}
       src={src}
       alt=""
       width={size}
       height={size}
       loading={eager ? 'eager' : 'lazy'}
       decoding="async"
-      onError={() => setFailed(true)}
+      onError={() => setFailed(src)}
     />
   );
+}
+
+/**
+ * The icons the dex number cannot derive, which is most of a page visit's wait on anything. A fetch that fails leaves
+ * the derived name on every card — right for 912 of the 1025, and the rest keep their name and number — so a missing
+ * table is not worth withholding the grid over.
+ */
+function useIcons(): Icons {
+  const [icons, setIcons] = useState<Icons>({});
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(POKEMON_ICONS);
+
+        if (!res.ok) {
+          throw new Error(`${res.status} ${res.statusText}`.trim());
+        }
+
+        setIcons(await res.json());
+      } catch (e) {
+        console.error(`${POKEMON_ICONS}: ${said(e)} — some species will show no picture`);
+      }
+    })();
+  }, []);
+
+  return icons;
 }
 
 /** A mark whose glyph is for the eye and whose words are for a screen reader. */
@@ -108,11 +139,13 @@ function Variants({ entry }: { entry: Entry }) {
 }
 
 /** What the dialog shows for one species: its picture, the facts about it, and its forms. */
-function Detail({ entry }: { entry: Entry }) {
+function Detail({ entry, icons }: { entry: Entry; icons: Icons }) {
   /**
-   * The shiny sprite is offered only where there is a shiny to show: PokeAPI draws one for every species, and a toggle
-   * that shows a shiny the game does not have would be the page contradicting itself. Reset per species, which keying
-   * the dialog's body by dex number is what arranges.
+   * The shiny is offered only where the game has one, and this flag is what says so rather than a missing file:
+   * PokeAPI draws a shiny for every species, so each of the 64 falling back to it would offer one. The game's own
+   * assets are stricter and agree — Hoopa, Volcanion, Cosmog, Kubfu, Urshifu and Zarude have no shiny render, and are
+   * exactly the six `pokedex.ts` marks `isNotShinyEligible`. Reset per species, which keying the dialog's body by dex
+   * number is what arranges.
    */
   const [shiny, setShiny] = useState(false);
   const name = entry.name.toLowerCase();
@@ -121,7 +154,7 @@ function Detail({ entry }: { entry: Entry }) {
     <>
       <div class="grid2">
         <figure class="picture">
-          <Sprite dex={entry.dex} shiny={shiny} size={192} eager />
+          <Sprite src={spriteOf(entry.dex, shiny, icons)} size={240} eager />
           {entry.shiny && (
             <button type="button" class="chip" aria-pressed={shiny} onClick={() => setShiny(!shiny)}>
               ✨ Shiny
@@ -188,6 +221,8 @@ function Detail({ entry }: { entry: Entry }) {
 
 export default function PokedexPage({ query: fragment }: { query: string }) {
   const [state, setState] = useState<State>(() => fromFragment(fragment));
+
+  const icons = useIcons();
 
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -270,6 +305,28 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
           Every species, what of it is in the game, which have a shiny, and which of the hunts still want it. Pick one
           to see its forms.
         </p>
+
+        {/*
+         * The counts over what the filters leave, which is also how the page says a filter did anything: it is the
+         * only part of the page that answers them, so it carries the live region rather than a second line of text
+         * saying the same number again.
+         *
+         * The word is the `<dt>` and the figure its `<dd>` — "species, which is 1025" — rather than the other way
+         * round, which would be markup defining the number. Source order is the one HTML allows, and the stylesheet is
+         * what paints the figure above its word.
+         */}
+        <dl class="tally" aria-live="polite">
+          {[
+            { label: 'species', of: visible },
+            { label: 'in Pokémon GO', of: visible.filter((entry) => entry.released) },
+            { label: 'with a shiny', of: visible.filter((entry) => entry.shiny) },
+          ].map(({ label, of }) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{of.length}</dd>
+            </div>
+          ))}
+        </dl>
       </header>
 
       <main class="dex">
@@ -335,11 +392,6 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
           ))}
 
           <div class="meta">
-            <span class="count" aria-live="polite">
-              {filtered
-                ? `${visible.length} of ${ENTRIES.length} species`
-                : `${ENTRIES.length} species, ${ENTRIES.filter((entry) => entry.released).length} of them in Pokémon GO`}
-            </span>
             <button
               type="button"
               class="ghost"
@@ -366,9 +418,18 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
                 }}
                 onClick={() => setState((was) => ({ ...was, open: entry.dex }))}
               >
-                <Sprite dex={entry.dex} shiny={false} size={96} />
-                <span class="num">{numbered(entry.dex)}</span>
-                <span class="name">{entry.name}</span>
+                <Sprite src={spriteOf(entry.dex, false, icons)} size={112} />
+
+                {/*
+                 * The name sits over the picture rather than under it, so the artwork is the tile. The number goes
+                 * with it and is shown on hover: it is what the box above filters on, so it stays in the markup for a
+                 * screen reader to read out whether or not the pointer is anywhere near.
+                 */}
+                <span class="label">
+                  <span class="name">{entry.name}</span>
+                  <span class="num">{numbered(entry.dex)}</span>
+                </span>
+
                 <span class="marks">
                   {entry.shiny && <Mark kind="shiny" glyph="✨" words="shiny available" />}
                   {!entry.released && <Mark kind="out" glyph="🔒" words="not in Pokémon GO yet" />}
@@ -454,7 +515,7 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
               </button>
             </div>
             <div class="body">
-              <Detail key={open.dex} entry={open} />
+              <Detail key={open.dex} entry={open} icons={icons} />
             </div>
           </>
         )}
@@ -463,7 +524,8 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
       <footer>
         <p>
           Read from the same Pokédex and hunt lists the PGSharp backup is built from, so the two cannot disagree.
-          Sprites are PokeAPI's. The link updates as you filter, so a view can be shared or bookmarked.
+          Pictures are the game's own, from PokeMiners, with PokeAPI's sprite for a species the game has no artwork for.
+          The link updates as you filter, so a view can be shared or bookmarked.
         </p>
         <p>This site is unofficial.</p>
       </footer>

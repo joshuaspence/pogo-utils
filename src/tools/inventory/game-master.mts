@@ -13,6 +13,7 @@
  * to discover the network is down.
  */
 
+import { ICON_DIR } from '../../pokedex/icons.ts';
 import { titleise } from '../../pokemon/names.ts';
 import { fold } from './ocr.mts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -21,15 +22,6 @@ import { join } from 'node:path';
 const GAME_MASTER = 'https://raw.githubusercontent.com/PokeMiners/game_masters/master/latest/latest.json';
 const STRINGS =
   'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/Texts/Latest%20APK/JSON/i18n_english.json';
-
-/**
- * Where `pogo_assets` keeps the form icons. The 256×256 renders rather than the smaller ones beside them, because
- * `Images/Pokemon/Addressable Assets` stopped being filled — last commit 2025-10-05 against 2026-09-25 — and the 270
- * files it is missing include every form of Mimikyu, Cramorant and Squawkabilly. Nothing distinguishes a stale listing
- * from a current one, both answering `truncated: false`, so those forms simply went unnarrowed. A signature is a hue
- * histogram normalised by its own pixel count, so the larger render scores the same.
- */
-const ICON_DIR = 'Images/Pokemon - 256x256/Addressable Assets';
 
 /**
  * What `pogo_assets` holds under `ICON_DIR`, which is 3,792 names in 874 KB and the only thing that says whether a form
@@ -49,9 +41,6 @@ const ICON_INDEX =
  * a file the reader no longer asks for, and the test would pass on a download it meant to have prevented.
  */
 export const ICON_CACHE = `icons-${ICON_DIR.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}.json`;
-
-/** Where each file the index names is fetched from. */
-export const ICON_BASE = `https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/${encodeURI(ICON_DIR)}/`;
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 

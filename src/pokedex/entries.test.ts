@@ -6,16 +6,7 @@
 
 import { expect, test } from 'vitest';
 
-import {
-  CATEGORIES,
-  ENTRIES,
-  GENERATION_NUMBERS,
-  HUNTS,
-  generationOf,
-  numbered,
-  spriteOf,
-  type Entry,
-} from './entries.js';
+import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, generationOf, numbered, type Entry } from './entries.js';
 import { GENERATIONS } from '../pokemon/generations.js';
 import { fold } from '../pokemon/names.js';
 
@@ -162,7 +153,7 @@ test('a form of a regional variant is named by both, so it is not read as a form
   // not assignable to parameter of type 'string'` on that line, because `''` leaves the form nullable in the branch
   // that names it.
   expect(entry('Articuno').variants.map(({ name }) => name)).toEqual(['Galarian Articuno']);
-  expect(entry('Flabébé').variants[0]?.name).toBe('Flabébé (Orange Flower)');
+  expect(entry('Flabébé').variants[0]?.name).toBe('Flabébé (Red Flower)');
 });
 
 test('the searchable name is folded from what the page shows rather than from the constant', () => {
@@ -189,15 +180,8 @@ test('the rows are the whole dex in strictly ascending order', () => {
   expect([ENTRIES[0]?.name, ENTRIES.at(-1)?.name]).toEqual(['Bulbasaur', 'Pecharunt']);
 });
 
-test('a dex number is printed four wide and the shiny sprites are a directory rather than a suffix', () => {
-  const sprites = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon';
-
+test('a dex number is printed four wide', () => {
   // The games print `#0001`, and the padding is what makes a column of numbers line up. `padStart` does not truncate,
   // which is why the four-digit end of the dex is worth asserting beside the one-digit start.
   expect([numbered(1), numbered(151), numbered(1025)]).toEqual(['#0001', '#0151', '#1025']);
-
-  // The shiny set is a path segment before the number, so a URL built by appending to the name would 404 on every
-  // shiny card while the ordinary ones carried on loading.
-  expect(spriteOf(25)).toBe(`${sprites}/25.png`);
-  expect(spriteOf(25, true)).toBe(`${sprites}/shiny/25.png`);
 });

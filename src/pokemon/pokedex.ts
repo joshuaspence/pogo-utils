@@ -816,17 +816,17 @@ const POKEMON = {
   LITLEO: new Pokemon(667),
   PYROAR: new Pokemon(668).addForms('MALE', 'FEMALE'),
   FLABEBE: new Pokemon(669)
-    .addForms('ORANGE_FLOWER', 'WHITE_FLOWER')
     .addForms('RED_FLOWER', 'YELLOW_FLOWER', 'BLUE_FLOWER')
-    .isRegional(),
+    .isRegional()
+    .addForms('ORANGE_FLOWER', 'WHITE_FLOWER'),
   FLOETTE: new Pokemon(670)
-    .addForms('ORANGE_FLOWER', 'WHITE_FLOWER')
     .addForms('RED_FLOWER', 'YELLOW_FLOWER', 'BLUE_FLOWER')
-    .isRegional(),
+    .isRegional()
+    .addForms('ORANGE_FLOWER', 'WHITE_FLOWER'),
   FLORGES: new Pokemon(671)
-    .addForms('ORANGE_FLOWER', 'WHITE_FLOWER')
     .addForms('RED_FLOWER', 'YELLOW_FLOWER', 'BLUE_FLOWER')
-    .isRegional(),
+    .isRegional()
+    .addForms('ORANGE_FLOWER', 'WHITE_FLOWER'),
   SKIDDO: new Pokemon(672),
   GOGOAT: new Pokemon(673),
   PANCHAM: new Pokemon(674),
@@ -1134,9 +1134,9 @@ const POKEMON = {
   ARBOLIVA: new Pokemon(930),
   SQUAWKABILLY: new Pokemon(931)
     .isNotShinyEligible()
-    .addForms('YELLOW_PLUMAGE', 'WHITE_PLUMAGE')
     .addForms('GREEN_PLUMAGE', 'BLUE_PLUMAGE')
-    .isRegional(),
+    .isRegional()
+    .addForms('YELLOW_PLUMAGE', 'WHITE_PLUMAGE'),
   NACLI: new Pokemon(932).isNotShinyEligible(),
   NACLSTACK: new Pokemon(933).isNotShinyEligible(),
   GARGANACL: new Pokemon(934).isNotShinyEligible(),

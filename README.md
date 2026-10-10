@@ -308,20 +308,34 @@ to know which species share an evolution family, which is data this repository d
 
 ## Pokédex
 
-The **Pokédex** page ([`src/pages/pokedex.tsx`](src/pages/pokedex.tsx)) is the whole national dex as a grid of cards,
+The **Pokédex** page ([`src/pages/pokedex.tsx`](src/pages/pokedex.tsx)) is the whole national dex as a grid of tiles,
 narrowed by name or number, by generation, by whether a species is in the game yet, and by toggles for a shiny, a wild
-spawn, a category (Legendary, Mythical, Ultra Beast, Baby, Regional) or a place on one of the hunt lists. Picking a card
-opens the species: its normal and shiny sprite, what is true of it, each of its forms and regional variants with the
-same answers, and a link into the **Search** page for it or its family. The arrows step through the species the filters
-left, and the link carries both the filters and the open species.
+spawn, a category (Legendary, Mythical, Ultra Beast, Baby, Regional) or a place on one of the hunt lists. A tile is its
+artwork, with the name over the top and the number under it on hover; three figures in the heading count what the
+filters leave. Picking a tile opens the species: its normal and shiny picture, what is true of it, each of its forms and
+regional variants with the same answers, and a link into the **Search** page for it or its family. The arrows step
+through the species the filters left, and the link carries both the filters and the open species.
 
 Nothing on it is kept by hand. [`src/pokedex/entries.ts`](src/pokedex/entries.ts) reads
 [`src/pokemon/pokedex.ts`](src/pokemon/pokedex.ts) for the flags and the hunt lists in [`src/filters/`](src/filters) for
 what is still wanted — the same Sets the PGSharp backup is built from — so crossing a species off `xxl.js` takes it off
 the page's XXL filter too. A list is a checklist and the backup's feed is that list narrowed to what the wild can turn
 up, so the page says when a species is wanted but the feed cannot alert on it: Mewtwo is still wanted as a 100%, and
-only a raid will ever produce one. Sprites are hotlinked from [PokeAPI](https://github.com/PokeAPI/sprites); a species
-keeps its number and name if one does not load.
+only a raid will ever produce one.
+
+The pictures are the game's own, hotlinked from [PokeMiners' `pogo_assets`](https://github.com/PokeMiners/pogo_assets) —
+the same 256×256 renders [`src/tools/inventory/game-master.mts`](src/tools/inventory/game-master.mts) matches a
+screenshot against, so the two cannot disagree about what a species looks like. Most of the dex is `pm{dex}.icon.png`,
+which the number alone derives; `build:sprites` ([`scripts/build-sprites.mts`](scripts/build-sprites.mts)) writes the
+113 it does not, read out of the committed game master so the build reaches no network. 961 species draw a render that
+way. The other 64 have no artwork in the game at all — 62 of them are species it has not released, the exceptions being
+Scatterbug and Spewpa — and fall back to [PokeAPI](https://github.com/PokeAPI/sprites), which covers the dex by number.
+A species whose picture does not load keeps its name and number.
+
+A species the game draws only as a form — Unown, Burmy, Mimikyu — has no picture of its own, so the table names one of
+its forms. Which one comes from [`src/pokemon/pokedex.ts`](src/pokemon/pokedex.ts): `addForms` lists a species' forms in
+the game's order, so the first is the one that stands for the species. Only Spinda reaches no answer that way, its
+patterns being numbered where that table names them, and the build says so when it happens.
 
 ## Import into PGSharp
 
