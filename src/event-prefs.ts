@@ -73,8 +73,12 @@ const LEGACY_OBJECT_KEY = 'pgo-events:prefs';
 /**
  * The sets that object carried. `seen` is deliberately not among them: writing it empty would mark every event new for
  * a reader who has been here for months, where leaving it absent seeds it from the feed — see `settleSeen`.
+ *
+ * `as const satisfies` rather than an annotation, so that exclusion is the compiler's and not this comment's.
+ * Annotated, `(typeof LEGACY_SETS)[number]` widened back to all five names and `legacySet('seen')` typechecked
+ * cleanly — the rule stated above, reachable by anyone who read it, agreed with it and wired up the fallback anyway.
  */
-const LEGACY_SETS: readonly (keyof typeof KEYS)[] = ['hiddenTypes', 'dismissed'];
+const LEGACY_SETS = ['hiddenTypes', 'dismissed'] as const satisfies readonly (keyof typeof KEYS)[];
 
 /**
  * The types hidden on a first visit: the recurring ones, which fire every week and crowd the feed, plus the ones that
@@ -270,7 +274,7 @@ export function loadPrefs(): Prefs {
     dismissed: readSet(keyFor('dismissed')) ?? legacySet('dismissed') ?? new Set(),
 
     // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
-    // No legacy fallback: that object deliberately never carried `seen` — see `LEGACY_SETS`.
+    // No legacy fallback, and `legacySet` will not take `seen` to give it one — see `LEGACY_SETS`.
     seen: readSet(keyFor('seen')),
   };
 }
