@@ -21,22 +21,29 @@ export interface Prefs {
 }
 
 /**
+ * The namespace every key this app owns sits under: the Pages path segment, since `localStorage` is keyed by origin and
+ * `joshuaspence.github.io` serves every repository published there — an unqualified name is not this app's to claim.
+ *
+ * Exported because `src/backup.ts` sweeps the namespace rather than naming keys, and the two have to agree about where
+ * it ends. One spelling is what rules out the disagreement that does harm: a transport sweeping a prefix shorter than
+ * the keys carry would carry the neighbouring site's keys along with this app's.
+ */
+export const KEY_PREFIX = 'pogo-utils:';
+
+/**
  * Types are stored as the *hidden* set rather than the visible one, so a category the feed adds later shows up by
  * default instead of being filtered out by a stale allow-list.
  *
  * One key per set rather than one object, so each carries its own absent-versus-empty distinction and writing one
  * cannot settle another. `hiddenByView` is the exception: there the distinction is per view and survives inside the
  * object, a view with no slot never having been filtered on its own.
- *
- * The `pogo-utils:` prefix is the Pages path segment, since `localStorage` is keyed by origin and
- * `joshuaspence.github.io` serves every repository published there — an unqualified name is not this app's to claim.
  */
 export const KEYS = {
-  hiddenTypes: 'pogo-utils:events:hidden-types',
-  hiddenByView: 'pogo-utils:events:hidden-by-view',
-  filterScope: 'pogo-utils:events:filter-scope',
-  dismissed: 'pogo-utils:events:dismissed',
-  seen: 'pogo-utils:events:seen',
+  hiddenTypes: `${KEY_PREFIX}events:hidden-types`,
+  hiddenByView: `${KEY_PREFIX}events:hidden-by-view`,
+  filterScope: `${KEY_PREFIX}events:filter-scope`,
+  dismissed: `${KEY_PREFIX}events:dismissed`,
+  seen: `${KEY_PREFIX}events:seen`,
 };
 
 /**

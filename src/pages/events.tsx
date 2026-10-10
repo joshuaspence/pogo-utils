@@ -13,6 +13,7 @@
 import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
+import { applyBackup, backupName, ownedKeys, parseBackup, rescueName, writeBackup } from '../backup.js';
 import { LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from '../event-feed.js';
 import {
   clearPrefs,
@@ -220,6 +221,23 @@ async function fetchRouteIndex(): Promise<RouteIndex> {
   return res.json();
 }
 
+/**
+ * Hand text over as a download, a synthetic click on an `<a download>` being the only way a page can name a file.
+ * `downloadBytes` in `src/pages/integrations.tsx` is the same shape for bytes, and the two are worth collapsing into
+ * `dom.ts` as their own change — one that reaches a page this one does not touch.
+ */
+function downloadText(text: string, name: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function EventsPage({ query: fragment }: { query: string }) {
   /**
    * The reader's saved choices, held as the one mutable object the prefs module hands out: `hiddenFor` answers a set
@@ -270,6 +288,15 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /** The first-of-month the calendar view is showing, or the current month until the reader steps off it. */
   const [calMonth, setCalMonth] = useState<Date | null>(null);
+
+  /**
+   * What the last export or import had to say, or null before either. A line of its own rather than a toast, since a
+   * refusal is the one thing here a reader may need to read twice and act on.
+   */
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
+
+  /** The file picker Import clicks, hidden so the two controls match the row rather than one being browser-styled. */
+  const picker = useRef<HTMLInputElement>(null);
 
   /**
    * An `?event=` the fragment named and the feed had not yet arrived to apply. Held rather than re-read so the arrival
@@ -509,6 +536,65 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     setReveals(NOTHING_REVEALED);
     settleSeen(events);
     repaint();
+  }
+
+  /**
+   * Hand the saved preferences over as a file. A storage failure is reported rather than swallowed: `writeBackup` lets
+   * one through for exactly this reason, a download that quietly did not happen being worse than one that says why.
+   */
+  function exportPrefs() {
+    try {
+      const name = backupName(new Date());
+
+      downloadText(writeBackup(), name);
+      setBackupStatus(`Saved ${name}.`);
+    } catch (e) {
+      setBackupStatus(`Could not save a backup: ${said(e)}`);
+    }
+  }
+
+  /**
+   * Read a backup back, over whatever is stored now. Keys the file omits are left alone, so a faithful restore is one
+   * into a cleared browser, which is the browser's own site data and not Reset beside this: `reset()` names the five
+   * keys this page owns, where an import writes through anything in the namespace.
+   */
+  async function importPrefs(file: File) {
+    try {
+      const incoming = parseBackup(await file.text());
+
+      // Judged before anything is saved and saved before anything is written, so a copy is taken only for a file that
+      // is about to be applied. This is the undo: a reader who picks the wrong file has nothing else to go back to,
+      // and the keys it replaces are the ones nothing can reconstruct.
+      //
+      // The skip is not a formality. `settleSeen` writes `seen` as soon as the feed lands, so a loaded page nearly
+      // always has something stored — except in the one flow this exists for, a reader who has just cleared their
+      // browser and imports before the feed arrives, where a copy of nothing would be the first thing they saw.
+      if (ownedKeys().length > 0) {
+        downloadText(writeBackup(), rescueName(new Date()));
+      }
+
+      const written = applyBackup(incoming);
+
+      // Nothing written is nothing to correct, and leaving before the corrections is what makes the message below
+      // true: they are not free — `setReveals` closes a reveal the reader had opened — so running them anyway would
+      // say nothing changed on the one render where *Show ended* had just emptied itself.
+      if (written.length === 0) {
+        setBackupStatus('That backup held no saved preferences, so nothing changed.');
+        return;
+      }
+
+      Object.assign(prefs, loadPrefs());
+
+      // The same two corrections Reset makes, for the same reasons: `settleSeen` reads an absent `seen` as a first
+      // visit, and a change this wholesale cannot leave a session reveal widening the page.
+      setReveals(NOTHING_REVEALED);
+      settleSeen(events);
+      repaint();
+
+      setBackupStatus(`Restored ${written.length} saved preference${written.length === 1 ? '' : 's'}.`);
+    } catch (e) {
+      setBackupStatus(`Could not restore that backup: ${said(e)}`);
+    }
   }
 
   /**
@@ -1062,6 +1148,16 @@ export default function EventsPage({ query: fragment }: { query: string }) {
             Mark all as seen
           </button>
         </p>
+
+        {/*
+         * Present from the first render even with nothing to say, unlike the count above it: `hidden` takes an element
+         * out of the accessibility tree, so a live region that arrives with its first message reads as a region
+         * appearing rather than as one whose contents changed, and the refusal goes unannounced to the reader who most
+         * needs it. Empty rather than `hidden`, and `.sub:empty` is what keeps it from costing a gap.
+         */}
+        <p class="sub" aria-live="polite">
+          {backupStatus}
+        </p>
       </header>
 
       <section class="controls">
@@ -1103,6 +1199,42 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         >
           Reset
         </button>
+        <button
+          type="button"
+          class="ghost"
+          title="Save every preference this browser has stored as a file"
+          onClick={exportPrefs}
+        >
+          Export
+        </button>
+        <button
+          type="button"
+          class="ghost"
+          title="Read a saved file back, replacing the preferences it names and leaving the rest"
+          onClick={() => picker.current?.click()}
+        >
+          Import
+        </button>
+
+        {/*
+         * Clicked by the button above rather than shown, a file input being unstyleable. `value` is cleared as the
+         * change is read so that picking the same file twice in a row fires a second time rather than nothing.
+         */}
+        <input
+          ref={picker}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(event) => {
+            const [file] = event.currentTarget.files ?? [];
+
+            event.currentTarget.value = '';
+
+            if (file !== undefined) {
+              void importPrefs(file);
+            }
+          }}
+        />
 
         {/*
          * `aria-expanded` carries the state and the title says which way a click goes, so the label stays neutral in
