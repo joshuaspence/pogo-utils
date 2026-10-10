@@ -137,13 +137,12 @@ jobs:
           GH_TOKEN: '${{ github.token }}'
           PR: '${{ github.event.pull_request.number }}'
           RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+
+        # A comment body renders its own line breaks, so these lines run past 120 rather than arriving at the pull
+        # request hard-wrapped.
         run: |
           gh pr comment --body-file - --create-if-none --edit-last "${PR}" <<EOT
           Claude reached no verdict on this pull request, so it carries no approval and no requested change.
 
-          [The run](${RUN_URL}) names the step that failed. The review never starts when the action is refused a
-          token — because \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, because the pull request is from a
-          fork and cannot read secrets, or because this workflow differs from the copy on \`master\`, which
-          happens both when a pull request edits it and when the branch predates a change to it. It starts and
-          then reaches nothing when the review or the verdict step fails, the 20-minute timeout included.
+          [The run](${RUN_URL}) names the step that failed. Most often the cause is this pull request itself: the action is refused a token unless the workflow file is identical to the copy on \`master\`, so one that edits \`.github/workflows/claude-review.yaml\` — or whose branch predates a change to it — gets no review until that has landed. A token is also refused when \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, and when the pull request comes from a fork, which cannot read secrets. Past that, a session can open and still reach no verdict, the review or the verdict step having failed or run past the 20-minute timeout.
           EOT

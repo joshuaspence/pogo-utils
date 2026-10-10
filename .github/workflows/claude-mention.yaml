@@ -109,13 +109,14 @@ jobs:
           MENTION_URL: '${{ github.event.comment.html_url || github.event.review.html_url }}'
           PR: '${{ github.event.issue.number || github.event.pull_request.number }}'
           RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+
+        # A comment body renders its own line breaks, so these lines run past 120 rather than arriving at the pull
+        # request hard-wrapped.
         run: |
           gh pr comment --body-file - "${PR}" <<EOT
           Claude did not answer [the mention](${MENTION_URL}).
 
-          The job handling \`@claude\` mentions started and then ended before Claude had a session — most often
-          because the action was refused a token. Nothing was posted in reply.
+          The job handling \`@claude\` mentions started and then ended before Claude had a session — most often because the action was refused a token, which happens when a pull request edits the workflow, when \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, and when the pull request comes from a fork. Nothing was posted in reply.
 
-          The run is [here](${RUN_URL}). A mention reports no check on this pull request, so it does not appear in
-          the checks below.
+          The run is [here](${RUN_URL}). A mention reports no check on this pull request, so it does not appear in the checks below.
           EOT
