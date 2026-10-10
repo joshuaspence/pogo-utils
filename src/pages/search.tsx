@@ -1338,7 +1338,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </div>
             <p class="help">
               A span pill carries its own two ends — boxes to type a number into, or named dropdowns where the game
-              names the values — and an end left empty, or on <em>Any level</em>, leaves that end of the span open. Two
+              names the values — and an end left empty, or on <em>Any level</em>, leaves that end of the span open,
+              unless opening it would ask for everything. Which is why a dropdown's own lowest and highest levels each
+              sit at one end: <em>never a buddy</em> is picked as the <em>highest</em> a span reaches,{' '}
+              <em>Best Buddy</em> as the <em>lowest</em>, the other way round asking for every Pokémon you own. Two
               spans of the same range in one group is a search you reach by dragging the second one in, a press reading
               the one already there. Three are not the numbers they look like: an IV is the appraisal's own bucket,
               where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10, <code>3</code> is 11–14

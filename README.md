@@ -226,11 +226,13 @@ are spans wearing a word, which is why they are read as the spans they stand for
 rather than beside them.
 
 A **term** is a word the table owns, which is most of them — `shiny`, `candyxl`, `party`, `kanto`, `@special`. A
-**span** is a prefix and a range of numbers: `cp100-2000`, `countcandy248-`, `maxspirit1-`. A span's phrase sits
-_behind_ the numbers for the three IVs, `hp{N}` being the stat where `{N}hp` is the IV, which is the one shape a prefix
-alone could not write and the reason a range carries a `suffix` as well. And anything else is the reader's **own text**
-— a name, a nickname, `@hydro pump`, `#keepers` — which is what the game does with a word it does not know, and so needs
-no kind of its own.
+**span** is a phrase and a range of values: `cp100-2000`, `countcandy248-`, `maxspirit1-`. A span's phrase sits _behind_
+the numbers for the three IVs, `hp{N}` being the stat where `{N}hp` is the IV, which is the one shape a prefix alone
+could not write and the reason a range carries a `suffix` as well. Where the game names a range's values rather than
+counting them, the range carries those names as `levels` and the pill picks from them instead of taking digits: a buddy
+level is `0` for never a buddy through `5` for a Best Buddy, and `buddy2-` is Good Buddy or better. And anything else is
+the reader's **own text** — a name, a nickname, `@hydro pump`, `#keepers` — which is what the game does with a word it
+does not know, and so needs no kind of its own.
 
 The eighteen types are read four ways, which is four groups rather than a mode over one: `fire` is the type, `<fire`
 what hurts it, `>fire` what it can hurt and `@fire` a move it carries. The four share a hue, there being room on the
@@ -295,8 +297,9 @@ neither the link nor storage: a link carries the arrangement, and the arrangemen
 It is an **import rather than a second composer**. Nothing in it writes a string — it writes a tree, the canvas draws
 it, and the one composer takes it from there, so the pills it leaves can be dragged about like any others. A word the
 catalogue knows arrives as its own pill, so `shiny` lights up the Status chip and `cp1500-3000` arrives as a span pill
-with its boxes filled; `1-151` arrives as _Gen 1_, that being the chip which already spells it. Anything else is a name,
-which is what the game does with a word it does not know.
+with its two ends set — boxes where the range counts, named dropdowns where it names, so `buddy2-5` arrives reading
+_Good Buddy_ to _Best Buddy_; `1-151` arrives as _Gen 1_, that being the chip which already spells it. Anything else is
+a name, which is what the game does with a word it does not know.
 
 Both of the game's spellings of each operator are read: `&` and `|` are _and_, `,` and `;` and `:` are _or_, and `!`
 rules out what follows — a bracket included, which arrives as the other junction with its pills turned, De Morgan being

@@ -479,13 +479,13 @@ const RANGE_TABLE = [
 export const RANGES: readonly Range[] = RANGE_TABLE;
 
 /**
- * One of the eight ids above, as the union of the literals rather than `string` — the same reading `router.js` takes
- * of its own `PAGES`, and for the same reason: a preset naming a range it has misspelled is a type error rather than a
- * pill that writes nothing and an exclusion that goes missing from a transfer-safe string.
+ * Whichever id the table above carries, as the union of the literals rather than `string` — the same reading
+ * `router.js` takes of its own `PAGES`, and for the same reason: a preset naming a range it has misspelled is a type
+ * error rather than a pill that writes nothing and an exclusion that goes missing from a transfer-safe string.
  *
  * Off the table before `RANGES` widens it, which is the whole of why there are two names for one list. `as const`
- * makes each row its own type, so a union of the eight has `min` and `levels` only where the row that reached it did —
- * and every reader of `RANGES` wants the one `Range` the annotation gives them.
+ * makes each row its own type, so a union of them has `min`, `suffix` and `levels` only where the row that reached it
+ * did — and every reader of `RANGES` wants the one `Range` the annotation gives them.
  *
  * `satisfies` on the table rather than the annotation alone doing the checking, because an excess-property check fires
  * on a *fresh* object literal and these rows are no longer fresh by the time `RANGES` is assigned: without the clause
@@ -585,9 +585,14 @@ export const PRESETS: readonly Preset[] = [
 
 /**
  * Every range by id, for the readers that are handed one and need the range behind it: the pill writer, the pill
- * labeller, the pill renderer, the link reader, the preset builder, `clauses.js`'s caveat patterns and the optimiser's
- * own `dex` lookup. Each had scanned `RANGES` for itself. Keyed by `string` rather than by `RangeId`, since what a
- * fragment or a typed query hands over is whatever a stranger wrote.
+ * labeller, the pill renderer, the link reader, the shortcut a typed phrase stands for, the preset builder,
+ * `clauses.js`'s caveat patterns and the optimiser's own `dex` lookup. Each had scanned `RANGES` for itself, and no
+ * lookup by id goes any other way now — which is what makes the duplicate `id` that `terms.test.js` refuses worth
+ * refusing: `parse.js` walks `RANGES` in order where every reader here takes the last row of a repeated id, so two
+ * rows sharing one would have a typed `hp300-` read against one row's bounds and written against another's.
+ *
+ * Keyed by `string` rather than by `RangeId`, since what a fragment or a typed query hands over is whatever a stranger
+ * wrote.
  */
 export const RANGES_BY_ID: ReadonlyMap<string, Range> = new Map(RANGES.map((range) => [range.id, range]));
 

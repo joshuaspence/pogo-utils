@@ -14,7 +14,7 @@
 
 import { expect, test } from 'vitest';
 
-import { GROUPS, RANGES, SHORTCUTS, TERMS_BY_ID } from './terms.js';
+import { GROUPS, RANGES, RANGES_BY_ID, SHORTCUTS, TERMS_BY_ID } from './terms.js';
 
 const ticks = (text: string) => [...text].filter((character) => character === '`').length;
 
@@ -41,11 +41,17 @@ test('no range is named the same as a term, and no two terms the same as each ot
   const terms = GROUPS.flatMap((category) => category.terms.map((term) => term.id));
   const shared = RANGES.filter((range) => terms.includes(range.id)).map((range) => range.id);
 
-  expect({ shared, duplicated: terms.length - new Set(terms).size, counted: TERMS_BY_ID.size }).toEqual({
-    shared: [],
-    duplicated: 0,
-    counted: terms.length,
-  });
+  /*
+   * And no two ranges share one either, which `RANGES_BY_ID` makes a divergence rather than a duplicate: `parse.js`
+   * walks `RANGES` in order and takes the first row of a repeated id, where every other reader goes through the map
+   * and takes the last. A typed `hp300-` would be read against one row's bounds and written against another's.
+   */
+  expect({
+    shared,
+    duplicated: terms.length - new Set(terms).size,
+    counted: TERMS_BY_ID.size,
+    ranged: RANGES_BY_ID.size,
+  }).toEqual({ shared: [], duplicated: 0, counted: terms.length, ranged: RANGES.length });
 });
 
 test('every shortcut stands for a span of a range that exists, within that range', () => {

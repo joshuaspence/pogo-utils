@@ -292,13 +292,31 @@ test('no pick takes a span that says something to one that says nothing', () => 
     ),
   );
 
+  /*
+   * The refusals above are one direction only, and a `pickable` answering just the blank and the bound would satisfy
+   * every one of them while making a span impossible to narrow. So the levels between the ends are asserted too, from
+   * a mid-state rather than the blank pill the three probes beside it read: with the lowest on two the highest offers
+   * two, three and four — two for the span whose ends meet, and not five, which is the ceiling it never offers.
+   */
+  const narrowing = pickable(which, 'to', null, 2)
+    .map(({ level }) => level)
+    .filter((level) => level !== null);
+
   expect({
     opened,
+    narrowing,
     anyLevel: pickable(which, 'from', null, null).some(({ level }) => level === null),
     floorAtHighest: pickable(which, 'to', null, null).some(({ level }) => level === floor),
     ceilingAtLowest: pickable(which, 'from', null, null).some(({ level }) => level === which.max),
     states: bounds.length ** 2,
-  }).toEqual({ opened: [], anyLevel: true, floorAtHighest: true, ceilingAtLowest: true, states: 49 });
+  }).toEqual({
+    opened: [],
+    narrowing: [2, 3, 4],
+    anyLevel: true,
+    floorAtHighest: true,
+    ceilingAtLowest: true,
+    states: 49,
+  });
 });
 
 /*
