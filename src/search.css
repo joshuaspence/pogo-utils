@@ -1011,7 +1011,20 @@ body[data-page='search'] {
     outline-offset: 1px;
   }
 
-  /* A span pill's own two boxes, narrow enough that the pill still reads as one thing. */
+  /**
+   * A span pill's own two ends, narrow enough that the pill still reads as one thing where they are boxes.
+   *
+   * A named end holds no width of its own and takes no declaration to say so: a `select` is as wide as its *longest*
+   * option rather than the one showing, so both ends of a buddy pill are the width of *1 buddied but never levelled
+   * up* whatever is picked, and this and `.pill` are content-sized `inline-flex` either side of it. Neither a
+   * `max-width: 100%` nor a `min-width: 0` moves it — both were tried on a pill six groups deep at 600px and the
+   * capture came back byte-identical — because nothing in that chain is constraining the width to shrink against.
+   *
+   * No wrapping, which there was until a nested pill was measured: a wrap puts the two ends on two lines and leaves
+   * the dash beside the label joining nothing, where the stacking at the foot of this sheet is scoped to the width at
+   * which that is what a reader wants. Without it the pill is one line at any width, and a group too narrow to hold
+   * it overflows sideways as any group holding content wider than itself does.
+   */
 
   .pill .bounds {
     display: inline-flex;
@@ -1020,8 +1033,8 @@ body[data-page='search'] {
     padding-right: 2px;
   }
 
-  .pill .bounds input {
-    width: 54px;
+  .pill .bounds input,
+  .pill .bounds select {
     padding: 2px 4px;
     border: 1px solid var(--border);
     border-radius: 5px;
@@ -1029,10 +1042,25 @@ body[data-page='search'] {
     color: var(--text);
     font: inherit;
     font-size: 11px;
+  }
+
+  .pill .bounds input {
+    width: 54px;
     text-align: right;
   }
 
-  .pill .bounds input:focus-visible {
+  /**
+   * An end asking nothing is muted, which is where a number box has the browser's own grey: nothing in this repository
+   * styles `::placeholder`, so an empty box is greyed for free where a `select` showing its blank option would read at
+   * full strength — as a level that had been chosen rather than as one that had not.
+   */
+
+  .pill .bounds select:has(option[value='']:checked) {
+    color: var(--muted);
+  }
+
+  .pill .bounds input:focus-visible,
+  .pill .bounds select:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -1102,6 +1130,17 @@ body[data-page='search'] {
     button.use,
     .output button.copy {
       padding: 9px 18px;
+    }
+
+    /**
+     * Two named ends will not sit either side of a label in a phone's column, so they stack. The direction is the
+     * whole of the change: `.bounds` already sets `align-items: center`, which centres them across the column once
+     * the main axis runs down it, and the dash keeps its place between the two ends it joins. The number boxes are
+     * 54px and go on sitting side by side, which is why this asks for the `select`.
+     */
+
+    .pill .bounds:has(select) {
+      flex-direction: column;
     }
   }
 }

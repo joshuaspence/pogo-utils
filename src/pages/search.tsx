@@ -27,7 +27,7 @@ import { optimise } from '../search/optimise.js';
 import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
-import { bounded, GROUPS, PRESETS, RANGES, type Range } from '../search/terms.js';
+import { bounded, GROUPS, PRESETS, RANGES, RANGES_BY_ID, type Range } from '../search/terms.js';
 import {
   append,
   chipState,
@@ -228,6 +228,40 @@ type Edge = 'from' | 'to';
 
 /** What each end of a span is called, which is the whole of what its box needs beyond the range's own two limits. */
 const EDGES: Record<Edge, string> = { from: 'lowest', to: 'highest' };
+
+/**
+ * The levels an end of a named span offers: every level that leaves the span saying something, plus whichever one the
+ * end is already set to.
+ *
+ * **A span covering the whole range says nothing, and three picks reached one.** A `from` on the floor with the other
+ * end open writes `buddy0-`, which the phrase list reads as values at or above nought; a `to` on the ceiling with the
+ * lowest open writes `buddy-5`, values at or below five; and the two of them picked the other way round — lowest five,
+ * highest nought — is inverted, which `leafText` swaps into `buddy0-5`. All three are the whole of storage, and on a
+ * *Safe to transfer* canvas the negated form of one excludes every Pokémon the reader owns from the string.
+ *
+ * So the floor goes from the lowest end, the ceiling from the highest, and each end is held to the other's side of the
+ * span. Nothing is lost by any of it: a span that starts on the floor asks for the same set as one with that end left
+ * open, and so does one that ends on the ceiling — `buddy0-3` and `buddy-3` are two spellings of levels nought to
+ * three, `buddy2-5` and `buddy2-` two of levels two to five. `optimise.js` would have caught the no-op span, but its
+ * `everything` is measured against the dex alone.
+ *
+ * **The bound comes in because a tree can hold what the control would not offer.** `buddy0` is the documented
+ * spelling of *never a buddy*, so the Advanced pane and a shared link both arrive with a `from` of nought, and a
+ * `select` whose value matches none of its options selects nothing at all — the end rendered blank over a query
+ * matching the whole of storage, measured rather than reasoned about. Offering a bound where it is already set leaves
+ * it unpickable while keeping the control honest about the state it is showing.
+ *
+ * Exported for the test, which sweeps the pairs the two ends can reach in either order of picking.
+ */
+export const pickable = (range: Range, edge: Edge, bound: number | null, other: number | null) =>
+  (range.levels ?? [])
+    .map((name, level) => ({ level, name }))
+    .filter(({ level }) => {
+      const within = edge === 'from' ? level > (range.min ?? 0) : level < range.max;
+      const beside = other === null || (edge === 'from' ? level <= other : level >= other);
+
+      return level === bound || (within && beside);
+    });
 
 /**
  * A span pill with one of its ends written. Anything else is handed back as it is: a box's path names its own pill,
@@ -663,14 +697,48 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * One end of a span pill: the reader's own text while their caret is in it, and the bound once it has left, which
-   * `boxText` above gives the reason for.
+   * One end of a span pill, which is a dropdown of names where the range has them and a box to type a number into
+   * where it does not. The box shows the reader's own text while their caret is in it, and the bound once it has
+   * left, which `boxText` above gives the reason for; a dropdown has neither, and says why below.
    *
-   * The greyed-out limit is this box's own `min` or `max` rather than a second spelling of one. It is a limit the
+   * The box's greyed-out limit is its own `min` or `max` rather than a second spelling of one. It is a limit the
    * input enforces and no longer a bound an empty box composes to, so a placeholder transcribed separately would be
    * free to advertise one the input refuses and nothing would fail.
    */
-  function renderBound(path: Path, range: Range, edge: Edge, bound: number | null) {
+  function renderBound(path: Path, range: Range, edge: Edge, bound: number | null, other: number | null) {
+    const write = (value: string) =>
+      edit((tree) => update(tree, path, (node) => withBound(node, edge, readBound(value, range))));
+
+    /*
+     * A range whose values the game names picks from them rather than taking digits: `buddy2` is a Good Buddy and a
+     * reader cannot be expected to know that, where a CP of 1500 says what it is. A pill the reader has just dropped
+     * has both ends on the blank option and so goes on asking nothing at all, which both ends picked by default would
+     * have ended.
+     *
+     * That option names the absence rather than the end it sits on, as the Pokédex's own selects do with *All
+     * generations*: a `select` has no placeholder, so `lowest` there read as a value that had been chosen and said the
+     * opposite of what the pill was doing. `EDGES` still names the end, in the label a screen reader reaches it by.
+     *
+     * No `typedBound` here, that being for digits arriving one at a time: a pick is a whole value or none.
+     */
+    if (range.levels) {
+      return (
+        <select
+          value={bound === null ? '' : String(bound)}
+          aria-label={`${range.label}, ${EDGES[edge]}`}
+          onPointerDown={(event) => event.stopPropagation()}
+          onChange={(event) => write(event.currentTarget.value)}
+        >
+          <option value="">Any level</option>
+          {pickable(range, edge, bound, other).map(({ level, name }) => (
+            <option key={level} value={String(level)}>
+              {`${level} ${name}`}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
     const floor = String(range.min ?? 0);
     const ceiling = String(range.max);
 
@@ -687,7 +755,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           const { value } = event.currentTarget;
 
           setTypedBound({ path, edge, text: value });
-          edit((tree) => update(tree, path, (node) => withBound(node, edge, readBound(value, range))));
+          write(value);
         }}
         onBlur={() => setTypedBound(null)}
       />
@@ -704,7 +772,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * vnodes it returns are this component's own and the elements keep their identity.
    */
   function renderPill(leaf: Leaf, path: Path) {
-    const range = leaf.kind === 'range' ? RANGES.find((entry) => entry.id === leaf.id) : undefined;
+    const range = leaf.kind === 'range' ? RANGES_BY_ID.get(leaf.id) : undefined;
     const carried = held !== null && same(held.from, path);
 
     return (
@@ -732,9 +800,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
         {range && leaf.kind === 'range' && (
           <span class="bounds">
-            {renderBound(path, range, 'from', leaf.from)}
+            {renderBound(path, range, 'from', leaf.from, leaf.to)}
             <span class="dash">–</span>
-            {renderBound(path, range, 'to', leaf.to)}
+            {renderBound(path, range, 'to', leaf.to, leaf.from)}
           </span>
         )}
 
@@ -1248,12 +1316,14 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               })}
             </div>
             <p class="help">
-              A span pill carries its own two boxes, and a box left empty leaves that end of the span open. Two spans of
-              the same range in one group is a search you reach by dragging the second one in, a press reading the one
-              already there. Three of them are not the numbers they look like: an IV is the appraisal's own bucket,
-              where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10, <code>3</code> is 11–14
-              and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one. The Max move levels and
-              the counts of unlocked Max moves start at 1, a Max species having its attack from the first.
+              A span pill carries its own two ends — boxes to type a number into, or named dropdowns where the game
+              names the values — and an end left empty, or on <em>Any level</em>, leaves that end of the span open. Two
+              spans of the same range in one group is a search you reach by dragging the second one in, a press reading
+              the one already there. Three of them are not the numbers they look like: an IV is the appraisal's own
+              bucket, where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10,{' '}
+              <code>3</code> is 11–14 and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect
+              one. The Max move levels and the counts of unlocked Max moves start at 1, a Max species having its attack
+              from the first.
             </p>
           </section>
         </div>

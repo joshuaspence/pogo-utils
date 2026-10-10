@@ -66,3 +66,24 @@ test('every shortcut stands for a span of a range that exists, within that range
     some: true,
   });
 });
+
+/**
+ * A named range's names are indexed by the value they name, so the first has to be the range's floor and the last its
+ * ceiling. A level the game gains, or a ceiling raised without a name for it, would otherwise draw a dropdown that
+ * either stops short of what the span can hold or offers a value the game does not have.
+ *
+ * Over every range carrying names rather than over `buddylevel` by name, since the field is what the page reads. That
+ * there is one at all is the other half, as with the ticks above: this would pass just as quietly over a table where
+ * nothing is named, and every pill would be back to bare digits.
+ */
+test('a named range runs from its first name to its last', () => {
+  const named = RANGES.filter((range) => range.levels);
+
+  expect({
+    spans: named.map((range) => ({ id: range.id, min: range.min ?? 0, max: range.max })),
+    some: named.length > 0,
+  }).toEqual({
+    spans: named.map((range) => ({ id: range.id, min: 0, max: (range.levels ?? []).length - 1 })),
+    some: true,
+  });
+});

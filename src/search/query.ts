@@ -9,7 +9,7 @@
 
 import { clausesOf } from './clauses.js';
 import { emptyTree, group, isGroup, NESTING, type Leaf, type Node } from './tree.js';
-import { bounded, RANGES, TERMS_BY_ID, type Preset } from './terms.js';
+import { bounded, RANGES_BY_ID, TERMS_BY_ID, type Preset } from './terms.js';
 
 /** The state above, named. */
 export interface State {
@@ -64,11 +64,37 @@ export function compose(state: State) {
 export const nameFragment = (text: string) =>
   toFragment({ ...emptyState(), tree: group('all', [{ kind: 'name', text, negated: false }]) });
 
-/** The tree a preset describes: everything it names, ruled out, which is the one preset there is. */
+/**
+ * The tree a preset describes: everything it names, ruled out, which is the one preset there is. A span's top bound is
+ * null because the span has none: `leafText` writes that as the open end the phrase list spells `{phrase}{N}-`, so
+ * *ever buddied* is `buddy1-` rather than a ceiling this would have to name and the table already carries.
+ *
+ * The bottom bound goes through `bounded` like every other span this page builds. A preset is written here rather than
+ * by a reader, so the bound is only ever wrong by this repository's own mistake — but an unclamped one would compose a
+ * string the link beside it disagrees with, `fromFragment` clamping what it reads back, and that is the one failure
+ * `bounded` exists to rule out.
+ *
+ * A range the table does not carry throws rather than answering a pill with no bounds, which `leafText` would write as
+ * nothing and drop out of the clauses in silence. `RangeId` already makes that unreachable; what the throw is for is
+ * that the silent form is unreachable *too*, and this is the one string where an exclusion going missing costs a
+ * shiny. `optimise.js` refuses the missing `dex` range the same way.
+ */
 export const presetTree = (preset: Preset): Node =>
   group(
     'all',
-    (preset.exclude ?? []).map((id): Leaf => ({ kind: 'term', id, negated: true })),
+    (preset.exclude ?? []).map((one): Leaf => {
+      if (typeof one === 'string') {
+        return { kind: 'term', id: one, negated: true };
+      }
+
+      const range = RANGES_BY_ID.get(one.range);
+
+      if (!range) {
+        throw new Error(`\`terms.js\` carries no ${one.range} range`);
+      }
+
+      return { kind: 'range', id: one.range, from: bounded(one.from, range), to: null, negated: true };
+    }),
   );
 
 /**
@@ -135,7 +161,7 @@ export function toFragment(state: State) {
 
 /** A bound from a link, which is whatever a stranger put there: a number inside the range's limits, or nothing. */
 function bound(text: string | undefined, id: string) {
-  const range = RANGES.find((entry) => entry.id === id);
+  const range = RANGES_BY_ID.get(id);
   const value = Number.parseInt(text ?? '', 10);
 
   return !range || Number.isNaN(value) ? null : bounded(value, range);
@@ -192,7 +218,7 @@ function read(all: readonly string[], at: { index: number }, depth: number): Nod
   if (kind === 'R') {
     const [id, from, to] = body.split('.');
 
-    return id !== undefined && RANGES.some((range) => range.id === id)
+    return id !== undefined && RANGES_BY_ID.has(id)
       ? { kind: 'range', id, from: bound(from, id), to: bound(to, id), negated }
       : null;
   }

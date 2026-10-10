@@ -24,7 +24,7 @@
  * adjusting its destination rather than callers being trusted to.
  */
 
-import { RANGES, TERMS_BY_ID, type Range } from './terms.js';
+import { RANGES_BY_ID, TERMS_BY_ID, type Range } from './terms.js';
 
 /**
  * How deep a tree may be, which is one number because three readers build one: a fragment a stranger wrote, a typed
@@ -77,9 +77,6 @@ export const group = (junction: Junction, parts: readonly Node[] = []): Group =>
   junction,
   parts,
 });
-
-/** Every numeric range by id, for the writer below — the same lookup `TERMS_BY_ID` is for a term. */
-const RANGES_BY_ID = new Map(RANGES.map((range) => [range.id, range]));
 
 /**
  * A span wrapped in its range's own phrase, which sits in front of the numbers for every range but the three IVs: `cp`

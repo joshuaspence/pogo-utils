@@ -78,17 +78,37 @@ test('the one preset is everything it names, ruled out', () => {
 
   expect(preset.exclude?.length).toBeGreaterThan(0);
 
-  // Every id it names is a real term, which is what makes the string below the preset's own doing rather than a typo's.
-  expect((preset.exclude ?? []).filter((id) => !TERMS_BY_ID.has(id))).toEqual([]);
-
   const tree = presetTree(preset);
+  const parts = isGroup(tree) ? tree.parts : [];
 
   expect(isGroup(tree) && tree.junction).toBe('all');
-  expect(
-    compose(state(tree))
-      .query.split('&')
-      .every((clause) => clause.startsWith('!')),
-  ).toBe(true);
+  expect(parts.length).toBe(preset.exclude?.length);
+
+  /*
+   * Every exclusion writes something: an id naming no term and a span naming no range both answer null here, and
+   * either would drop out of the clauses in silence, which is the one failure a list of exclusions cannot show.
+   */
+  expect(parts.filter((part) => isGroup(part) || leafText(part) === null)).toEqual([]);
+
+  const { query, mishandled } = compose(state(tree));
+
+  expect(query.split('&').every((clause) => clause.startsWith('!'))).toBe(true);
+
+  /*
+   * Which buddy span it is matters: `buddy0-` would rule out the whole of storage, and `buddy2-` would offer the ones
+   * buddied once and never levelled up as safe to transfer. The open end is the clause the writer composes for a span
+   * with no ceiling, and the phrase list reads `buddy1-` as "all pokemon you've previously buddied" — so it is matched
+   * as a whole clause rather than as a substring, which `!buddy1-4` would satisfy while meaning something else.
+   */
+  expect(query.split('&')).toContain('!buddy1-');
+
+  /*
+   * And the caveat that clause carries, pinned here rather than only where the pattern is: `clauses.test.js` drives
+   * the pattern through names a reader typed, which leaves the spelling the preset actually composes untested. The
+   * two halves fail apart — a change to `leafText`'s open end keeps that file green and takes the warning off this
+   * string, which is the one the page says costs a shiny.
+   */
+  expect(mishandled.map(({ term }) => term)).toEqual(['!buddy1-']);
 });
 
 test("the Pokédex's link into this page arrives as the one name it asked for", () => {

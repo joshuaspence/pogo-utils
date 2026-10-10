@@ -12,9 +12,10 @@
 
 import { expect, test } from 'vitest';
 
+import { leafText } from '../search/tree.js';
 import { read } from '../search/parse.js';
 import { RANGES, type Range } from '../search/terms.js';
-import { boxText, marked, rangeTitle, readBound, spans, unmarked } from './search.js';
+import { boxText, marked, pickable, rangeTitle, readBound, spans, unmarked } from './search.js';
 
 /**
  * Both halves of what `spans` promises, for any message at all: an odd number of pieces, so the last one is prose and
@@ -240,4 +241,74 @@ test('a refusal quoting a tick the reader typed keeps it, and keeps the rest of 
 
   // The tick is still there to be read, in the prose at the end rather than swallowed as a delimiter.
   expect(spans(refusal).at(-1)).toBe('a`');
+});
+
+/*
+ * Every pair the two named ends can reach, against the *set* each denotes rather than against one spelling of it.
+ *
+ * Three picks wrote a span covering the whole range before: the floor as the lowest end with the other open, the
+ * ceiling as the highest with the lowest open, and those two the other way round, which `leafText` swaps into order.
+ * A filter looking for one of the three strings passed while the other two sat in the swept data — so what is held
+ * here is the span's coverage, which is what "says nothing" means however it is written.
+ *
+ * Both orders of picking, because each end narrows the other and a reader may start at either. The pair with neither
+ * end set is left out: it writes nothing at all, which is the pill asking nothing rather than a clause matching
+ * everything.
+ */
+
+test('no pair the named ends can reach covers the whole range', () => {
+  const which = range('buddylevel');
+  const floor = which.min ?? 0;
+  const levels = (edge: 'from' | 'to', other: number | null) => [
+    null,
+    ...pickable(which, edge, null, other).map(({ level }) => level),
+  ];
+  const pairs = [
+    ...levels('from', null).flatMap((from) => levels('to', from).map((to) => [from, to] as const)),
+    ...levels('to', null).flatMap((to) => levels('from', to).map((from) => [from, to] as const)),
+  ].filter(([from, to]) => from !== null || to !== null);
+
+  const covering = pairs.filter(([from, to]) => {
+    const ends = [from ?? floor, to ?? which.max];
+
+    return Math.min(...ends) <= floor && Math.max(...ends) >= which.max;
+  });
+
+  /*
+   * The coverage above reads a pair the way `leafText` documents reading one, so the writer is put to the same
+   * question rather than modelled and trusted: these are the three spellings that cover the range, each taken off the
+   * table's own bounds rather than written out.
+   */
+  const wrote = pairs.map(([from, to]) => leafText({ kind: 'range', id: which.id, from, to, negated: false }));
+  const covers = [`${which.prefix}${floor}-`, `${which.prefix}-${which.max}`, `${which.prefix}${floor}-${which.max}`];
+
+  expect({
+    covering,
+    written: wrote.filter((text) => text !== null && covers.includes(text)),
+    floorAtHighest: pickable(which, 'to', null, null).some(({ level }) => level === floor),
+    ceilingAtLowest: pickable(which, 'from', null, null).some(({ level }) => level === which.max),
+    swept: pairs.length,
+  }).toEqual({ covering: [], written: [], floorAtHighest: true, ceilingAtLowest: true, swept: 40 });
+});
+
+/*
+ * And a bound the control would not offer is still offered while it is set, which is the difference between a level a
+ * reader cannot pick and one the end cannot show. A tree arrives holding a `from` of nought from the Advanced pane or
+ * a link — `buddy0` is the documented spelling of *never a buddy* — and a `select` whose value matches none of its
+ * options selects nothing, rendering the end blank over a query matching the whole of storage.
+ */
+
+test('a bound already set is offered at the end showing it', () => {
+  const which = range('buddylevel');
+  const floor = which.min ?? 0;
+  const has = (edge: 'from' | 'to', level: number, bound: number | null) =>
+    pickable(which, edge, bound, null).some((option) => option.level === level);
+
+  expect({
+    floorSet: has('from', floor, floor),
+    floorUnset: has('from', floor, null),
+    floorElsewhere: has('from', floor, floor + 1),
+    ceilingSet: has('to', which.max, which.max),
+    ceilingUnset: has('to', which.max, null),
+  }).toEqual({ floorSet: true, floorUnset: false, floorElsewhere: false, ceilingSet: true, ceilingUnset: false });
 });
