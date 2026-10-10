@@ -27,9 +27,8 @@
  * normal form and De Morgan is the reader's own doing.
  */
 
-import { SHORTCUTS } from './terms.js';
+import { RANGES_BY_ID, SHORTCUTS, type RangeId } from './terms.js';
 import { group, isGroup, leafText, type Leaf, type Node } from './tree.js';
-import { RANGES_BY_ID, type RangeId } from './terms.js';
 
 /**
  * As many clauses as the distribution is let reach. A query ORing a dozen pairs is 4096 clauses out of 24 pills, and

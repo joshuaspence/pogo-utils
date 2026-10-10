@@ -277,8 +277,11 @@ export const pickable = (
    * and neither was reachable by picking a level, which is why holding the levels alone left this open.
    *
    * It stays where this end is already blank, or clearing a pill would need the other end moved first. The pill can
-   * always be emptied: with the lowest on five the highest still clears, and with the highest on nought the lowest
-   * does, so there is a way back to both ends blank from anywhere.
+   * always be emptied, though not always in one step: with the lowest on five the highest still clears, and with the
+   * highest on nought the lowest does, each end pinning the other and so leaving one of them free. A span the floor
+   * and the ceiling hold *both* ends of — `buddy0-5`, which only the Advanced pane or a link supplies — pins each by
+   * the other, so it empties in two, a level moved and then the end cleared. Refusing to open a span already open
+   * would be the wrong reading of this: what is refused is opening one that is not.
    */
   const opens = bound === null || (edge === 'from' ? other !== range.max : other !== floor);
 
@@ -1343,10 +1346,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               sit at one end: <em>never a buddy</em> is picked as the <em>highest</em> a span reaches,{' '}
               <em>Best Buddy</em> as the <em>lowest</em>, the other way round asking for every Pokémon you own. Two
               spans of the same range in one group is a search you reach by dragging the second one in, a press reading
-              the one already there. Three are not the numbers they look like: an IV is the appraisal's own bucket,
-              where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10, <code>3</code> is 11–14
-              and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one. The Max move levels and
-              the counts of unlocked Max moves start at 1, a Max species having its attack from the first.
+              the one already there. Three of the ranges are not the numbers they look like: an IV is the appraisal's
+              own bucket, where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10,{' '}
+              <code>3</code> is 11–14 and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one.
+              The Max move levels and the counts of unlocked Max moves start at 1, a Max species having its attack from
+              the first.
             </p>
           </section>
         </div>

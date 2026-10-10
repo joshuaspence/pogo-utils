@@ -1020,10 +1020,10 @@ body[data-page='search'] {
    * `max-width: 100%` nor a `min-width: 0` moves it — both were tried on a pill six groups deep at 600px and the
    * capture came back byte-identical — because nothing in that chain is constraining the width to shrink against.
    *
-   * No wrapping, which there was until a nested pill was measured: a wrap puts the two ends on two lines and leaves
-   * the dash beside the label joining nothing, where the stacking at the foot of this sheet is scoped to the width at
-   * which that is what a reader wants. Without it the pill is one line at any width, and a group too narrow to hold
-   * it overflows sideways as any group holding content wider than itself does.
+   * And no wrapping: a wrap puts the two ends on two lines and leaves the dash beside the label joining nothing,
+   * where the stacking at the foot of this sheet is scoped to the width at which stacking is what a reader wants. So
+   * the pill is one line at any width, and a group too narrow to hold it overflows sideways as any group holding
+   * content wider than itself does.
    */
 
   .pill .bounds {
