@@ -243,6 +243,10 @@ test('a refusal quoting a tick the reader typed keeps it, and keeps the rest of 
   expect(spans(refusal).at(-1)).toBe('a`');
 });
 
+/** What a pair composes, through the writer rather than a second model of it. */
+const write = (which: Range, [from, to]: readonly [number | null, number | null]) =>
+  leafText({ kind: 'range', id: which.id, from, to, negated: false });
+
 /*
  * Every pair the two named ends can reach, against the *set* each denotes rather than against one spelling of it.
  *
@@ -256,39 +260,45 @@ test('a refusal quoting a tick the reader typed keeps it, and keeps the rest of 
  * everything.
  */
 
-test('no pair the named ends can reach covers the whole range', () => {
+test('no pick takes a span that says something to one that says nothing', () => {
   const which = range('buddylevel');
   const floor = which.min ?? 0;
-  const levels = (edge: 'from' | 'to', other: number | null) => [
-    null,
-    ...pickable(which, edge, null, other).map(({ level }) => level),
-  ];
-  const pairs = [
-    ...levels('from', null).flatMap((from) => levels('to', from).map((to) => [from, to] as const)),
-    ...levels('to', null).flatMap((to) => levels('from', to).map((from) => [from, to] as const)),
-  ].filter(([from, to]) => from !== null || to !== null);
-
-  const covering = pairs.filter(([from, to]) => {
-    const ends = [from ?? floor, to ?? which.max];
-
-    return Math.min(...ends) <= floor && Math.max(...ends) >= which.max;
-  });
+  const bounds = [null, ...Array.from({ length: which.max - floor + 1 }, (_, step) => floor + step)];
 
   /*
-   * The coverage above reads a pair the way `leafText` documents reading one, so the writer is put to the same
-   * question rather than modelled and trusted: these are the three spellings that cover the range, each taken off the
-   * table's own bounds rather than written out.
+   * A span covers the range when the ends it denotes reach both limits, which is how `leafText` reads a pair: an open
+   * bottom is the floor and an open top the ceiling. Both ends open is left out — that writes nothing at all, which is
+   * the pill asking nothing rather than a clause matching everything.
    */
-  const wrote = pairs.map(([from, to]) => leafText({ kind: 'range', id: which.id, from, to, negated: false }));
-  const covers = [`${which.prefix}${floor}-`, `${which.prefix}-${which.max}`, `${which.prefix}${floor}-${which.max}`];
+  const covers = (from: number | null, to: number | null) => {
+    const ends = [from ?? floor, to ?? which.max];
+
+    return (from !== null || to !== null) && Math.min(...ends) <= floor && Math.max(...ends) >= which.max;
+  };
+
+  /*
+   * Every state against every pick either end offers from it, the blank included. A state is not only what the control
+   * can build: `buddy0` and `buddy5` are documented spellings, so the Advanced pane and a link both hand over pairs
+   * with both ends set, and the question is what the *next* pick does from there.
+   */
+  const opened = bounds.flatMap((from) =>
+    bounds.flatMap((to) =>
+      (['from', 'to'] as const).flatMap((edge) =>
+        pickable(which, edge, edge === 'from' ? from : to, edge === 'from' ? to : from)
+          .map(({ level }) => (edge === 'from' ? ([level, to] as const) : ([from, level] as const)))
+          .filter((next) => covers(...next) && !covers(from, to))
+          .map((next) => ({ from, to, picked: `${edge}=${next[edge === 'from' ? 0 : 1]}`, wrote: write(which, next) })),
+      ),
+    ),
+  );
 
   expect({
-    covering,
-    written: wrote.filter((text) => text !== null && covers.includes(text)),
+    opened,
+    anyLevel: pickable(which, 'from', null, null).some(({ level }) => level === null),
     floorAtHighest: pickable(which, 'to', null, null).some(({ level }) => level === floor),
     ceilingAtLowest: pickable(which, 'from', null, null).some(({ level }) => level === which.max),
-    swept: pairs.length,
-  }).toEqual({ covering: [], written: [], floorAtHighest: true, ceilingAtLowest: true, swept: 40 });
+    states: bounds.length ** 2,
+  }).toEqual({ opened: [], anyLevel: true, floorAtHighest: true, ceilingAtLowest: true, states: 49 });
 });
 
 /*

@@ -437,7 +437,7 @@ test('a caveat covers the ceiling its range gives', () => {
       throw new Error(`\`terms.js\` carries no ${id} range`);
     }
 
-    // Through `spanned`, so the term is composed the way the writer composes one — prefix for a level, suffix for an IV.
+    // Through `spanned`, so the term is composed as the writer composes one: prefix for a level, suffix for an IV.
     for (const term of [spanned(range, `${range.max}`), spanned(range, `${range.min ?? 0}-${range.max}`)]) {
       expect({ term, mishandled: clausesOf(all(named(term), yes('shiny'))).mishandled }).toEqual({
         term,

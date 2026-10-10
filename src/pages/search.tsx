@@ -253,15 +253,37 @@ const EDGES: Record<Edge, string> = { from: 'lowest', to: 'highest' };
  *
  * Exported for the test, which sweeps the pairs the two ends can reach in either order of picking.
  */
-export const pickable = (range: Range, edge: Edge, bound: number | null, other: number | null) =>
-  (range.levels ?? [])
+export const pickable = (
+  range: Range,
+  edge: Edge,
+  bound: number | null,
+  other: number | null,
+): readonly { level: number | null; name: string }[] => {
+  const floor = range.min ?? 0;
+  const levels = (range.levels ?? [])
     .map((name, level) => ({ level, name }))
     .filter(({ level }) => {
-      const within = edge === 'from' ? level > (range.min ?? 0) : level < range.max;
+      const within = edge === 'from' ? level > floor : level < range.max;
       const beside = other === null || (edge === 'from' ? level <= other : level >= other);
 
       return level === bound || (within && beside);
     });
+
+  /*
+   * The blank is one of the options rather than a fixture beside them, because it reaches the same span as a bound on
+   * the limit does and has to be refused on the same terms: clearing the lowest end while the highest sits on the
+   * ceiling writes `buddy-5`, and clearing the highest while the lowest sits on the floor writes `buddy0-`. Both are
+   * two picks from a state the Advanced pane or a link supplies — `buddy5` and `buddy0` are the natural spellings —
+   * and neither was reachable by picking a level, which is why holding the levels alone left this open.
+   *
+   * It stays where this end is already blank, or clearing a pill would need the other end moved first. The pill can
+   * always be emptied: with the lowest on five the highest still clears, and with the highest on nought the lowest
+   * does, so there is a way back to both ends blank from anywhere.
+   */
+  const opens = bound === null || (edge === 'from' ? other !== range.max : other !== floor);
+
+  return opens ? [{ level: null, name: 'Any level' }, ...levels] : levels;
+};
 
 /**
  * A span pill with one of its ends written. Anything else is handed back as it is: a box's path names its own pill,
@@ -729,10 +751,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => write(event.currentTarget.value)}
         >
-          <option value="">Any level</option>
           {pickable(range, edge, bound, other).map(({ level, name }) => (
-            <option key={level} value={String(level)}>
-              {`${level} ${name}`}
+            <option key={level ?? 'any'} value={level === null ? '' : String(level)}>
+              {level === null ? name : `${level} ${name}`}
             </option>
           ))}
         </select>
@@ -1319,11 +1340,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               A span pill carries its own two ends — boxes to type a number into, or named dropdowns where the game
               names the values — and an end left empty, or on <em>Any level</em>, leaves that end of the span open. Two
               spans of the same range in one group is a search you reach by dragging the second one in, a press reading
-              the one already there. Three of them are not the numbers they look like: an IV is the appraisal's own
-              bucket, where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10,{' '}
-              <code>3</code> is 11–14 and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect
-              one. The Max move levels and the counts of unlocked Max moves start at 1, a Max species having its attack
-              from the first.
+              the one already there. Three are not the numbers they look like: an IV is the appraisal's own bucket,
+              where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10, <code>3</code> is 11–14
+              and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one. The Max move levels and
+              the counts of unlocked Max moves start at 1, a Max species having its attack from the first.
             </p>
           </section>
         </div>
