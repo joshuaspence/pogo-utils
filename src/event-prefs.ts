@@ -162,25 +162,35 @@ function migrateLegacy() {
  * and rewritten. Copying the bytes is what makes the rename invisible: absent stays absent, empty stays empty, and a
  * value that will not parse arrives to be read exactly as it was read before.
  *
- * A name the prefix already holds is left alone on both sides, since that value is the later one — and an earlier pass
- * that stopped partway, one write refused, is how a stale unqualified key comes to be sitting beside a fresh one.
+ * The *value* a name the prefix already holds is kept, that being the later one — an earlier pass that stopped partway
+ * is how a stale unqualified key comes to sit beside a fresh one. The old *name* is vacated either way: it has lost
+ * the precedence contest, and vacating the shared origin is what this hop is for.
+ *
+ * One `try` per key rather than one around the loop, because the five differ in size by an order of magnitude. A
+ * store with room for `filterScope` but not `hiddenByView` would otherwise abandon every key after the refusal, and
+ * past `UNPREFIXED_UNTIL` nothing comes back for them.
  */
 function carryUnprefixedKeys() {
   if (Date.now() >= UNPREFIXED_UNTIL) {
     return;
   }
 
-  try {
-    for (const [name, unprefixed] of Object.entries(UNPREFIXED_KEYS) as [keyof typeof KEYS, string][]) {
+  for (const [name, unprefixed] of Object.entries(UNPREFIXED_KEYS) as [keyof typeof KEYS, string][]) {
+    try {
       const stored = localStorage.getItem(unprefixed);
 
-      if (stored !== null && localStorage.getItem(KEYS[name]) === null) {
-        localStorage.setItem(KEYS[name], stored);
-        localStorage.removeItem(unprefixed);
+      if (stored === null) {
+        continue;
       }
+
+      if (localStorage.getItem(KEYS[name]) === null) {
+        localStorage.setItem(KEYS[name], stored);
+      }
+
+      localStorage.removeItem(unprefixed);
+    } catch {
+      /* This one stays where it is, and `keyFor` reads it there until a later visit can move it. */
     }
-  } catch {
-    /* Storage is unavailable or full; `keyFor` reads the unqualified name where it stands instead. */
   }
 }
 
@@ -208,7 +218,7 @@ function carryLegacyObject() {
 
     localStorage.removeItem(LEGACY_OBJECT_KEY);
   } catch {
-    /* Nothing to carry over, or storage is unavailable. */
+    /* Nothing to carry over, or the write was refused; `legacySet` reads the object where it stands meanwhile. */
   }
 }
 
@@ -228,22 +238,63 @@ function keyFor(name: keyof typeof KEYS): string {
   return readRaw(KEYS[name]) === null ? unprefixed : KEYS[name];
 }
 
+/**
+ * One set as the legacy object still carries it, for a reader whose last visit predates the split and whose store
+ * refused `carryLegacyObject`'s write. The same read-through `keyFor` does, one shape older — a set nested in an
+ * object cannot be named by a key, so it needs its own reader rather than another candidate name.
+ *
+ * Empty rather than null where the object parses without this set, matching what `carryLegacyObject` writes: the
+ * object is proof of an earlier visit, so a missing set is one the reader cleared, not a first visit.
+ */
+function legacySet(name: (typeof LEGACY_SETS)[number]): Set<string> | null {
+  const stored = readJSON(LEGACY_OBJECT_KEY);
+
+  if (stored === null || typeof stored !== 'object') {
+    return null;
+  }
+
+  return new Set(stringsOf((stored as Record<string, unknown>)[name]) ?? []);
+}
+
 export function loadPrefs(): Prefs {
   migrateLegacy();
 
   return {
-    hiddenTypes: readSet(keyFor('hiddenTypes')) ?? new Set(DEFAULT_HIDDEN),
+    hiddenTypes: readSet(keyFor('hiddenTypes')) ?? legacySet('hiddenTypes') ?? new Set(DEFAULT_HIDDEN),
     hiddenByView: readSetsByView(keyFor('hiddenByView')),
 
     // Anything but 'view' is global, so an unwritten or unreadable value lands on the default rather than on a scope
     // no view answers to, which would filter by a set nothing can reach to edit.
     filterScope: readJSON(keyFor('filterScope')) === 'view' ? 'view' : 'global',
 
-    dismissed: readSet(keyFor('dismissed')) ?? new Set(),
+    dismissed: readSet(keyFor('dismissed')) ?? legacySet('dismissed') ?? new Set(),
 
     // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
+    // No legacy fallback: that object deliberately never carried `seen` — see `LEGACY_SETS`.
     seen: readSet(keyFor('seen')),
   };
+}
+
+/**
+ * Every name a preference can be sitting under, removed, so that a Reset lands on a genuine first visit. `KEYS` stopped
+ * being that set the moment reads began falling through: a page clearing those five alone leaves an `events:*` value to
+ * be read straight back, and on a store that refused one write the next hop then carries the dismissal the reader had
+ * just cleared up under the prefixed name. The legacy object goes too, for the same reason — it is a source reads
+ * reach, so leaving it is leaving a Reset to be undone.
+ *
+ * Here rather than at the call site because `UNPREFIXED_KEYS` and the window are this module's, and a page enumerating
+ * its own copy of the key set is a copy that falls out of step with this file.
+ */
+export function clearPrefs() {
+  const older = Date.now() < UNPREFIXED_UNTIL ? Object.values(UNPREFIXED_KEYS) : [];
+
+  for (const key of [...Object.values(KEYS), ...older, LEGACY_OBJECT_KEY]) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* Storage is unavailable, so there is nothing stored to clear. */
+    }
+  }
 }
 
 /** JSON has no Set, so one replacer serialises a bare set and the object of per-view sets alike, as their members. */

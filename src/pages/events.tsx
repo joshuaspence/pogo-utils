@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from '../event-feed.js';
 import {
+  clearPrefs,
   DEFAULT_HIDDEN,
   hiddenFor,
   KEYS,
@@ -501,16 +502,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     // instead would mark every event on the page new, where a Reset is a return to the defaults.
     prefs.seen = null;
 
-    try {
-      for (const key of Object.values(KEYS)) {
-        localStorage.removeItem(key);
-      }
-    } catch {
-      /* Nothing to clear if storage is unavailable. */
-    }
+    clearPrefs();
 
-    // Not stored, so clearing the keys above leaves these as they were — but they are three of the same chips Reset
-    // puts back, and a Reset cannot leave one of them widening the page.
+    // Not stored, so `clearPrefs` leaves these as they were — but they are three of the same chips Reset puts back,
+    // and a Reset cannot leave one of them widening the page.
     setReveals(NOTHING_REVEALED);
     settleSeen(events);
     repaint();

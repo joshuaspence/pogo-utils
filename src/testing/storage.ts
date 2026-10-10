@@ -15,6 +15,12 @@ export class FakeStorage {
 
   refusesWrites = false;
 
+  /**
+   * The same refusal for named keys alone, which is what a store with room for a short value but not a long one does.
+   * Mutable so a test can free the space again, the interesting states being the ones a single refusal leaves behind.
+   */
+  readonly refusesWritesTo = new Set<string>();
+
   getItem(key: string) {
     this.#check();
     return this.#entries.get(key) ?? null;
@@ -23,7 +29,7 @@ export class FakeStorage {
   setItem(key: string, value: string) {
     this.#check();
 
-    if (this.refusesWrites) {
+    if (this.refusesWrites || this.refusesWritesTo.has(key)) {
       throw new DOMException('the quota has been exceeded', 'QuotaExceededError');
     }
 

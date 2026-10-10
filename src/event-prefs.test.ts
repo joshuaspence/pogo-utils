@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { DEFAULT_HIDDEN, hiddenFor, KEYS, loadPrefs, persist, RECURRING, type Prefs } from './event-prefs.js';
+import {
+  clearPrefs,
+  DEFAULT_HIDDEN,
+  hiddenFor,
+  KEYS,
+  loadPrefs,
+  persist,
+  RECURRING,
+  type Prefs,
+} from './event-prefs.js';
 import RECURRING_TYPES from './recurring-types.js';
 import { installFakeStorage, type FakeStorage } from './testing/storage.js';
 
@@ -327,6 +336,131 @@ test('inside the migration window that same key is carried', () => {
 
   expect(loadPrefs().hiddenTypes).toEqual(new Set(['Raid Hour']));
   expect(storage.snapshot()).toEqual({ [KEYS.hiddenTypes]: '["Raid Hour"]' });
+});
+
+/**
+ * On the **real** clock, not a faked one, which is what makes this the case that notices `UNPREFIXED_UNTIL` arriving:
+ * the two above fake their way to either side of it and so keep passing for ever. Without it the whole migration —
+ * `UNPREFIXED_KEYS`, `UNPREFIXED_UNTIL`, `keyFor`, `legacySet`, `carryUnprefixedKeys` and the older half of
+ * `clearPrefs` — becomes dead weight on 2027-01-01 with nothing to say so.
+ *
+ * It will not fail alone. Every unprefixed case here reads the real clock too, so the day the window shuts about nine
+ * of them go red together, and all of them are part of what there is to delete. The name is written to be read in a
+ * CI log, since the date will arrive long after anyone is thinking about this file.
+ */
+test('the migration window is still open — when this fails, delete the migration', () => {
+  storage.setItem('events:hidden-types', '["Raid Hour"]');
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(['Raid Hour']));
+});
+
+/**
+ * Reset's own invariant, which is what `clearPrefs` exists for: whatever a reader held, clearing leaves a first visit.
+ * `KEYS` stopped being the whole set of names a preference can sit under once reads began falling through, so a page
+ * clearing those five alone would have had the old names read straight back on the next load.
+ */
+test('clearing leaves a first visit, whatever older names were holding', () => {
+  storage.setItem('events:hidden-types', '[]');
+  storage.setItem('events:dismissed', '["event-a"]');
+  storage.setItem('pgo-events:prefs', JSON.stringify({ dismissed: ['from-object'] }));
+  storage.refusesWrites = true;
+
+  loadPrefs();
+  clearPrefs();
+
+  expect(loadPrefs()).toEqual({
+    hiddenTypes: new Set(DEFAULT_HIDDEN),
+    hiddenByView: {},
+    filterScope: 'global',
+    dismissed: new Set(),
+    seen: null,
+  });
+});
+
+/**
+ * The sharper half of the same hole, which needs only one refused write rather than a store that never writes again:
+ * `removeItem` is not subject to quota, so Reset is the one action a full store can complete — and the space it frees
+ * is what lets the next load's hop carry up the dismissal the reader had just cleared.
+ */
+test('a reset is not undone by the hop on the load after it', () => {
+  storage.setItem('events:hidden-types', '["Raid Hour"]');
+  storage.setItem('events:dismissed', '["kept"]');
+  storage.refusesWritesTo.add(KEYS.dismissed);
+
+  loadPrefs();
+  storage.refusesWritesTo.clear();
+  clearPrefs();
+
+  expect(loadPrefs().dismissed).toEqual(new Set());
+});
+
+/**
+ * Past the window `clearPrefs` stops touching the unqualified names too. Nothing reads them by then, so removing one
+ * would be claiming a name off the shared origin that this app no longer has any use for.
+ */
+test('past the migration window clearing leaves the unprefixed names alone', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2027-06-01T00:00:00Z'));
+  storage.setItem('events:dismissed', '["theirs"]');
+
+  clearPrefs();
+
+  expect(storage.getItem('events:dismissed')).toBe('["theirs"]');
+});
+
+/**
+ * A name the prefix already holds keeps its value but still gives up the old key. Vacating the shared origin is what
+ * the hop is for, and a value that has lost the precedence contest has no claim to the name it was losing under.
+ */
+test('the superseded unprefixed name is vacated, not left sitting there', () => {
+  storage.setItem('events:dismissed', '["stale"]');
+  storage.setItem(KEYS.dismissed, '["fresh"]');
+
+  loadPrefs();
+
+  expect(loadPrefs().dismissed).toEqual(new Set(['fresh']));
+  expect(storage.getItem('events:dismissed')).toBeNull();
+});
+
+/**
+ * One refused write strands one key, not the four behind it. The five differ in size by an order of magnitude, so a
+ * store with room for `"view"` but not the per-view object is the ordinary shape of a near-full origin — and with one
+ * `try` around the loop, `filterScope`, `dismissed` and `seen` would never be attempted at all.
+ */
+test('a write refused on one key does not abandon the keys after it', () => {
+  storage.setItem('events:hidden-by-view', '{"cards":["Community Day"]}');
+  storage.setItem('events:filter-scope', '"view"');
+  storage.setItem('events:dismissed', '["event-a"]');
+  storage.refusesWritesTo.add(KEYS.hiddenByView);
+
+  loadPrefs();
+
+  expect(storage.getItem(KEYS.filterScope)).toBe('"view"');
+  expect(storage.getItem(KEYS.dismissed)).toBe('["event-a"]');
+  expect(storage.getItem('events:hidden-by-view')).toBe('{"cards":["Community Day"]}');
+});
+
+/**
+ * The legacy object is read through a refused write too, so the move-versus-read-through rule holds for both older
+ * shapes rather than only the one the rename introduced. Without it the oldest readers of all get the defaults handed
+ * back — the precise failure `carryLegacyObject` exists to prevent, arriving through `carryLegacyObject` itself.
+ */
+test('a legacy object is read through on a store that cannot be written', () => {
+  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: [], dismissed: ['kept'] }));
+  storage.refusesWrites = true;
+
+  const prefs = loadPrefs();
+
+  expect(prefs.hiddenTypes).toEqual(new Set());
+  expect(prefs.dismissed).toEqual(new Set(['kept']));
+});
+
+/** The object is proof of an earlier visit, so a set it does not carry is one the reader cleared, not a first visit. */
+test('a legacy object read through without a set reads as cleared, not as absent', () => {
+  storage.setItem('pgo-events:prefs', JSON.stringify({ dismissed: ['kept'] }));
+  storage.refusesWrites = true;
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set());
 });
 
 const prefsFor = (over: Partial<Prefs>): Prefs => ({
