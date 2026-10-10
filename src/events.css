@@ -42,6 +42,19 @@ body[data-page='events'] {
   }
 
   /**
+   * The backup status line waits in the DOM with nothing in it, because `hidden` would take it out of the accessibility
+   * tree and its first message — a refusal, most of the time — would never be announced. An empty block has no line box
+   * to be tall, so its margin is the whole of what it costs, and this is what takes that away.
+   *
+   * Here rather than in `chrome.css` beside the rule it overrides, because this sheet is scoped to the open page: that
+   * wrapper makes the nested rule above `(0,3,2)` where a `header.page .sub:empty` in `chrome.css` reaches only
+   * `(0,3,1)`, so the margin stayed at the 4px above and a browser is what said so.
+   */
+  header.page .sub:empty {
+    margin: 0;
+  }
+
+  /**
    * How many events have arrived since this browser last acknowledged them, and the only control that clears them. Its
    * own line beside the count rather than inside it, because each of the three views writes that line itself and this
    * has to read the same in all of them — a calendar or tracks bar can mark a new event but has no room for a control.

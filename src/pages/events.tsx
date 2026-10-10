@@ -555,7 +555,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /**
    * Read a backup back, over whatever is stored now. Keys the file omits are left alone, so a faithful restore is one
-   * into a cleared browser — Reset beside this is how to get there.
+   * into a cleared browser, which is the browser's own site data and not Reset beside this: `reset()` names the five
+   * keys this page owns, where an import writes through anything in the namespace.
    */
   async function importPrefs(file: File) {
     try {
@@ -574,6 +575,14 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
       const written = applyBackup(incoming);
 
+      // Nothing written is nothing to correct, and leaving before the corrections is what makes the message below
+      // true: they are not free — `setReveals` closes a reveal the reader had opened — so running them anyway would
+      // say nothing changed on the one render where *Show ended* had just emptied itself.
+      if (written.length === 0) {
+        setBackupStatus('That backup held no saved preferences, so nothing changed.');
+        return;
+      }
+
       Object.assign(prefs, loadPrefs());
 
       // The same two corrections Reset makes, for the same reasons: `settleSeen` reads an absent `seen` as a first
@@ -582,11 +591,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       settleSeen(events);
       repaint();
 
-      setBackupStatus(
-        written.length === 0
-          ? 'That backup held no saved preferences, so nothing changed.'
-          : `Restored ${written.length} saved preference${written.length === 1 ? '' : 's'}.`,
-      );
+      setBackupStatus(`Restored ${written.length} saved preference${written.length === 1 ? '' : 's'}.`);
     } catch (e) {
       setBackupStatus(`Could not restore that backup: ${said(e)}`);
     }
@@ -1144,9 +1149,14 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           </button>
         </p>
 
-        {/* Hidden until there is something to say, the same way the new-event count above is. */}
-        <p class="sub" aria-live="polite" hidden={backupStatus === null}>
-          {backupStatus ?? ''}
+        {/*
+         * Present from the first render even with nothing to say, unlike the count above it: `hidden` takes an element
+         * out of the accessibility tree, so a live region that arrives with its first message reads as a region
+         * appearing rather than as one whose contents changed, and the refusal goes unannounced to the reader who most
+         * needs it. Empty rather than `hidden`, and `.sub:empty` is what keeps it from costing a gap.
+         */}
+        <p class="sub" aria-live="polite">
+          {backupStatus}
         </p>
       </header>
 

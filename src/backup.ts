@@ -7,16 +7,13 @@
  *
  * The namespace is the allowlist. One list decides both what an export carries and which fields an import recognises,
  * rather than two that can come to disagree — and it is what keeps an export off the keys of the other site on this
- * origin, `localStorage` being keyed by origin and not by path.
+ * origin, `localStorage` being keyed by origin and not by path. `KEY_PREFIX` comes from the module that builds the keys
+ * out of it for the same reason: a sweep spelled here could be shortened to one the keys no longer agree with, and a
+ * prefix short enough to reach the neighbouring site is exactly the way this goes wrong.
  */
 
 import { said } from './errors.js';
-
-/**
- * The namespace every key this app owns sits under — `KEYS` in `event-prefs.ts` says why it is the Pages path segment.
- * A field in a backup file is a storage key where it starts with this, and metadata where it does not.
- */
-export const KEY_PREFIX = 'pogo-utils:';
+import { KEY_PREFIX } from './event-prefs.js';
 
 /** The one field that is not a storage key, which is why it carries no prefix. */
 const VERSION_FIELD = 'version';
@@ -28,8 +25,17 @@ const VERSION_FIELD = 'version';
  */
 const VERSION = 1;
 
-/** A backup's date in its name, so successive exports do not land as `… (1).json` and stop saying which is which. */
-const dated = (when: Date) => when.toISOString().slice(0, 10);
+/**
+ * A backup's date in its name, so successive exports do not land as `… (1).json` and stop saying which is which.
+ *
+ * Read off the local calendar, because the only clock a reader checks the name against is their own: a `toISOString`
+ * here named the file 9 October for an export taken at 09:00 on the 10th anywhere east of UTC. Spelled out rather than
+ * formatted through `Intl`, which answers a locale's shape where a filename wants one that sorts — the page's
+ * `dateFmt` and the rest are for prose a reader reads, not for a name they scan a directory of.
+ */
+const dated = (when: Date) => `${when.getFullYear()}-${twoDigit(when.getMonth() + 1)}-${twoDigit(when.getDate())}`;
+
+const twoDigit = (part: number) => String(part).padStart(2, '0');
 
 /** What an export downloads as. */
 export const backupName = (when: Date) => `pogo-utils-backup-${dated(when)}.json`;
@@ -135,13 +141,50 @@ export function parseBackup(text: string): [string, unknown][] {
  * Write what `parseBackup` answered into storage, giving back the keys written so a caller can say how much arrived.
  *
  * Keys the file leaves out are left as they stand rather than cleared, so a restore is faithful into cleared storage —
- * which is the loss this exists for — and `Reset` beside it is how to get there. The same choice is what stops a file
- * someone has trimmed by hand from clearing whatever they trimmed.
+ * which is the loss this exists for. Clearing the browser's site data is what gets there; `Reset` beside this removes
+ * the five keys the events page owns, which is the same thing only until an import has written a key from a later
+ * version, `reset()` naming its five where this writes through anything in the namespace. Leaving an omitted key alone
+ * is also what stops a file someone has trimmed by hand from clearing whatever they trimmed.
+ *
+ * All of it or none of it. A `setItem` that raises partway — a store near the origin's quota is the way to see it —
+ * would otherwise leave storage holding some keys from the file and the rest from before it, which is a state neither
+ * the reader nor the page can reason about, and the caller is told the restore failed either way. Rolling back makes
+ * "a refusal leaves storage alone" hold for a write that fails as well as for a file that is turned away.
  */
 export function applyBackup(owned: readonly [string, unknown][]): string[] {
-  for (const [key, value] of owned) {
-    localStorage.setItem(key, JSON.stringify(value));
+  const before = owned.map(([key]) => [key, localStorage.getItem(key)] as const);
+
+  try {
+    for (const [key, value] of owned) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch (e) {
+    putBack(before);
+    throw e;
   }
 
   return owned.map(([key]) => key);
+}
+
+/**
+ * Put the keys a failed write touched back to what they held, an absent one included — restoring it as empty would
+ * invent a value, and for `seen` an empty set is a reader who has acknowledged everything rather than one who has not
+ * been here.
+ *
+ * Each key catches for itself. The write that failed is commonly a full store, where putting a shorter value back
+ * succeeds for some keys and not others, and the keys that can be recovered are worth recovering even so. Nothing is
+ * thrown from here: the caller is about to be handed the failure that started this, which is the one it needs.
+ */
+function putBack(before: readonly (readonly [string, string | null])[]) {
+  for (const [key, stored] of before) {
+    try {
+      if (stored === null) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, stored);
+      }
+    } catch {
+      /* Storage has stopped answering altogether; what is left of the rollback is still worth attempting. */
+    }
+  }
 }

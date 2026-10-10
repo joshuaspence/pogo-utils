@@ -1,6 +1,6 @@
-import { beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import { applyBackup, backupName, KEY_PREFIX, ownedKeys, parseBackup, rescueName, writeBackup } from './backup.js';
+import { applyBackup, backupName, ownedKeys, parseBackup, rescueName, writeBackup } from './backup.js';
 import { KEYS, loadPrefs, persist, type Prefs } from './event-prefs.js';
 import { installFakeStorage, type FakeStorage } from './testing/storage.js';
 
@@ -8,6 +8,11 @@ let storage: FakeStorage;
 
 beforeEach(() => {
   storage = installFakeStorage();
+});
+
+// The zone sweep below installs one, and a zone left behind would silently follow every later test in the file.
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 /**
@@ -33,16 +38,6 @@ function storePrefs(): Prefs {
 
   return prefs;
 }
-
-/**
- * The prefix is what the whole transport turns on, so it is asserted rather than assumed: every key the preferences
- * own has to be inside it, or an export would carry some of a reader's choices and silently leave the rest.
- */
-test('every preference key is inside the namespace the transport sweeps', () => {
-  for (const key of Object.values(KEYS)) {
-    expect(key.startsWith(KEY_PREFIX)).toBe(true);
-  }
-});
 
 /**
  * The restore this exists for: a browser cleared, then the file read back. Driven through `persist` and `loadPrefs`
@@ -111,7 +106,8 @@ test('a key belonging to another site on this origin is neither carried nor writ
 
 /**
  * Keys the file leaves out are left as they stand. That is what makes a restore faithful only into cleared storage —
- * `Reset` beside it being how to get there — and what stops a file trimmed by hand from clearing what was trimmed.
+ * the browser's own site data, `Reset` reaching the five keys the page names and not a key written through by an
+ * import — and what stops a file trimmed by hand from clearing what was trimmed.
  */
 test('a key the file omits is left as it was', () => {
   storePrefs();
@@ -158,23 +154,34 @@ test('a stored value that is not JSON is left out, and the rest still travel', (
 });
 
 /**
- * Each refusal is checked by the file it turns away *becoming accepted* once the one thing wrong with it is fixed.
- * Asserting only that a bad file is refused would hold just as well for a reader that refuses everything, which is the
- * bug this table exists to rule out.
+ * A version refusal is checked by the same file *becoming accepted* once its version alone is corrected, the rest of
+ * the file left exactly as it was. That is the strong form, and the one worth having here: a version is read before
+ * any key is, so a refusal that was really about the key beside it would look identical from the outside, and the
+ * repaired file's own key coming back is what tells the two apart.
+ */
+test.for([
+  { refusing: 'a version this page cannot read', bad: '{"version":2,"pogo-utils:x":1}', matching: /version 2/ },
+  { refusing: 'a version as a string', bad: '{"version":"1","pogo-utils:x":1}', matching: /version "1"/ },
+  { refusing: 'no version at all', bad: '{"pogo-utils:x":1}', matching: /version absent/ },
+])('$refusing is refused, where the same file with its version corrected is not', ({ bad, matching }) => {
+  expect(() => restore(bad)).toThrow(matching);
+
+  expect(restore(JSON.stringify({ ...(JSON.parse(bad) as object), version: 1 }))).toEqual(['pogo-utils:x']);
+});
+
+/**
+ * A file that is not a JSON object at all, refused with the message that names which defect it has. The weaker claim
+ * of the two, and said rather than dressed up: there is no "same file corrected" for `null` or `'{oh no'` — no version
+ * to put right and no key to come back — so what rules out a reader that simply refuses everything is the table above,
+ * plus every accepting case in this file. What these four add is that each defect is reported as itself.
  */
 test.for([
   { refusing: 'text that is not JSON', bad: '{oh no', matching: /not readable JSON/ },
   { refusing: 'a JSON array', bad: '[]', matching: /a JSON object/ },
   { refusing: 'JSON null', bad: 'null', matching: /a JSON object/ },
   { refusing: 'a bare string', bad: '"a backup"', matching: /a JSON object/ },
-  { refusing: 'a version this page cannot read', bad: '{"version":2,"pogo-utils:x":1}', matching: /version 2/ },
-  { refusing: 'a version as a string', bad: '{"version":"1","pogo-utils:x":1}', matching: /version "1"/ },
-  { refusing: 'no version at all', bad: '{"pogo-utils:x":1}', matching: /version absent/ },
-])('$refusing is refused, where the same file fixed is not', ({ bad, matching }) => {
+])('$refusing is refused as what it is', ({ bad, matching }) => {
   expect(() => restore(bad)).toThrow(matching);
-
-  const good = JSON.stringify({ version: 1, [KEYS.dismissed]: ['event-a'] });
-  expect(restore(good)).toEqual([KEYS.dismissed]);
 });
 
 /**
@@ -250,8 +257,53 @@ test('the file is indented JSON a reader can open', () => {
  * the rescue copy is named apart, telling the two apart being the whole of its worth to someone recovering.
  */
 test('the two names are dated, and differ from each other', () => {
-  const when = new Date('2026-10-09T23:30:00Z');
+  const when = new Date('2026-10-09T12:00:00Z');
 
   expect(backupName(when)).toBe('pogo-utils-backup-2026-10-09.json');
   expect(rescueName(when)).toBe('pogo-utils-backup-before-import-2026-10-09.json');
+});
+
+/**
+ * The day named is the reader's own, which is a sweep rather than one case because the suite's machine has a zone too:
+ * each row's UTC date differs from the day it is dated, so a name read off `toISOString` fails here — where a single
+ * instant would only have failed on a machine that happened to sit east or west of the file's author.
+ *
+ * Both directions are covered on purpose. East of UTC the local day runs ahead of the UTC one, west of it behind, and
+ * a `getDate` that had been written as a `getUTCDate` is wrong in opposite directions in the two.
+ */
+test.for([
+  { at: '2026-10-09T22:30:00Z', zone: 'Australia/Sydney', dated: '2026-10-10' },
+  { at: '2026-10-09T02:30:00Z', zone: 'America/New_York', dated: '2026-10-08' },
+  { at: '2026-10-09T12:00:00Z', zone: 'UTC', dated: '2026-10-09' },
+])('an export at $at is dated $dated for a reader in $zone', ({ at, zone, dated }) => {
+  vi.stubEnv('TZ', zone);
+
+  expect(backupName(new Date(at))).toBe(`pogo-utils-backup-${dated}.json`);
+});
+
+/**
+ * A write that fails partway puts back what it found, so the half-written store is a state this cannot reach. The
+ * reader near their quota is the one who meets it: `hiddenTypes` from the file and `dismissed` from before it would
+ * leave the page drawing from neither, and the status line says the restore failed in either case — so the failure
+ * has to be the whole of what happened.
+ *
+ * The refused key is the *second* of the two written, which is what makes this a rollback rather than a write that
+ * never started: the first key has already been set when the throw arrives and has to be walked back. Its earlier
+ * value and an absent one are both checked, an absent key put back as empty being a value the file never carried —
+ * and for `seen` the difference between the two is a first visit against a reader who has acknowledged everything.
+ */
+test('a write that fails partway puts back what it found', () => {
+  persist({ ...emptyPrefs(), hiddenTypes: new Set(['Community Day']) }, 'hiddenTypes');
+
+  const before = storage.snapshot();
+
+  expect(before[KEYS.seen]).toBeUndefined();
+
+  storage.refusesWritesTo.add(KEYS.seen);
+
+  expect(() =>
+    restore(JSON.stringify({ version: 1, [KEYS.hiddenTypes]: ['Raid Hour'], [KEYS.seen]: ['event-a'] })),
+  ).toThrow(/quota/);
+
+  expect(storage.snapshot()).toEqual(before);
 });
