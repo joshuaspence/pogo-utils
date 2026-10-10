@@ -65,10 +65,14 @@ const GROW = 6;
  * How much closer the nearest form has to be than the runner-up before the answer is worth having. Over the committed
  * captures anything above 0.190 and at or below 0.531 is right wherever it answers: the widest lead a wrong icon takes
  * is `ho-oh.png`'s 0.190 and the narrowest right answer leads by 0.531 (`burmy-sandy.png`). 0.3 sits inside that with
- * 0.110 of headroom over the first. No margin reaches `basculin-blue.png`: its family's icons are 0.221 apart at their
- * closest, which caps any lead a capture of one can take beneath the wrong leads above, and the 0.142 its own icon
- * takes there is the water behind the fish rather than the fish — PGSharp's box covers the head, which is the only part
- * of it the three stripes differ in. So that row pins the forms it cannot be told from instead.
+ * 0.110 of headroom over the first. No margin inside that window reaches `basculin-blue.png`, whose own icon leads by
+ * 0.142 — beneath `ho-oh.png`'s wrong 0.190, so admitting it would admit that. And the 0.142 is the water behind the
+ * fish rather than the fish: PGSharp's box covers the head, the only part of it the three stripes differ in. So that
+ * row pins the forms it cannot be told from instead.
+ *
+ * Which is this capture's lead and not a bound on the family's. Its icons are 0.221 apart at their closest, and a lead
+ * cannot exceed the distance to the icon it is measured against, so a Blue- or Red-Striped Basculin can lead by at most
+ * that — leaving `(0.190, 0.221]` as margins some capture of one could still be answered at.
  */
 export const MARGIN = 0.3;
 

@@ -156,7 +156,7 @@ export function identify(
   // list is every form that fits; where a species *is* recognised the list is that species' forms and the nearest
   // sibling is far — 161 on `deoxys-normal.png`, 190 on `deoxys-defense.png`. Arithmetic alone says 16 there, an
   // Espeon reaching 1585 at the level its HP admits, but line 101 is reached only on an empty list and Deoxys' forms
-  // fill it, so that number comes back flagged as an unseparated Deoxys instead.
+  // fill it, so that number comes back as one Deoxys with the three the CP did not settle beside it.
   const printed = [detail.cp, ...detail.cps].filter((n): n is number => n !== null);
 
   const shows = (f: Form, level: number) => {
@@ -214,24 +214,33 @@ export function identify(
     }
   }
 
-  // Costumes repeat their base form's stats and types exactly, so they are the same answer twice. Two forms that are
-  // not costumes are two answers however identical their numbers: collapsing them answered the shortest name of a
-  // Deerling's four seasons whichever one it was, so what the screen cannot separate is reported below instead.
-  const distinct: Form[] = [];
-
-  for (const f of [...candidates].sort(
+  // Shortest name first and costumes last, which is what makes the answer the plainest form that fits and the group
+  // below it a costume's base form rather than the costume.
+  const [form = null, ...rest] = [...candidates].sort(
     (a, b) => Number(a.costume) - Number(b.costume) || a.form.length - b.form.length,
-  )) {
-    if (!f.costume || !distinct.some((d) => sameNumbers(d, f))) {
-      distinct.push(f);
+  );
+
+  // Split on what a second read of the same screen could do about them, and fold each side on what it is worth saying.
+  //
+  // The answer's own group is named in full: those forms are two answers however identical their numbers, and keeping
+  // one answered the shortest name of a Deerling's four seasons whichever one it was. A costume there is the exception
+  // the fold was written for — it repeats its base form exactly, so it is the same answer twice.
+  //
+  // Every other group gets one name, the shortest, as the fold always gave it. Naming them all instead put all 28 Unown
+  // in a nicknamed capture's `could also be …` — a 606-character note on a search that crosses every species, where the
+  // fold had always answered one.
+  const unseparated: Form[] = [];
+  const alternatives: Form[] = [];
+
+  for (const f of rest) {
+    if (form !== null && sameNumbers(form, f)) {
+      if (!f.costume) {
+        unseparated.push(f);
+      }
+    } else if (!alternatives.some((a) => sameNumbers(a, f))) {
+      alternatives.push(f);
     }
   }
-
-  const [form = null, ...rest] = distinct;
-
-  // Split on what a second read could do about them, which is nothing where every number is the same.
-  const unseparated = form === null ? [] : rest.filter((f) => sameNumbers(form, f));
-  const alternatives = form === null ? rest : rest.filter((f) => !sameNumbers(form, f));
 
   // A name that does not read as the species answered, which is not the same as one reading as no species at all: a
   // Vaporeon called `Eevee` matches a species and is still nicknamed. Read against the answer rather than against
@@ -250,7 +259,7 @@ export function identify(
 
   if (species === null && nickname && !searchable) {
     notes.push('a nickname hides the species, and only the IVs, the HP and the types together can say what it is');
-  } else if (distinct.length === 0 && (species || nickname)) {
+  } else if (form === null && (species || nickname)) {
     notes.push('no form fits the HP, IVs and types read');
   } else if (alternatives.length > 0) {
     notes.push(`could also be ${alternatives.map(label).join(', ')}`);

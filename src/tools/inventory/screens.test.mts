@@ -3,9 +3,11 @@
  *
  * **A row says what the Pokémon is, not what the readers answered.** A `Fixture` is the screen; a `Defects` beside it
  * is where some reader answers something else, pinned rather than softened away — fixing one is a change to the code
- * and so a pull request of its own, bar the `unseparated` ones, which name forms the screen never stated and so have no
- * fix a reader could be. Everything after that is derived from the pair, so a consequence cannot drift from its cause,
- * and `COVERAGE` pins the counts rather than leaving them to prose nothing checks.
+ * and so a pull request of its own. The `unseparated` ones are no second read of the same screen, but seven of the
+ * eight are the artwork declining two icons a 12-bin hue histogram cannot tell apart, which a sharper signature could;
+ * only `basculin-blue.png` is beyond every reader, its form being under PGSharp's own box. Everything after that is
+ * derived from the pair, so a consequence cannot drift from its cause, and `COVERAGE` pins the counts rather than
+ * leaving them to prose nothing checks.
  *
  * `NEGATIVE` holds the captures that are not detail screens, asserting the readers do not invent on a screen none of
  * them was written for. `no-pgsharp.png` and `pgsharp-no-overlay.png` are one Squirtle captured twice and so a control
@@ -117,9 +119,10 @@ interface Defects {
   cp?: number;
   alternatives?: string[];
   /**
-   * The forms `identify` answers as sharing every number this one does, which nothing on the screen could have
-   * separated. A defect in that the row states one Pokémon and the readers reach several, but not one a fix could take
-   * away: what would answer it is a field the game does not print.
+   * The forms `identify` answers as sharing every number this one does, which nothing the screen prints could have
+   * separated. A defect in that the row states one Pokémon and the readers reach several, and one the artwork is the
+   * only reader that could take away — by telling two icons apart that it currently declines, or by reaching a form the
+   * game draws none for.
    */
   unseparated?: string[];
   /**
@@ -1520,9 +1523,13 @@ test(
  *
  * So it is driven. One number is forged into `cps` and the answer compared against the one the capture gives as it
  * stands, outwards from the CP on its screen until something is answered **differently and silently** — a form or a
- * level that is not the right one, with no alternatives and no notes. Silence is the hazard rather than wrongness:
- * `detail.cp` is null on exactly these captures, so the disagreement note cannot fire, and a number the arithmetic
- * merely agreed with is reported by nothing at all.
+ * level that is not the right one, with no alternatives and no note another read could clear. Silence is the hazard
+ * rather than wrongness: `detail.cp` is null on exactly these captures, so the disagreement note cannot fire, and a
+ * number the arithmetic merely agreed with is reported by nothing at all.
+ *
+ * Silence is `clearable` and not the note count, because `ho-oh.png` and `pikachu-santa-hat.png` raise the unseparated
+ * note on every reading and it says nothing about any CP. Counted, it blocked all 380 forged readings of each of those
+ * two and the loop measured nothing where it reports no floor; uncounted, all 380 of each reach the comparison.
  *
  * Nothing nearer than an arithmetic reach of `CP_SWEEP`'s own band is interesting, so the search stops at 190, which
  * is where the last of the three sits. Measuring it is what makes the comment's claim falsifiable rather than a
@@ -1550,7 +1557,7 @@ test(
         for (const offset of [-away, away]) {
           const taken = identify(DATA, { ...detail, cps: [fixture.cp + offset] }, overlay, artwork);
 
-          if (taken.alternatives.length === 0 && taken.notes.length === 0 && shape(taken) !== right) {
+          if (taken.alternatives.length === 0 && clearable(taken) === 0 && shape(taken) !== right) {
             floors.set(fixture.file, `${away} away, answered as ${shape(taken)}`);
             break;
           }
@@ -1640,22 +1647,30 @@ test(
 );
 
 /**
- * What the bracketed form buys, measured by taking it away — and the answer is not an ambiguity but a **confident wrong
- * answer**, which is why it is worth a test of its own. `identify` folds forms that repeat a base form's stats and
- * types into one, since that is what collapses a costume into the Pokémon it is a costume of; Unown's 28 are all such
- * repeats of each other, so without the suffix the fold leaves one of them standing with no alternatives beside it and
- * nothing anywhere saying it was a choice of 28.
+ * What the bracketed form buys, measured by taking it away. Unown's 28 forms repeat one stat line and one type between
+ * them, so nothing but PGSharp's suffix can say which letter a capture is: without it the answer is a letter that is
+ * not this one, and the other 27 beside it — which is wrong and says so, where it used to be wrong silently.
+ *
+ * The letter is asserted as *not* `B` rather than as whichever the fold leaves standing, that being a tie between 28
+ * names of one character broken by the game master's own order. What matters is that it is not the one the suffix would
+ * have given, and that the 27 are reported rather than dropped.
  */
-test('without the form PGSharp appends, Unown is answered confidently and wrongly', async () => {
+test('without the form PGSharp appends, Unown is a letter and the 27 it is not', async () => {
   const { detail, overlay } = await readingOf('unown-b.png');
   assert.ok(overlay, 'the fixture has lost its overlay');
 
   const identity = identify(DATA, detail, { ...overlay, form: null });
+  const named = identify(DATA, detail, overlay);
 
   expect(identity.form?.species).toBe('Unown');
   expect(identity.form?.form).not.toBe('B');
-  expect(identity.alternatives, 'the fold no longer collapses the 28, so this test is obsolete').toStrictEqual([]);
+  expect(identity.alternatives, 'forms with these numbers are unseparated rather than alternatives').toStrictEqual([]);
+  expect(identity.unseparated, 'the fold is collapsing the 28 again, so nothing says it was a choice').toHaveLength(27);
   expect(identity.levels, 'the numbers still settle the level; only the letter was ever in doubt').toStrictEqual([16]);
+
+  // The other side of it, as the Spinda test states too: the suffix empties the set rather than narrowing it.
+  expect(named.form && label(named.form)).toBe('Unown (B)');
+  expect(named.unseparated, 'the bracketed letter left something it could not separate').toStrictEqual([]);
 });
 
 /**
@@ -1767,6 +1782,39 @@ test('a nickname with no types read is reported as unsearched, not as unfitted',
   expect(identity.nickname).toBe('Nickname');
   expect(identity.notes).toStrictEqual([
     'a nickname hides the species, and only the IVs, the HP and the types together can say what it is',
+  ]);
+});
+
+/**
+ * That `alternatives` names one form per set of numbers rather than every form that has them, which is the half of the
+ * split `unseparated` does not cover: the answer's own group is named in full, and every other group is worth the one
+ * name the fold always gave it. This capture's real numbers narrow to one species and so say nothing about that —
+ * Psychic at 55 HP with 10/10/10 and no CP is the search that reaches Unown, whose 28 forms share one stat line, and
+ * naming all 28 made a 606-character `could also be …` out of a 281-character one.
+ *
+ * Deoxys is the other half of the claim, and the reason the fold is per numbers and not per species: its four forms
+ * share a dex and both types and differ in attack and defense, so a CP this reading has not got would separate them and
+ * all four belong in the list. Asserted together, since a fold that was wrong either way passes one of the two.
+ */
+test('a search across every species names one form per set of numbers', async () => {
+  const { detail, overlay } = await readingOf('growlithe-nickname.png');
+  assert.ok(overlay, 'the fixture has lost its overlay');
+
+  const searched = identify(
+    DATA,
+    { ...detail, types: ['Psychic'], hp: 55, cp: null, cps: [] },
+    { ...overlay, iv: { attack: 10, defense: 10, stamina: 10 }, levels: [10] },
+  );
+
+  const named = (species: string) => searched.alternatives.filter((f) => f.species === species).map(label);
+
+  expect(named('Unown'), 'one set of numbers is being named once per form that has it').toStrictEqual(['Unown (A)']);
+
+  expect(named('Deoxys'), 'forms a CP could still separate are being folded into one').toStrictEqual([
+    'Deoxys',
+    'Deoxys (Speed)',
+    'Deoxys (Attack)',
+    'Deoxys (Defense)',
   ]);
 });
 
@@ -2289,7 +2337,7 @@ test('the corpus reaches both sides of every attribute', () => {
   ).toStrictEqual([]);
   expect(
     FIXTURES.filter((f) => f.defects && 'alternatives' in f.defects).map((f) => f.file),
-    'a capture needs `defects.alternatives` again, so `identify` has started leaving a form unseparated',
+    'a capture needs `defects.alternatives` again, so `identify` has stopped narrowing to one set of numbers',
   ).toStrictEqual([]);
 
   // And the triple and the level it carries, the sixth and seventh: `readOverlay` now reads a triple on every capture
