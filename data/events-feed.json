@@ -400,16 +400,6 @@
     "end": "2027-01-15T20:00:00.000"
   },
   {
-    "eventID": "pokemonspotlighthour2026-10-08",
-    "name": "Elgyem Spotlight Hour",
-    "eventType": "pokemon-spotlight-hour",
-    "heading": "Pokémon Spotlight Hour",
-    "link": "https://leekduck.com/events/pokemonspotlighthour2026-10-08/",
-    "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
-    "start": null,
-    "end": null
-  },
-  {
     "eventID": "pokemonspotlighthour2026-10-15",
     "name": "Stufful Spotlight Hour",
     "eventType": "pokemon-spotlight-hour",
