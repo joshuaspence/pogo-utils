@@ -320,6 +320,58 @@ test('no pick takes a span that says something to one that says nothing', () => 
 });
 
 /*
+ * Every state can be emptied, which is the other half of refusing a pick: a rule that stops a span saying nothing
+ * could as easily leave a pill no sequence of picks can clear, and a reader cannot drag their way out of one end's
+ * options. Walked as a breadth-first search over the real transitions rather than argued, because the count is the
+ * part a sentence gets wrong — the docblock on `pickable` said two where the floor-and-ceiling state takes three.
+ *
+ * Three is the worst of the 49, and `(5, null)` and `(null, 0)` take one, which is what that docblock claims of them.
+ */
+
+test('every state the ends can hold empties, in no more than three picks', () => {
+  const which = range('buddylevel');
+  const bounds = [null, ...Array.from({ length: which.max - (which.min ?? 0) + 1 }, (_, step) => step)];
+  const seen = (pair: readonly [number | null, number | null]) => `${pair[0]},${pair[1]}`;
+
+  const picks = (start: readonly [number | null, number | null]) => {
+    const depths = new Map([[seen(start), 0]]);
+    const queue = [start];
+
+    for (const state of queue) {
+      const [from, to] = state;
+      const depth = depths.get(seen(state)) ?? 0;
+
+      if (from === null && to === null) {
+        return depth;
+      }
+
+      for (const edge of ['from', 'to'] as const) {
+        for (const { level } of pickable(which, edge, edge === 'from' ? from : to, edge === 'from' ? to : from)) {
+          const next = (edge === 'from' ? [level, to] : [from, level]) as readonly [number | null, number | null];
+
+          if (!depths.has(seen(next))) {
+            depths.set(seen(next), depth + 1);
+            queue.push(next);
+          }
+        }
+      }
+    }
+
+    return Infinity;
+  };
+
+  const walked = bounds.flatMap((from) => bounds.map((to) => picks([from, to] as const)));
+
+  expect({
+    stuck: walked.filter((depth) => depth === Infinity).length,
+    worst: Math.max(...walked),
+    floorAndCeiling: picks([which.min ?? 0, which.max]),
+    ceilingAtLowest: picks([which.max, null]),
+    floorAtHighest: picks([null, which.min ?? 0]),
+  }).toEqual({ stuck: 0, worst: 3, floorAndCeiling: 3, ceilingAtLowest: 1, floorAtHighest: 1 });
+});
+
+/*
  * And a bound the control would not offer is still offered while it is set, which is the difference between a level a
  * reader cannot pick and one the end cannot show. A tree arrives holding a `from` of nought from the Advanced pane or
  * a link — `buddy0` is the documented spelling of *never a buddy* — and a `select` whose value matches none of its

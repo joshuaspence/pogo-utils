@@ -280,8 +280,9 @@ export const pickable = (
    * always be emptied, though not always in one step: with the lowest on five the highest still clears, and with the
    * highest on nought the lowest does, each end pinning the other and so leaving one of them free. A span the floor
    * and the ceiling hold *both* ends of — `buddy0-5`, which only the Advanced pane or a link supplies — pins each by
-   * the other, so it empties in two, a level moved and then the end cleared. Refusing to open a span already open
-   * would be the wrong reading of this: what is refused is opening one that is not.
+   * the other, so it empties in three: a level moved, and then each end cleared in turn. Three is the worst any state
+   * takes, which `search.test.js` walks the transitions for rather than this sentence claiming it. Refusing to open a
+   * span already open would be the wrong reading of this: what is refused is opening one that is not.
    */
   const opens = bound === null || (edge === 'from' ? other !== range.max : other !== floor);
 
