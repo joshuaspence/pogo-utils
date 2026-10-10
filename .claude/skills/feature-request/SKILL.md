@@ -1,0 +1,76 @@
+---
+name: 'feature-request'
+description: >
+  File a feature request against `invoice-tool` as a GitHub issue, filled against the repository feature request form.
+  Use when the user runs `/feature-request`, or asks to write up, file or raise an issue for something the tool should
+  do and does not.
+---
+
+# Feature request
+
+Turn something the tool should do into an issue on `joshuaspence/invoice-tool`, filled against the repository's own
+feature request form.
+
+The issue is a handover rather than a wish: whoever picks it up implements it without the conversation that produced it.
+An argument, when there is one, says which idea to write up -- it steers a session that holds more than one, and is
+never the content of the request.
+
+## Read the form first
+
+Read `.github/ISSUE_TEMPLATE/feature_request.yaml`. It is the contract, and this document deliberately does not restate
+it:
+
+- Each `body` entry carrying an `id` is one section of the issue body, and its `attributes.label` is that section's
+  heading. Match the label exactly -- the heading is what a later search looks for.
+- `validations.required: true` marks what cannot go up empty. If you cannot fill a required section, ask; do not file
+  around it.
+- The top-level `labels` list is what the issue must be created with. `gh issue create` does not read this file, so a
+  label that is not passed on the command line is a label the issue does not get.
+
+Two paths reach the same issue -- the web form, and this skill -- and only the web form reads that YAML on its own.
+
+## Gather
+
+Take from the session what the session already holds. The usual trigger is a conversation that has just worked something
+out, and that conversation is the source: re-asking for what was decided ten minutes ago is not diligence. Ask only for
+what is genuinely absent, in one round rather than one question at a time.
+
+The section that is most often missing is the one that matters most. A conversation naturally settles what is wrong and
+what should happen instead, and stops before saying where the work ends. Push on it: a request whose finish line is
+implied is a request that gets built to the wrong size.
+
+There is no output to capture and nothing to redact. Do not paste terminal output into a feature request; where a
+failure is what prompted this, it is a bug and belongs in `/bug-report`.
+
+## Check what already decided this
+
+Two searches, both shown to the user rather than acted on:
+
+```bash
+gh issue list --search '<keywords from the title>' --state all --limit 10
+```
+
+Then read `DESIGN.md` for the same ground. It records why this repository is shaped the way it is, and the expensive
+collision is not a duplicate issue -- it is a proposal that document already considered and rejected, about to be
+rebuilt by someone who did not read it. Where it says something relevant, quote the heading and let the user judge.
+Where it settled the question against this proposal, say so plainly before anything is filed.
+
+## Confirm
+
+Draft a title that names the behaviour wanted, in the voice the repository's commit subjects use --
+`Slice scope by statement period rather than by month`. No `[feature]` prefix: the label already says it.
+
+Show the rendered body, the title, the label, and whatever the two searches turned up. Wait. Do not create anything
+until the user says to.
+
+## Create
+
+Write the body to a file outside the working tree -- the session scratchpad -- so an abandoned run leaves nothing behind
+for a later `git add` to pick up. Then:
+
+```bash
+gh issue create --title '<title>' --label '<each label from the form>' --body-file '<path>'
+```
+
+Print the URL it returns, and stop. Do not open a browser, and do not comment `@claude` on the issue: the mention
+workflow gates on `github.event.issue.pull_request`, so a mention on an issue reaches nobody.

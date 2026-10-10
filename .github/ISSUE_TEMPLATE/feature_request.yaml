@@ -1,0 +1,38 @@
+---
+name: 'Feature request'
+description: 'Something invoice-tool should do and does not'
+labels:
+  - 'enhancement'
+
+body:
+  - type: 'textarea'
+    id: 'problem'
+    attributes:
+      label: 'What is missing'
+      description: 'What the tool does not do today, and what that costs you.'
+    validations:
+      required: true
+
+  - type: 'textarea'
+    id: 'proposal'
+    attributes:
+      label: 'What should happen'
+      description: 'The behaviour you want, rather than the code that would produce it.'
+    validations:
+      required: true
+
+  - type: 'textarea'
+    id: 'done'
+    attributes:
+      label: 'How to know it is done'
+      description:
+        'What has to be true before this can be closed. Whoever picks it up will build to this and stop here.'
+    validations:
+      required: true
+
+  - type: 'input'
+    id: 'scope'
+    attributes:
+      label: 'Scope'
+      description: 'The part this touches -- the engine, a recipe by name, the CLI, the documentation.'
+      placeholder: 'woolworths'
