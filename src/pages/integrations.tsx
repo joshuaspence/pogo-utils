@@ -232,9 +232,13 @@ export default function IntegrationsPage() {
           <h2>Live PokeMap display filters</h2>
 
           <p>
-            Copy a Live PokeMap display filter that allowlists every species still wanted for a shiny — the same list
-            the backup above hands PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are
-            thresholds rather than lists, and Live PokeMap shows all three without being told which species to watch.
+            Copy a{' '}
+            <a href="https://livepokemap.com" target="_blank" rel="noopener">
+              Live PokeMap
+            </a>{' '}
+            display filter that allowlists every species still wanted for a shiny — the same list the backup above hands
+            PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are thresholds rather than
+            lists, and Live PokeMap shows all three without being told which species to watch.
           </p>
 
           <p class="note">
