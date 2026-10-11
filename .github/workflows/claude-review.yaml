@@ -61,6 +61,7 @@ jobs:
               'Bash(git log:*)'
               'Bash(git rev-parse:*)'
               'Bash(git show:*)'
+              'mcp__github_inline_comment__create_inline_comment'
           claude_code_oauth_token: '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
@@ -75,6 +76,12 @@ jobs:
             `gh pr view` fails on this repository unless it is given `--json`. The plain form asks for Projects
             (classic) and exits 1 with no output, naming `repository.pullRequest.projectCards`. Read the pull
             request with `gh pr view --json <fields>` and the diff with `gh pr diff`, which works as it is.
+
+            Anchor each finding to its line with `mcp__github_inline_comment__create_inline_comment`, passing
+            `confirmed: true` — but only for the review's final comments. Left off, a call is buffered and a
+            classifier decides afterwards whether it was a real finding or a subagent probing the tool, so a
+            finding you meant to publish is one it can drop. The next step submits the body and the verdict; a
+            finding worth a line is worth anchoring to it rather than being described in that body.
 
             Do not run the pull request's code. This step holds the credential that authenticates the review, a
             child process inherits it, and the checkout is the pull request's own head — so running the branch
