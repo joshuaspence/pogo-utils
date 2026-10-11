@@ -24,7 +24,6 @@ import { LIVE_POKEMAP, LivePokeMap } from '../src/tools/watch/client.mts';
 import { blindSpots, parseQuery, type Query } from '../src/tools/watch/query.mts';
 import { watch } from '../src/tools/watch/watcher.mts';
 import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 
 const USAGE = 'usage: pnpm watch [--verbose] FILTER.json…  (with LPM_USERNAME, LPM_PASSWORD and NTFY_TOPIC set)';
@@ -65,7 +64,8 @@ if (!username || !password || !topic) {
 
 const queries: Query[] = positionals.map((path) => {
   try {
-    return parseQuery(basename(path), readFileSync(path, 'utf8'));
+    // Named by the path as typed rather than its base name, so that `a/shiny.json` and `b/shiny.json` stay two.
+    return parseQuery(path, readFileSync(path, 'utf8'));
   } catch (error) {
     return fail((error as Error).message);
   }

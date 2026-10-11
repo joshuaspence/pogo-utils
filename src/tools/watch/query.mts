@@ -245,6 +245,11 @@ export function blindSpots(filter: FilterConfig): string[] {
  * else is matched locally, so the rest only has to be no narrower than any query.
  */
 export function widest(queries: readonly Query[]): FilterConfig {
+  // Over none, every bound below would be an infinity and the allowlist an empty one admitting nothing.
+  if (queries.length === 0) {
+    throw new Error('widest: no queries to widen');
+  }
+
   const configs = queries.map((query) => query.config);
   const any = (pick: (config: FilterConfig) => boolean) => configs.some(pick);
   const every = (pick: (config: FilterConfig) => boolean) => configs.every(pick);

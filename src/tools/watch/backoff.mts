@@ -25,7 +25,8 @@ export class Backoff {
 
     const plain = Math.min(this.#ceiling, this.#base * 2 ** this.#failures);
 
-    return Math.round(plain * (0.75 + this.#random() / 2));
+    // Clamped after the jitter as well as before it, so the ceiling is a bound on the wait and not only on its centre.
+    return Math.min(this.#ceiling, Math.round(plain * (0.75 + this.#random() / 2)));
   }
 
   succeeded(): void {

@@ -164,6 +164,8 @@ test('the filter sent is wide enough for every query', () => {
     'off',
   );
 
+  expect(() => widest([])).toThrow('no queries');
+
   // Narrowing to sizes survives only where every query narrows.
   expect(widest([XXL_HUNT]).filterXXL).toBe(true);
 });
@@ -235,6 +237,13 @@ test('backoff doubles to its ceiling, and starts over on a success', () => {
 
   backoff.succeeded();
   expect(backoff.failed()).toBe(30_000);
+
+  // Never past the ceiling, jitter and all.
+  const capped = new Backoff(15_000, 120_000, () => 1);
+
+  expect([capped.failed(), capped.failed(), capped.failed(), capped.failed()]).toStrictEqual([
+    37_500, 75_000, 120_000, 120_000,
+  ]);
 
   // Jitter stays within a quarter either way.
   expect(new Backoff(15_000, 120_000, () => 0).failed()).toBe(22_500);
