@@ -85,8 +85,12 @@ jobs:
           app-id: '${{ vars.APP_ID }}'
           private-key: '${{ secrets.APP_PRIVATE_KEY }}'
 
+      # `master` rather than the default `github.sha`, which is the commit the run started on: if `events` has just
+      # pushed, building on that commit would make this job's push the rejected non-fast-forward `needs` is here to
+      # avoid.
       - uses: 'actions/checkout@v7'
         with:
+          ref: 'master'
           token: '${{ steps.token.outputs.token }}'
 
       - uses: 'pnpm/setup@v3'
