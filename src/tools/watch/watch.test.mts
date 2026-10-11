@@ -9,6 +9,7 @@
 
 import { Backoff } from './backoff.mts';
 import { namesOf, notificationFor, reasonsFor } from './message.mts';
+import { publishUrl } from './ntfy.mts';
 import { admits, blindSpots, parseQuery, shows, wants, widest } from './query.mts';
 import { Seen } from './seen.mts';
 import { firstAnswer, match } from './watcher.mts';
@@ -245,4 +246,11 @@ test('a spawn is remembered until its despawn and forgotten after', () => {
   expect(seen.has('a', NOW + 59_999)).toBe(true);
   expect(seen.has('a', NOW + 60_000)).toBe(false);
   expect(seen.size).toBe(0);
+});
+
+test("a publish goes to the ntfy server's own root, a subpath and all", () => {
+  expect(String(publishUrl('https://ntfy.sh'))).toBe('https://ntfy.sh/');
+  expect(String(publishUrl('https://ntfy.sh/'))).toBe('https://ntfy.sh/');
+  expect(String(publishUrl('https://example.com/ntfy'))).toBe('https://example.com/ntfy/');
+  expect(String(publishUrl('https://example.com/ntfy/'))).toBe('https://example.com/ntfy/');
 });

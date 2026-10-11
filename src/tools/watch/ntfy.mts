@@ -25,6 +25,13 @@ export interface Ntfy {
   token?: string;
 }
 
+/**
+ * Where a JSON publish goes: the server's own root, which is not always the host's. A server behind a reverse proxy
+ * under a subpath — `https://example.com/ntfy` — takes it at `https://example.com/ntfy/`, so the path is kept and only
+ * given the trailing slash it may have been written without.
+ */
+export const publishUrl = (server: string): URL => new URL(server.replace(/\/*$/, '/'));
+
 export async function publish(ntfy: Ntfy, notification: Notification, signal?: AbortSignal): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
@@ -32,7 +39,7 @@ export async function publish(ntfy: Ntfy, notification: Notification, signal?: A
     headers.Authorization = `Bearer ${ntfy.token}`;
   }
 
-  const response = await fetch(new URL('/', ntfy.server), {
+  const response = await fetch(publishUrl(ntfy.server), {
     method: 'POST',
     headers,
     body: JSON.stringify({ topic: ntfy.topic, ...notification }),
