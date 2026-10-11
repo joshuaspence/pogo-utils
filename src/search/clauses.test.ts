@@ -19,7 +19,8 @@
 import { expect, test } from 'vitest';
 
 import { CLAUSES, clausesOf } from './clauses.js';
-import { group, type Leaf, type Node } from './tree.js';
+import { RANGES_BY_ID } from './terms.js';
+import { group, spanned, type Leaf, type Node } from './tree.js';
 
 /** A required pill, which is what a chip dragged off the catalogue becomes. */
 const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });
@@ -397,6 +398,53 @@ test('a negated mega level is named for answering with less than it was asked fo
   expect(clausesOf(all(named('mega2'), yes('shiny'))).mishandled).toEqual([
     { term: '!mega2', note: expect.stringContaining('Mega Evolve') },
   ]);
+});
+
+/*
+ * A buddy level is the one of the three that is a state rather than a spelling — the game answers a level search with
+ * the buddy in hand where it has failed to load — so every spelling of a level is named and the bare word is not. That
+ * pair is the whole of the pattern: there is no `buddy` phrase for the bug to reach, so `!buddy` is a nickname search,
+ * and naming it would warn about a search the reader is not making. `buddy1-` is the span *Safe to transfer* composes.
+ */
+
+test('a negated buddy level is named, and the bare word is not', () => {
+  for (const term of ['buddy1-', 'buddy3', 'buddy2-5', 'buddy-4', 'buddy0']) {
+    expect(clausesOf(all(named(term), yes('shiny'))).mishandled).toEqual([
+      { term: `!${term}`, note: expect.stringContaining('the buddy you have out') },
+    ]);
+  }
+
+  expect(clausesOf(all(named('buddy'), yes('shiny'))).mishandled).toEqual([]);
+});
+
+/*
+ * And each level caveat reaches its range's own ceiling, which is what makes the pattern derived rather than copied: a
+ * literal `[0-3]` beside a `max: 3` passes every test above and stops covering the level the day the table gains one.
+ * Driven off `RANGES_BY_ID` rather than off the figures, so raising a ceiling without the pattern following fails here.
+ */
+
+test('a caveat covers the ceiling its range gives', () => {
+  for (const [id, said] of [
+    ['megalevel', 'Mega Evolve'],
+    ['buddylevel', 'the buddy you have out'],
+    ['ivattack', 'ignores a negation'],
+    ['ivdefense', 'ignores a negation'],
+    ['ivhp', 'ignores a negation'],
+  ] as const) {
+    const range = RANGES_BY_ID.get(id);
+
+    if (!range) {
+      throw new Error(`\`terms.js\` carries no ${id} range`);
+    }
+
+    // Through `spanned`, so the term is composed as the writer composes one: prefix for a level, suffix for an IV.
+    for (const term of [spanned(range, `${range.max}`), spanned(range, `${range.min ?? 0}-${range.max}`)]) {
+      expect({ term, mishandled: clausesOf(all(named(term), yes('shiny'))).mishandled }).toEqual({
+        term,
+        mishandled: [{ term: `!${term}`, note: expect.stringContaining(said) }],
+      });
+    }
+  }
 });
 
 test('the same term is named once however many clauses it reached', () => {

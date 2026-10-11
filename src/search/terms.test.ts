@@ -14,7 +14,7 @@
 
 import { expect, test } from 'vitest';
 
-import { GROUPS, RANGES, SHORTCUTS, TERMS_BY_ID } from './terms.js';
+import { GROUPS, RANGES, RANGES_BY_ID, SHORTCUTS, TERMS_BY_ID } from './terms.js';
 
 const ticks = (text: string) => [...text].filter((character) => character === '`').length;
 
@@ -41,11 +41,17 @@ test('no range is named the same as a term, and no two terms the same as each ot
   const terms = GROUPS.flatMap((category) => category.terms.map((term) => term.id));
   const shared = RANGES.filter((range) => terms.includes(range.id)).map((range) => range.id);
 
-  expect({ shared, duplicated: terms.length - new Set(terms).size, counted: TERMS_BY_ID.size }).toEqual({
-    shared: [],
-    duplicated: 0,
-    counted: terms.length,
-  });
+  /*
+   * And no two ranges share one either, which `RANGES_BY_ID` makes a divergence rather than a duplicate: `parse.js`
+   * walks `RANGES` in order and takes the first row of a repeated id, where every other reader goes through the map
+   * and takes the last. A typed `hp300-` would be read against one row's bounds and written against another's.
+   */
+  expect({
+    shared,
+    duplicated: terms.length - new Set(terms).size,
+    counted: TERMS_BY_ID.size,
+    ranged: RANGES_BY_ID.size,
+  }).toEqual({ shared: [], duplicated: 0, counted: terms.length, ranged: RANGES.length });
 });
 
 test('every shortcut stands for a span of a range that exists, within that range', () => {
@@ -63,6 +69,27 @@ test('every shortcut stands for a span of a range that exists, within that range
 
   expect({ found, some: SHORTCUTS.length > 0 }).toEqual({
     found: SHORTCUTS.map((one) => ({ phrase: one.phrase, named: true, inside: true })),
+    some: true,
+  });
+});
+
+/**
+ * A named range's names are indexed by the value they name, so the first has to be the range's floor and the last its
+ * ceiling. A level the game gains, or a ceiling raised without a name for it, would otherwise draw a dropdown that
+ * either stops short of what the span can hold or offers a value the game does not have.
+ *
+ * Over every range carrying names rather than over `buddylevel` by name, since the field is what the page reads. That
+ * there is one at all is the other half, as with the ticks above: this would pass just as quietly over a table where
+ * nothing is named, and every pill would be back to bare digits.
+ */
+test('a named range runs from its first name to its last', () => {
+  const named = RANGES.filter((range) => range.levels);
+
+  expect({
+    spans: named.map((range) => ({ id: range.id, min: range.min ?? 0, max: range.max })),
+    some: named.length > 0,
+  }).toEqual({
+    spans: named.map((range) => ({ id: range.id, min: 0, max: (range.levels ?? []).length - 1 })),
     some: true,
   });
 });

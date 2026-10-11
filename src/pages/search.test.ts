@@ -12,9 +12,10 @@
 
 import { expect, test } from 'vitest';
 
+import { leafText } from '../search/tree.js';
 import { read } from '../search/parse.js';
 import { RANGES, type Range } from '../search/terms.js';
-import { boxText, marked, rangeTitle, readBound, spans, unmarked } from './search.js';
+import { boxText, marked, pickable, rangeTitle, readBound, spans, unmarked } from './search.js';
 
 /**
  * Both halves of what `spans` promises, for any message at all: an odd number of pieces, so the last one is prose and
@@ -240,4 +241,154 @@ test('a refusal quoting a tick the reader typed keeps it, and keeps the rest of 
 
   // The tick is still there to be read, in the prose at the end rather than swallowed as a delimiter.
   expect(spans(refusal).at(-1)).toBe('a`');
+});
+
+/** What a pair composes, through the writer rather than a second model of it. */
+const write = (which: Range, [from, to]: readonly [number | null, number | null]) =>
+  leafText({ kind: 'range', id: which.id, from, to, negated: false });
+
+/*
+ * Every pair the two named ends can reach, against the *set* each denotes rather than against one spelling of it.
+ *
+ * Three picks wrote a span covering the whole range before: the floor as the lowest end with the other open, the
+ * ceiling as the highest with the lowest open, and those two the other way round, which `leafText` swaps into order.
+ * A filter looking for one of the three strings passed while the other two sat in the swept data — so what is held
+ * here is the span's coverage, which is what "says nothing" means however it is written.
+ *
+ * Both orders of picking, because each end narrows the other and a reader may start at either. The pair with neither
+ * end set is left out: it writes nothing at all, which is the pill asking nothing rather than a clause matching
+ * everything.
+ */
+
+test('no pick takes a span that says something to one that says nothing', () => {
+  const which = range('buddylevel');
+  const floor = which.min ?? 0;
+  const bounds = [null, ...Array.from({ length: which.max - floor + 1 }, (_, step) => floor + step)];
+
+  /*
+   * A span covers the range when the ends it denotes reach both limits, which is how `leafText` reads a pair: an open
+   * bottom is the floor and an open top the ceiling. Both ends open is left out — that writes nothing at all, which is
+   * the pill asking nothing rather than a clause matching everything.
+   */
+  const covers = (from: number | null, to: number | null) => {
+    const ends = [from ?? floor, to ?? which.max];
+
+    return (from !== null || to !== null) && Math.min(...ends) <= floor && Math.max(...ends) >= which.max;
+  };
+
+  /*
+   * Every state against every pick either end offers from it, the blank included. A state is not only what the control
+   * can build: `buddy0` and `buddy5` are documented spellings, so the Advanced pane and a link both hand over pairs
+   * with both ends set, and the question is what the *next* pick does from there.
+   */
+  const opened = bounds.flatMap((from) =>
+    bounds.flatMap((to) =>
+      (['from', 'to'] as const).flatMap((edge) =>
+        pickable(which, edge, edge === 'from' ? from : to, edge === 'from' ? to : from)
+          .map(({ level }) => (edge === 'from' ? ([level, to] as const) : ([from, level] as const)))
+          .filter((next) => covers(...next) && !covers(from, to))
+          .map((next) => ({ from, to, picked: `${edge}=${next[edge === 'from' ? 0 : 1]}`, wrote: write(which, next) })),
+      ),
+    ),
+  );
+
+  /*
+   * The refusals above are one direction only, and a `pickable` answering just the blank and the bound would satisfy
+   * every one of them while making a span impossible to narrow. So the levels between the ends are asserted too, from
+   * a mid-state rather than the blank pill the three probes beside it read: with the lowest on two the highest offers
+   * two, three and four — two for the span whose ends meet, and not five, which is the ceiling it never offers.
+   */
+  const narrowing = pickable(which, 'to', null, 2)
+    .map(({ level }) => level)
+    .filter((level) => level !== null);
+
+  expect({
+    opened,
+    narrowing,
+    anyLevel: pickable(which, 'from', null, null).some(({ level }) => level === null),
+    floorAtHighest: pickable(which, 'to', null, null).some(({ level }) => level === floor),
+    ceilingAtLowest: pickable(which, 'from', null, null).some(({ level }) => level === which.max),
+    states: bounds.length ** 2,
+  }).toEqual({
+    opened: [],
+    narrowing: [2, 3, 4],
+    anyLevel: true,
+    floorAtHighest: true,
+    ceilingAtLowest: true,
+    states: 49,
+  });
+});
+
+/*
+ * Every state can be emptied, which is the other half of refusing a pick: a rule that stops a span saying nothing
+ * could as easily leave a pill no sequence of picks can clear, and a reader cannot drag their way out of one end's
+ * options. Walked as a breadth-first search over the real transitions rather than argued, because the count is the
+ * part a sentence gets wrong — the docblock on `pickable` said two where the floor-and-ceiling state takes three.
+ *
+ * Three is the worst of the 49, and `(5, null)` and `(null, 0)` take one, which is what that docblock claims of them.
+ */
+
+test('every state the ends can hold empties, in no more than three picks', () => {
+  const which = range('buddylevel');
+  const bounds = [null, ...Array.from({ length: which.max - (which.min ?? 0) + 1 }, (_, step) => step)];
+  const seen = (pair: readonly [number | null, number | null]) => `${pair[0]},${pair[1]}`;
+
+  const picks = (start: readonly [number | null, number | null]) => {
+    const depths = new Map([[seen(start), 0]]);
+    const queue = [start];
+
+    for (const state of queue) {
+      const [from, to] = state;
+      const depth = depths.get(seen(state)) ?? 0;
+
+      if (from === null && to === null) {
+        return depth;
+      }
+
+      for (const edge of ['from', 'to'] as const) {
+        for (const { level } of pickable(which, edge, edge === 'from' ? from : to, edge === 'from' ? to : from)) {
+          const next = (edge === 'from' ? [level, to] : [from, level]) as readonly [number | null, number | null];
+
+          if (!depths.has(seen(next))) {
+            depths.set(seen(next), depth + 1);
+            queue.push(next);
+          }
+        }
+      }
+    }
+
+    return Infinity;
+  };
+
+  const walked = bounds.flatMap((from) => bounds.map((to) => picks([from, to] as const)));
+
+  expect({
+    stuck: walked.filter((depth) => depth === Infinity).length,
+    worst: Math.max(...walked),
+    floorAndCeiling: picks([which.min ?? 0, which.max]),
+    ceilingAtLowest: picks([which.max, null]),
+    floorAtHighest: picks([null, which.min ?? 0]),
+  }).toEqual({ stuck: 0, worst: 3, floorAndCeiling: 3, ceilingAtLowest: 1, floorAtHighest: 1 });
+});
+
+/*
+ * And a bound the control would not offer is still offered while it is set, which is the difference between a level a
+ * reader cannot pick and one the end cannot show. A tree arrives holding a `from` of nought from the Advanced pane or
+ * a link — `buddy0` is the documented spelling of *never a buddy* — and a `select` whose value matches none of its
+ * options selects nothing, rendering the end blank over a query matching the whole of storage.
+ */
+
+test('a bound already set is offered at the end showing it', () => {
+  const which = range('buddylevel');
+  const floor = which.min ?? 0;
+  const has = (edge: 'from' | 'to', level: number, bound: number | null) =>
+    pickable(which, edge, bound, null).some((option) => option.level === level);
+
+  expect({
+    floorSet: has('from', floor, floor),
+    floorUnset: has('from', floor, null),
+    floorElsewhere: has('from', floor, floor + 1),
+    ceilingSet: has('to', which.max, which.max),
+    ceilingUnset: has('to', which.max, null),
+  }).toEqual({ floorSet: true, floorUnset: false, floorElsewhere: false, ceilingSet: true, ceilingUnset: false });
 });

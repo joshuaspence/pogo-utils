@@ -27,7 +27,7 @@
  * normal form and De Morgan is the reader's own doing.
  */
 
-import { SHORTCUTS } from './terms.js';
+import { RANGES_BY_ID, SHORTCUTS, type RangeId } from './terms.js';
 import { group, isGroup, leafText, type Leaf, type Node } from './tree.js';
 
 /**
@@ -54,17 +54,73 @@ export const CLAUSES = 1000;
  * asks for the Pokémon it was meant to rule out and looks entirely right doing it. A negated mega level answers only
  * with species that can Mega Evolve, rather than with everything else.
  *
- * Neither is this page's doing — nothing between here and the string manufactures a negation. They are named because
- * this page's output ends up in a mass transfer, where a term that means its own opposite is worth a sentence.
+ * The buddy level is the third and the one that is not a quirk of the term itself: the same reference records that a
+ * level search "will only return current buddy" where the game has failed to load, citing `https://redd.it/1hdfboq`.
+ * That is a state rather than a spelling, so it reaches the positive form too — it is named here because the negative
+ * is where it costs something, *Safe to transfer* ruling out the one Pokémon in hand instead of every one ever walked.
+ *
+ * Which is a choice rather than an oversight, and the asymmetry is in what the reader can see. A positive `buddy2-`
+ * under that state answers with the one Pokémon in hand, and a list of one where a reader expected their Good Buddies
+ * is a result they can disbelieve. A negated one answers the other way: the transfer list it guards fills up with the
+ * Pokémon it was supposed to hold back, and nothing about it looks wrong. `mishandling` reads the negated clauses for
+ * that reason rather than for want of the other half.
+ *
+ * None of the three is this page's doing — nothing between here and the string manufactures a negation. They are named
+ * because this page's output ends up in a mass transfer, where a term that means its own opposite is worth a sentence.
  */
+
+/**
+ * The four spellings of a level, as a pattern taken from the range's own bounds rather than transcribed from them. A
+ * `[0-3]` written here beside a `max: 3` in `terms.js` is the copy of a bound that fails quietly: a `megalevel` raised
+ * the day Super Max is confirmed would drop every `mega4` string out of the note below, with nothing failing in a
+ * string this page says is worth a sentence because it ends up in a mass transfer.
+ *
+ * The levels are an alternation rather than a character class, so a ceiling that ever reaches double digits still means
+ * the number it says where `[0-10]` would mean nought, one and nought. `bare` is the prefix on its own, which the
+ * phrase list documents for `mega` — "`mega` is a shortcut of `mega0-`" — and documents for nothing else.
+ *
+ * The affix is whichever side of the span the range writes, which `spanned` in `tree.js` composes the same way round:
+ * a prefix for a level, a suffix for an IV — `hp{N}` is the stat where `{N}hp` is the band. It is held to a bare word
+ * of at least one letter, the alternative being a `.` or a `+` in one that over-matches silently rather than failing,
+ * and one letter rather than none because `dex` carries neither: a pattern built without an affix would attach a
+ * caveat to every negated dex pill, `!151` reported as a mishandled level search.
+ *
+ * `RangeId` on the parameter, not `string`: this runs while the module initialises and `query.js` imports it, so a
+ * range renamed in `RANGE_TABLE` would otherwise compile and then throw on the way to a blank Search page.
+ */
+function spanOf(id: RangeId, bare: boolean) {
+  const range = RANGES_BY_ID.get(id);
+
+  if (!range) {
+    throw new Error(`\`terms.js\` carries no ${id} range`);
+  }
+
+  if (!/^[a-z]+$/.test(`${range.prefix}${range.suffix ?? ''}`)) {
+    throw new Error(`\`${id}\` carries no bare-word affix, so its span cannot be spliced into a pattern`);
+  }
+
+  const floor = range.min ?? 0;
+  const digits = `(?:${Array.from({ length: range.max - floor + 1 }, (_, step) => floor + step).join('|')})`;
+  const span = `(?:${digits}|${digits}-${digits}?|-${digits})`;
+
+  return new RegExp(`^${range.prefix}${span}${bare ? '?' : ''}${range.suffix ?? ''}$`);
+}
+
+const IGNORES_NEGATION = 'the game ignores a negation on an IV term, so this asks for the Pokémon it means to rule out';
+
 const MISHANDLED = [
+  { pattern: spanOf('ivattack', false), note: IGNORES_NEGATION },
+  { pattern: spanOf('ivdefense', false), note: IGNORES_NEGATION },
+  { pattern: spanOf('ivhp', false), note: IGNORES_NEGATION },
   {
-    pattern: /^(?:[0-4]|[0-4]-[0-4]?|-[0-4])(?:attack|defense|hp)$/,
-    note: 'the game ignores a negation on an IV term, so this asks for the Pokémon it means to rule out',
+    pattern: spanOf('megalevel', true),
+    note: 'a negated mega level answers only with species that can Mega Evolve, rather than with everything else',
   },
   {
-    pattern: /^mega(?:[0-3]|[0-3]-[0-3]?|-[0-3])?$/,
-    note: 'a negated mega level answers only with species that can Mega Evolve, rather than with everything else',
+    pattern: spanOf('buddylevel', false),
+    note:
+      'a buddy level answers only the buddy you have out where the game has not loaded properly, so this rules out ' +
+      'that one rather than every Pokémon you have walked',
   },
 ];
 

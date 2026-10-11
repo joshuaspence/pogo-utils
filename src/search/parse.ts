@@ -21,7 +21,7 @@
  * the canvas can draw.
  */
 
-import { bounded, GROUPS, RANGES, SHORTCUTS, SPAN, type Range } from './terms.js';
+import { bounded, GROUPS, RANGES, RANGES_BY_ID, SHORTCUTS, SPAN, type Range } from './terms.js';
 import { group, NESTING, type Junction, type Leaf, type Node } from './tree.js';
 
 /** The punctuation, and what each piece of it is. Everything else is part of a term. */
@@ -95,7 +95,7 @@ function pill(text: string, negated: boolean): Leaf {
    * the readers having to be one the other readers could have made.
    */
   const shortcut = SHORTCUTS.find((one) => one.phrase === text.toLowerCase());
-  const stands = shortcut ? RANGES.find((range) => range.id === shortcut.range) : undefined;
+  const stands = shortcut ? RANGES_BY_ID.get(shortcut.range) : undefined;
 
   if (shortcut && stands) {
     return { kind: 'range', id: stands.id, from: bounded(shortcut.from, stands), to: null, negated };

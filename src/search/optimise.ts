@@ -25,7 +25,7 @@
  */
 
 import POKEMON from '../pokemon/pokedex.js';
-import { GROUPS, RANGES, SPAN, type Group as Category, type Term } from './terms.js';
+import { GROUPS, RANGES_BY_ID, SPAN, type Group as Category, type Term } from './terms.js';
 import { isGroup, leafText, type Group, type Leaf, type Node } from './tree.js';
 import type { State } from './query.js';
 
@@ -58,7 +58,7 @@ const SPECIES = Object.values(POKEMON).map((species) => ({
 }));
 
 /** The dex range's own floor and ceiling, which is the span that says nothing and so earns no pill. */
-const DEX = RANGES.find((range) => range.id === 'dex');
+const DEX = RANGES_BY_ID.get('dex');
 
 // Every reduction below the name shortening is about the dex, so a table missing this range is a broken page rather
 // than a query to shorten — the same reading `dom.js` takes of markup a script cannot find its element in.

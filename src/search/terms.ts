@@ -62,15 +62,30 @@ export interface Range {
    * second kind of range, since every reader of one already wraps a span in its prefix and now wraps it in both.
    */
   suffix?: string;
+
+  /**
+   * What each value is called where the game names them, indexed by the value itself: a range carrying these draws
+   * named dropdowns in place of its two number boxes, so it has to run from 0 to `max` for an index to be a value.
+   * `terms.test.js` holds whichever ranges have them to that.
+   */
+  levels?: readonly string[];
 }
+
+/**
+ * One thing a preset rules out: a term by its id, or a span of one of the `RANGES` open above `from`, which is the
+ * `{phrase}{N}-` the game reads as values at or above `{N}`. A preset carries the one bound it means and no ceiling,
+ * there being no ceiling in what that writes.
+ *
+ * `RangeId` rather than `string`, so the range is one that exists; `query.js` clamps the bound, a preset being the
+ * fourth builder of a span pill and held to the same reading as the three `bounded` already names.
+ */
+export type Excluded = string | { range: RangeId; from: number };
 
 export interface Preset {
   id: string;
   label: string;
   note: string;
-  text?: string;
-  include?: readonly string[];
-  exclude?: readonly string[];
+  exclude?: readonly Excluded[];
 }
 
 /**
@@ -268,7 +283,6 @@ export const GROUPS: readonly Group[] = [
     help: 'The ones you have marked. Worth excluding from anything you mean to mass-transfer.',
     terms: [
       { id: 'favorite', term: 'favorite', label: 'Favourite' },
-      { id: 'buddy', term: 'buddy', label: 'Buddy' },
 
       /**
        * A tag is searched by the name its owner gave it, so `#` — the game's "has any tag at all" — is the only tag
@@ -394,6 +408,21 @@ export const GROUPS: readonly Group[] = [
 ];
 
 /**
+ * What each buddy level is called, indexed by the number the game searches it as: `buddy3` is a Great Buddy. Only the
+ * top four have names — the community phrase list spells the first two "0 = never buddies, 1 = buddies, never leveled
+ * up" — so those read as descriptions. The pill's dropdowns are drawn from these, which is the only place a reader
+ * meets a buddy level without already knowing what the number means.
+ */
+const BUDDY_LEVELS: readonly string[] = [
+  'never a buddy',
+  'buddied but never levelled up',
+  'Good Buddy',
+  'Great Buddy',
+  'Ultra Buddy',
+  'Best Buddy',
+];
+
+/**
  * The numeric ranges, each written as its prefix and a span: `cp100-2000`. A bound left empty is left open rather than
  * filled from the range's own `min` or `max`, so one box filled writes `cp3000-`; `tree.js` says why.
  *
@@ -405,23 +434,34 @@ export const GROUPS: readonly Group[] = [
  * the three counts take five digits, which is past any storage or candy total the game can hold, where a figure chosen
  * to look plausible would have rewritten a real `countcandy50000`.
  *
- * Buddy and Mega level belong here rather than among the terms above, even though the game documents them as the eleven
- * separate words `buddy0` to `buddy5` and `mega0` to `mega3`: they are levels, so a reader wants a span of them — `Good
- * Buddy or better` is `buddy2-5` — and eleven chips could not write that. The Max move levels and the two counts of
- * unlocked Max moves are here for the same reason, and all five start at 1: a Max species has its attack unlocked from
- * the first, so `{N}` counts from one and `dynamax0` is a search for nothing.
+ * `megalevel` is the one ceiling that is a judgement. Bulbapedia lists a fourth mega level, Super Max, and the
+ * community phrase list gives "1/2/3/4 = Base/High/Max/Super Max" — but carries `// Super Max not personally confirmed
+ * yet.` in its own source beside that row. So `max: 3` holds the level both sources stand behind and no more, and the
+ * cost is that `mega4` pasted into the Advanced pane composes `mega3` rather than being refused. `buddylevel`'s 5
+ * needs no such sentence: both sources give it outright.
+ *
+ * Buddy and Mega level belong here rather than among the terms above: they are levels, so a reader wants a span of them
+ * — `Good Buddy or better` is `buddy2-`, the lower end picked and the upper left open — which is how the references
+ * spell them too, Niantic's own list saying "enter `buddy0–5`" and Bulbapedia giving that very `buddy2-` as its
+ * example. The Max move levels and the two counts of unlocked Max moves are here for the same reason, and all five
+ * start at 1: a Max species has its attack unlocked from the first, so `{N}` counts from one and `dynamax0` is a
+ * search for nothing.
+ *
+ * A level is also the *only* buddy search: those two references and the community phrase list all document `buddy{N}`,
+ * and not one carries a flag for the buddy you have out, so there is no bare `buddy` among the terms above — the game
+ * would read one as a nickname.
  *
  * A prefix that is the start of another prefix needs no ordering, `pill` in `parse.js` requiring the *tail* to be a
  * span: `countcandy248-` is not a `count` search, because `candy248-` is not a number.
  */
-export const RANGES: readonly Range[] = [
+const RANGE_TABLE = [
   { id: 'cp', prefix: 'cp', label: 'CP', max: 5000 },
   { id: 'hp', prefix: 'hp', label: 'HP', max: 500 },
   { id: 'dex', prefix: '', label: 'Dex number', min: 1, max: 1025 },
   { id: 'ivattack', prefix: '', suffix: 'attack', label: 'Attack IV', max: 4 },
   { id: 'ivdefense', prefix: '', suffix: 'defense', label: 'Defence IV', max: 4 },
   { id: 'ivhp', prefix: '', suffix: 'hp', label: 'HP IV', max: 4 },
-  { id: 'buddylevel', prefix: 'buddy', label: 'Buddy level', max: 5 },
+  { id: 'buddylevel', prefix: 'buddy', label: 'Buddy level', max: 5, levels: BUDDY_LEVELS },
   { id: 'megalevel', prefix: 'mega', label: 'Mega level', max: 3 },
   { id: 'dynamaxmoves', prefix: 'dynamax', label: 'Dynamax moves', min: 1, max: 3 },
   { id: 'gigantamaxmoves', prefix: 'gigantamax', label: 'Gigantamax moves', min: 1, max: 3 },
@@ -434,7 +474,24 @@ export const RANGES: readonly Range[] = [
   { id: 'age', prefix: 'age', label: 'Age', max: 3650 },
   { id: 'distance', prefix: 'distance', label: 'Kilometres from home', max: 40000 },
   { id: 'year', prefix: 'year', label: 'Year caught', min: 2016, max: 2030 },
-];
+] as const satisfies readonly Range[];
+
+export const RANGES: readonly Range[] = RANGE_TABLE;
+
+/**
+ * Whichever id the table above carries, as the union of the literals rather than `string` — the same reading
+ * `router.js` takes of its own `PAGES`, and for the same reason: a preset naming a range it has misspelled is a type
+ * error rather than a pill that writes nothing and an exclusion that goes missing from a transfer-safe string.
+ *
+ * Off the table before `RANGES` widens it, which is the whole of why there are two names for one list. `as const`
+ * makes each row its own type, so a union of them has `min`, `suffix` and `levels` only where the row that reached it
+ * did — and every reader of `RANGES` wants the one `Range` the annotation gives them.
+ *
+ * `satisfies` on the table rather than the annotation alone doing the checking, because an excess-property check fires
+ * on a *fresh* object literal and these rows are no longer fresh by the time `RANGES` is assigned: without the clause
+ * a row written `level:` for `levels` compiled, and drew number boxes for a range meant to have names.
+ */
+export type RangeId = (typeof RANGE_TABLE)[number]['id'];
 
 /**
  * The phrases the game reads as a span rather than as the word they look like, each beside the range and the floor it
@@ -478,15 +535,23 @@ export const SPAN = /^(\d+)?(-)?(\d+)?$/;
 /**
  * A number inside a range's own limits, which is the whole of what `max` above bounds.
  *
- * Three readers build a span pill — the number boxes, a fragment a stranger wrote and a typed query — and a pill out of
- * any of them has to be one the other two could have made. Otherwise the bound changes under the reader: a typed
- * `cp99999` composed `cp99999`, and the link that string wrote read back as `cp5000`.
+ * Four builders make a span pill — the number boxes, a fragment a stranger wrote, a typed query and a preset — and a
+ * pill out of any of them has to be one the others could have made. Otherwise the bound changes under the reader: a
+ * typed `cp99999` composed `cp99999`, and the link that string wrote read back as `cp5000`. A preset is this
+ * repository's own writing rather than a stranger's, so what it is held to is that its string and its link agree.
  */
 export const bounded = (value: number, range: Range) => Math.min(Math.max(value, range.min ?? 0), range.max);
 
 /**
+ * The lowest buddy level that has been a buddy at all, which is the bound *Safe to transfer* rules out from: level 0 is
+ * everything never buddied, so reaching down to it would exclude nearly all of storage and leave nothing to transfer.
+ */
+const EVER_BUDDIED = 1;
+
+/**
  * Starting points, each a plain state the builder loads and the reader then edits — the point is to land mid-way
- * through a query rather than to hand over a finished one. `text` fills the name box, the rest name term ids.
+ * through a query rather than to hand over a finished one. `exclude` is the whole of what one says: `presetTree` reads
+ * nothing else, and a field offered here that nothing reads is a field a contributor fills in and watches do nothing.
  *
  * Only one of these earns its place. Safe to transfer is a long list of exclusions, every one of which matters, and
  * forgetting any single one of them is how a shiny ends up as candy. A start a reader could have clicked together out
@@ -507,7 +572,7 @@ export const PRESETS: readonly Preset[] = [
       'special',
       'background',
       'favorite',
-      'buddy',
+      { range: 'buddylevel', from: EVER_BUDDIED },
       'tagged',
       'defender',
       'star3',
@@ -517,6 +582,19 @@ export const PRESETS: readonly Preset[] = [
     ],
   },
 ];
+
+/**
+ * Every range by id, for the readers that are handed one and need the range behind it: the pill writer, the pill
+ * labeller, the pill renderer, the link reader, the shortcut a typed phrase stands for, the preset builder,
+ * `clauses.js`'s caveat patterns and the optimiser's own `dex` lookup. Each had scanned `RANGES` for itself, and no
+ * lookup by id goes any other way now — which is what makes the duplicate `id` that `terms.test.js` refuses worth
+ * refusing: `parse.js` walks `RANGES` in order where every reader here takes the last row of a repeated id, so two
+ * rows sharing one would have a typed `hp300-` read against one row's bounds and written against another's.
+ *
+ * Keyed by `string` rather than by `RangeId`, since what a fragment or a typed query hands over is whatever a stranger
+ * wrote.
+ */
+export const RANGES_BY_ID: ReadonlyMap<string, Range> = new Map(RANGES.map((range) => [range.id, range]));
 
 /**
  * Every term by id, for the link reader and the query writer — both are handed ids and need the term behind one.
