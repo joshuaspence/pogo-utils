@@ -25,6 +25,12 @@ query string and have no opinion about which page they are on.
 Each page is reached through `import()`, so the chunk holding Leaflet and the one holding the Java serialization codec
 are fetched only by the tabs that need them rather than by every reader of the events calendar.
 
+The one exception is the notifications control at the end of the top bar, which every tab shows: it lists the events the
+Events page would mark **New**, so it reads the two event files — `data/events-feed.json` and `data/events.json` — and
+the saved event filters on whichever tab the reader opens, once per page load. The list and the New mark share one
+record of what has been seen, so clearing either clears both. [`src/event-store.ts`](src/event-store.ts) holds it, and
+[`src/notices.tsx`](src/notices.tsx) is where another kind of notice would join the list.
+
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored under [`data/`](data) as one `*.gpx` file per country,
 [`data/Australia.gpx`](data/Australia.gpx) and so on — the files themselves are the source of truth. The map page reads
 them directly, so to run it locally build the site and serve `dist/` over HTTP (the files are loaded via `fetch`). The
