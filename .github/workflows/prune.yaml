@@ -5,7 +5,7 @@ on:
   push:
     branches: ['master']
     paths:
-      - '.github/workflows/prune.yml'
+      - '.github/workflows/prune.yaml'
       - 'scripts/prune-events.mts'
       - 'src/event-feed.ts'
       - 'src/gpx-source.mts'
@@ -19,7 +19,7 @@ permissions:
   actions: 'write'
   contents: 'write'
 
-# Shared with `vend.yml`: both push to `master` without pulling first, so the second of two at once is rejected.
+# Shared with `vend.yaml`: both push to `master` without pulling first, so the second of two at once is rejected.
 concurrency:
   group: 'master'
   cancel-in-progress: false
@@ -51,10 +51,10 @@ jobs:
           # script without widening to every dirty file in the tree.
           file_pattern: 'data/events.json *.gpx'
 
-      # As in `vend.yml`: a commit made with the default `GITHUB_TOKEN` raises no `push` event, so `pages.yml` would not
-      # fire on its own.
+      # As in `vend.yaml`: a commit made with the default `GITHUB_TOKEN` raises no `push` event, so `pages.yaml` would
+      # not fire on its own.
       - name: 'Deploy'
         if: "steps.commit.outputs.changes_detected == 'true'"
-        run: 'gh workflow run pages.yml --ref "${GITHUB_REF_NAME}"'
+        run: 'gh workflow run pages.yaml --ref "${GITHUB_REF_NAME}"'
         env:
           GH_TOKEN: '${{ github.token }}'

@@ -5,7 +5,7 @@ on:
   push:
     branches: ['master']
     paths:
-      - '.github/workflows/vend.yml'
+      - '.github/workflows/vend.yaml'
       - 'scripts/vend-feed.mts'
       - 'src/event-feed.ts'
 
@@ -18,7 +18,7 @@ permissions:
   actions: 'write'
   contents: 'write'
 
-# Shared with `prune.yml`: both push to `master` without pulling first, so the second of two at once is rejected.
+# Shared with `prune.yaml`: both push to `master` without pulling first, so the second of two at once is rejected.
 concurrency:
   group: 'master'
   cancel-in-progress: false
@@ -42,10 +42,10 @@ jobs:
           commit_message: 'Update the Leek Duck feed'
           file_pattern: 'data/events-feed.json'
 
-      # GitHub raises no `push` event for a commit made with the default `GITHUB_TOKEN`, so `pages.yml` never fires and
+      # GitHub raises no `push` event for a commit made with the default `GITHUB_TOKEN`, so `pages.yaml` never fires
       # and the site would stay at whatever a human push last built.
       - name: 'Deploy'
         if: "steps.commit.outputs.changes_detected == 'true'"
-        run: 'gh workflow run pages.yml --ref "${GITHUB_REF_NAME}"'
+        run: 'gh workflow run pages.yaml --ref "${GITHUB_REF_NAME}"'
         env:
           GH_TOKEN: '${{ github.token }}'
