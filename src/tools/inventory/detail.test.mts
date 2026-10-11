@@ -31,7 +31,8 @@ test('only the brightened band offers growlithe-nickname its lost digit', () => 
 
 /**
  * The acceptance rule's two directions, on the bands that exercise them: `unown-b.png` is extended off the front and
- * `unown-question.png` off the back — the second wrongly, which is the corpus's one misread CP and pinned as a defect.
+ * `unown-question.png` off the back — the second wrongly, off a band that had cut its `6` in half. That band is no
+ * longer read, `CP_ACROSS` getting the capture its `486` at the pad before, but the rule still takes what it offered.
  */
 test('a longer number sharing an end with the line is taken', () => {
   expect(rescue('P487', '48', LONGEST), 'a band extending the line forwards is no longer taken').toBe('487');

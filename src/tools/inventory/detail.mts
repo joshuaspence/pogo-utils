@@ -54,8 +54,7 @@ export async function readLines(image: Image): Promise<Line[]> {
  * cost a capture its whole form — as `ce`: `deoxys-attack.png` reads `ce1441`, digits perfectly right and the `P`
  * taken for an `e`. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
  *
- * It admits 23 captures, 20 reading the CP exactly off the line; of the other three `wholeCp` recovers two and
- * overshoots one. The two go together: the label says which line, the band says the whole number.
+ * It admits 23 captures, 20 reading the CP exactly off the line; `wholeCp` recovers the other three. The two go together: the label says which line, the band says the whole number.
  */
 export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
 
@@ -175,9 +174,8 @@ async function cpsIn(image: Image): Promise<number[]> {
 /**
  * The CP again, out of a band round the line the whole-screen pass found, where that pass lost a digit or two off one
  * end. White over the artwork is the hardest text on the screen. All 23 captures with a label line reach this and three
- * are changed by it: `38` for 738 and `48` for 487 are recovered, where `48` for 486 is overshot into `4864`. The 746,
- * 1569 and 1705 once named here are still what their rows state, with no label line left on the stitch for this to
- * anchor on.
+ * are changed by it: `38` for 738, `48` for 487 and `48` for 486 are all recovered. The 746, 1569 and 1705 once named
+ * here are still what their rows state, with no label line left on the stitch for this to anchor on.
  *
  * A line already as long as a CP goes cannot be extended by anything, so no band of it is read at all: `rescue` wants a
  * number longer than the line's and no longer than `longest`, which is unsatisfiable once the two are equal. That is
@@ -202,7 +200,8 @@ async function wholeCp(image: Image, line: Line, read: string, longest: number):
 
   for (const reach of CP_PADS) {
     const pad = Math.round(line.height * reach);
-    const band = crop(image, line.left - pad, line.top - pad, line.width + pad * 2, line.height + pad * 2);
+    const across = Math.round(line.height * Math.max(reach, CP_ACROSS));
+    const band = crop(image, line.left - across, line.top - pad, line.width + across * 2, line.height + pad * 2);
 
     // Settled rather than all-or-nothing, then examined in order, which is what keeps a read the answer does not need
     // from failing the capture: a rejection is thrown only where it is reached, and one past the accepted treatment
@@ -412,22 +411,35 @@ const cpDigits = (data: GameData) => {
 const CP_SWEEP = { x: 0.3, y: 0.055, width: 0.4, height: 0.035 };
 
 /**
- * How far round the line the CP band reaches, in that line's own heights, in the order to try. 0.35 is what both
- * rescues read at. 0.6 earns nothing measurable: it spends 39 of the corpus's 84 passes and accepts once, on the one CP
- * the corpus reads wrongly — `unown-question.png`'s `4864` against the 486 on its screen.
+ * How far round the line the CP band reaches, in that line's own heights, in the order to try. 0.35 is what all three
+ * rescues read at. 0.6 earns nothing measurable: it used to accept once, on the one CP the corpus read wrongly —
+ * `unown-question.png`'s `4864` against the 486 on its screen — and that capture now accepts at 0.35 instead.
  *
  * It was added for `articuno-kanto.png`, which needed it for a digit lost off the back, against `deoxys-defense.png`
  * reading `1569` at 0.35 and losing it at 0.6. Neither capture reaches `wholeCp` any more, no label line being found on
  * either, so that evidence is spent rather than standing, and by the floor standard `overlay.mts` sets this does not
- * earn its place: nothing is legible at 0.6 and illegible at 0.35. Dropping it would not fix the row it changes, only
- * take it to the `48` its line reads, so that is a change of its own.
+ * earn its place: nothing is legible at 0.6 and illegible at 0.35. Dropping it is a change of its own.
  */
 const CP_PADS = [0.35, 0.6];
 
 /**
+ * How far either side of the line the CP band reaches at the least, in that line's own heights, whatever `CP_PADS` is
+ * reaching above and below it. The digit a line loses is lost off one end of it, so the band has to reach across that
+ * digit: `unown-question.png`'s line reads `cp48` and stops at the left edge of the `6`, so at a reach of 0.35 the band
+ * holds none of it, and at 0.6 it holds half — which near-white reads as `64`, rescuing `4864` for the 486 on its
+ * screen. At 0.5 the band at 0.35 reads `P486` plain, and is accepted before 0.6 is reached.
+ *
+ * A floor rather than a pad of its own, so 0.6 reaches across exactly as it always did and only 0.35 is widened. That
+ * is measured rather than tidy: at a whole line height across both pads `smoliv.png`, whose `340` is whole on its line,
+ * reads `P3400` at 0.6 and is rescued into a CP it does not have. So this is a fit to one capture with a failure on
+ * either side, the same kind `CP_BRIGHTNESS` is, and the CP map in `screens.test.mts` is what would fail.
+ */
+const CP_ACROSS = 0.5;
+
+/**
  * The ways to turn the CP band into something readable, in the order to try. None wins outright, and what bounds the
  * risk of trying each is `wholeCp`'s acceptance rule — which turns down a *different* number, not a longer wrong one:
- * `unown-question.png`'s `4864` is exactly that, and is taken.
+ * `unown-question.png`'s `4864` was exactly that, and was taken until `CP_ACROSS` let 0.35 read its `486` first.
  *
  * `readTreated` is the one reader, for `wholeCp` and `cpsIn` alike, so a treatment added or reordered answers to both.
  * Both the order and that rule are `wholeCp`'s: `cpsIn` unions what the three read, so what bounds a wrong number
