@@ -185,10 +185,20 @@ export default function IntegrationsPage() {
         <div class="body">
           <h2>PGSharp backup</h2>
 
+          {/*
+           * `api.pgsharp.com/download` redirects to whichever APK is current — on 2026-10-11, to
+           * `dl.pgsharp.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk` — so a tap on a phone starts the download and the link
+           * outlives a release. The site 403s automated fetchers, so if it ever breaks, read the new one off pgsharp.com
+           * in a browser.
+           */}
           <p>
-            Build a partial PGSharp backup holding every route and waypoint in this collection, plus whichever options
-            below are ticked — nothing else. Importing it overwrites exactly those and leaves the rest of your PGSharp
-            settings as they were. Everything runs in your browser.
+            Build a partial{' '}
+            <a href="https://api.pgsharp.com/download" target="_blank" rel="noopener">
+              PGSharp
+            </a>{' '}
+            backup holding every route and waypoint in this collection, plus whichever options below are ticked —
+            nothing else. Importing it overwrites exactly those and leaves the rest of your PGSharp settings as they
+            were. Everything runs in your browser.
           </p>
 
           <details class="subgroup" open>
