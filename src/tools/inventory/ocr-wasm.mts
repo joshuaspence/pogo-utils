@@ -56,7 +56,11 @@ export interface WasmOptions {
  */
 export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Promise<void> } {
   const idle: Worker[] = [];
-  const waiting: ((worker: Worker) => void)[] = [];
+  /**
+   * Reads queued for a worker, each able to be failed as well as handed one: a worker replaced after a trap is spawned
+   * for whoever was waiting, and a spawn that fails has to reach that read rather than leave it waiting for good.
+   */
+  const waiting: { resolve: (worker: Worker) => void; reject: (error: unknown) => void }[] = [];
   let started = 0;
 
   const create = (cacheMethod: 'write' | 'refresh' | 'none') =>
@@ -109,14 +113,14 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
       }
     }
 
-    return new Promise((resolve) => waiting.push(resolve));
+    return new Promise((resolve, reject) => waiting.push({ resolve, reject }));
   };
 
   const give = (worker: Worker) => {
     const next = waiting.shift();
 
     if (next) {
-      next(worker);
+      next.resolve(worker);
     } else {
       idle.push(worker);
     }
@@ -148,7 +152,7 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
         const next = waiting.shift();
 
         if (next) {
-          void take().then(next);
+          take().then(next.resolve, next.reject);
         }
 
         return '';
