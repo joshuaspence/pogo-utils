@@ -109,6 +109,15 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
         return await spawn();
       } catch (error) {
         started--;
+
+        // With no worker left alive or starting, nothing will ever hand the queue one, so every read in it fails with
+        // this one's reason rather than waiting for good. A worker still alive serves the queue as it frees up.
+        if (started === 0) {
+          for (const read of waiting.splice(0)) {
+            read.reject(error);
+          }
+        }
+
         throw error;
       }
     }

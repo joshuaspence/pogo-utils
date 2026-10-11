@@ -68,3 +68,42 @@ test('a model that is not the pinned one is refused before anything is read with
     'refresh',
   ]);
 });
+
+/**
+ * Every read queued behind a worker that cannot be had, rather than the one at the front: a first spawn that fails
+ * leaves no worker alive or starting, and nothing would ever hand the rest of the queue one.
+ */
+test('every read queued behind a worker that cannot be started fails, not just the first', async () => {
+  createWorker.mockRejectedValue(new Error('offline'));
+
+  const engine = tesseractWasm({ langPath: '.', workers: 1, cache: false });
+  const reads = [engine.tsv(image, 7), engine.tsv(image, 7), engine.tsv(image, 7)];
+
+  for (const read of reads) {
+    await expect(read).rejects.toThrow(/offline/);
+  }
+});
+
+/** The same after a trap, where the read at the front of the queue gets the replacement and the rest are behind it. */
+test('every read queued behind a worker that traps and cannot be replaced fails', async () => {
+  vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(digestOf(MODEL_SHA256));
+
+  const read: { trap?: (error: Error) => void } = {};
+  createWorker
+    .mockResolvedValueOnce(worker(() => new Promise((_, reject) => (read.trap = reject))))
+    .mockRejectedValue(new Error('offline'));
+
+  const engine = tesseractWasm({ langPath: '.', workers: 1, cache: false });
+  const first = engine.tsv(image, 7);
+
+  await vi.waitFor(() => expect(read.trap).toBeDefined());
+  const queued = [engine.tsv(image, 7), engine.tsv(image, 7)];
+
+  read.trap?.(new Error('RuntimeError: divide by zero'));
+
+  await expect(first).resolves.toBe('');
+
+  for (const behind of queued) {
+    await expect(behind).rejects.toThrow(/offline/);
+  }
+});
