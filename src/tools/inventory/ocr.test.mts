@@ -1,14 +1,18 @@
 /**
- * The helpers callers find text with, and how `ocr` runs Tesseract and what it does when Tesseract cannot start.
+ * The helpers callers find text with, and how `ocr` runs the Tesseract CLI and what it does when the CLI cannot start.
  * Reading real captures is left to the readers that have them; `findLine` and `centre` have no reader below the CLI, so
  * they are pinned here.
  */
 
-import { centre, findLine, fold, ocr, ocrLine, type Line } from './ocr.mts';
+import { tesseractCli } from './ocr-cli.mts';
+import { centre, findLine, fold, ocr, ocrLine, useEngine, type Line } from './ocr.mts';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { expect, test, vi } from 'vitest';
+
+// The CLI's own failure modes are what most of this file pins, so it is the engine here whatever `INVENTORY_OCR` says.
+useEngine(tesseractCli);
 
 const line = (text: string, left = 0, top = 0): Line => ({ text, left, top, width: 100, height: 20 });
 
@@ -85,4 +89,11 @@ test('an empty image holds no text, rather than being a PNG Tesseract refuses', 
     expect(await ocr(empty), `${width}×${height}`).toStrictEqual([]);
     expect(await ocrLine(empty), `${width}×${height}`).toBeNull();
   }
+});
+
+test('nothing is read before an engine is installed', async () => {
+  vi.resetModules();
+  const fresh = await import('./ocr.mts');
+
+  await expect(fresh.ocr({ width: 1, height: 1, data: new Uint8Array(4) })).rejects.toThrow(/no OCR engine/);
 });

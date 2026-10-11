@@ -1,0 +1,139 @@
+/**
+ * Tesseract compiled to WebAssembly, as an `Engine`: what the Inventory page reads with, there being no CLI to shell
+ * out to in a browser. [tesseract.js](https://github.com/naptha/tesseract.js) is the build, Apache-2.0, run in Node for
+ * the corpus as well as in the page, so the two can be held to the same answers.
+ *
+ * **The model is the CLI's**, `eng.traineddata` from `tessdata_fast` 4.1.0 — what both `apt install tesseract-ocr` and
+ * `brew install tesseract` put beside the binary — rather than the `best_int` model tesseract.js fetches by default.
+ * The readers were tuned against that one, and a different model is a different set of answers before the engine is
+ * even asked.
+ */
+
+import { createWorker, OEM, type Worker } from 'tesseract.js';
+import { type Engine } from './ocr.mts';
+import { encodePng } from './png.mts';
+
+/** Where the model is fetched from: pinned to the tag, so the file cannot move under a reader tuned against it. */
+export const MODEL = 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0';
+
+/** The model's SHA-256, which a caller holding a copy of its own can check it against. */
+export const MODEL_SHA256 = '7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2';
+
+export interface WasmOptions {
+  /** A directory or URL holding `eng.traineddata`, uncompressed. */
+  langPath: string;
+  /** How many workers to run side by side, each holding its own copy of the model. */
+  workers: number;
+  /** The browser's worker script and the directory of cores, which default to a CDN where they are not given. */
+  workerPath?: string;
+  corePath?: string;
+  /**
+   * Whether to keep the model once fetched: in IndexedDB in a browser, so a second visit does not download it again,
+   * and in the working directory under Node, which a test reading the CLI's own copy has no use for.
+   */
+  cache: boolean;
+  /** How far the model's download has got, from 0 to 1, for a page to show while the first read waits on it. */
+  progress?: (fraction: number) => void;
+}
+
+/**
+ * A pool of workers, each handed one read at a time. A worker runs its jobs in order, but the parameters each read
+ * sets are passed with it rather than with `setParameters`, so two reads with different whitelists cannot interleave
+ * one's parameters with the other's image. Tesseract saves and restores them around the read.
+ *
+ * The CLI's `tessedit_create_tsv` is `{ tsv: true }` here: the same renderer, asked for through the API rather than a
+ * config variable. `debug_file` silences the `Estimating resolution` line every read otherwise prints, which the CLI
+ * writes to a stderr nobody reads.
+ *
+ * A trap is the CLI's floating-point exception by another name — an integer division by zero, which kills the process
+ * there and the module instance here — so it is answered the way `tesseractCli` answers that, as nothing read, and the
+ * worker it happened in is replaced rather than handed the next read.
+ */
+export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Promise<void> } {
+  const idle: Worker[] = [];
+  const waiting: ((worker: Worker) => void)[] = [];
+  let started = 0;
+
+  const spawn = () =>
+    createWorker('eng', OEM.LSTM_ONLY, {
+      langPath: options.langPath,
+      gzip: false,
+      cacheMethod: options.cache ? 'write' : 'none',
+      ...(options.workerPath === undefined ? {} : { workerPath: options.workerPath }),
+      ...(options.corePath === undefined ? {} : { corePath: options.corePath }),
+      logger: (message: { status: string; progress: number }) => {
+        if (message.status === 'loading language traineddata') {
+          options.progress?.(message.progress);
+        }
+      },
+    });
+
+  const take = async (): Promise<Worker> => {
+    const worker = idle.pop();
+
+    if (worker) {
+      return worker;
+    }
+
+    if (started < options.workers) {
+      started++;
+
+      try {
+        return await spawn();
+      } catch (error) {
+        started--;
+        throw error;
+      }
+    }
+
+    return new Promise((resolve) => waiting.push(resolve));
+  };
+
+  const give = (worker: Worker) => {
+    const next = waiting.shift();
+
+    if (next) {
+      next(worker);
+    } else {
+      idle.push(worker);
+    }
+  };
+
+  return {
+    tsv: async (image, psm, whitelist) => {
+      const worker = await take();
+      const parameters: Record<string, string> = { tessedit_pageseg_mode: String(psm), debug_file: '/dev/null' };
+
+      if (whitelist !== undefined) {
+        parameters['tessedit_char_whitelist'] = whitelist;
+      }
+
+      try {
+        const result = await worker.recognize(encodePng(image), parameters, { text: false, tsv: true });
+        give(worker);
+
+        return result.data.tsv ?? '';
+      } catch (error) {
+        if (!/RuntimeError|divide by zero|unreachable/i.test(String(error))) {
+          give(worker);
+          throw new Error(`tesseract.js: ${String(error)}`, { cause: error });
+        }
+
+        void worker.terminate().catch(() => {});
+        started--;
+
+        const next = waiting.shift();
+
+        if (next) {
+          void take().then(next);
+        }
+
+        return '';
+      }
+    },
+    terminate: async () => {
+      await Promise.all(idle.splice(0).map((worker) => worker.terminate()));
+      started = 0;
+    },
+  };
+}

@@ -9,7 +9,6 @@
 import { type IVs } from './game-master.mts';
 import { ocr, ocrLine } from './ocr.mts';
 import { brighten, crop, isolate, scale, type Image } from './png.mts';
-import { availableParallelism } from 'node:os';
 
 /** Where PGSharp draws its overlay, as fractions of the screen's width and height. */
 export interface OverlayBox {
@@ -300,8 +299,11 @@ async function tripled(band: Image): Promise<string | null> {
   return TRIPLE.test(text) ? text : null;
 }
 
-/** How many bands of a sweep to read at once: one Tesseract process per core. */
-const SWEEP_BATCH = availableParallelism();
+/**
+ * How many bands of a sweep to read at once: one Tesseract per core. `navigator` rather than `node:os` because it is
+ * the one both sides have, Node answering `availableParallelism()` there.
+ */
+const SWEEP_BATCH = navigator.hardwareConcurrency;
 
 /**
  * Where the overlay sits and what it says, found by the one thing nothing else on the screen carries: three small

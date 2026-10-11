@@ -106,6 +106,14 @@ const coloured = (r: number, g: number, b: number) => chroma(r, g, b) >= SIZE_CH
  * could split a number in two — why `wholeCp` and the overlay keep theirs — and a badge is two or three of one letter
  * with no number to split; the chips below read open as well. Over the corpus, four of the 43 rows wear a badge and
  * open is right on all four where the whitelist is right on three, the other 39 answering null under both.
+ *
+ * **The pill's shape counts the letters, and the text only names the last.** A run of one letter is exactly what OCR
+ * merges: the WebAssembly Tesseract the Inventory page reads with answers `XS` off `smoliv.png`'s pill even open, where
+ * the CLI answers `XXS`. The pill is drawn to fit its text, so its width says how many letters it holds where reading
+ * them cannot — 0.96 of its height round two letters on both `XL` captures, 1.31 and 1.36 round three on `XXL` and
+ * `XXS` — and `SIZE_THREE` sits between the two. What the text is still asked for is whether it ends in an `S` or an
+ * `L`, which no engine has been seen to confuse, and that it spells a badge at all, the band holding artwork of any
+ * colour.
  */
 export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
   const band = crop(
@@ -123,8 +131,15 @@ export async function sizeOf(image: Image, height: Line): Promise<Size | null> {
   const pill = extentOf(band, coloured);
   const badge = crop(band, pill.left, pill.top, pill.width, pill.height);
   const text = fold((await ocrLine(scale(isolate(badge, 200, 70), 3))) ?? '');
+  const last = /x\s*([sl])/.exec(text)?.[1];
 
-  return SIZES.find((size) => text.includes(size.toLowerCase())) ?? null;
+  if (last === undefined) {
+    return null;
+  }
+
+  const size = `${pill.width / pill.height >= SIZE_THREE ? 'XX' : 'X'}${last.toUpperCase()}`;
+
+  return SIZES.find((known) => known === size) ?? null;
 }
 
 /**
@@ -338,8 +353,11 @@ const SIZE_SPAN = 1.6;
 const SIZE_CHROMA = 60;
 const SIZE_FILL = 0.01;
 
-/** The four words a badge can spell, longest first so that an `XXL` is not answered by the `XL` inside it. */
+/** The four words a badge can spell. */
 const SIZES = ['XXL', 'XXS', 'XL', 'XS'] as const satisfies readonly Size[];
+
+/** How wide the pill runs against its own height once it holds three letters rather than two; see `sizeOf`. */
+const SIZE_THREE = 1.15;
 
 /**
  * The gender symbol against the white panel behind it: how far below the panel's own level its ink has to fall, how

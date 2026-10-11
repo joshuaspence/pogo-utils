@@ -57,7 +57,7 @@ test('a page with no state of its own is addressed without a trailing question m
   expect(toHash('map', 'event=x')).toBe('#/map?event=x');
 });
 
-test('the tab table names five distinct pages, since a duplicate silently hides one of them', () => {
+test('the tab table names distinct pages, since a duplicate silently hides one of them', () => {
   const names = PAGES.map(({ name }) => name);
 
   // Two rows with one name would draw two tabs, both linking the same fragment, and leave the second page unreachable —
