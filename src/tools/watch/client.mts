@@ -173,7 +173,12 @@ export class LivePokeMap {
     try {
       parsed = await response.json();
     } catch {
-      // A Cloudflare challenge or an error page: the status says what there is to say.
+      // A Cloudflare challenge or an error page. Under an error status that status says what there is to say; under a
+      // 200 it is still no answer, and is refused here as a failure rather than handed on as one — `config()` and
+      // `gameData()` take their answer on trust, so a `null` passed through would be dereferenced outside any retry.
+      if (response.ok) {
+        throw new ApiError(`${method} ${path}: ${response.status} with a body that is not JSON`, response.status);
+      }
     }
 
     try {

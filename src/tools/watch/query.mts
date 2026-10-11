@@ -177,10 +177,12 @@ export type List = 'pokemon' | 'my_shiny_pokemon';
  * Whether `query` wants `spawn`, seen in `list`. `shiny` is whether it is known to be shiny by any route — its own
  * flag, its encounter among `my_shiny_encounters`, or its appearing in `my_shiny_pokemon` at all.
  *
- * `shinyOnly` holds back a non-shiny spawn only where `showMyShinies` is also on, which is what the page does
- * (`!(s.shinyOnly&&eo)||t.shiny||…`, `eo` being `showMyShinies` with shiny access).
+ * `shinyOnly` holds back a non-shiny spawn only where `showMyShinies` is also on and the server says its shinies are
+ * ready, which is what the page does: `!(s.shinyOnly&&eo)||t.shiny||…`, with `eo=s.showMyShinies&&G`, `G` being the
+ * store's `shinyReady` and that set from the viewport's `shiny_ready`. Without it a `shinyOnly` filter draws as if it
+ * were off, and so does it here, rather than leaving a query waiting on shinies the account is not being shown.
  */
-export function wants(query: Query, spawn: Spawn, list: List, shiny: boolean): boolean {
+export function wants(query: Query, spawn: Spawn, list: List, shiny: boolean, shinyReady: boolean): boolean {
   const { config } = query;
 
   if (spawn.dexId <= 0) {
@@ -191,7 +193,7 @@ export function wants(query: Query, spawn: Spawn, list: List, shiny: boolean): b
     return admits(config, spawn.dexId);
   }
 
-  return shows(spawn, config) && (!(config.shinyOnly && config.showMyShinies) || shiny);
+  return shows(spawn, config) && (!(config.shinyOnly && config.showMyShinies && shinyReady) || shiny);
 }
 
 /**

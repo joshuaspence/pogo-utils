@@ -113,18 +113,21 @@ test('the shiny list is matched on the species filter, whatever `showMyShinies` 
   const unown = spawn({ dex_id: 201, iv_percent: 40, shiny: true });
 
   expect(SHINY_HUNT.config.showMyShinies).toBe(false);
-  expect(wants(SHINY_HUNT, bulbasaur, 'my_shiny_pokemon', true)).toBe(true);
-  expect(wants(SHINY_HUNT, unown, 'my_shiny_pokemon', true)).toBe(false);
+  expect(wants(SHINY_HUNT, bulbasaur, 'my_shiny_pokemon', true, true)).toBe(true);
+  expect(wants(SHINY_HUNT, unown, 'my_shiny_pokemon', true, true)).toBe(false);
 });
 
-test('`shinyOnly` holds back a non-shiny only where `showMyShinies` is on, as on the map', () => {
+test('`shinyOnly` holds back a non-shiny only where `showMyShinies` is on and shinies are ready, as on the map', () => {
   const perfect = spawn({ dex_id: 1, iv_percent: 100 });
   const only = { ...SHINY_HUNT, config: { ...SHINY_HUNT.config, shinyOnly: true } };
   const reallyOnly = { ...SHINY_HUNT, config: { ...only.config, showMyShinies: true } };
 
-  expect(wants(only, perfect, 'pokemon', false)).toBe(true);
-  expect(wants(reallyOnly, perfect, 'pokemon', false)).toBe(false);
-  expect(wants(reallyOnly, perfect, 'pokemon', true)).toBe(true);
+  expect(wants(only, perfect, 'pokemon', false, true)).toBe(true);
+  expect(wants(reallyOnly, perfect, 'pokemon', false, true)).toBe(false);
+  expect(wants(reallyOnly, perfect, 'pokemon', true, true)).toBe(true);
+
+  // Without `shiny_ready` the filter draws as if `shinyOnly` were off, so its 100% spawns still notify.
+  expect(wants(reallyOnly, perfect, 'pokemon', false, false)).toBe(true);
 });
 
 test('each spawn either list holds is matched once, with every query that wants it and every reason', () => {

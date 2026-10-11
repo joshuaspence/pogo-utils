@@ -169,6 +169,8 @@ export interface ViewportResponse {
   my_shiny_pokemon?: WireSpawn[];
   my_shiny_encounters?: (string | number)[];
   shiny_access?: boolean;
+  /** Read by the page as `setShinyReady(!0===e.shiny_ready)`, and what its `shinyOnly` gate turns on. */
+  shiny_ready?: boolean;
 }
 
 /** `/api/config`, unauthenticated, of which this reads one field. */

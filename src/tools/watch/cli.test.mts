@@ -313,6 +313,53 @@ test('a login the server refuses is not retried', async () => {
 });
 
 /**
+ * A 200 that is not JSON — a Cloudflare challenge, a maintenance page — is a failure to wait out like any other, not an
+ * answer: at start it would otherwise reach `refreshInterval` as `null` and end the command outside every retry.
+ */
+test('a 200 that is not JSON is retried at start rather than taken for an answer', async () => {
+  let configs = 0;
+
+  const map = await standIn((request, response) => {
+    if (request.path === '/api/config' && ++configs === 1) {
+      response.writeHead(200, { 'Content-Type': 'text/html' });
+
+      return response.end('<html>Just a moment...</html>');
+    }
+
+    return request.path === '/api/auth/login' ? json(response, 200, { token: 't' }) : json(response, 200, {});
+  });
+
+  const controller = new AbortController();
+  const lines: string[] = [];
+  let waits = 0;
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      ntfy: { server: 'http://127.0.0.1:9', topic: 't' },
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => lines.push(line),
+      random: () => 0.5,
+      // The first wait is the retry at start, the second the interval after a first poll that start reached.
+      sleep: async () => {
+        if (++waits === 2) {
+          controller.abort();
+        }
+      },
+    });
+  } finally {
+    await map.close();
+  }
+
+  expect(waits).toBe(2);
+  expect(configs).toBe(2);
+  expect(lines[0]).toBe(
+    'Could not read /api/config: GET /api/config: 200 with a body that is not JSON; trying again in 30s',
+  );
+});
+
+/**
  * A refusal hours in — a password changed while it ran — stops the watcher as one at start does. A 401 on a poll is
  * answered with a login, and that login refused is not sent again: retried at the backoff's pace it would be the same
  * bad credentials every fifteen minutes, all night.

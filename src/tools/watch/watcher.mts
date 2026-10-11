@@ -214,6 +214,7 @@ export function match(answer: ViewportResponse, queries: readonly Query[], now: 
     ...(answer.my_shiny_encounters ?? []).map(String),
     ...mine.map((spawn) => spawn.encounterId),
   ]);
+  const shinyReady = answer.shiny_ready === true;
   const found = new Map<string, Match>();
 
   for (const [list, spawns] of lists) {
@@ -223,7 +224,7 @@ export function match(answer: ViewportResponse, queries: readonly Query[], now: 
       }
 
       const shiny = spawn.shiny || shinies.has(spawn.encounterId);
-      const by = queries.filter((query) => wants(query, spawn, list, shiny)).map((query) => query.name);
+      const by = queries.filter((query) => wants(query, spawn, list, shiny, shinyReady)).map((query) => query.name);
 
       if (by.length === 0) {
         continue;
