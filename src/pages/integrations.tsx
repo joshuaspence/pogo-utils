@@ -13,7 +13,7 @@
  * both however they are split. No byte count is quoted because nothing here would fail when one drifted.
  */
 
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 
 import { copyText } from '../dom.js';
 import { said } from '../errors.js';
@@ -23,6 +23,7 @@ import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filte
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
+import { DOWNLOAD_URL, type Release, releaseFromApk, VENDED_RELEASE } from '../pgsharp/release.js';
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -101,6 +102,32 @@ function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
  */
 const FEED_COUNT = JSON.parse(CONTROL_RESETS.resetFeeds.hlfeeds).length;
 
+/**
+ * The release `scripts/vend-pgsharp.mts` last wrote, its URL put through the same `releaseFromApk` the vend did, so the
+ * button links to `dl.pgsharp.com` or to nothing it read here. A miss of any kind leaves the button on PGSharp's
+ * unversioned link rather than failing the page.
+ */
+async function fetchRelease(): Promise<Release | null> {
+  try {
+    const res = await fetch(VENDED_RELEASE, { cache: 'default' });
+
+    if (!res.ok) {
+      throw new Error(`${res.status} ${res.statusText}`);
+    }
+
+    const raw: Partial<Release> = await res.json();
+
+    if (typeof raw.url !== 'string') {
+      throw new Error('no url');
+    }
+
+    return releaseFromApk(raw.url);
+  } catch (e) {
+    console.error(`${VENDED_RELEASE}: ${said(e)} — the download button will not name a version`);
+    return null;
+  }
+}
+
 /** What the last press of the button came to, and whether it is a failure the status line should colour red. */
 interface Status {
   message: string;
@@ -115,6 +142,11 @@ export default function IntegrationsPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
+  const [release, setRelease] = useState<Release | null>(null);
+
+  useEffect(() => {
+    void fetchRelease().then(setRelease);
+  }, []);
 
   /**
    * Put the display filter on the clipboard, which is where Live PokeMap's own filter import reads one from — it offers
@@ -182,6 +214,23 @@ export default function IntegrationsPage() {
       </header>
 
       <main class="backup">
+        {/*
+         * A panel of its own rather than a button in the backup's, since getting the app is not part of building a
+         * backup. First, so a reader who has yet to install PGSharp meets it before the panel that assumes they have.
+         */}
+        <div class="body">
+          <h2>PGSharp</h2>
+
+          <p>
+            PGSharp is installed from an APK rather than from a store, so open this page on the phone it is for and
+            download it there.
+          </p>
+
+          <a class="run" href={release?.url ?? DOWNLOAD_URL} target="_blank" rel="noopener">
+            {release ? `Download PGSharp ${release.version}` : 'Download PGSharp'}
+          </a>
+        </div>
+
         <div class="body">
           <h2>PGSharp backup</h2>
 
@@ -232,9 +281,13 @@ export default function IntegrationsPage() {
           <h2>Live PokeMap display filters</h2>
 
           <p>
-            Copy a Live PokeMap display filter that allowlists every species still wanted for a shiny — the same list
-            the backup above hands PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are
-            thresholds rather than lists, and Live PokeMap shows all three without being told which species to watch.
+            Copy a{' '}
+            <a href="https://livepokemap.com" target="_blank" rel="noopener">
+              Live PokeMap
+            </a>{' '}
+            display filter that allowlists every species still wanted for a shiny — the same list the backup above hands
+            PGSharp, narrowed to what the wild turns up. XXL, XXS and 100% are not here: they are thresholds rather than
+            lists, and Live PokeMap shows all three without being told which species to watch.
           </p>
 
           <p class="note">
