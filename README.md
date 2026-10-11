@@ -498,6 +498,49 @@ quietly ignored. The cache, the snaps and `inventory*.csv` are git-ignored, sinc
 Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
 risk to the account is yours to weigh.
 
+## Live PokeMap watcher
+
+`pnpm watch` keeps a [Live PokeMap](https://livepokemap.com) session open the way a browser tab would and pushes a
+notification to a phone through [ntfy](https://ntfy.sh) for each spawn one of its queries wants. A query is a Live
+PokeMap display filter, one file each: whatever its own **Export** writes, or the shiny hunt the
+[Integrations page](#import-into-live-pokemap) copies, pasted into a file.
+
+```sh
+LPM_USERNAME=… LPM_PASSWORD=… NTFY_TOPIC=… pnpm watch shiny-hunt.json perfect-dratini.json
+```
+
+It runs in the foreground until stopped. `NTFY_SERVER` points it at an ntfy server other than `ntfy.sh`, and
+`NTFY_TOKEN` gives it an access token for one that needs it. Subscribe to the same topic in the ntfy app on the phone.
+The topic is as good as a password on the public server, since anyone who knows it can read what is sent there, so pick
+one nobody would guess. None of these values, nor the token the login answers, is ever printed; `--verbose` adds each
+request as it is sent and a line per poll.
+
+Each notification names the species and form, why it matched (shiny, 100%, XXL, XXS), IV, CP and level, where the spawn
+is and when it despawns, and opens that spot in Google Maps when tapped. A spawn notifies once however many queries want
+it and however many polls carry it.
+
+**What the world view can see.** The watcher watches the whole world, as the map does zoomed all the way out. From there
+the server answers two lists: every 100% IV spawn, whatever species the filter names, and the account's own shinies of
+the species it does name. A spawn in the first list is wanted where the filter would draw it on the map, so a shiny hunt
+still notifies every 100% spawn while its `alwaysShowPerfect` is on — the default — as its map would show them. A shiny
+is wanted where the filter's species list admits it. Nothing else reaches the world view: a 98% spawn, an XXL below
+100%, a 0%, a PvP rank, a rare species. A query asking for any of those is told so when the command starts, rather than
+left to wait for something that cannot come.
+
+**What the account can see.** Live PokeMap shows Pokémon with IVs from its Explorer plan up, and your own shinies only
+on Premium. The first poll says whether the account has shiny access; without it, no shiny is ever notified.
+
+**How it behaves.** It asks once per `viewport_refresh_seconds` from `/api/config` (15 today, and never under 5, as the
+page holds it), with one request however many queries, carrying a filter wide enough for all of them. Before the first
+it makes the reads the page makes on load, and it never writes: the page saves your interface preferences on load, and
+doing the same would overwrite your display filters with the watcher's. The login's token lasts a day with no way to
+refresh it, so a refused token is answered by logging in again. A refused or failed request is waited out, doubling from
+30 seconds to 15 minutes, rather than asked again at the poll rate; a login refused outright stops the command.
+
+Automated access is against Live PokeMap's terms, and the account is at risk however closely the watcher keeps to what
+one tab does — Node's requests do not look like Chrome's to Cloudflare, whatever headers they carry. The risk is yours
+to weigh.
+
 ## Prior art
 
 The Events page began as a look at three sites covering the same ground, each worth visiting in its own right:
