@@ -7,6 +7,10 @@
  * `brew install tesseract` put beside the binary — rather than the `best_int` model tesseract.js fetches by default.
  * The readers were tuned against that one, and a different model is a different set of answers before the engine is
  * even asked.
+ *
+ * **It is checked before anything is read with it.** The tag pins where the model is fetched from, not what comes back,
+ * and tesseract.js keeps whatever it got in IndexedDB for every visit after. So each worker's loaded copy is read back
+ * out of its file system and held to `MODEL_SHA256`, and a worker holding anything else is never handed a read.
  */
 
 import { createWorker, OEM, type Worker } from 'tesseract.js';
@@ -16,7 +20,7 @@ import { encodePng } from './png.mts';
 /** Where the model is fetched from: pinned to the tag, so the file cannot move under a reader tuned against it. */
 export const MODEL = 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0';
 
-/** The model's SHA-256, which a caller holding a copy of its own can check it against. */
+/** The model's SHA-256: `tessdata_fast` 4.1.0's `eng.traineddata`, which is what the CLI's packages install too. */
 export const MODEL_SHA256 = '7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2';
 
 export interface WasmOptions {
@@ -29,7 +33,8 @@ export interface WasmOptions {
   corePath?: string;
   /**
    * Whether to keep the model once fetched: in IndexedDB in a browser, so a second visit does not download it again,
-   * and in the working directory under Node, which a test reading the CLI's own copy has no use for.
+   * and in the working directory under Node, which a test reading the CLI's own copy has no use for. A kept copy that
+   * fails the check is fetched again once rather than refused for good.
    */
   cache: boolean;
   /** How far the model's download has got, from 0 to 1, for a page to show while the first read waits on it. */
@@ -54,11 +59,11 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
   const waiting: ((worker: Worker) => void)[] = [];
   let started = 0;
 
-  const spawn = () =>
+  const create = (cacheMethod: 'write' | 'refresh' | 'none') =>
     createWorker('eng', OEM.LSTM_ONLY, {
       langPath: options.langPath,
       gzip: false,
-      cacheMethod: options.cache ? 'write' : 'none',
+      cacheMethod,
       ...(options.workerPath === undefined ? {} : { workerPath: options.workerPath }),
       ...(options.corePath === undefined ? {} : { corePath: options.corePath }),
       logger: (message: { status: string; progress: number }) => {
@@ -67,6 +72,24 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
         }
       },
     });
+
+  /** A worker whose model is the pinned one, the copy it was handed having been read back and hashed. */
+  const spawn = async (): Promise<Worker> => {
+    for (const cacheMethod of options.cache ? (['write', 'refresh'] as const) : (['none'] as const)) {
+      const worker = await create(cacheMethod);
+      const { data } = (await worker.FS('readFile', ['./eng.traineddata'])) as { data: Uint8Array };
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(data)));
+      const sha = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+
+      if (sha === MODEL_SHA256) {
+        return worker;
+      }
+
+      await worker.terminate();
+    }
+
+    throw new Error(`the OCR model from ${options.langPath} is not tessdata_fast 4.1.0's, so nothing was read with it`);
+  };
 
   const take = async (): Promise<Worker> => {
     const worker = idle.pop();
