@@ -107,3 +107,20 @@ test('every read queued behind a worker that traps and cannot be replaced fails'
     await expect(behind).rejects.toThrow(/offline/);
   }
 });
+
+/**
+ * A read that fails for any other reason is thrown, and its worker is not handed the next read: whatever left it
+ * failing may have left it broken, and telling the two apart by the error's wording is not something to rely on.
+ */
+test('a worker whose read fails is replaced, not handed the next read', async () => {
+  vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(digestOf(MODEL_SHA256));
+  createWorker
+    .mockResolvedValueOnce(worker(() => Promise.reject(new Error('something unforeseen'))))
+    .mockResolvedValueOnce(worker(() => Promise.resolve({ data: { tsv: 'read' } })));
+
+  const engine = tesseractWasm({ langPath: '.', workers: 1, cache: false });
+
+  await expect(engine.tsv(image, 7)).rejects.toThrow(/something unforeseen/);
+  await expect(engine.tsv(image, 7), 'the failed worker was handed the next read').resolves.toBe('read');
+  expect(createWorker).toHaveBeenCalledTimes(2);
+});

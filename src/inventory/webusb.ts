@@ -14,6 +14,9 @@ import { AdbDaemonWebUsbDevice, AdbDaemonWebUsbDeviceManager } from '@yume-chan/
 
 import { type Transport } from '../tools/inventory/adb.mts';
 
+/** As long as `adb-cli.mts` waits on `adb`: far longer than any call here takes, so it fires only on a wedged phone. */
+const TIMEOUT_MS = 30_000;
+
 /**
  * Why this page cannot reach a phone, or null where it can. WebUSB needs a secure context, which is `localhost` and the
  * published site but not the LAN address `pnpm serve` prints; and it is a Chromium API, so Firefox and Safari have none.
@@ -81,11 +84,31 @@ export async function connect(): Promise<Phone | null> {
   );
 
   /**
+   * A command's output, given up on after `TIMEOUT_MS` as `adb-cli.mts` gives up on `adb`: a phone that stops answering
+   * fails the one call loudly rather than leaving the page waiting on it. The command itself cannot be called back, so
+   * what is given up on is the wait, and a phone that wedged is one to reconnect.
+   */
+  const run = (command: readonly string[]): Promise<Uint8Array> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            new Error(`${command.join(' ')}: no answer after ${TIMEOUT_MS / 1000}s; is the phone still connected?`),
+          ),
+        TIMEOUT_MS,
+      );
+    });
+
+    return Promise.race([output(command), late]).finally(() => clearTimeout(timer));
+  };
+
+  /**
    * A command's output, by the shell protocol where the phone has it — Android 7 on — which keeps stderr out of what is
    * answered and says how the command exited. The older protocol interleaves the two, which for a screenshot would put
    * a warning in the middle of a PNG; it is the fallback rather than the rule.
    */
-  const run = async (command: readonly string[]): Promise<Uint8Array> => {
+  const output = async (command: readonly string[]): Promise<Uint8Array> => {
     const shell = adb.subprocess.shellProtocol;
 
     if (shell === undefined) {

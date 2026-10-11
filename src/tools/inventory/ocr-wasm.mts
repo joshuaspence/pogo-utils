@@ -50,9 +50,11 @@ export interface WasmOptions {
  * config variable. `debug_file` silences the `Estimating resolution` line every read otherwise prints, which the CLI
  * writes to a stderr nobody reads.
  *
- * A trap is the CLI's floating-point exception by another name — an integer division by zero, which kills the process
- * there and the module instance here — so it is answered the way `tesseractCli` answers that, as nothing read, and the
- * worker it happened in is replaced rather than handed the next read.
+ * A worker whose read fails is never handed another: it is let go and a fresh one started for whoever is waiting, so
+ * a module instance a failure left broken cannot take the next read down with it — however the failure was worded.
+ * The wording decides only what the read answers. A trap is the CLI's floating-point exception by another name, an
+ * integer division by zero that kills the process there and the module instance here, so it reads as nothing read the
+ * way `tesseractCli` answers that; anything else is thrown.
  */
 export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Promise<void> } {
   const idle: Worker[] = [];
@@ -150,11 +152,6 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
 
         return result.data.tsv ?? '';
       } catch (error) {
-        if (!/RuntimeError|divide by zero|unreachable/i.test(String(error))) {
-          give(worker);
-          throw new Error(`tesseract.js: ${String(error)}`, { cause: error });
-        }
-
         void worker.terminate().catch(() => {});
         started--;
 
@@ -164,7 +161,11 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
           take().then(next.resolve, next.reject);
         }
 
-        return '';
+        if (/RuntimeError|divide by zero|unreachable/i.test(String(error))) {
+          return '';
+        }
+
+        throw new Error(`tesseract.js: ${String(error)}`, { cause: error });
       }
     },
     terminate: async () => {
