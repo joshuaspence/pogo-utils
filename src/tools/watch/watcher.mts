@@ -10,13 +10,12 @@
  */
 
 import { Backoff } from './backoff.mts';
-import type { LivePokeMap } from './client.mts';
+import { LoginRefused, type LivePokeMap } from './client.mts';
 import { notificationFor, reasonsFor, type Reason } from './message.mts';
 import { publish, type Ntfy } from './ntfy.mts';
 import { wants, widest, type List, type Query } from './query.mts';
 import { Seen } from './seen.mts';
 import {
-  ApiError,
   refreshInterval,
   toSpawn,
   wireFilter,
@@ -122,6 +121,11 @@ export async function watch(options: WatchOptions): Promise<void> {
         break;
       }
 
+      // A re-login refused hours in stops the watcher as one refused at start does, rather than retrying it.
+      if (error instanceof LoginRefused) {
+        throw error;
+      }
+
       wait = backoff.failed();
       log(`${(error as Error).message}; trying again in ${Math.round(wait / 1000)}s`);
     }
@@ -153,8 +157,8 @@ async function startup(options: WatchOptions): Promise<[number, GameData]> {
           throw error;
         }
 
-        if (what === 'log in' && error instanceof ApiError && [400, 401, 403].includes(error.status)) {
-          throw new Error(`Live PokeMap refused the login: ${error.message}`, { cause: error });
+        if (error instanceof LoginRefused) {
+          throw error;
         }
 
         const wait = backoff.failed();

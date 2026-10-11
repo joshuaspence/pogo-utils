@@ -312,6 +312,58 @@ test('a login the server refuses is not retried', async () => {
   expect(map.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
 });
 
+/**
+ * A refusal hours in — a password changed while it ran — stops the watcher as one at start does. A 401 on a poll is
+ * answered with a login, and that login refused is not sent again: retried at the backoff's pace it would be the same
+ * bad credentials every fifteen minutes, all night.
+ */
+test('a re-login refused partway through a run stops the watcher rather than retrying it', async () => {
+  let logins = 0;
+
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'POST /api/auth/login':
+        logins += 1;
+
+        return logins === 1
+          ? json(response, 200, { token: 't' })
+          : json(response, 401, {
+              success: false,
+              error: { code: 'INVALID_CREDENTIALS', message: 'Invalid username or password' },
+            });
+      case 'POST /api/map/viewport':
+        return json(response, 401, { success: false, error: { code: 'UNAUTHORIZED', message: 'Token expired' } });
+      default:
+        return json(response, 200, {});
+    }
+  });
+
+  const controller = new AbortController();
+  let waits = 0;
+
+  try {
+    await expect(
+      watch({
+        client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+        ntfy: { server: 'http://127.0.0.1:9', topic: 't' },
+        queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+        signal: controller.signal,
+        log: () => {},
+        sleep: async () => {
+          // A safety net, so that a regression fails here rather than hanging the suite.
+          if (++waits > 5) {
+            controller.abort();
+          }
+        },
+      }),
+    ).rejects.toThrow('Live PokeMap refused the login');
+  } finally {
+    await map.close();
+  }
+
+  expect(logins).toBe(2);
+});
+
 test('the command refuses to start without its credentials or a query', async () => {
   const start = (args: string[], env: Record<string, string>) =>
     new Promise<[number | null, string]>((done) => {

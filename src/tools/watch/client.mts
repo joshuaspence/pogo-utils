@@ -48,6 +48,18 @@ export interface Credentials {
   password: string;
 }
 
+/**
+ * The login itself turned away, at start or on a re-login hours in — a password changed, an account suspended. Its
+ * own class because it is the one failure never to retry: the same credentials sent again every few minutes are how
+ * an account gets locked, and nobody is there to notice.
+ */
+export class LoginRefused extends Error {
+  constructor(cause: ApiError) {
+    super(`Live PokeMap refused the login: ${cause.message}`, { cause });
+    this.name = 'LoginRefused';
+  }
+}
+
 export class LivePokeMap {
   readonly #base: string;
   readonly #credentials: Credentials;
@@ -84,9 +96,17 @@ export class LivePokeMap {
   async login(signal?: AbortSignal): Promise<void> {
     this.#token = null;
 
-    const answer = (await this.#send('POST', '/api/auth/login', this.#credentials, false, signal)) as {
-      token?: unknown;
-    };
+    let answer: { token?: unknown };
+
+    try {
+      answer = (await this.#send('POST', '/api/auth/login', this.#credentials, false, signal)) as { token?: unknown };
+    } catch (error) {
+      if (error instanceof ApiError && [400, 401, 403].includes(error.status)) {
+        throw new LoginRefused(error);
+      }
+
+      throw error;
+    }
 
     if (typeof answer?.token !== 'string' || answer.token === '') {
       throw new ApiError('the login answered no token', 200);
