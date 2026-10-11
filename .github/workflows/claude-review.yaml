@@ -100,6 +100,14 @@ jobs:
 
             There is no need to run `pnpm run lint` or `pnpm run test` as those are executed in CI.
 
+      # When the verdict was asked for, which is what ties the review the next-but-one step looks for to this run
+      # rather than to an earlier one on the same head: a re-run, a reopen or a draft round trip all review a commit
+      # again. Its own step because a step's start time is not otherwise readable from inside the job.
+      - name: 'Note when the verdict was asked for'
+        id: 'asked'
+        if: "!cancelled() && steps.review.outputs.session_id != ''"
+        run: 'echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"'
+
       - name: 'Submit the review decision'
         id: 'verdict'
 
@@ -145,30 +153,43 @@ jobs:
       - name: 'Confirm the review decision was submitted'
         id: 'submitted'
 
-        # The verdict step reporting success is not the same as a review existing. On #183 it resumed the session,
-        # ran zero turns in 27ms and exited 0, so nothing was submitted and the check went green regardless. So the
-        # review is looked for on GitHub itself: one by Claude against the commit this run reviewed.
-        if: "!cancelled() && steps.verdict.outcome == 'success'"
+        # The verdict step's exit status is not whether a verdict exists. On #183 it resumed the session, ran zero
+        # turns in 27ms and exited 0 having submitted nothing, and a verdict step can as well fail after submitting
+        # one. So the verdict is looked for on GitHub itself, whenever the verdict step ran at all.
+        #
+        # A verdict rather than any review: each inline finding the review step posts is recorded as an empty
+        # `COMMENTED` review by `claude[bot]`, so counting those would pass on any pull request with a finding. And
+        # submitted since the verdict was asked for rather than on a commit: an earlier run's verdict on the same head
+        # would otherwise stand in for this one's, and the commit a verdict lands on is the pull request's head when
+        # it is submitted, which a push that started no new run moves.
+        if: "!cancelled() && steps.verdict.outcome != 'skipped'"
         env:
           GH_REPO: '${{ github.repository }}'
           GH_TOKEN: '${{ github.token }}'
           PR: '${{ github.event.pull_request.number }}'
-          SHA: '${{ github.event.pull_request.head.sha }}'
+          SINCE: '${{ steps.asked.outputs.at }}'
         run: |
-          count="$(gh api "repos/${GH_REPO}/pulls/${PR}/reviews" --paginate \
-            --jq "[.[] | select(.user.login == \"claude[bot]\" and .commit_id == \"${SHA}\")] | length" \
-            | jq -s 'add')"
+          # Without it a failed `gh api` reaches `jq -s` as no input at all, which answers `null` and exits 0, and
+          # the check below would then pass on a lookup that confirmed nothing.
+          set -o pipefail
 
-          if [ "${count}" -eq 0 ]; then
-            echo "::error::The verdict step succeeded but no review by claude[bot] exists on ${SHA}."
+          count="$(gh api "repos/${GH_REPO}/pulls/${PR}/reviews" --paginate --jq "[.[] | select(
+              .user.login == \"claude[bot]\"
+              and .submitted_at >= \"${SINCE}\"
+              and (.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or (.body | length) > 0)
+            )] | length" | jq -s 'add')"
+
+          if ! [ "${count}" -gt 0 ]; then
+            echo "::error::No verdict by claude[bot] has been submitted since ${SINCE}."
             exit 1
           fi
 
       - name: 'Explain that no verdict was reached'
 
-        # A skipped step's outcome is `skipped`, so this one condition covers the session that never opened, the
-        # verdict that opened one and did not land, and the verdict that exited cleanly having submitted nothing.
-        if: "!cancelled() && (steps.verdict.outcome != 'success' || steps.submitted.outcome != 'success')"
+        # Keyed on the review existing and nothing else. A skipped step's outcome is `skipped`, so this covers the
+        # session that never opened as well as every way a verdict step can finish without a verdict on GitHub,
+        # and stays quiet for one that submitted its verdict and failed afterwards.
+        if: "!cancelled() && steps.submitted.outcome != 'success'"
         env:
           GH_REPO: '${{ github.repository }}'
           GH_TOKEN: '${{ github.token }}'
