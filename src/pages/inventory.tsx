@@ -147,11 +147,18 @@ export default function InventoryPage() {
     try {
       const picked = await connect();
 
+      // The chooser dismissed, which keeps whatever phone is already connected rather than letting it go for nothing.
+      if (picked === null) {
+        setPhase(phone ? { kind: 'idle' } : { kind: 'failed', message: 'No phone was picked.' });
+
+        return;
+      }
+
       // Letting go of the phone before it, which may be unplugged by now and throw for it: that is no reason to lose the
       // one just connected, still holding its interface with nothing on the page able to let it go.
       await phone?.close().catch(() => {});
       setPhone(picked);
-      setPhase(picked ? { kind: 'idle' } : { kind: 'failed', message: 'No phone was picked.' });
+      setPhase({ kind: 'idle' });
     } catch (e) {
       setPhase({ kind: 'failed', message: `Could not connect: ${said(e)}` });
     }
