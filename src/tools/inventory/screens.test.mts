@@ -744,7 +744,6 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 486,
-    defects: { notes: ['the screen reads CP 4864, where this form at this level is 486'] },
     file: 'unown-question.png',
     form: 'Question Mark',
     gender: null,
@@ -1270,7 +1269,7 @@ const COVERAGE = {
   crossCheckDisagrees: 0,
   severalLevels: 0,
   noLevel: 0,
-  noDefects: 34,
+  noDefects: 35,
   unseparated: 8,
   noOverlayDrawn: 0,
   boxNotFound: 0,
@@ -1311,7 +1310,7 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * Two of the 43, where nine raise a note at all — so the trigger costs an extra read on a reading that could improve
+ * One of the 43, where eight raise a note at all — so the trigger costs an extra read on a reading that could improve
  * and on nothing else. That it costs one *there* is held by the `identify notes` test above rather than here: that one
  * asserts what `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture
  * that starts raising a note without earning one fails there.
@@ -1323,14 +1322,14 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * invent a field the game does not print; only a second reader of the same thing could.
  */
 test(
-  'the defects a scan reads a screen again for are the two notes another read could clear',
+  'the defects a scan reads a screen again for are the one note another read could clear',
   async () => {
     // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
     // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
     expect(
       FIXTURES.filter((f) => notesOf(f).length > 0).length,
       'how many captures `identify` raises a note on has changed',
-    ).toBe(9);
+    ).toBe(8);
 
     // Off `clearable` and the readings themselves rather than the rows, that function being the one the scan's own
     // fault count calls: a copy of its arithmetic here could pass while the trigger it stands for had changed.
@@ -1347,10 +1346,7 @@ test(
       }
     }
 
-    expect(chased, 'which captures a scan reads a second time has changed').toStrictEqual([
-      'charizard-gigantamax.png',
-      'unown-question.png',
-    ]);
+    expect(chased, 'which captures a scan reads a second time has changed').toStrictEqual(['charizard-gigantamax.png']);
 
     // And the other side of the split, which is what says the eight captures `unseparated` reaches cost a scan nothing:
     // their note is reported and never chased.
@@ -1397,10 +1393,11 @@ test('the vended game master is the shape the readers are asserted against', () 
  * Asserted as the whole map rather than as a count, so a reader losing one capture and gaining another cannot come out
  * even, and the misreads are then **derived** from it rather than transcribed a second time: a row already states what
  * the screen shows, so the disagreement is a filter and not a list to keep in step. A misread here is a digit or two
- * lost or gained off one end of the number; the one left gains, `unown-question.png` reading `4864` for 486.
+ * lost or gained off one end of the number, and none is left: the last was `unown-question.png` reading `4864` for
+ * 486, a band too narrow to hold its last digit whole, which `CP_ACROSS` in `detail.mts` now holds.
  */
 test(
-  'which captures the CP is read off, and which one of them it reads wrongly',
+  'which captures the CP is read off, and that it reads none of them wrongly',
   async () => {
     const states = new Map<string, number>();
 
@@ -1434,17 +1431,16 @@ test(
       'spoink.png': 998,
       'unown-b.png': 487,
       'unown-exclamation.png': 517,
-      'unown-question.png': 4864,
+      'unown-question.png': 486,
       'xurkitree.png': 2197,
     });
 
     // And which of them it reads *wrongly*, derived from the map rather than listed again, a row already stating what
-    // the screen shows. One is left: `unown-question.png` gains a trailing digit off the wider pad and reads `4864`
-    // for the 486 it prints, which its row pins as a `defects.notes` entry.
+    // the screen shows. None is left, and one coming back is a reader that has started gaining or losing a digit.
     expect(
       FIXTURES.filter((f) => states.has(f.file) && states.get(f.file) !== f.cp).map((f) => f.file),
       'which captures misread their CP has changed',
-    ).toStrictEqual(['unown-question.png']);
+    ).toStrictEqual([]);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -1686,6 +1682,23 @@ test('a level the overlay misreads leaves the CP to settle the form', async () =
 
   expect(identity.form && label(identity.form)).toBe('Deoxys (Attack)');
   expect(identity.notes).toStrictEqual(['the overlay reads as level 1, none of which this HP can be']);
+});
+
+/**
+ * A CP read off the screen that the arithmetic cannot reproduce is reported rather than believed, and leaves the form
+ * the numbers settled where it was. No capture reads one any more, so this forges the one the corpus last did:
+ * `unown-question.png`'s band gained a digit off the back of a `6` it had cut in half and read `4864` for its 486.
+ */
+test('a CP the screen misreads is reported and changes nothing else', async () => {
+  const { detail, overlay, artwork } = await readingOf('unown-question.png');
+  assert.ok(overlay, 'the fixture has lost its overlay');
+
+  const identity = identify(DATA, { ...detail, cp: 4864 }, overlay, artwork);
+
+  expect(identity.form && label(identity.form)).toBe('Unown (Question Mark)');
+  expect(identity.cp).toBe(486);
+  expect(identity.notes).toStrictEqual(['the screen reads CP 4864, where this form at this level is 486']);
+  expect(clearable(identity), 'a scan no longer reads a screen again over a CP it misread').toBe(1);
 });
 
 /**
@@ -2330,7 +2343,7 @@ test('the corpus reaches both sides of every attribute', () => {
 
   // And the two the CP cross-check used to need, the fourth and fifth, now that it agrees with the screen on all 43.
   // What still exercises its note is the other direction, a CP *read* off a screen disagreeing with the derived one,
-  // which `unown-question.png` does.
+  // which no capture does any more and the test forging `unown-question.png`'s old `4864` does instead.
   expect(
     FIXTURES.filter((f) => f.defects && 'cp' in f.defects).map((f) => f.file),
     'a capture needs `defects.cp` again, so the cross-check has started disagreeing with a screen',
