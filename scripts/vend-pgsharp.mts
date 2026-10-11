@@ -3,7 +3,7 @@
  * redirects. The Integrations page reads that committed copy to name the version on its download button.
  *
  * Follows the redirects by hand rather than letting `fetch` do it, so the run stops at the APK's URL and never
- * downloads the APK. pgsharp.com refuses requests that look automated, hence the browser's user agent.
+ * downloads the APK — `api.pgsharp.com/download` goes by way of `www.pgsharp.com/download64` to `dl.pgsharp.com`.
  *
  * The clock is read only for a release not seen before, so an unchanged file after a run still means PGSharp has not
  * released.
@@ -13,9 +13,6 @@ import type { VendedRelease } from '../src/pgsharp/release.js';
 import { DOWNLOAD_URL, releaseFromApk, VENDED_RELEASE } from '../src/pgsharp/release.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const USER_AGENT =
-  'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
-
 let url = DOWNLOAD_URL;
 
 for (let hops = 0; !new URL(url).pathname.endsWith('.apk'); hops++) {
@@ -23,7 +20,7 @@ for (let hops = 0; !new URL(url).pathname.endsWith('.apk'); hops++) {
     throw new Error(`${DOWNLOAD_URL}: no APK after ${hops} redirects`);
   }
 
-  const res = await fetch(url, { redirect: 'manual', headers: { 'user-agent': USER_AGENT } });
+  const res = await fetch(url, { redirect: 'manual' });
   const location = res.headers.get('location');
 
   if (res.status < 300 || res.status >= 400 || location === null) {
