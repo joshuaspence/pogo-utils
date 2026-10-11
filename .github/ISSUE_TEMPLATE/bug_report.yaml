@@ -1,0 +1,59 @@
+---
+name: 'Bug report'
+description: 'Something the site did that it should not have'
+labels:
+  - 'bug'
+
+body:
+  - type: 'dropdown'
+    id: 'page'
+    attributes:
+      label: 'Page'
+      description: 'The tab it happened on.'
+      options:
+        - 'Events'
+        - 'Map'
+        - 'Search'
+        - 'Pokédex'
+        - 'Integrations'
+        - 'The whole site'
+    validations:
+      required: true
+
+  - type: 'input'
+    id: 'link'
+    attributes:
+      label: 'Link'
+      description:
+        'The address bar, copied. The fragment carries the state a page was left in, so this is what reproduces it.'
+      placeholder: 'https://joshuaspence.github.io/pogo-utils/#/pokedex?q=pika&n=25'
+    validations:
+      required: true
+
+  - type: 'textarea'
+    id: 'expected'
+    attributes:
+      label: 'What should have happened'
+    validations:
+      required: true
+
+  - type: 'textarea'
+    id: 'actual'
+    attributes:
+      label: 'What happened instead'
+    validations:
+      required: true
+
+  - type: 'input'
+    id: 'browser'
+    attributes:
+      label: 'Browser'
+      description: 'Which browser and version, and whether on a phone or a desktop.'
+      placeholder: 'Chrome 141 on Android'
+
+  - type: 'textarea'
+    id: 'console'
+    attributes:
+      label: 'Console'
+      description: 'Anything the browser console printed. Leave it empty if you did not look.'
+      render: 'shell'

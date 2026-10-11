@@ -1,0 +1,72 @@
+---
+name: 'Prune'
+
+on:
+  push:
+    branches: ['master']
+    paths:
+      - '.github/workflows/prune.yaml'
+      - 'scripts/prune-events.mts'
+      - 'src/event-feed.ts'
+      - 'src/gpx-source.mts'
+
+  schedule:
+    - cron: '10 0 * * *'
+
+  workflow_dispatch: {}
+
+# As in `vend.yaml`: nothing here uses the default `GITHUB_TOKEN`.
+permissions: {}
+
+# Shared with `vend.yaml`: both push to `master` without pulling first, so the second of two at once is rejected.
+concurrency:
+  group: 'master'
+  cancel-in-progress: false
+
+jobs:
+  events:
+    name: 'Events'
+    runs-on: 'ubuntu-latest'
+    steps:
+      # As in `vend.yaml`: the app's installation token raises the `push` event that `pages.yaml` deploys on, where
+      # the default `GITHUB_TOKEN` raises none and the deploy had to be dispatched by hand.
+      - name: 'Mint an installation token'
+        id: 'token'
+        uses: 'actions/create-github-app-token@v3.2.0'
+        with:
+          app-id: '${{ vars.APP_ID }}'
+          private-key: '${{ secrets.APP_PRIVATE_KEY }}'
+
+      - uses: 'actions/checkout@v7'
+        with:
+          token: '${{ steps.token.outputs.token }}'
+
+      - uses: 'pnpm/setup@v3'
+        with:
+          cache: true
+      - run: 'pnpm prune:events'
+
+      # `pnpm build` runs this too, so a commit that fails it fails every later deploy rather than this run. Here it
+      # still has somewhere to fail: the commit below never happens.
+      - name: 'Check what was pruned'
+        run: 'pnpm lint:xml'
+
+      - name: 'Name the committer after the app'
+        id: 'committer'
+        env:
+          GH_TOKEN: '${{ steps.token.outputs.token }}'
+          SLUG: '${{ steps.token.outputs.app-slug }}'
+        run: |
+          id="$(gh api "/users/${SLUG}%5Bbot%5D" --jq '.id')"
+          echo "author=${SLUG}[bot] <${id}+${SLUG}[bot]@users.noreply.github.com>" >> "${GITHUB_OUTPUT}"
+
+      - name: 'Commit'
+        id: 'commit'
+        uses: 'stefanzweifel/git-auto-commit-action@v7'
+        with:
+          commit_author: '${{ steps.committer.outputs.author }}'
+          commit_message: 'Remove ended events'
+
+          # A git pathspec, not a path: `*.gpx` matches at any depth, so this covers whatever `git ls-files` hands the
+          # script without widening to every dirty file in the tree.
+          file_pattern: 'data/events.json *.gpx'

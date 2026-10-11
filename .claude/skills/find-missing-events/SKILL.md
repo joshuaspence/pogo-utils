@@ -179,7 +179,7 @@ Once the proposal is approved:
    otherwise.
 3. **Run `pnpm lint`** to confirm nothing else broke.
 4. **Commit `data/events.json` alone, straight to `master`.** An event entry is a data change — the entry is the whole
-   of it, `pnpm lint` says whether it is well-formed, and `pages.yml` deploys from `master` — so it needs no branch and
+   of it, `pnpm lint` says whether it is well-formed, and `pages.yaml` deploys from `master` — so it needs no branch and
    no pull request. Stage that one path.
 
 **Do not run `pnpm vend:events`.** It rewrites `data/events-feed.json` from the live mirror, which the Vend workflow
