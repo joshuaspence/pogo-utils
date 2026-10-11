@@ -58,6 +58,7 @@ jobs:
         # https://github.com/anthropics/claude-code-action/issues/1852
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
+
         uses: 'anthropics/claude-code-action@v1.0.235'
         with:
           additional_permissions: |
@@ -118,11 +119,6 @@ jobs:
         if: "!cancelled() && steps.review.outputs.session_id != ''"
         uses: 'anthropics/claude-code-action@v1.0.235'
         with:
-          # The resume reconnects to any background task the review step left running, whose notification arrives as
-          # an empty zero-turn `result` that the action ends on before this prompt is read — the review step's
-          # `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` is what keeps there being none.
-          #
-          # https://github.com/anthropics/claude-code-action/issues/1852
           claude_args: |
             --allowedTools 'mcp__github__create_and_submit_pull_request_review'
             --resume '${{ steps.review.outputs.session_id }}'
