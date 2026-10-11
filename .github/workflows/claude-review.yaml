@@ -114,6 +114,11 @@ jobs:
         # Without `!cancelled()` this carries an implicit `success()`, which skips the step for a review that
         # fails after opening a session — the one case where there is a review to submit and no verdict.
         if: "!cancelled() && steps.review.outputs.session_id != ''"
+
+        # Its own budget for the reason the review step has one: a hang left to the job's timeout cancels the job,
+        # and `!cancelled()` then skips the steps that would report it. A verdict is one tool call, so five minutes
+        # is generous, and with the review's 20 it still lands inside the job's 30.
+        timeout-minutes: 5
         uses: 'anthropics/claude-code-action@v1.0.235'
         with:
           claude_args: |
@@ -153,9 +158,8 @@ jobs:
       - name: 'Confirm the review decision was submitted'
         id: 'submitted'
 
-        # The verdict step's exit status is not whether a verdict exists. On #183 it resumed the session, ran zero
-        # turns in 27ms and exited 0 having submitted nothing, and a verdict step can as well fail after submitting
-        # one. So the verdict is looked for on GitHub itself, whenever the verdict step ran at all.
+        # The verdict step's exit status is not whether a verdict exists: it can exit 0 having submitted nothing,
+        # and fail after submitting one. So the verdict is looked for on GitHub itself, whenever that step ran.
         #
         # A verdict rather than any review: each inline finding the review step posts is recorded as an empty
         # `COMMENTED` review by `claude[bot]`, so counting those would pass on any pull request with a finding. And
@@ -168,21 +172,16 @@ jobs:
           GH_TOKEN: '${{ github.token }}'
           PR: '${{ github.event.pull_request.number }}'
           SINCE: '${{ steps.asked.outputs.at }}'
+        # Unpiped, so a failed `gh api` fails the assignment and `bash -e` the step, rather than a lookup that
+        # confirmed nothing reading as one that found something.
         run: |
-          # Without it a failed `gh api` reaches `jq -s` as no input at all, which answers `null` and exits 0, and
-          # the check below would then pass on a lookup that confirmed nothing.
-          set -o pipefail
-
-          count="$(gh api "repos/${GH_REPO}/pulls/${PR}/reviews" --paginate --jq "[.[] | select(
+          ids="$(gh api "repos/${GH_REPO}/pulls/${PR}/reviews" --paginate --jq ".[] | select(
               .user.login == \"claude[bot]\"
               and .submitted_at >= \"${SINCE}\"
               and (.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or (.body | length) > 0)
-            )] | length" | jq -s 'add')"
+            ) | .id")"
 
-          if ! [ "${count}" -gt 0 ]; then
-            echo "::error::No verdict by claude[bot] has been submitted since ${SINCE}."
-            exit 1
-          fi
+          [ -n "${ids}" ] || { echo "::error::No verdict by claude[bot] has been submitted since ${SINCE}."; exit 1; }
 
       - name: 'Explain that no verdict was reached'
 
@@ -210,7 +209,7 @@ jobs:
 
           Claude reached no verdict on this pull request, so it carries no approval and no requested change.
 
-          [The run](${RUN_URL}) names the step that failed. Most often the cause is this pull request itself: the action is refused a token unless the workflow file is identical to the copy on \`master\`, so one that edits \`.github/workflows/claude-review.yaml\` — or whose branch predates a change to it — gets no review until that has landed. A token is also refused when \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, and when the pull request comes from a fork, which cannot read secrets. Past that, a session can open and still reach no verdict, the review or the verdict step having failed, run past its 20-minute timeout, or finished without submitting a review.
+          [The run](${RUN_URL}) names the step that failed. Most often the cause is this pull request itself: the action is refused a token unless the workflow file is identical to the copy on \`master\`, so one that edits \`.github/workflows/claude-review.yaml\` — or whose branch predates a change to it — gets no review until that has landed. A token is also refused when \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, and when the pull request comes from a fork, which cannot read secrets. Past that, a session can open and still reach no verdict, the review or the verdict step having failed, run past its timeout or finished without submitting a review.
           EOT
 
           payload="$(mktemp)"
