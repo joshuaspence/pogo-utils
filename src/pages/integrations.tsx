@@ -206,6 +206,23 @@ export default function IntegrationsPage() {
       </header>
 
       <main class="backup">
+        {/*
+         * A panel of its own rather than a button in the backup's, since getting the app is not part of building a
+         * backup. First, so a reader who has yet to install PGSharp meets it before the panel that assumes they have.
+         */}
+        <div class="body">
+          <h2>PGSharp</h2>
+
+          <p>
+            PGSharp is installed from an APK rather than from a store, so open this page on the phone it is for and
+            download it there.
+          </p>
+
+          <a class="run" href={release?.url ?? DOWNLOAD_URL} target="_blank" rel="noopener">
+            {release ? `Download PGSharp ${release.version}` : 'Download PGSharp'}
+          </a>
+        </div>
+
         <div class="body">
           <h2>PGSharp backup</h2>
 
@@ -214,14 +231,6 @@ export default function IntegrationsPage() {
             below are ticked — nothing else. Importing it overwrites exactly those and leaves the rest of your PGSharp
             settings as they were. Everything runs in your browser.
           </p>
-
-          {/*
-           * Before the options rather than beside the backup's own button, so the reader who has yet to install PGSharp
-           * meets it first — and because it is an APK, they are already on the phone it goes on.
-           */}
-          <a class="run" href={release?.url ?? DOWNLOAD_URL} target="_blank" rel="noopener">
-            {release ? `Download PGSharp ${release.version}` : 'Download PGSharp'}
-          </a>
 
           <details class="subgroup" open>
             {/*
