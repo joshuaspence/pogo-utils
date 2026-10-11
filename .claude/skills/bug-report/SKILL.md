@@ -7,7 +7,8 @@ description: >-
 
 # Filing a bug report
 
-Turn a failure into an issue on `joshuaspence/pogo-utils`, filled against the repository's own bug report form.
+Turn a failure into an issue on https://github.com/joshuaspence/pogo-utils, filled against the repository's own bug
+report form.
 
 An argument, when there is one, says which failure to write up — it steers a session that holds more than one, and is
 never the content of the report.
@@ -58,10 +59,6 @@ Search for what is already filed, and show any hits above the body rather than j
 ```bash
 gh issue list --search '<keywords from the title>' --state all --limit 10
 ```
-
-Nothing here authenticates, so there is no credential to strip. A link or a pasted preferences export does carry the
-reader's own play — a hunt list, the area their routes cover — so trim what the report does not need and say what you
-trimmed.
 
 Then show the rendered body, the title and the label. Wait. Do not create anything until the user says to.
 
