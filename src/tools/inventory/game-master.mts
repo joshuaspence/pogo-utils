@@ -53,8 +53,8 @@ const MAX_LEVEL = 51;
 export interface Form {
   dex: number;
   species: string;
-  /** `Alola`, `Paldea Aqua`, or empty for the ordinary form. */
-  form: string;
+  /** `Alola`, `Paldea Aqua`, or null for the ordinary form, as the overlay spells it. */
+  form: string | null;
   costume: boolean;
   types: string[];
   attack: number;
@@ -238,7 +238,7 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
       dex,
       species: strings.get(`pokemon_name_${match[1]}`) ?? titleise(settings.pokemonId),
       // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it.
-      form: ORDINARY.test(suffix) ? '' : titleise(suffix),
+      form: ORDINARY.test(suffix) ? null : titleise(suffix),
       costume: settings.form !== undefined && costumes.has(settings.form),
       icon: iconName(index, dex, suffix, settings.form),
       types: [settings.type, settings.type2].filter((t) => t !== undefined).map(typeName),

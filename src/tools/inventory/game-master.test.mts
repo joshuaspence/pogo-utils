@@ -14,7 +14,7 @@ import { closest, cpOf, distance, hpOf, levelsOf, multiplierOf, type Form, type 
 
 const DATA = JSON.parse(readFileSync(new URL('fixtures/game-master.json', import.meta.url), 'utf8')) as GameData;
 
-const form = (species: string, name = '') => {
+const form = (species: string, name: string | null = null) => {
   const found = DATA.forms.find((f) => f.species === species && f.form === name && !f.costume);
 
   if (!found) {
@@ -80,10 +80,10 @@ test('the multiplier table runs from 1 to 51 in half steps', () => {
  */
 test('a CP derives to the number the game printed', () => {
   for (const [species, name, level, ivs, cp] of [
-    ['Ho-Oh', '', 25, iv(13, 15, 15), 2738],
-    ['Nidoran♂', '', 20, iv(15, 15, 15), 491],
+    ['Ho-Oh', null, 25, iv(13, 15, 15), 2738],
+    ['Nidoran♂', null, 20, iv(15, 15, 15), 491],
     ['Thundurus', 'Incarnate', 20, iv(7, 7, 10), 1792],
-  ] as [string, string, number, ReturnType<typeof iv>, number][]) {
+  ] as [string, string | null, number, ReturnType<typeof iv>, number][]) {
     const multiplier = multiplierOf(DATA, level);
     expect(multiplier, `there is no multiplier for level ${level}`).not.toBe(null);
     expect(cpOf(form(species, name), ivs, multiplier ?? 0), `${species} at level ${level}`).toBe(cp);
@@ -197,9 +197,9 @@ test('a form is found by the species and form name the CSV prints', () => {
     155,
   ]);
 
-  // The ordinary form of a species carries an empty form name rather than `Normal`, which is what lets a label be
-  // written as the species alone.
-  expect(form('Pikachu').form).toBe('');
+  // The ordinary form of a species carries no form name rather than `Normal`, which is what lets a label be written as
+  // the species alone — and null rather than empty, which is how the overlay and the fixture table spell no form.
+  expect(form('Pikachu').form).toBe(null);
 });
 
 /**
