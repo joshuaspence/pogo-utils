@@ -22,6 +22,15 @@ export interface Release {
   readonly url: string;
 }
 
+/** A release as `VENDED_RELEASE` holds it. */
+export interface VendedRelease extends Release {
+  /**
+   * When the vend first found this APK, as an ISO 8601 instant: roughly when PGSharp released it, give or take the
+   * hour between runs. Kept across runs that find the same APK, so a run with nothing new still changes nothing.
+   */
+  readonly firstSeen: string;
+}
+
 /**
  * Read the release off the APK URL the download redirects to. The file name is
  * `pgs<PGSharp version>_<Pokémon GO version>_<build>(<ABI>).apk` — `pgs1.272.2_0.431.0_XsfbL(arm64).apk` on

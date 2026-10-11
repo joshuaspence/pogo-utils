@@ -5,11 +5,13 @@
  * Follows the redirects by hand rather than letting `fetch` do it, so the run stops at the APK's URL and never
  * downloads the APK. pgsharp.com refuses requests that look automated, hence the browser's user agent.
  *
- * Nothing here reads the clock, so an unchanged file after a run means PGSharp has not released.
+ * The clock is read only for a release not seen before, so an unchanged file after a run still means PGSharp has not
+ * released.
  */
 
+import type { VendedRelease } from '../src/pgsharp/release.js';
 import { DOWNLOAD_URL, releaseFromApk, VENDED_RELEASE } from '../src/pgsharp/release.ts';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const USER_AGENT =
   'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
@@ -32,7 +34,12 @@ for (let hops = 0; !new URL(url).pathname.endsWith('.apk'); hops++) {
 }
 
 const release = releaseFromApk(url);
+const previous: Partial<VendedRelease> = JSON.parse(readFileSync(VENDED_RELEASE, 'utf8'));
+const vended: VendedRelease = {
+  ...release,
+  firstSeen: previous.url === release.url && previous.firstSeen ? previous.firstSeen : new Date().toISOString(),
+};
 
 // Two-space and newline-terminated for `prettier --check .`, as `vend-feed.mts` explains.
-writeFileSync(VENDED_RELEASE, `${JSON.stringify(release, null, 2)}\n`);
+writeFileSync(VENDED_RELEASE, `${JSON.stringify(vended, null, 2)}\n`);
 console.log(`${VENDED_RELEASE}: PGSharp ${release.version}`);
