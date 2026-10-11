@@ -82,7 +82,7 @@ test('a CP cut in two by the line breaks is joined to the nearer half', () => {
   const label = line('ce15', 342, 127, 156, 63);
   const lines = [label, line('59', 516, 126, 81, 62), line('69', 498, 127, 99, 99)];
 
-  expect(cpOn(joined(label, lines).text), 'the two halves of the CP are no longer joined').toBe('1569');
+  expect(cpOn(joined(label, lines).text, LONGEST), 'the two halves of the CP are no longer joined').toBe('1569');
 });
 
 /** The join's refusals: a word rather than digits, a line on another row, and a gap wider than a glyph's. */
@@ -96,6 +96,7 @@ test('only digits abutting the line on its own row are joined to it', () => {
 
 /** `unown-b.png` under the same engine: one space inside the number, which the CLI reads as a slash instead. */
 test('a CP with one space inside it is read whole', () => {
-  expect(cpOn('cP48 7'), 'a CP with a space inside it is read as its first half').toBe('487');
-  expect(cpOn('cPe518'), 'the ordinary CP line no longer reads').toBe('518');
+  expect(cpOn('cP48 7', LONGEST), 'a CP with a space inside it is read as its first half').toBe('487');
+  expect(cpOn('cPe518', LONGEST), 'the ordinary CP line no longer reads').toBe('518');
+  expect(cpOn('cP1605 12', LONGEST), 'a number beside a whole CP was read into it').toBe('1605');
 });

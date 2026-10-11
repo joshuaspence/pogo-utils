@@ -303,7 +303,7 @@ async function tripled(band: Image): Promise<string | null> {
  * How many bands of a sweep to read at once: one Tesseract per core. `navigator` rather than `node:os` because it is
  * the one both sides have, Node answering `availableParallelism()` there.
  */
-const SWEEP_BATCH = navigator.hardwareConcurrency;
+const SWEEP_BATCH = navigator.hardwareConcurrency || 1;
 
 /**
  * Where the overlay sits and what it says, found by the one thing nothing else on the screen carries: three small

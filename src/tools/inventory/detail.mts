@@ -62,8 +62,22 @@ export async function readLines(image: Image): Promise<Line[]> {
  */
 export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5}(?: \d{1,3})?)\b/;
 
-/** The CP a line carrying `CP_LABEL` states, as its digits alone. */
-export const cpOn = (text: string): string | null => CP_LABEL.exec(fold(text))?.[1]?.replace(' ', '') ?? null;
+/**
+ * The CP a line carrying `CP_LABEL` states, as its digits alone. The two halves of a number with a space in it are
+ * joined only where the whole is no longer than `longest`, the most digits any CP runs to, so a second number OCR set
+ * beside the CP is left off it rather than read into a CP no Pokémon has.
+ */
+export function cpOn(text: string, longest: number): string | null {
+  const read = CP_LABEL.exec(fold(text))?.[1];
+
+  if (read === undefined) {
+    return null;
+  }
+
+  const joined = read.replace(' ', '');
+
+  return joined.length <= longest ? joined : (read.split(' ')[0] ?? null);
+}
 
 /**
  * A CP line with the rest of its number put back, where Tesseract ended the line part way through it and read the
@@ -104,7 +118,7 @@ export function joined(line: Line, lines: readonly Line[]): Line {
 export async function parseDetail(lines: readonly Line[], data: GameData, image: Image): Promise<Detail> {
   const labelled = lines.find((l) => l.top < image.height / 4 && CP_LABEL.test(fold(l.text)));
   const cpLine = labelled && joined(labelled, lines);
-  const read = cpLine ? cpOn(cpLine.text) : null;
+  const read = cpLine ? cpOn(cpLine.text, cpDigits(data)) : null;
   const whole = cpLine && read !== null ? wholeCp(image, cpLine, read, cpDigits(data)) : null;
 
   // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.

@@ -59,8 +59,9 @@ export async function readScreen(
   configured?: OverlayBox,
 ): Promise<Reading> {
   const screen = screenIn(image);
-  const lines = await readLines(screen);
-  const whole = screen === image ? lines : await readLines(image);
+  // Side by side where there are two, the reads being of different images and wanting nothing of each other.
+  const [lines, stitched] = await Promise.all([readLines(screen), screen === image ? undefined : readLines(image)]);
+  const whole = stitched ?? lines;
   const detail = await parseDetail(lines, data, screen);
   const found = configured
     ? { box: configured, overlay: await readOverlay(screen, configured) }

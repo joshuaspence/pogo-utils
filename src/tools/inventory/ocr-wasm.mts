@@ -80,7 +80,7 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
     });
 
   /** A worker whose model is the pinned one, the copy it was handed having been read back and hashed. */
-  const spawn = async (): Promise<Worker> => {
+  const verified = async (): Promise<Worker> => {
     for (const cacheMethod of options.cache ? (['write', 'refresh'] as const) : (['none'] as const)) {
       const worker = await create(cacheMethod);
       const { data } = (await worker.FS('readFile', ['./eng.traineddata'])) as { data: Uint8Array };
@@ -95,6 +95,28 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
     }
 
     throw new Error(`the OCR model from ${options.langPath} is not tessdata_fast 4.1.0's, so nothing was read with it`);
+  };
+
+  /**
+   * The first worker started while the model is kept, which every later one waits on: a cold cache would otherwise have
+   * each of the first few reads' workers fetch the same 4 MB at once, where waiting lets the rest read the first's copy.
+   * Whether it started is not waited on — a later worker that finds nothing kept fetches for itself.
+   */
+  let warm: Promise<unknown> | null = null;
+
+  const spawn = (): Promise<Worker> => {
+    if (!options.cache) {
+      return verified();
+    }
+
+    if (warm === null) {
+      const first = verified();
+      warm = first.catch(() => undefined);
+
+      return first;
+    }
+
+    return warm.then(verified);
   };
 
   const take = async (): Promise<Worker> => {
@@ -168,6 +190,7 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
         throw new Error(`tesseract.js: ${String(error)}`, { cause: error });
       }
     },
+    // Every worker that is idle, which is every worker once each read has settled — the one time this is called.
     terminate: async () => {
       await Promise.all(idle.splice(0).map((worker) => worker.terminate()));
       started = 0;

@@ -15,7 +15,7 @@
  * through `import()` like every other.
  */
 
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { said } from '../errors.js';
 import { connect, unreachable, type Phone } from '../inventory/webusb.js';
@@ -104,19 +104,22 @@ export default function InventoryPage() {
   held.current = phone;
   useEffect(() => () => void held.current?.close(), []);
 
+  // The capture as a PNG, encoded once for the picture below and the download beside it.
+  const png = useMemo(() => (capture ? Uint8Array.from(encodePng(capture.image)) : null), [capture]);
+
   // The picture of what is being read, as an object URL that is let go of when it is replaced or the page is left.
   useEffect(() => {
-    if (capture === null) {
+    if (png === null) {
       setPreview(null);
 
       return;
     }
 
-    const url = URL.createObjectURL(new Blob([Uint8Array.from(encodePng(capture.image))], { type: 'image/png' }));
+    const url = URL.createObjectURL(new Blob([png], { type: 'image/png' }));
     setPreview(url);
 
     return () => URL.revokeObjectURL(url);
-  }, [capture]);
+  }, [png]);
 
   const busy = phase.kind === 'busy';
 
@@ -144,7 +147,9 @@ export default function InventoryPage() {
     try {
       const picked = await connect();
 
-      await phone?.close();
+      // Letting go of the phone before it, which may be unplugged by now and throw for it: that is no reason to lose the
+      // one just connected, still holding its interface with nothing on the page able to let it go.
+      await phone?.close().catch(() => {});
       setPhone(picked);
       setPhase(picked ? { kind: 'idle' } : { kind: 'failed', message: 'No phone was picked.' });
     } catch (e) {
@@ -282,11 +287,7 @@ export default function InventoryPage() {
             <div class="heading">
               <h2>{capture.name}</h2>
               {capture.grabbed && (
-                <button
-                  class="ghost"
-                  type="button"
-                  onClick={() => download(encodePng(capture.image), capture.name, 'image/png')}
-                >
+                <button class="ghost" type="button" onClick={() => png && download(png, capture.name, 'image/png')}>
                   Save screenshot
                 </button>
               )}
