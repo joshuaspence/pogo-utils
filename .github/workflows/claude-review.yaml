@@ -27,7 +27,10 @@ jobs:
     if: >-
       !github.event.pull_request.draft && github.event.pull_request.user.type != 'Bot'
     runs-on: 'ubuntu-latest'
-    timeout-minutes: 20
+
+    # The review's own budget is on its step rather than here. A job timeout cancels the job, and a cancelled job
+    # never reaches the step that reports the failure, so a review that overran would go out as silence.
+    timeout-minutes: 30
     permissions:
       actions: 'read'
       contents: 'read'
@@ -37,12 +40,14 @@ jobs:
       - name: 'Checkout'
         uses: 'actions/checkout@v7.0.1'
         with:
-          # `git blame` and `git log` are allowed below, and the default depth-1 fetch holds no history for either.
-          fetch-depth: 0
+          # `git blame` and `git log` are allowed below and read history the default depth-1 fetch does not hold. A
+          # review of a diff wants a slice rather than the whole history, and can `git fetch --deepen` for more.
+          fetch-depth: 50
           persist-credentials: false
 
       - name: 'Use /code-review to review the pull request'
         id: 'review'
+        timeout-minutes: 20
         uses: 'anthropics/claude-code-action@v1.0.235'
         with:
           additional_permissions: |
@@ -52,6 +57,7 @@ jobs:
             --allowedTools
               'Bash(gh issue list:*)'
               'Bash(gh issue view:*)'
+              'Bash(gh pr comment:*)'
               'Bash(gh pr diff:*)'
               'Bash(gh pr list:*)'
               'Bash(gh pr view:*)'
@@ -61,27 +67,29 @@ jobs:
               'Bash(git log:*)'
               'Bash(git rev-parse:*)'
               'Bash(git show:*)'
+              'mcp__github__get_pull_request_review_comments'
               'mcp__github_inline_comment__create_inline_comment'
           claude_code_oauth_token: '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: |
-            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+            /code-review:code-review ${{ github.event.pull_request.html_url }} --comment
 
             Carry on past the command's first step, which stops when Claude has already commented on the pull
             request. That guard is written for a one-off invocation; this workflow runs on every push, so an
-            earlier run's review is expected rather than a reason to skip this one. Review the pull request as
-            it stands now.
+            earlier run's review is expected rather than a reason to skip this one.
 
-            `gh pr view` fails on this repository unless it is given `--json`. The plain form asks for Projects
-            (classic) and exits 1 with no output, naming `repository.pullRequest.projectCards`. Read the pull
-            request with `gh pr view --json <fields>` and the diff with `gh pr diff`, which works as it is.
+            Overriding it takes on what it was crudely doing, which is keeping a finding from being raised twice.
+            Read what you have already published with `mcp__github__get_pull_request_review_comments` and leave a
+            finding alone where it is already anchored to a line that has not changed since. Say which ones you
+            skipped and why, so a reader of this run can tell a deliberate silence from an oversight.
 
-            Anchor each finding to its line with `mcp__github_inline_comment__create_inline_comment`, passing
-            `confirmed: true` — but only for the review's final comments. Left off, a call is buffered and a
-            classifier decides afterwards whether it was a real finding or a subagent probing the tool, so a
-            finding you meant to publish is one it can drop. The next step submits the body and the verdict; a
-            finding worth a line is worth anchoring to it rather than being described in that body.
+            If `gh pr view` exits 1 naming `repository.pullRequest.projectCards`, that is `gh`'s own default query
+            asking for Projects (classic), which GitHub now refuses outright — it is not a fault in this pull
+            request or this repository, and every repository fails the same way on an affected `gh`. Re-run it as
+            `gh pr view --json <fields>`, which does not ask for that field. Last seen on `gh` 2.45.0, and a newer
+            `gh` may have dropped the field already, so treat this as a fallback rather than as the way to read a
+            pull request. `gh pr diff` is unaffected either way.
 
             Do not run the pull request's code. This step holds the credential that authenticates the review, a
             child process inherits it, and the checkout is the pull request's own head — so running the branch
@@ -108,7 +116,7 @@ jobs:
             You have just reviewed this pull request. Submit that review with
             `mcp__github__create_and_submit_pull_request_review`, always, as exactly one of three events.
 
-            Your approval is the last look this pull request gets. The `Master` ruleset takes one approving
+            Your approval is the last look this pull request gets. The `Master` ruleset requires one approving
             review, so yours is what makes it mergeable, and where auto-merge has been switched on it merges the
             moment you approve. So an approval means there is nothing left to do — not "nothing worth blocking
             on". Anything you would change before it merged does not get changed once you approve; it ships as it
@@ -142,14 +150,38 @@ jobs:
         env:
           GH_REPO: '${{ github.repository }}'
           GH_TOKEN: '${{ github.token }}'
+
+          # `gh pr comment --edit-last` matches the last comment by the same author, and the mention workflow
+          # posts as `github-actions[bot]` too — so it edited across workflows and left a stale copy behind. This
+          # marker is one only this step writes.
+          MARKER: '<!-- claude-review: no verdict -->'
           PR: '${{ github.event.pull_request.number }}'
           RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
 
-        # A comment body renders its own line breaks, so these lines run past 120 rather than arriving at the pull
-        # request hard-wrapped.
+        # A comment body renders its own line breaks, so the paragraph below runs past 120 rather than arriving at
+        # the pull request hard-wrapped.
         run: |
-          gh pr comment --body-file - --create-if-none --edit-last "${PR}" <<EOT
+          body="$(mktemp)"
+          cat > "${body}" <<EOT
+          ${MARKER}
+
           Claude reached no verdict on this pull request, so it carries no approval and no requested change.
 
-          [The run](${RUN_URL}) names the step that failed. Most often the cause is this pull request itself: the action is refused a token unless the workflow file is identical to the copy on \`master\`, so one that edits \`.github/workflows/claude-review.yaml\` — or whose branch predates a change to it — gets no review until that has landed. A token is also refused when \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, and when the pull request comes from a fork, which cannot read secrets. Past that, a session can open and still reach no verdict, the review or the verdict step having failed or run past the 20-minute timeout.
+          [The run](${RUN_URL}) names the step that failed. Most often the cause is this pull request itself: the action is refused a token unless the workflow file is identical to the copy on \`master\`, so one that edits \`.github/workflows/claude-review.yaml\` — or whose branch predates a change to it — gets no review until that has landed. A token is also refused when \`CLAUDE_CODE_OAUTH_TOKEN\` is missing or expired, and when the pull request comes from a fork, which cannot read secrets. Past that, a session can open and still reach no verdict, the review or the verdict step having failed or run past its 20-minute timeout.
           EOT
+
+          payload="$(mktemp)"
+          jq -Rs '{body: .}' < "${body}" > "${payload}"
+
+          id="$(gh api "repos/${GH_REPO}/issues/${PR}/comments" --paginate \
+            --jq "[.[] | select(.body | startswith(\"${MARKER}\")) | .id] | last // empty")"
+
+          if [ -n "${id}" ]; then
+            gh api --silent --method PATCH "repos/${GH_REPO}/issues/comments/${id}" --input "${payload}"
+          else
+            gh api --silent --method POST "repos/${GH_REPO}/issues/${PR}/comments" --input "${payload}"
+          fi
+
+          # A review that reached no verdict is a failed review. Reporting it green put four of them behind a
+          # passing check, which read as a review that had happened and found nothing.
+          exit 1

@@ -32,23 +32,36 @@ jobs:
       )
     runs-on: 'ubuntu-latest'
     timeout-minutes: 10
+
+    # No `issues: write`: the gate above admits an `issue_comment` only when `github.event.issue.pull_request` is
+    # set, and the other two triggers are pull-request-only, so everything this job writes goes through a pull
+    # request.
     permissions:
       actions: 'read'
       contents: 'read'
       id-token: 'write'
-      issues: 'write'
       pull-requests: 'write'
     steps:
       - name: 'Checkout'
         uses: 'actions/checkout@v7.0.1'
         with:
-          # On an `issue_comment` event — which is how most mentions arrive — `GITHUB_SHA` is the tip of the default
-          # branch, so without these the checkout holds none of the pull request's commits and `git show <pr-sha>`
-          # is `fatal: bad object`. `refs/pull/N/head` exists whether or not the branch merges cleanly, unlike
-          # `refs/pull/N/merge`, and depth 0 is what gives `git blame` and `git log` a history to read.
-          fetch-depth: 0
+          # `claude-code-action` reads `CLAUDE.md` and `.claude/` out of the workspace, and the gate above tests
+          # who commented rather than who wrote the branch — so a collaborator mentioning `@claude` on an outside
+          # contributor's pull request must not run Claude under that contributor's instructions. Pinning the
+          # default branch is what keeps them the ones that merged: `pull_request_review` would otherwise check
+          # out the merge ref by default, and only `issue_comment` falls back to here on its own.
+          fetch-depth: 50
           persist-credentials: false
-          ref: 'refs/pull/${{ github.event.issue.number || github.event.pull_request.number }}/head'
+          ref: '${{ github.event.repository.default_branch }}'
+
+      - name: 'Fetch the commits under discussion'
+        env:
+          PR: '${{ github.event.issue.number || github.event.pull_request.number }}'
+
+        # Fetched rather than checked out, so `git show`, `git log` and `git blame` reach the pull request's
+        # objects while the instructions stay the merged ones. `refs/pull/N/head` exists whether or not the branch
+        # merges cleanly, unlike `refs/pull/N/merge`; the repository is public, so this needs no credential.
+        run: 'git fetch --depth 50 origin "refs/pull/${PR}/head"'
 
       - name: 'Answer the mention'
         id: 'respond'
@@ -75,11 +88,15 @@ jobs:
             Someone mentioned you on this pull request — in a comment on it, in a review of it, or against a line
             of the diff. Read that mention and answer it, in your tracking comment.
 
-            `gh pr view` fails on this repository unless it is given `--json`. The plain form asks for Projects
-            (classic) and exits 1 with no output, naming `repository.pullRequest.projectCards`. Read the pull
-            request with `gh pr view --json <fields>` and the diff with `gh pr diff`, which works as it is. The
-            checkout is the pull request's head with its full history, so `git blame`, `git log` and `git show`
-            read the commits under discussion.
+            The working tree is `master`, deliberately: the pull request's commits are fetched but not checked
+            out, so that a mention cannot make you run under instructions from the branch you are discussing.
+            Reach those commits as `FETCH_HEAD` — `git log FETCH_HEAD`, `git diff master...FETCH_HEAD`,
+            `git show <sha>` — and read the diff itself with `gh pr diff`.
+
+            If `gh pr view` exits 1 naming `repository.pullRequest.projectCards`, that is `gh`'s own default query
+            asking for Projects (classic), which GitHub now refuses outright — not a fault in this pull request or
+            this repository. Re-run it as `gh pr view --json <fields>`. Last seen on `gh` 2.45.0, so a newer `gh`
+            may have dropped the field already.
 
             You are read-only here: editing a file, committing and pushing are all denied. Do not offer to make a
             change, and do not write as though you have made one. Where the answer is a change to the code, say
@@ -111,7 +128,7 @@ jobs:
           RUN_URL: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
 
         # A comment body renders its own line breaks, so these lines run past 120 rather than arriving at the pull
-        # request hard-wrapped.
+        # request hard-wrapped. One comment per mention, so there is nothing here to edit in place.
         run: |
           gh pr comment --body-file - "${PR}" <<EOT
           Claude did not answer [the mention](${MENTION_URL}).

@@ -8,8 +8,9 @@ description: >-
 
 # Filing a feature request
 
-Turn something the site should do into an issue on https://github.com/joshuaspence/pogo-utils, filled against the
-repository's own feature request form.
+Turn something the site should do into an issue on
+[joshuaspence/pogo-utils](https://github.com/joshuaspence/pogo-utils), filled against the repository's own feature
+request form.
 
 The issue is a handover rather than a wish: whoever picks it up implements it without the conversation that produced it.
 An argument, when there is one, says which idea to write up — it steers a session that holds more than one, and is never
