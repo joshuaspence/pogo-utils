@@ -183,12 +183,13 @@ keep in step. The generator reads no clock and makes no request, which is why it
 `pnpm lint:types` _is_ `pnpm build`, so a generator that fetched would put somebody else's server in front of every
 lint. A local run therefore produces exactly the bytes a deploy does.
 
-Nothing is on a timer. The [Pages workflow](.github/workflows/pages.yaml) deploys on a push, and since a push made with
-the default `GITHUB_TOKEN` raises no workflow run, the Vend workflow asks for the deploy itself once it has committed a
-change. So a quiet stretch upstream deploys nothing at all rather than republishing identical bytes, and the page and
-the subscription are always siblings of one deploy. Two things follow: data on the page is up to an hour old where it
-had been live, and a deploy lost to a failed dispatch waits for the next change to the feed rather than for the next
-tick — **Run workflow** on either workflow closes that by hand.
+Nothing is on a timer. The [Pages workflow](.github/workflows/pages.yaml) deploys on a push, and the Vend and Prune
+workflows commit with a GitHub App's installation token rather than the default `GITHUB_TOKEN` — which raises no
+workflow run at all, and so would leave the site at whatever a human push last built. So a quiet stretch upstream
+deploys nothing rather than republishing identical bytes, and the page and the subscription are always siblings of one
+deploy. Two things follow: data on the page is up to an hour old where it had been live, and a deploy lost to a failed
+run waits for the next change to the feed rather than for the next tick — **Run workflow** on any of the three closes
+that by hand.
 
 An event's times are carried the way Leek Duck gives them. Most are _local_ events — 6am wherever you are — which is
 exactly an iCalendar floating time: a `DTSTART` carrying neither a `TZID` nor a trailing `Z`. The ones that are a single

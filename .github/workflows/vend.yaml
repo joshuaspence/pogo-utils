@@ -14,9 +14,9 @@ on:
 
   workflow_dispatch: {}
 
-permissions:
-  actions: 'write'
-  contents: 'write'
+# Nothing here uses the default `GITHUB_TOKEN`: the app's installation token does the clone and the push, and no
+# other step calls the API.
+permissions: {}
 
 # Shared with `prune.yaml`: both push to `master` without pulling first, so the second of two at once is rejected.
 concurrency:
@@ -28,24 +28,41 @@ jobs:
     name: 'Events'
     runs-on: 'ubuntu-latest'
     steps:
+      # A commit pushed with the default `GITHUB_TOKEN` raises no `push` event, which is why this used to dispatch
+      # `pages.yaml` by hand. An app's installation token does raise one, so the deploy follows from the push.
+      - name: 'Mint an installation token'
+        id: 'token'
+        uses: 'actions/create-github-app-token@v3.2.0'
+        with:
+          app-id: '${{ vars.APP_ID }}'
+          private-key: '${{ secrets.APP_PRIVATE_KEY }}'
+
       - uses: 'actions/checkout@v7'
+        with:
+          # `git-auto-commit-action` pushes with whatever credentials `checkout` persisted, so this is what makes the
+          # commit the app's rather than the default token's.
+          token: '${{ steps.token.outputs.token }}'
+
       - uses: 'pnpm/setup@v3'
         with:
           cache: true
       - run: 'pnpm vend:events'
 
+      # Derived from the token rather than written down, so it cannot disagree with whichever app minted it. The
+      # `<id>+<login>@users.noreply.github.com` form is what links a commit to the account that made it.
+      - name: 'Name the committer after the app'
+        id: 'committer'
+        env:
+          GH_TOKEN: '${{ steps.token.outputs.token }}'
+          SLUG: '${{ steps.token.outputs.app-slug }}'
+        run: |
+          id="$(gh api "/users/${SLUG}%5Bbot%5D" --jq '.id')"
+          echo "author=${SLUG}[bot] <${id}+${SLUG}[bot]@users.noreply.github.com>" >> "${GITHUB_OUTPUT}"
+
       - name: 'Commit'
         id: 'commit'
         uses: 'stefanzweifel/git-auto-commit-action@v7'
         with:
-          commit_author: 'github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>'
+          commit_author: '${{ steps.committer.outputs.author }}'
           commit_message: 'Update the Leek Duck feed'
           file_pattern: 'data/events-feed.json'
-
-      # GitHub raises no `push` event for a commit made with the default `GITHUB_TOKEN`, so `pages.yaml` never fires
-      # and the site would stay at whatever a human push last built.
-      - name: 'Deploy'
-        if: "steps.commit.outputs.changes_detected == 'true'"
-        run: 'gh workflow run pages.yaml --ref "${GITHUB_REF_NAME}"'
-        env:
-          GH_TOKEN: '${{ github.token }}'
