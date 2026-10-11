@@ -82,13 +82,33 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
       },
     });
 
-  /** A worker whose model is the pinned one, the copy it was handed having been read back and hashed. */
+  /**
+   * A worker whose model is the pinned one, the copy it was handed having been read back and hashed. One that fails the
+   * check, or fails while being checked, is stopped before anything else is tried: it is in no pool `terminate` can
+   * reach until this hands it over, so nothing else would ever stop it.
+   *
+   * The hash is Web Crypto's, which a browser offers only to a secure context, so a page outside one is told that up
+   * front rather than starting a worker it cannot check.
+   */
   const verified = async (): Promise<Worker> => {
+    if (globalThis.crypto?.subtle === undefined) {
+      throw new Error(
+        'checking the OCR model needs a secure context: open this page from localhost or the published site',
+      );
+    }
+
     for (const cacheMethod of options.cache ? (['write', 'refresh'] as const) : (['none'] as const)) {
       const worker = await create(cacheMethod);
-      const { data } = (await worker.FS('readFile', ['./eng.traineddata'])) as { data: Uint8Array };
-      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(data)));
-      const sha = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+      let sha: string;
+
+      try {
+        const { data } = (await worker.FS('readFile', ['./eng.traineddata'])) as { data: Uint8Array };
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(data)));
+        sha = Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+      } catch (error) {
+        await worker.terminate().catch(() => {});
+        throw error;
+      }
 
       if (sha === MODEL_SHA256) {
         return worker;

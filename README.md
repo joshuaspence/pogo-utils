@@ -65,9 +65,9 @@ by a run going red.
 One caveat is local only and stays. The LAN address printed beside the local one is good for viewing the site on a phone
 but not for installing it — a plain-HTTP origin is no secure context, and Chrome will read `manifest.json` for
 installation only from one — so [Installing as an app](#installing-as-an-app) is a flow only `localhost` or Pages can
-exercise. WebUSB is held to a secure context the same way, so the Inventory page cannot reach a phone from the LAN
-address at all: `localhost` and Pages can drive one, and the browser reaching this machine over the LAN cannot. A
-dropped screenshot reads from either.
+exercise. WebUSB is held to a secure context the same way, and so is the Web Crypto hash the Inventory page checks its
+OCR model against before reading anything, so that page neither reaches a phone nor reads a dropped screenshot from the
+LAN address: `localhost` and Pages can do both, and the browser reaching this machine over the LAN can do neither.
 
 Static hosting cannot list a directory, so the viewer is handed the paths in
 [`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it

@@ -150,3 +150,19 @@ test('terminating stops a worker that is reading, not only the idle ones', async
   expect(busy.terminate, 'the worker part way through a read was left running').toHaveBeenCalled();
   await expect(queued).rejects.toThrow(/stopped/);
 });
+
+/** A worker that fails while its model is being checked is stopped, being in no pool anything else could stop it from. */
+test('a worker whose model cannot be checked is stopped, not left running', async () => {
+  vi.spyOn(crypto.subtle, 'digest').mockRejectedValue(new Error('no digest'));
+
+  const checked = {
+    ...worker(() => Promise.resolve({ data: { tsv: 'read' } })),
+    terminate: vi.fn(() => Promise.resolve()),
+  };
+  createWorker.mockResolvedValueOnce(checked);
+
+  const engine = tesseractWasm({ langPath: '.', workers: 1, cache: false });
+
+  await expect(engine.tsv(image, 7)).rejects.toThrow(/no digest/);
+  expect(checked.terminate, 'the worker whose check failed was left running').toHaveBeenCalled();
+});

@@ -40,6 +40,17 @@ interface Kit {
 
 let kit: Promise<Kit> | null = null;
 
+/**
+ * Why this page cannot read a screenshot, or null where it can. The OCR model is checked against its hash before it
+ * reads anything, and the hash is Web Crypto's, which a browser offers only to a secure context — `localhost` and the
+ * published site, but not the LAN address `pnpm serve` prints.
+ */
+export function unreadable(): string | null {
+  return window.isSecureContext
+    ? null
+    : 'Reading a screenshot needs a secure context too: open this page from localhost or the published site.';
+}
+
 async function fetchOk(url: string): Promise<Response> {
   const response = await fetch(url);
 

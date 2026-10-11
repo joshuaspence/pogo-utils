@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 
 import { said } from '../errors.js';
 import { connect, unreachable, type Phone } from '../inventory/webusb.js';
-import { read } from '../inventory/reader.js';
+import { read, unreadable } from '../inventory/reader.js';
 import { Device } from '../tools/inventory/adb.mts';
 import { type Line } from '../tools/inventory/ocr.mts';
 import { decodePng, encodePng, type Image } from '../tools/inventory/png.mts';
@@ -98,6 +98,7 @@ export default function InventoryPage() {
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const blocked = unreachable();
+  const unread = unreadable();
 
   // Let go of the phone when the page is left, so the next tab or program to want it is not told it is busy.
   const held = useRef<Phone | null>(null);
@@ -207,7 +208,7 @@ export default function InventoryPage() {
 
     const file = event.dataTransfer?.files[0];
 
-    if (file && !busy) {
+    if (file && !busy && unread === null) {
       void open(file);
     }
   }
@@ -263,11 +264,13 @@ export default function InventoryPage() {
             <code>pnpm inventory snap</code> saves it, a scroll capture included.
           </p>
 
+          {unread && <p class="note">{unread}</p>}
+
           <label class="file">
             <input
               type="file"
               accept="image/png"
-              disabled={busy}
+              disabled={busy || unread !== null}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0];
 
