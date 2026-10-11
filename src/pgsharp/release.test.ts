@@ -18,6 +18,23 @@ test('a percent-encoded file name reads the same as a plain one', () => {
 });
 
 test('a URL that is not a PGSharp APK is refused rather than given a version', () => {
-  expect(() => releaseFromApk('https://www.pgsharp.com/')).toThrow('not a PGSharp APK name');
+  expect(() => releaseFromApk('https://dl.pgsharp.com/')).toThrow('not a PGSharp APK name');
+  expect(() => releaseFromApk('https://dl.pgsharp.com/old/pgs1.272.2_0.431.0_XsfbL(arm64).apk')).toThrow();
   expect(() => releaseFromApk('https://dl.pgsharp.com/pgs1.272.2_0.431.0_XsfbL(arm64).zip')).toThrow();
+});
+
+test('an APK anywhere but dl.pgsharp.com is refused, however it is spelled', () => {
+  for (const url of [
+    'https://example.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk',
+    'http://dl.pgsharp.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk',
+    'https://dl.pgsharp.com.example.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk',
+    'https://dl.pgsharp.com@example.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk',
+    'https://dl.pgsharp.com%2F@example.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk',
+  ]) {
+    expect(() => releaseFromApk(url), url).toThrow('not served from https://dl.pgsharp.com/');
+  }
+});
+
+test('a query or fragment after the file name does not hide it', () => {
+  expect(releaseFromApk('https://dl.pgsharp.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk?token=x').version).toBe('1.272.2');
 });
