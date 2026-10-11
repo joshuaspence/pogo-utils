@@ -58,6 +58,9 @@ export interface WasmOptions {
  */
 export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Promise<void> } {
   const idle: Worker[] = [];
+  /** Every worker started and not yet let go, idle or reading, which is what `terminate` has to stop. */
+  const live = new Set<Worker>();
+  let closed = false;
   /**
    * Reads queued for a worker, each able to be failed as well as handed one: a worker replaced after a trap is spawned
    * for whoever was waiting, and a spawn that fails has to reach that read rather than leave it waiting for good.
@@ -130,7 +133,16 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
       started++;
 
       try {
-        return await spawn();
+        const worker = await spawn();
+
+        if (closed) {
+          void worker.terminate().catch(() => {});
+          throw new Error('the OCR engine was stopped');
+        }
+
+        live.add(worker);
+
+        return worker;
       } catch (error) {
         started--;
 
@@ -150,6 +162,10 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
   };
 
   const give = (worker: Worker) => {
+    if (closed) {
+      return;
+    }
+
     const next = waiting.shift();
 
     if (next) {
@@ -174,6 +190,7 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
 
         return result.data.tsv ?? '';
       } catch (error) {
+        live.delete(worker);
         void worker.terminate().catch(() => {});
         started--;
 
@@ -190,9 +207,21 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
         throw new Error(`tesseract.js: ${String(error)}`, { cause: error });
       }
     },
-    // Every worker that is idle, which is every worker once each read has settled — the one time this is called.
+    /**
+     * Every worker, idle or part way through a read, and every read still waiting for one, which fails rather than
+     * waiting on a pool that will never hand it a worker. A read already under way ends however its worker's stopping
+     * ends it, and a worker still starting is stopped as it arrives.
+     */
     terminate: async () => {
-      await Promise.all(idle.splice(0).map((worker) => worker.terminate()));
+      closed = true;
+
+      for (const read of waiting.splice(0)) {
+        read.reject(new Error('the OCR engine was stopped'));
+      }
+
+      idle.length = 0;
+      await Promise.all([...live].map((worker) => worker.terminate().catch(() => {})));
+      live.clear();
       started = 0;
     },
   };

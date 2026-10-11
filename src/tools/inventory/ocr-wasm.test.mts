@@ -124,3 +124,29 @@ test('a worker whose read fails is replaced, not handed the next read', async ()
   await expect(engine.tsv(image, 7), 'the failed worker was handed the next read').resolves.toBe('read');
   expect(createWorker).toHaveBeenCalledTimes(2);
 });
+
+/** Stopping the engine stops the worker part way through a read too, and fails the reads waiting for it. */
+test('terminating stops a worker that is reading, not only the idle ones', async () => {
+  vi.spyOn(crypto.subtle, 'digest').mockResolvedValue(digestOf(MODEL_SHA256));
+
+  const reading = { started: false };
+  const busy = {
+    ...worker(() => {
+      reading.started = true;
+
+      return new Promise(() => {});
+    }),
+    terminate: vi.fn(() => Promise.resolve()),
+  };
+  createWorker.mockResolvedValueOnce(busy);
+
+  const engine = tesseractWasm({ langPath: '.', workers: 1, cache: false });
+  void engine.tsv(image, 7);
+  await vi.waitFor(() => expect(reading.started).toBe(true));
+  const queued = engine.tsv(image, 7);
+
+  await engine.terminate();
+
+  expect(busy.terminate, 'the worker part way through a read was left running').toHaveBeenCalled();
+  await expect(queued).rejects.toThrow(/stopped/);
+});
