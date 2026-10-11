@@ -157,7 +157,10 @@ export async function fetchEvents(url: string): Promise<readonly FeedEvent[]> {
  * A class rather than module state so a test can start from nothing; the document has the one instance below.
  */
 export class EventStore {
-  /** The feed entries, merged and sorted by start. Empty until the first load, and after one that found neither file. */
+  /**
+   * The feed entries, merged and sorted by start. Empty until a load finds either file; a later load that finds neither
+   * leaves the last ones in place.
+   */
   events: readonly ParsedEvent[] = [];
 
   /** True from the start, since the shell asks for the feed as the document loads, until that load is over. */
@@ -286,8 +289,12 @@ export class EventStore {
 
     this.loading = false;
 
+    /*
+     * The events already loaded are kept rather than emptied. Every tab's notifications read them, so a refetch that
+     * fails — offline, say — would otherwise drop each tab's count to nothing, which reads as "nothing new" rather
+     * than as a failure. The Events page says the load failed and draws none of them meanwhile.
+     */
     if (feed.status === 'rejected' && local.status === 'rejected') {
-      this.events = [];
       this.failed = said(feed.reason);
       this.emit();
       return;

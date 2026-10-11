@@ -138,6 +138,19 @@ test('acknowledging clears the notification through the one seen set, and tells 
   expect(ids(next)).toEqual(['c']);
 });
 
+test('a refetch that finds neither file keeps the events already loaded, so no tab loses its count', async () => {
+  const { store, source, fetchList } = storeOver([feedEvent('a')]);
+
+  await store.load();
+  source.feed = [feedEvent('a'), feedEvent('b')];
+  await store.load();
+  fetchList.mockRejectedValue(new Error('offline'));
+  await store.load();
+
+  expect(store.failed).toBe('offline');
+  expect(ids(store)).toEqual(['b']);
+});
+
 test('the shell and the Events page opening together fetch once', async () => {
   const { store, fetchList } = storeOver([feedEvent('a')]);
 

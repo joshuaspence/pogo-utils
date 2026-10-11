@@ -4,7 +4,7 @@
  *
  * A notice is anything the reader has not acknowledged yet. The list is not a history — clearing one is acknowledging
  * it, and an acknowledged notice is gone rather than greyed. New events are the only kind so far; another kind joins by
- * adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one.
+ * adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one or all of them.
  */
 
 import { useEffect, useRef, useState } from 'preact/hooks';
@@ -42,8 +42,19 @@ function eventNotices(store: EventStore): Notice[] {
   }));
 }
 
+/**
+ * One kind of notice: what of it is waiting, and how to clear all of that at once. The second is its own rather than a
+ * loop over each notice's `clear`, which for events would write the seen set and redraw every reader once per event.
+ */
+interface Source {
+  notices: (store: EventStore) => Notice[];
+  clearAll: (store: EventStore) => void;
+}
+
 /** Every kind of notice, in the order the list shows them. */
-const SOURCES: readonly ((store: EventStore) => Notice[])[] = [eventNotices];
+const SOURCES: readonly Source[] = [
+  { notices: eventNotices, clearAll: (store) => store.acknowledge(store.newlyVisible()) },
+];
 
 export function Notices() {
   const store = useEventStore();
@@ -82,7 +93,7 @@ export function Notices() {
     };
   }, [open]);
 
-  const notices = SOURCES.flatMap((source) => source(store));
+  const notices = SOURCES.flatMap((source) => source.notices(store));
   const count = notices.length;
   const label = count === 0 ? 'Notifications: none' : `Notifications: ${count} new`;
 
@@ -113,8 +124,8 @@ export function Notices() {
               type="button"
               class="notices-clear-all"
               onClick={() => {
-                for (const notice of notices) {
-                  notice.clear();
+                for (const source of SOURCES) {
+                  source.clearAll(store);
                 }
               }}
             >
