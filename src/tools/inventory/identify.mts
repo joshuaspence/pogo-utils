@@ -183,7 +183,7 @@ export function identify(
   // something — a suffix read off the artwork must not empty a list the numbers had narrowed correctly.
   const drawn = overlay?.form ?? null;
   const labelled = drawn === null ? null : (PGSHARP_FORMS.get(drawn) ?? drawn);
-  const named = labelled === null ? [] : candidates.filter((f) => fold(f.form) === fold(labelled));
+  const named = labelled === null ? [] : candidates.filter((f) => f.form !== null && fold(f.form) === fold(labelled));
 
   if (named.length > 0) {
     candidates = named;
@@ -217,7 +217,7 @@ export function identify(
   // Shortest name first and costumes last, which is what makes the answer the plainest form that fits and the group
   // below it a costume's base form rather than the costume.
   const [form = null, ...rest] = [...candidates].sort(
-    (a, b) => Number(a.costume) - Number(b.costume) || a.form.length - b.form.length,
+    (a, b) => Number(a.costume) - Number(b.costume) || (a.form?.length ?? 0) - (b.form?.length ?? 0),
   );
 
   // Split on what a second read of the same screen could do about them, and fold each side on what it is worth saying.
