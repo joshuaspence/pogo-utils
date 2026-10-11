@@ -336,10 +336,22 @@ export async function findOverlay(image: Image): Promise<{ box: OverlayBox; over
       const batch = tops.slice(at, at + SWEEP_BATCH);
       const lines = await Promise.all(batch.map((top) => tripled(treat(crop(image, left, top, width, height)))));
 
-      for (const [i, top] of batch.entries()) {
+      for (const [i, first] of batch.entries()) {
         if (lines[i] === null) {
           continue;
         }
+
+        // The band below where it matches too, the first band to match being the highest the triple is legible in and
+        // so the one holding the least of the text beneath it. A band is three steps tall, so the line is legible in a
+        // run of neighbouring bands, and the top of that run reads the IVs and loses the level: on
+        // `charizard-gigantamax.png` it holds the claw above the overlay and only the top of the `L20` beside it,
+        // which reads as `90`, `L` and `5 80` under the three treatments and offers no 20 at all. One step lower
+        // offers 20 among the levels the HP chooses from. Read here only where the batch ends on the match, the band
+        // below being in it otherwise.
+        const below = first + step;
+        const next =
+          i + 1 < batch.length ? lines[i + 1] : await tripled(treat(crop(image, left, below, width, height)));
+        const top = next === null ? first : below;
 
         // The band itself, which is already the right shape. Sizing a box from the line instead does not work, because
         // reading a band as one line is what makes its width meaningless — everything comes back as one box, which on

@@ -129,9 +129,10 @@ interface Defects {
    * Every note `identify` answers, in its order — including the two that are derived from `alternatives` and from
    * `unseparated` where this is absent, and which have to be written out where it is present.
    *
-   * The whole list rather than the rest of it, because a derived note is not always last: on `charizard-gigantamax.png`
-   * the unseparated clone is reported ahead of the level shortlist no HP can be. A row that could only append could not
-   * state that order, and the order is the half that says which note came of which.
+   * The whole list rather than the rest of it, because a derived note is not always last: `identify` reports the
+   * unseparated forms ahead of a level shortlist no HP can be, which `charizard-gigantamax.png` did until its overlay
+   * was read from a band holding the whole of its level. A row that could only append could not state that order, and
+   * the order is the half that says which note came of which. No row pins one now.
    */
   notes?: string[];
 }
@@ -361,13 +362,7 @@ const FIXTURES: readonly Fixture[] = [
   },
   {
     cp: 1605,
-    defects: {
-      notes: [
-        'nothing on the screen separates it from Charizard (Copy 2019)',
-        'the overlay reads as level 9 or 5 or 8, none of which this HP can be',
-      ],
-      unseparated: ['Charizard (Copy 2019)'],
-    },
+    defects: { unseparated: ['Charizard (Copy 2019)'] },
     file: 'charizard-gigantamax.png',
     form: null,
     gender: 'male',
@@ -1310,19 +1305,19 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * screenshot rather than writing the contradiction into a row. The rows are what make that measurable — nothing on a
  * phone says what the Pokémon was.
  *
- * One of the 43, where eight raise a note at all — so the trigger costs an extra read on a reading that could improve
- * and on nothing else. That it costs one *there* is held by the `identify notes` test above rather than here: that one
+ * None of the 43 any more, where eight raise a note at all — so the trigger costs the corpus no extra read, and would
+ * cost one only on a reading that could improve. That it costs one *there* is held by the `identify notes` test above rather than here: that one
  * asserts what `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture
  * that starts raising a note without earning one fails there.
  *
- * The seven it does not reach are the ones `unseparated` names, and they are a limit rather than a gap: a form sharing
+ * The eight it does not reach are the ones `unseparated` names, and they are a limit rather than a gap: a form sharing
  * every number the screen prints is the artwork's to separate, and it has either declined or had no icon for every
  * member. `basculin-blue.png` is the severest — the overlay is drawn over the fish's head, which is the only part of it
  * that differs between the three stripes, so the screen never stated which. A second read of the same screen cannot
  * invent a field the game does not print; only a second reader of the same thing could.
  */
 test(
-  'the defects a scan reads a screen again for are the one note another read could clear',
+  'no defect left is one a scan could clear by reading the screen again',
   async () => {
     // Here at all because a reader fixed takes its row's defect with it, and the per-fixture tests and `COVERAGE` are
     // updated as part of that fix: this is what then reports the retry trigger firing on fewer captures.
@@ -1346,12 +1341,13 @@ test(
       }
     }
 
-    expect(chased, 'which captures a scan reads a second time has changed').toStrictEqual(['charizard-gigantamax.png']);
+    expect(chased, 'which captures a scan reads a second time has changed').toStrictEqual([]);
 
     // And the other side of the split, which is what says the eight captures `unseparated` reaches cost a scan nothing:
     // their note is reported and never chased.
     expect(reported, 'a note no second read could clear is one a scan must report rather than chase').toStrictEqual([
       'basculin-blue.png',
+      'charizard-gigantamax.png',
       'ho-oh.png',
       'pikachu.png',
       'pikachu-ash-hat.png',
@@ -1613,13 +1609,14 @@ test('the overlay fixtures/spinda-04.png does not read would have named one form
  *
  * Some capture must offer a level **above** its true one, which is what catches an HP test admitting any HP at or above
  * the one read — against a shortlist whose largest member is already the answer such a break cannot move anything. And
- * some shortlist must **not** contain its true level, which is what says the HP is the arbiter rather than a
- * tie-breaker. One does: `charizard-gigantamax.png` `[9, 5, 8]` for 20, a `defects.notes` entry reporting the
- * disagreement, and the only one left because no treatment of its band reads the level plainly — `90`, `L` and `5 80`
- * are the three. Without it, a `levelsOf` that merely filtered the stated list would pass every assertion here.
+ * a shortlist **not** containing its true level is what says the HP is the arbiter rather than a tie-breaker, which no
+ * capture offers any more: the last was `charizard-gigantamax.png`'s `[9, 5, 8]` for 20, read off a band holding only
+ * the top of its `L20`. So every shortlist containing its own level is asserted here as the regression it would be, and
+ * the miss is forged in the test of a misread level below, without which a `levelsOf` that merely filtered the stated
+ * list would pass.
  */
 test(
-  'the shortlists the overlay states both overshoot a true level and miss one',
+  'the shortlists the overlay states overshoot a true level and never miss one',
   async () => {
     const stated = new Map<string, readonly number[]>();
 
@@ -1634,10 +1631,10 @@ test(
       offered.some((f) => stated.get(f.file)?.some((level) => level > (f.overlay?.level ?? 0))),
       'no shortlist offers a level above the true one, so nothing can catch an HP test that is not exact',
     );
-    assert.ok(
-      offered.some((f) => !stated.get(f.file)?.includes(f.overlay?.level ?? 0)),
-      'every shortlist contains its own level, so nothing says the HP is what settles it',
-    );
+    expect(
+      offered.filter((f) => !stated.get(f.file)?.includes(f.overlay?.level ?? 0)).map((f) => f.file),
+      'a shortlist has stopped offering its own level, so the overlay is being read off a band missing some of it',
+    ).toStrictEqual([]);
   },
   WHOLE_CORPUS_TIMEOUT,
 );
@@ -1681,6 +1678,7 @@ test('a level the overlay misreads leaves the CP to settle the form', async () =
   const identity = identify(DATA, detail, { ...overlay, levels: [1] }, artwork);
 
   expect(identity.form && label(identity.form)).toBe('Deoxys (Attack)');
+  expect(identity.levels, 'the HP no longer settles a level the shortlist does not hold').toStrictEqual([20]);
   expect(identity.notes).toStrictEqual(['the overlay reads as level 1, none of which this HP can be']);
 });
 
@@ -2382,7 +2380,7 @@ test('the corpus reaches both sides of every attribute', () => {
   expect(
     [...new Set(FIXTURES.flatMap((f) => Object.keys(f.defects ?? {})))].sort(),
     'a reader has started or stopped disagreeing with the screen about something',
-  ).toStrictEqual(['label', 'notes', 'unseparated']);
+  ).toStrictEqual(['label', 'unseparated']);
 
   // And the other side of it, which the keys above cannot give: that some capture carries no defect at all. Without it
   // a reader that was wrong everywhere would pass every row it had a `defects` entry in.
