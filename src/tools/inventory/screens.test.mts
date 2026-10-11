@@ -426,7 +426,7 @@ const FIXTURES: readonly Fixture[] = [
   {
     cp: 1772,
     file: 'deoxys-normal.png',
-    form: '',
+    form: null,
     gender: null,
     height: 1.94,
     hp: 90,
@@ -930,6 +930,12 @@ for (const fixture of FIXTURES) {
       const { identity } = await readingOf(fixture.file);
 
       expect(identity.form && label(identity.form)).toBe(answered);
+
+      // The form itself, strictly, where the answer is the row's own: the label above reads `null` and `''` alike,
+      // which is how the table came to spell an ordinary form both ways.
+      if (!('label' in defects)) {
+        expect(identity.form?.form).toBe(fixture.form);
+      }
     });
 
     test('identify levels', async () => expect((await readingOf(fixture.file)).identity.levels).toStrictEqual(levels));

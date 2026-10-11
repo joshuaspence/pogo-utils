@@ -14,21 +14,11 @@ import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { applyBackup, backupName, ownedKeys, parseBackup, rescueName, writeBackup } from '../backup.js';
-import { LOCAL_EVENTS, routeSummary, VENDED_EVENTS } from '../event-feed.js';
-import {
-  clearPrefs,
-  DEFAULT_HIDDEN,
-  hiddenFor,
-  KEYS,
-  loadPrefs,
-  persist as persistPref,
-  RECURRING,
-  type Prefs,
-} from '../event-prefs.js';
+import { routeSummary } from '../event-feed.js';
+import { clearPrefs, DEFAULT_HIDDEN, hiddenFor, type Prefs } from '../event-prefs.js';
 import {
   addDays,
   DAY_MS,
-  mergeEvents,
   overlaps,
   packLanes,
   relativeUnit,
@@ -41,11 +31,20 @@ import {
   type StatusKind,
   type TrackItem,
 } from '../event-schedule.js';
+import {
+  admits,
+  isNew as isNewIn,
+  isRevealed as isRevealedIn,
+  newlyVisible as newlyVisibleIn,
+  NOTHING_REVEALED,
+  useEventStore,
+  type Reveals,
+} from '../event-store.js';
 import { said } from '../errors.js';
 import { ENTRIES_BY_EVENT } from '../generated.js';
 import { toHash } from '../router.js';
 
-import type { FeedEvent, RouteIndex } from '../types.js';
+import type { RouteIndex } from '../types.js';
 
 /** Which of the three views is showing. A page concept, so it stays here rather than beside the schedule. */
 type View = 'cards' | 'calendar' | 'tracks';
@@ -133,11 +132,7 @@ const REVEALS = [
   { name: 'showPast', label: 'Show ended', cardsOnly: true },
   { name: 'showUndated', label: 'Show undated', cardsOnly: true },
   { name: 'showHidden', label: 'Show hidden', cardsOnly: false },
-] as const;
-
-type Reveals = Record<(typeof REVEALS)[number]['name'], boolean>;
-
-const NOTHING_REVEALED: Reveals = { showPast: false, showUndated: false, showHidden: false };
+] as const satisfies readonly { name: keyof Reveals; label: string; cardsOnly: boolean }[];
 
 // Tracks view geometry. TRACK_DAY_PX is the single source for a day column's width: the bars are positioned in pixels
 // from it, and the same value is handed to CSS as the --track-day custom property for the gridline background, so the two
@@ -185,28 +180,6 @@ function timeRange(ev: ParsedEvent) {
 }
 
 /**
- * One feed, checked to be a list. `Array.isArray` narrows no further than `any[]`, so the element type is a claim
- * rather than something the throw enforces. What makes it a safe one is `normalise`: every field is either handed to
- * `parseDate`, which answers null for anything that is not a date, or rendered as text — so a feed that changed shape
- * draws `undefined` rather than doing something with it.
- */
-async function fetchEvents(url: string): Promise<readonly FeedEvent[]> {
-  const res = await fetch(url, { cache: 'default' });
-
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`);
-  }
-
-  const raw: unknown = await res.json();
-
-  if (!Array.isArray(raw)) {
-    throw new Error('not a list of events');
-  }
-
-  return raw;
-}
-
-/**
  * The route and waypoint counts per event. Unchecked, and the return type therefore a claim about a file this
  * repository generates rather than one this function verified — `validate-gpx.mts` is what holds the file and the GPX
  * tree in step. A card tolerates a miss either way: an event the index does not name simply gets no map link.
@@ -240,41 +213,38 @@ function downloadText(text: string, name: string) {
 
 export default function EventsPage({ query: fragment }: { query: string }) {
   /**
-   * The reader's saved choices, held as the one mutable object the prefs module hands out: `hiddenFor` answers a set
-   * the caller adds to and deletes from, and the dismissals and seen set are read and written the same way. So this is
-   * a ref and a repaint rather than state, and `commit` is the one way it changes.
+   * The feed and the reader's saved choices, shared with the notifications in the top bar so that a card's New mark and
+   * its notification are one fact: clearing either redraws both. The page redraws whenever the store changes.
    */
-  const prefs = useRef(loadPrefs()).current;
-
-  const [, painted] = useState(0);
-  const repaint = () => painted((count) => count + 1);
+  const store = useEventStore();
 
   /**
-   * Write one preference back and redraw. Named rather than keyed so a call site cannot pair a key with the wrong value;
-   * the one `prefs` this page has is the one every call means, so it is bound here rather than spelled at each of them.
+   * The reader's saved choices, held as the one mutable object the store hands out: `hiddenFor` answers a set the
+   * caller adds to and deletes from, and the dismissals and seen set are read and written the same way. So this is a
+   * reference rather than state, and `commit` is the one way it changes. Re-read from storage as the page
+   * opens, so nothing a previous visit changed in memory alone is carried in.
    */
-  const commit = (name: keyof typeof KEYS) => {
-    persistPref(prefs, name);
-    repaint();
-  };
+  const [prefs] = useState(() => store.reloadPrefs());
 
-  /** The feed entries the page is drawing, sorted by start. */
-  const [events, setEvents] = useState<readonly ParsedEvent[]>([]);
+  /**
+   * Write one preference back and redraw this page and the top bar. Named rather than keyed so a call site cannot pair
+   * a key with the wrong value.
+   */
+  const commit = (name: Parameters<typeof store.commit>[0]) => store.commit(name);
+
+  /**
+   * The feed entries the page is drawing, sorted by start, and how the load that fetched them went. `generation` is
+   * which fetch the events on screen came from, which is what the cards' entry animation is keyed by. A CSS animation
+   * runs when its element mounts, so a new number builds a new grid and plays it while the same number leaves the grid
+   * alone — which is what keeps the minute's re-render from twitching every card as the relative labels move.
+   */
+  const { events, failed, loading, generation } = store;
 
   /**
    * How many routes and waypoints each event has here, by `eventID`. Empty until the index has loaded, and it stays
    * empty if that fetch fails — see `load`, which tolerates any one of the three sources going missing.
    */
   const [routeIndex, setRouteIndex] = useState<RouteIndex>({});
-  const [failed, setFailed] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  /**
-   * Which fetch the events on screen came from, which is what the cards' entry animation is keyed by. A CSS animation
-   * runs when its element mounts, so a new number builds a new grid and plays it while the same number leaves the grid
-   * alone — which is what keeps the minute's re-render from twitching every card as the relative labels move.
-   */
-  const [generation, setGeneration] = useState(0);
 
   /** Recomputed every minute, which is what keeps the relative labels honest without anything else being redrawn. */
   const [now, setNow] = useState(() => new Date());
@@ -304,91 +274,23 @@ export default function EventsPage({ query: fragment }: { query: string }) {
    */
   const pending = useRef<string | null>(null);
 
-  /**
-   * Whether an event survives the type-filter, dismissal and search-term filters — the ones meaning "I do not want to
-   * see this", so every view honours them. "Show hidden" reveals a dismissal the way "Show ended" reveals a past
-   * event: a temporary reveal rather than a change to what was saved. The status reveals are `isRevealed`'s.
-   */
-  function isVisible(ev: ParsedEvent) {
-    if (hiddenFor(prefs, view).has(ev.heading)) {
-      return false;
-    }
+  /** What the cards view is drawing under beyond the saved filters, which the top bar's count reads too. */
+  const filter = { reveals, search, now };
 
-    if (prefs.dismissed.has(ev.eventID) && !reveals.showHidden) {
-      return false;
-    }
+  /** Whether an event survives the type-filter, dismissal and search-term filters of the view that is open. */
+  const isVisible = (ev: ParsedEvent) => admits(ev, prefs, hiddenFor(prefs, view), filter);
 
-    const term = search.trim().toLowerCase();
+  /** Whether the reader has revealed the status bucket this event falls in. */
+  const isRevealed = (ev: ParsedEvent) => isRevealedIn(ev, filter);
 
-    return !term || ev.name.toLowerCase().includes(term);
-  }
+  /** Whether the event has turned up since the reader last acknowledged what was on the page. */
+  const isNew = (ev: ParsedEvent) => isNewIn(prefs, ev);
 
   /**
-   * Whether the reader has revealed the status bucket this event falls in. The two opt-in buckets are an event that is
-   * over and one the feed gave no date for, neither being something to plan around.
-   *
-   * Shared with `newlyVisible` so the new count can only be a subset of the total beside it: a header reporting more
-   * new events than events contradicts itself, as does any count at all above "No events to show".
+   * The events the reader is being told are new, which is also what the top bar lists: unacknowledged, and among
+   * those the ones the cards view admits.
    */
-  function isRevealed(ev: ParsedEvent) {
-    const kind = statusOf(ev, now).kind;
-
-    return (kind !== 'ended' || reveals.showPast) && (kind !== 'tbd' || reveals.showUndated);
-  }
-
-  /**
-   * Whether the event has turned up since the reader last acknowledged what was on the page. The feed carries no
-   * published date, so "new" can only mean "an ID this browser has not recorded seeing".
-   *
-   * A recurring type is never new. Each occurrence carries its own dated ID — `pokemonspotlighthour2026-09-24` — so a
-   * weekly Spotlight Hour arrives unrecognised every week and would mark itself for ever, reporting nothing. Hence
-   * `settleSeen` storing none of them either.
-   *
-   * Nothing is new before the first feed has settled the seen set, so a slow fetch cannot flash badges over every card.
-   */
-  function isNew(ev: ParsedEvent) {
-    return prefs.seen !== null && !RECURRING.has(ev.heading) && !prefs.seen.has(ev.eventID);
-  }
-
-  /**
-   * Acknowledge one event, asked only for an event `isNew` has admitted — which it cannot do before `settleSeen` has
-   * filled the set, a null one being the first of its three conditions. So the optional call is that null being
-   * unreachable rather than tolerated.
-   */
-  function recordSeen(ev: ParsedEvent) {
-    prefs.seen?.add(ev.eventID);
-  }
-
-  /**
-   * The events the reader is being told are new: unacknowledged, and among those their filters admit. Both filters, so
-   * the count leaves out everything they have said they do not want.
-   */
-  const newlyVisible = () => events.filter((ev) => isNew(ev) && isVisible(ev) && isRevealed(ev));
-
-  /**
-   * Settle the seen set against the feed, once per fetch.
-   *
-   * A first visit seeds it with everything on offer rather than marking all of it new, the mark being the difference
-   * from what you last looked at. IDs the feed has dropped are forgotten, which cannot resurrect a mark because every
-   * occurrence carries its own dated ID.
-   *
-   * The recurring types are left out of both halves, `isNew` never marking one: they are a fifth of the feed, so
-   * storing them would turn a fifth of the set over every week to answer a question nothing asks. Leaving them out of
-   * `ids` is also what drops the ones already stored, the prune keeping only what `ids` holds.
-   *
-   * Both halves are skipped when the feed gave us nothing: seeding from an empty feed would mark the whole of the next
-   * good one new, and pruning against it would forget every ID the reader had acknowledged.
-   */
-  function settleSeen(settled: readonly ParsedEvent[]) {
-    if (settled.length === 0) {
-      return;
-    }
-
-    const ids = new Set(settled.filter((ev) => !RECURRING.has(ev.heading)).map((ev) => ev.eventID));
-
-    prefs.seen = prefs.seen === null ? ids : new Set([...prefs.seen].filter((id) => ids.has(id)));
-    persistPref(prefs, 'seen');
-  }
+  const newlyVisible = () => newlyVisibleIn(events, prefs, filter);
 
   /**
    * A link from the Routes page arrives as `#/events?event=<eventID>` and lands by searching for that event's name.
@@ -415,40 +317,16 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     setSearch(match.name);
   }
 
-  async function load() {
-    setLoading(true);
-
-    /*
-     * All three concurrently, tolerating any failing: a dead feed still shows the repo events, a missing local file
-     * still shows the feed, and a missing index costs the cards their map link and nothing else.
-     */
-    const [feed, local, index] = await Promise.allSettled([
-      fetchEvents(VENDED_EVENTS),
-      fetchEvents(LOCAL_EVENTS),
-      fetchRouteIndex(),
-    ]);
+  /**
+   * The events and the route index, concurrently, tolerating either failing: a missing index costs the cards their map
+   * link and nothing else. The events are the store's, which the top bar has usually loaded already by the time this
+   * page opens — so opening the page reuses that load, and only Refresh and the ten-minute tick fetch them again.
+   */
+  async function load(fresh: boolean) {
+    const [, index] = await Promise.allSettled([fresh ? store.load() : store.ensureLoaded(), fetchRouteIndex()]);
 
     setRouteIndex(index.status === 'fulfilled' ? index.value : {});
-    setLoading(false);
-
-    if (feed.status === 'rejected' && local.status === 'rejected') {
-      setEvents([]);
-      setFailed(said(feed.reason));
-      return;
-    }
-
-    // Local last, so a repo entry overrides a feed event of the same ID rather than duplicating it. `mergeEvents`
-    // parses the dates and sorts by start as well.
-    const merged = mergeEvents(
-      feed.status === 'fulfilled' ? feed.value : [],
-      local.status === 'fulfilled' ? local.value : [],
-    );
-
-    settleSeen(merged);
-    setEvents(merged);
-    setFailed(null);
-    setGeneration((was) => was + 1);
-    applyPending(merged);
+    applyPending(store.events);
   }
 
   // The fragment's `?event=` is read before the first fetch, so the arrival is applied as soon as there is a feed to
@@ -459,8 +337,25 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }, [fragment]);
 
   useEffect(() => {
-    void load();
+    void load(false);
   }, []);
+
+  /**
+   * Hand the cards view's filters to the store while the page is open, so the top bar counts under the same ones, and
+   * take them back as it closes. Closing also re-reads the saved choices, dropping a type `applyPending` unhid for one
+   * arrival without saving: every other tab counts under what is stored.
+   */
+  useEffect(() => {
+    store.publish(filter);
+  }, [reveals, search, now]);
+
+  useEffect(
+    () => () => {
+      store.reloadPrefs();
+      store.publish(null);
+    },
+    [],
+  );
 
   /**
    * Re-render every minute so relative labels stay honest, and re-fetch every tenth to catch new events. A tab coming
@@ -474,7 +369,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       tick += 1;
 
       if (tick % REFETCH_EVERY === 0) {
-        void load();
+        void load(true);
       } else {
         setNow(new Date());
       }
@@ -534,8 +429,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     // Not stored, so `clearPrefs` leaves these as they were — but they are three of the same chips Reset puts back,
     // and a Reset cannot leave one of them widening the page.
     setReveals(NOTHING_REVEALED);
-    settleSeen(events);
-    repaint();
+    store.settle();
   }
 
   /**
@@ -583,13 +477,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         return;
       }
 
-      Object.assign(prefs, loadPrefs());
+      store.reloadPrefs();
 
       // The same two corrections Reset makes, for the same reasons: `settleSeen` reads an absent `seen` as a first
       // visit, and a change this wholesale cannot leave a session reveal widening the page.
       setReveals(NOTHING_REVEALED);
-      settleSeen(events);
-      repaint();
+      store.settle();
 
       setBackupStatus(`Restored ${written.length} saved preference${written.length === 1 ? '' : 's'}.`);
     } catch (e) {
@@ -608,11 +501,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
    * are ones the reader has never been shown, and this clears them in one press.
    */
   function markAllSeen() {
-    for (const ev of newlyVisible()) {
-      recordSeen(ev);
-    }
-
-    commit('seen');
+    store.acknowledge(newlyVisible());
   }
 
   /**
@@ -665,8 +554,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         return;
       }
 
-      recordSeen(ev);
-      commit('seen');
+      store.acknowledge([ev]);
     };
 
     return (
@@ -723,10 +611,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
             class="new-mark"
             title="Mark as seen"
             aria-label={`Mark “${ev.name}” as seen`}
-            onClick={() => {
-              recordSeen(ev);
-              commit('seen');
-            }}
+            onClick={() => store.acknowledge([ev])}
           >
             New
           </button>
@@ -1188,7 +1073,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           value={search}
           onInput={(event) => setSearch(event.currentTarget.value)}
         />
-        <button type="button" onClick={() => void load()}>
+        <button type="button" onClick={() => void load(true)}>
           Refresh
         </button>
         <button

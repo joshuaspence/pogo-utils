@@ -18,3 +18,9 @@
   moment the checks pass and the review approves — with nobody looking at it again. That is the user's call rather than
   a default to assume either way, so when they have not said, ask before opening it, and leave auto-merge off until they
   answer.
+- **Show the change in screenshots.** A pull request that changes anything a page draws carries screenshots of it, taken
+  from a real build (`pnpm build && pnpm serve`) rather than described, so a reviewer can judge it without checking the
+  branch out. Show each state the change adds, in light and dark, and at phone width where the layout differs there.
+  GitHub takes an image upload only through its web editor, so commit the images to the branch, embed them in a PR
+  comment by that commit's SHA (`…/blob/<sha>/<path>?raw=true`), and remove them in the next commit: the pinned links
+  keep working, and the squash merge carries neither commit into `master`.

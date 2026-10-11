@@ -4,13 +4,24 @@
  * as the styling hook. Uses the tokens from theme.css.
  */
 
-.topnav {
+/**
+ * The bar itself, holding the tabs and the notifications control beside them. The background and rule are drawn here
+ * rather than on the tabs, so they run under both.
+ */
+.topbar {
   display: flex;
   align-items: stretch;
-  gap: 2px;
-  padding: 0 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+}
+
+.topnav {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 10px;
 
   /**
    * Five tabs no longer fit a phone, and a bar that merely overflows drops the last one off the edge with no way to
@@ -58,12 +69,160 @@
 }
 
 /**
+ * The notifications control, at the bar's far end. Positioned so the list it opens hangs from it, and outside the
+ * scrolling `.topnav` so that list is not clipped by it.
+ */
+.notices {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  border-left: 1px solid var(--border);
+}
+
+.notices-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.notices-toggle:hover,
+.notices-toggle[aria-expanded='true'] {
+  color: var(--text);
+}
+
+.notices-count {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/**
+ * Over everything, the Map page's Leaflet panes and controls included: Leaflet stacks its own up to 1000, and the map's
+ * toast sits at 1200.
+ */
+.notices-panel {
+  position: absolute;
+  top: 100%;
+  right: 6px;
+  z-index: 2000;
+  width: min(360px, calc(100vw - 12px));
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  margin-top: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lift);
+  font-size: 13px;
+}
+
+.notices-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.notices-clear-all {
+  border: none;
+  background: none;
+  color: var(--track);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.notices-empty {
+  margin: 0;
+  padding: 14px 12px;
+  color: var(--muted);
+}
+
+.notices-panel ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notices-panel li {
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+}
+
+.notices-panel li:last-child {
+  border-bottom: none;
+}
+
+.notices-panel li a {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.notices-panel li a:hover,
+.notices-panel li a:focus-visible {
+  background: var(--accent-soft);
+}
+
+.notices-title {
+  font-weight: 600;
+}
+
+.notices-detail {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notices-clear {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notices-clear:hover,
+.notices-clear:focus-visible {
+  color: var(--accent);
+}
+
+/**
  * Tighten the tabs on a narrow screen so the five of them fit without scrolling wherever they can. Below roughly a
  * 540px viewport they still cannot, which is what the scrolling above is for.
  */
 @media (width <= 560px) {
   .topnav {
     padding: 0 4px;
+  }
+
+  .notices-toggle {
+    padding: 0 10px;
   }
 
   .topnav .tab {

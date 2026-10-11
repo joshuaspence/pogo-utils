@@ -108,14 +108,15 @@ const guessed: number[] = [];
  */
 function iconOf(dex: number): string | null {
   const plain = (forms.get(dex) ?? []).filter(({ costume, icon }) => !costume && icon !== null);
-  const ordinary = plain.find(({ form }) => form === '');
+  const ordinary = plain.find(({ form }) => form === null);
 
   if (ordinary) {
     return ordinary.icon;
   }
 
   const wanted = declared.get(dex);
-  const named = wanted === undefined ? undefined : plain.find(({ form }) => fold(wanted).startsWith(fold(form)));
+  const named =
+    wanted === undefined ? undefined : plain.find(({ form }) => form !== null && fold(wanted).startsWith(fold(form)));
 
   if (named === undefined && plain.length > 0) {
     guessed.push(dex);

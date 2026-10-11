@@ -6,6 +6,7 @@
  * edits and getting one wrong showed as two current tabs or none.
  */
 
+import { Notices } from './notices.js';
 import { PAGES, toHash, type Page } from './router.js';
 
 /**
@@ -17,15 +18,23 @@ import { PAGES, toHash, type Page } from './router.js';
  */
 export function Nav({ current }: { current: Page }) {
   return (
-    <nav class="topnav">
-      {PAGES.map(({ name, label, icon }) => (
-        <a key={name} class="tab" href={toHash(name)} aria-current={name === current ? 'page' : undefined}>
-          <span class="ico" aria-hidden="true">
-            {icon}
-          </span>{' '}
-          {label}
-        </a>
-      ))}
-    </nav>
+    <div class="topbar">
+      <nav class="topnav">
+        {PAGES.map(({ name, label, icon }) => (
+          <a key={name} class="tab" href={toHash(name)} aria-current={name === current ? 'page' : undefined}>
+            <span class="ico" aria-hidden="true">
+              {icon}
+            </span>{' '}
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      {/*
+       * Outside the `<nav>`, which scrolls sideways on a phone and so would clip the list this opens. It is not a tab
+       * either: it goes nowhere until a notice in it is chosen.
+       */}
+      <Notices />
+    </div>
   );
 }
