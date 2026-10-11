@@ -411,6 +411,64 @@ test('a re-login refused partway through a run stops the watcher rather than ret
   expect(logins).toBe(2);
 });
 
+/**
+ * Without ntfy it runs console only: a match is printed in full, the place as a link, and printed once however many
+ * polls carry it — the same once that a notification gets.
+ */
+test('without ntfy each match is printed once, in full, and nothing is sent', async () => {
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'GET /api/game_data':
+        return json(response, 200, JSON.parse(fixture('game-data.json')));
+      case 'POST /api/auth/login':
+        return json(response, 200, { token: 't' });
+      case 'POST /api/map/viewport':
+        return json(response, 200, viewport());
+      default:
+        return json(response, 200, {});
+    }
+  });
+
+  const controller = new AbortController();
+  const lines: string[] = [];
+  let polls = 0;
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => lines.push(line),
+      sleep: async () => {
+        if (++polls === 2) {
+          controller.abort();
+        }
+      },
+    });
+  } finally {
+    await map.close();
+  }
+
+  expect(lines).toContain('Watching the world every 15s for 1 query, console only (NTFY_TOPIC is not set)');
+
+  // Two polls carrying the same four spawns, each printed once.
+  expect(lines.filter((line) => line.startsWith('Found '))).toStrictEqual([
+    'Found 100% Dratini (shiny-hunt.json)',
+    'Found 100% XXL Magikarp (shiny-hunt.json)',
+    'Found Shiny 100% Rattata (Alola) (shiny-hunt.json)',
+    'Found Shiny Bulbasaur (shiny-hunt.json)',
+  ]);
+
+  const bulbasaur = lines.indexOf('Found Shiny Bulbasaur (shiny-hunt.json)');
+
+  expect(lines.slice(bulbasaur + 1, bulbasaur + 5)).toStrictEqual([
+    '  IV 10/12/8 (66.7%) · CP 512 · L20',
+    expect.stringMatching(/^ {2}Despawns \d\d:\d\d \(10 min left\)$/),
+    '  40.782865,-73.965355',
+    '  https://www.google.com/maps/search/?api=1&query=40.782865,-73.965355',
+  ]);
+});
+
 test('the command refuses to start without its credentials or a query', async () => {
   const start = (args: string[], env: Record<string, string>) =>
     new Promise<[number | null, string]>((done) => {
@@ -422,7 +480,7 @@ test('the command refuses to start without its credentials or a query', async ()
     });
 
   const [noQuery] = await start([], { LPM_USERNAME: 'u', LPM_PASSWORD: 'p', NTFY_TOPIC: 't' });
-  const [noTopic, said] = await start([fixturePath('shiny-hunt.json')], { LPM_USERNAME: 'u', LPM_PASSWORD: 'p' });
+  const [noPassword, said] = await start([fixturePath('shiny-hunt.json')], { LPM_USERNAME: 'u', NTFY_TOPIC: 't' });
   const [notFilter, why] = await start([fixturePath('config.json')], {
     LPM_USERNAME: 'u',
     LPM_PASSWORD: 'p',
@@ -430,7 +488,7 @@ test('the command refuses to start without its credentials or a query', async ()
   });
 
   expect(noQuery).toBe(1);
-  expect([noTopic, said]).toStrictEqual([1, expect.stringContaining('NTFY_TOPIC is not set')]);
+  expect([noPassword, said]).toStrictEqual([1, expect.stringContaining('LPM_PASSWORD is not set')]);
   expect([notFilter, why]).toStrictEqual([
     1,
     expect.stringContaining('config.json: not a Live PokeMap display filter'),

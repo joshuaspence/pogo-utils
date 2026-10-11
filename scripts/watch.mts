@@ -5,10 +5,11 @@
  *
  * Usage, from the repository root:
  *
- *   LPM_USERNAME=… LPM_PASSWORD=… NTFY_TOPIC=… pnpm watch [--verbose] FILTER.json…
+ *   LPM_USERNAME=… LPM_PASSWORD=… [NTFY_TOPIC=…] pnpm watch [--verbose] FILTER.json…
  *
  *   LPM_USERNAME, LPM_PASSWORD  the Live PokeMap account to log in as
- *   NTFY_TOPIC                  the ntfy topic to publish to, which anyone who knows it can read
+ *   NTFY_TOPIC                  the ntfy topic to publish to, which anyone who knows it can read; unset, it runs
+ *                               console only, printing each match in full rather than sending it
  *   NTFY_SERVER                 the ntfy server, `https://ntfy.sh` unless set
  *   NTFY_TOKEN                  an ntfy access token, for a server or topic that needs one
  *   LPM_BASE_URL                Live PokeMap itself, `https://play.livepokemap.com` unless set
@@ -26,7 +27,8 @@ import { watch } from '../src/tools/watch/watcher.mts';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-const USAGE = 'usage: pnpm watch [--verbose] FILTER.json…  (with LPM_USERNAME, LPM_PASSWORD and NTFY_TOPIC set)';
+const USAGE =
+  'usage: pnpm watch [--verbose] FILTER.json…  (with LPM_USERNAME and LPM_PASSWORD set, and NTFY_TOPIC to notify a phone)';
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
@@ -54,11 +56,11 @@ if (positionals.length === 0) {
 }
 
 const { LPM_USERNAME: username, LPM_PASSWORD: password, NTFY_TOPIC: topic } = process.env;
-const missing = Object.entries({ LPM_USERNAME: username, LPM_PASSWORD: password, NTFY_TOPIC: topic })
+const missing = Object.entries({ LPM_USERNAME: username, LPM_PASSWORD: password })
   .filter(([, value]) => !value)
   .map(([name]) => name);
 
-if (!username || !password || !topic) {
+if (!username || !password) {
   fail(`${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set\n${USAGE}`);
 }
 
@@ -97,11 +99,10 @@ const client = new LivePokeMap(
 try {
   await watch({
     client,
-    ntfy: {
-      server: process.env.NTFY_SERVER || 'https://ntfy.sh',
-      topic,
-      token: process.env.NTFY_TOKEN || undefined,
-    },
+    // No topic is console only: each match is printed rather than sent.
+    ntfy: topic
+      ? { server: process.env.NTFY_SERVER || 'https://ntfy.sh', topic, token: process.env.NTFY_TOKEN || undefined }
+      : undefined,
     queries,
     signal: controller.signal,
     log,

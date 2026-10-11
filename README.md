@@ -509,11 +509,12 @@ PokeMap display filter, one file each: whatever its own **Export** writes, or th
 LPM_USERNAME=… LPM_PASSWORD=… NTFY_TOPIC=… pnpm watch shiny-hunt.json perfect-dratini.json
 ```
 
-It runs in the foreground until stopped. `NTFY_SERVER` points it at an ntfy server other than `ntfy.sh`, and
-`NTFY_TOKEN` gives it an access token for one that needs it. Subscribe to the same topic in the ntfy app on the phone.
-The topic is as good as a password on the public server, since anyone who knows it can read what is sent there, so pick
-one nobody would guess. None of these values, nor the token the login answers, is ever printed; `--verbose` adds each
-request as it is sent and a line per poll.
+It runs in the foreground until stopped. Leave `NTFY_TOPIC` unset to run it console only: each match is printed in full
+instead, with a Google Maps link, once per spawn as a notification would be. `NTFY_SERVER` points it at an ntfy server
+other than `ntfy.sh`, and `NTFY_TOKEN` gives it an access token for one that needs it. Subscribe to the same topic in
+the ntfy app on the phone. The topic is as good as a password on the public server, since anyone who knows it can read
+what is sent there, so pick one nobody would guess. None of these values, nor the token the login answers, is ever
+printed; `--verbose` adds each request as it is sent and a line per poll.
 
 Each notification names the species and form, why it matched (shiny, 100%, XXL, XXS), IV, CP and level, where the spawn
 is and when it despawns, and opens that spot in Google Maps when tapped. A spawn notifies once however many queries want

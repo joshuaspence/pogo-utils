@@ -34,7 +34,11 @@ const UNKNOWN_DESPAWN = 60 * 60_000;
 
 export interface WatchOptions {
   client: LivePokeMap;
-  ntfy: Ntfy;
+  /**
+   * Where to send each match. Without it the watcher runs console only: a match is printed in full, through `log`, and
+   * remembered as notified all the same, so it is printed once rather than on every poll that carries it.
+   */
+  ntfy?: Ntfy;
   queries: readonly Query[];
   signal: AbortSignal;
   /** Every line worth saying. `debug` is for what only `--verbose` asks to hear. */
@@ -67,7 +71,8 @@ export async function watch(options: WatchOptions): Promise<void> {
   let first = true;
 
   log(
-    `Watching the world every ${interval / 1000}s for ${queries.length} ${queries.length === 1 ? 'query' : 'queries'}`,
+    `Watching the world every ${interval / 1000}s for ${queries.length} ${queries.length === 1 ? 'query' : 'queries'}` +
+      (ntfy ? '' : ', console only (NTFY_TOPIC is not set)'),
   );
 
   while (!signal.aborted) {
@@ -103,6 +108,19 @@ export async function watch(options: WatchOptions): Promise<void> {
         }
 
         const notification = notificationFor(spawn, reasons, data, now());
+
+        if (!ntfy) {
+          seen.remember(spawn.encounterId, spawn.despawnMs ?? now() + UNKNOWN_DESPAWN);
+          log(`Found ${notification.title} (${by.join(', ')})`);
+
+          for (const line of [...notification.message.split('\n'), notification.click ?? '']) {
+            if (line) {
+              log(`  ${line}`);
+            }
+          }
+
+          continue;
+        }
 
         try {
           await publish(ntfy, notification, signal);
