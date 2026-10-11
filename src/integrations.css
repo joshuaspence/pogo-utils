@@ -167,8 +167,17 @@ body[data-page='integrations'] {
     margin: 0;
   }
 
-  .backup button.run {
+  /**
+   * The PGSharp download is a link drawn as one of these buttons, so it is named beside them. A link takes the page's
+   * font and line height where a button takes the browser's own, so both are pinned here to keep the two alike.
+   */
+
+  .backup button.run,
+  .backup a.run {
     align-self: flex-start;
+    text-decoration: none;
+    font-family: inherit;
+    line-height: normal;
     padding: 9px 14px;
     border: 1px solid var(--accent);
     background: var(--accent);
@@ -179,13 +188,20 @@ body[data-page='integrations'] {
     cursor: pointer;
   }
 
-  .backup button.run:hover:not(:disabled) {
+  .backup button.run:hover:not(:disabled),
+  .backup a.run:hover {
     filter: brightness(1.05);
   }
 
   .backup button.run:disabled {
     opacity: 0.5;
     cursor: default;
+  }
+
+  /* A link in a panel's prose, coloured as the footer's are rather than left to the browser's blue and purple. */
+
+  .backup p a {
+    color: var(--track);
   }
 
   .backup .status {
