@@ -33,7 +33,8 @@
     "test:default": "vitest run --project default",
     "vend": "npm-run-all --continue-on-error --parallel --print-label 'vend:*'",
     "vend:events": "node scripts/vend-feed.mts",
-    "vend:game-master": "node scripts/vend-game-master.mts"
+    "vend:game-master": "node scripts/vend-game-master.mts",
+    "vend:pgsharp": "node scripts/vend-pgsharp.mts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

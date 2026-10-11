@@ -167,8 +167,12 @@ body[data-page='integrations'] {
     margin: 0;
   }
 
-  .backup button.run {
+  /* The PGSharp download is a link drawn as one of these buttons, so it is named beside them and loses its underline. */
+
+  .backup button.run,
+  .backup a.run {
     align-self: flex-start;
+    text-decoration: none;
     padding: 9px 14px;
     border: 1px solid var(--accent);
     background: var(--accent);
@@ -179,7 +183,8 @@ body[data-page='integrations'] {
     cursor: pointer;
   }
 
-  .backup button.run:hover:not(:disabled) {
+  .backup button.run:hover:not(:disabled),
+  .backup a.run:hover {
     filter: brightness(1.05);
   }
 

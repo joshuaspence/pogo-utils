@@ -13,7 +13,7 @@
  * both however they are split. No byte count is quoted because nothing here would fail when one drifted.
  */
 
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 
 import { copyText } from '../dom.js';
 import { said } from '../errors.js';
@@ -23,6 +23,7 @@ import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filte
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
+import { DOWNLOAD_URL, type Release, VENDED_RELEASE } from '../pgsharp/release.js';
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -101,6 +102,24 @@ function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
  */
 const FEED_COUNT = JSON.parse(CONTROL_RESETS.resetFeeds.hlfeeds).length;
 
+/**
+ * The release `scripts/vend-pgsharp.mts` last wrote. Unchecked beyond its two fields being strings: the file is this
+ * repository's own, and a miss of any kind leaves the button on PGSharp's unversioned link rather than failing the page.
+ */
+async function fetchRelease(): Promise<Release | null> {
+  try {
+    const res = await fetch(VENDED_RELEASE, { cache: 'default' });
+    const raw: Partial<Release> = res.ok ? await res.json() : {};
+
+    return typeof raw.version === 'string' && typeof raw.url === 'string'
+      ? { version: raw.version, url: raw.url }
+      : null;
+  } catch (e) {
+    console.error(`${VENDED_RELEASE}: ${said(e)} — the download button will not name a version`);
+    return null;
+  }
+}
+
 /** What the last press of the button came to, and whether it is a failure the status line should colour red. */
 interface Status {
   message: string;
@@ -115,6 +134,11 @@ export default function IntegrationsPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
+  const [release, setRelease] = useState<Release | null>(null);
+
+  useEffect(() => {
+    void fetchRelease().then(setRelease);
+  }, []);
 
   /**
    * Put the display filter on the clipboard, which is where Live PokeMap's own filter import reads one from — it offers
@@ -185,21 +209,19 @@ export default function IntegrationsPage() {
         <div class="body">
           <h2>PGSharp backup</h2>
 
-          {/*
-           * `api.pgsharp.com/download` redirects to whichever APK is current — on 2026-10-11, to
-           * `dl.pgsharp.com/pgs1.272.2_0.431.0_XsfbL(arm64).apk` — so a tap on a phone starts the download and the link
-           * outlives a release. The site 403s automated fetchers, so if it ever breaks, read the new one off pgsharp.com
-           * in a browser.
-           */}
           <p>
-            Build a partial{' '}
-            <a href="https://api.pgsharp.com/download" target="_blank" rel="noopener">
-              PGSharp
-            </a>{' '}
-            backup holding every route and waypoint in this collection, plus whichever options below are ticked —
-            nothing else. Importing it overwrites exactly those and leaves the rest of your PGSharp settings as they
-            were. Everything runs in your browser.
+            Build a partial PGSharp backup holding every route and waypoint in this collection, plus whichever options
+            below are ticked — nothing else. Importing it overwrites exactly those and leaves the rest of your PGSharp
+            settings as they were. Everything runs in your browser.
           </p>
+
+          {/*
+           * Before the options rather than beside the backup's own button, so the reader who has yet to install PGSharp
+           * meets it first — and because it is an APK, they are already on the phone it goes on.
+           */}
+          <a class="run" href={release?.url ?? DOWNLOAD_URL} target="_blank" rel="noopener">
+            {release ? `Download PGSharp ${release.version}` : 'Download PGSharp'}
+          </a>
 
           <details class="subgroup" open>
             {/*
