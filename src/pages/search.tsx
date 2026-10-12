@@ -1423,8 +1423,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             {ticked(typedError ?? '')}
           </p>
 
+          {/* Laid out by hand: Prettier leaves a trailing `{' '}` out of the width it fills to, and so set the first
+              line five characters past 120. */}
+          {/* prettier-ignore */}
           <p class="help" id="importHelp">
-            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and
+            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and{' '}
             <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
             <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
             The game takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above

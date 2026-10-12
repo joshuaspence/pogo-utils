@@ -15,8 +15,8 @@
  *   JSON has no way to continue a string onto the next line, so an image URL or a `package.json` script is as long as
  *   it is.
  * - Anything between a `line-length-ignore-start` marker and a `line-length-ignore-end`, or on the line after a
- *   `line-length-ignore-next-line`, each opening a comment in whatever syntax the file has. The marker wants a reason
- *   beside it, the way an `eslint-disable` does.
+ *   `line-length-ignore-next-line`, each a comment on a line of its own in whatever syntax the file has. The marker
+ *   wants a reason beside it, the way an `eslint-disable` does.
  */
 
 export const MAX_WIDTH = 120;
@@ -48,11 +48,12 @@ export function width(text: string) {
 const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1/;
 
 /**
- * An ignore marker, which has to open a comment — `//`, `/*`, `#` or `<!--` and then `line-length-ignore-start`,
- * `line-length-ignore-end` or `line-length-ignore-next-line` — so that a comment that talks about one, as this one
- * does, is not taken for it.
+ * An ignore marker, which has to open a comment that opens its line — `//`, `/*`, `#` or `<!--` and then
+ * `line-length-ignore-start`, `line-length-ignore-end` or `line-length-ignore-next-line` — so that a comment talking
+ * about one, as this one does, or a string holding one, as the tests do, is not taken for it. Opening the line is also
+ * what keeps a line to one marker, so a start and an end cannot sit together with only the first of them read.
  */
-const MARKER = /(?:\/\/|\/\*|#|<!--)\s*line-length-ignore-(start|end|next-line)\b/;
+const MARKER = /^\s*(?:\/\/|\/\*|#|<!--)\s*line-length-ignore-(start|end|next-line)\b/;
 
 /** A JSON line that is one string, perhaps after its key and perhaps before a comma. */
 const JSON_STRING = /^\s*(?:"(?:[^"\\]|\\.)*"\s*:\s*)?"(?:[^"\\]|\\.)*",?$/;
