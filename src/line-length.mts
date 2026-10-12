@@ -51,8 +51,11 @@ const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_]\w*)\1/;
 /** The Markdown code block languages that hold shell. */
 const SHELL_FENCES = new Set(['bash', 'console', 'sh', 'shell', 'zsh']);
 
-/** A YAML `run:` key opening a block scalar, alone or as a sequence item. */
-const RUN = /^\s*(?:-\s+)?run:\s*[|>]/;
+/**
+ * A YAML `run:` key opening a block scalar, alone or as a sequence item, capturing everything before the key: in
+ * `- run: |` the key, and the `env:` or `shell:` beside it, sit past the dash, so the dash's column is not the block's.
+ */
+const RUN = /^(\s*(?:-\s+)?)run:\s*[|>]/;
 
 /**
  * An ignore marker, which has to open a comment that opens its line — `//`, `/*`, `#` or `<!--` and then
@@ -76,7 +79,7 @@ export function overlong(fileName: string, text: string): Overlong[] {
 
   /** The language of the Markdown code block this is in, `''` for one that names none, or undefined outside one. */
   let fence: string | undefined;
-  /** The indentation of the `run:` key whose block this is in, or undefined outside one. */
+  /** The column of the `run:` key whose block this is in, or undefined outside one. */
   let run: number | undefined;
   let heredoc: string | undefined;
   let ignoring = false;
@@ -130,8 +133,10 @@ export function overlong(fileName: string, text: string): Overlong[] {
       heredoc = HEREDOC.exec(line)?.[2];
     }
 
-    if (yaml && run === undefined && RUN.test(line)) {
-      run = indent;
+    const key = yaml && run === undefined ? RUN.exec(line) : null;
+
+    if (key) {
+      run = key[1]?.length;
     }
 
     if (!exempt && line.length > MAX_WIDTH) {
