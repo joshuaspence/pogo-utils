@@ -29,6 +29,7 @@ import './styles.css';
 import './search.css';
 import './pokedex.css';
 import './integrations.css';
+import './inventory.css';
 
 import { byId } from './dom.js';
 import { Shell } from './shell.js';

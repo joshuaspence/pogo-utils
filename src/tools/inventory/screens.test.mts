@@ -25,6 +25,7 @@ import { clearable, identify, label } from './identify.mts';
 import { findOverlay } from './overlay.mts';
 import { dexOn } from './pokedex.mts';
 import { parseMoves, type Moves } from './moves.mts';
+import { useTestEngine } from './test-engine.mts';
 
 /**
  * The game master, vended rather than downloaded so a test of a reader reaches no network. Vended whole rather than
@@ -1043,6 +1044,13 @@ const workers: Promise<void>[] = [];
  * Starting here costs the read-ahead nothing. `beforeAll` runs before the first test, which is the first moment any of
  * this is wanted.
  */
+/**
+ * The Tesseract every read below goes through, which is the CLI unless `INVENTORY_OCR=wasm` asks for the page's — see
+ * `test-engine.mts`. Installed at import rather than in the hook, since a test reaching a capture the pool has not
+ * started reads it itself.
+ */
+const stopEngine = useTestEngine();
+
 beforeAll(() => {
   for (let worker = 0; worker < READ_AHEAD; worker++) {
     workers.push(drain());
@@ -1067,6 +1075,7 @@ afterAll(async () => {
   abandoned = true;
 
   await Promise.all(workers);
+  await stopEngine();
 });
 
 /**

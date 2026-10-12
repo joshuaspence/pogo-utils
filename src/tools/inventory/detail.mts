@@ -55,12 +55,70 @@ export async function readLines(image: Image): Promise<Line[]> {
  * taken for an `e`. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
  *
  * It admits 23 captures, 20 reading the CP exactly off the line; `wholeCp` recovers the other three. The two go together: the label says which line, the band says the whole number.
+ *
+ * A number may carry one space, which `cpOn` takes out: the WebAssembly Tesseract the Inventory page reads with answers
+ * `cP48 7` off `unown-b.png`, where the CLI's `cP48/7` leaves `wholeCp` to find the 487. Read as `48` alone, the band
+ * round it offers `4837` and the rescue takes it.
  */
-export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5})\b/;
+export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5}(?: \d{1,3})?)\b/;
+
+/**
+ * The CP a line carrying `CP_LABEL` states, as its digits alone. The two halves of a number with a space in it are
+ * joined only where the whole is no longer than `longest`, the most digits any CP runs to, so a second number OCR set
+ * beside the CP is left off it rather than read into a CP no Pokémon has.
+ */
+export function cpOn(text: string, longest: number): string | null {
+  const read = CP_LABEL.exec(fold(text))?.[1];
+
+  if (read === undefined) {
+    return null;
+  }
+
+  const joined = read.replace(' ', '');
+
+  return joined.length <= longest ? joined : (read.split(' ')[0] ?? null);
+}
+
+/**
+ * A CP line with the rest of its number put back, where Tesseract ended the line part way through it and read the
+ * remainder as a line of its own. The WebAssembly build the Inventory page reads with does this on
+ * `deoxys-defense.png`, `ce15` beside `69` with no gap between them, and the label alone would answer 15 — which
+ * `wholeCp` then rescues into a 156 the screen does not print. Joined only where the second line is digits and nothing
+ * else, sits on the same row and starts within half a line-height of where the first ends, so a word beside the CP is
+ * never read into it. The nearest such line where there are several, the inverted pass `readLines` adds reading the
+ * same digits again a few pixels over — `59` beside that `69`.
+ */
+export function joined(line: Line, lines: readonly Line[]): Line {
+  const end = line.left + line.width;
+  const [rest] = lines
+    .filter(
+      (l) =>
+        l !== line &&
+        /^\d+$/.test(l.text) &&
+        Math.abs(l.top - line.top) <= line.height / 2 &&
+        Math.abs(l.left - end) <= line.height / 2,
+    )
+    .sort((a, b) => Math.abs(a.left - end) - Math.abs(b.left - end));
+
+  if (rest === undefined || !/\d$/.test(line.text)) {
+    return line;
+  }
+
+  const top = Math.min(line.top, rest.top);
+
+  return {
+    text: line.text + rest.text,
+    left: line.left,
+    top,
+    width: rest.left + rest.width - line.left,
+    height: Math.max(line.top + line.height, rest.top + rest.height) - top,
+  };
+}
 
 export async function parseDetail(lines: readonly Line[], data: GameData, image: Image): Promise<Detail> {
-  const cpLine = lines.find((l) => l.top < image.height / 4 && CP_LABEL.test(fold(l.text)));
-  const read = cpLine ? (CP_LABEL.exec(fold(cpLine.text))?.[1] ?? null) : null;
+  const labelled = lines.find((l) => l.top < image.height / 4 && CP_LABEL.test(fold(l.text)));
+  const cpLine = labelled && joined(labelled, lines);
+  const read = cpLine ? cpOn(cpLine.text, cpDigits(data)) : null;
   const whole = cpLine && read !== null ? wholeCp(image, cpLine, read, cpDigits(data)) : null;
 
   // `97 / 97 HP` or `HP 97/97`; the second number is the maximum, which is the one CP and level determine.
@@ -74,7 +132,7 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   // at a gap of 57 to 62. Two characters of anything admits those and they win for being nearest.
   const nameLine = hpLine
     ? lines
-        .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== cpLine && /\p{L}{3}|\p{N}{2}/u.test(l.text))
+        .filter((l) => l.top + l.height <= hpLine.top + 4 && l !== labelled && /\p{L}{3}|\p{N}{2}/u.test(l.text))
         .filter((l) => !CP_LABEL.test(fold(l.text)))
         .at(-1)
     : undefined;

@@ -27,6 +27,12 @@
     // Node's globals, deliberately absent from the browser project next door.
     "types": ["node"],
 
+    // tesseract.js ships one declaration file for both of its builds, naming `HTMLImageElement` and `OffscreenCanvas`
+    // among the images it takes — which this project's lib has no DOM to resolve. `src/tools/inventory/ocr-wasm.mts` is
+    // checked here as well as in the browser project, and hands it nothing but a PNG's bytes; skipping the check of
+    // declaration files is what lets it be read here without lending the whole project the DOM.
+    "skipLibCheck": true,
+
     // A value import from `src/` has to name the `.ts` file, because Node runs these by stripping types in place and
     // resolves the specifier literally — where `tsc` would have resolved `'../src/generated.js'` onto its `.ts` sibling
     // and said nothing, which is a check passing over an `ERR_MODULE_NOT_FOUND`. Permitted here because nothing in this

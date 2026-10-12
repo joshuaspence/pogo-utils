@@ -1,17 +1,21 @@
 /**
- * The phone, driven over `adb`. Each call is a fresh `adb` process rather than a held shell, which costs a few tens of
- * milliseconds against animations that take most of a second and means a dropped USB connection fails one call loudly
- * instead of leaving a shell writing into nothing.
+ * The phone, driven over ADB. Everything a scan asks of it is eight methods over one `Transport`, which is the only part
+ * that differs between the CLI and the Inventory page: `adb-cli.mts` runs the `adb` binary, and
+ * `src/inventory/webusb.ts` speaks the protocol over WebUSB from the page.
  */
 
 import { decodePng, type Image } from './png.mts';
-import { execFile } from 'node:child_process';
 
 /**
- * Far longer than any call here takes, so it only fires on a device or `adb` server that has wedged — an `offline`
- * phone, a stalled USB link — which would otherwise hang the scan rather than fail the one call.
+ * How a `Device` reaches the phone: its state as `adb get-state` names it, a shell command's output, and a screenshot's
+ * PNG. The screenshot is its own method because it is the one binary answer, and a transport has to keep it clear of
+ * anything written to stderr — the CLI by `exec-out`, the page by the shell protocol.
  */
-const TIMEOUT_MS = 30_000;
+export interface Transport {
+  state(): Promise<string>;
+  shell(args: readonly string[]): Promise<Uint8Array>;
+  screencap(): Promise<Uint8Array>;
+}
 
 /**
  * Whether `type` would send this rather than refuse it: a space, and the characters a storage search is made of.
@@ -21,15 +25,15 @@ const TIMEOUT_MS = 30_000;
 export const typeable = (text: string) => /^[\w&,!@#*+-]*$/.test(text.replaceAll(' ', ''));
 
 export class Device {
-  readonly #prefix: string[];
+  readonly #transport: Transport;
 
-  constructor(serial?: string) {
-    this.#prefix = serial ? ['-s', serial] : [];
+  constructor(transport: Transport) {
+    this.#transport = transport;
   }
 
   /** Fails with a readable message when there is no device, or more than one and no `--serial`. */
   async check(): Promise<void> {
-    const state = (await this.#adb(['get-state'])).toString().trim();
+    const state = (await this.#transport.state()).trim();
 
     if (state !== 'device') {
       throw new Error(`adb reports the phone as "${state}"; is USB debugging on and the computer authorised?`);
@@ -37,7 +41,7 @@ export class Device {
   }
 
   async screenshot(): Promise<Image> {
-    return decodePng(await this.#adb(['exec-out', 'screencap', '-p']));
+    return decodePng(await this.#transport.screencap());
   }
 
   async tap([x, y]: readonly [number, number]): Promise<void> {
@@ -78,33 +82,13 @@ export class Device {
    * dump read `isKeyguardShowing=false` over exactly that window.
    */
   async focused(): Promise<string | null> {
-    const dump = (await this.#shell('dumpsys', 'window', 'displays')).toString();
+    const dump = new TextDecoder().decode(await this.#shell('dumpsys', 'window', 'displays'));
 
     return /mCurrentFocus=Window\{\S+ \S+ ([\w.]+)\//.exec(dump)?.[1] ?? null;
   }
 
-  #shell(...args: string[]): Promise<Buffer> {
-    return this.#adb(['shell', ...args]);
-  }
-
-  #adb(args: string[]): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      execFile(
-        'adb',
-        [...this.#prefix, ...args],
-        { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024, timeout: TIMEOUT_MS },
-        (error, stdout, stderr) => {
-          if (error) {
-            const detail = error.killed
-              ? `no answer after ${TIMEOUT_MS / 1000}s; is the phone still connected?`
-              : stderr.toString().trim() || error.message;
-            reject(new Error(`adb ${args.join(' ')}: ${detail}`));
-          } else {
-            resolve(stdout);
-          }
-        },
-      );
-    });
+  #shell(...args: string[]): Promise<Uint8Array> {
+    return this.#transport.shell(args);
   }
 }
 

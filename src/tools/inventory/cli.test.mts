@@ -11,7 +11,7 @@
  * `parse` needs neither `adb` nor a device. Tesseract it does need, as the capture readers beside it do.
  */
 
-import { ICON_CACHE } from './game-master.mts';
+import { ICON_CACHE } from './download.mts';
 import { encodePng } from './png.mts';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -434,7 +434,7 @@ test('the progress preamble is printed only with `--verbose`', async () => {
  *
  * Seeded rather than served, which is what makes it hermetic: the week's grace reads the file without a word, and
  * bytes that will not parse do so however they arrived. Matched as *a* URL rather than the index's own, which
- * `game-master.mts` does not export: the claim is that the line names the file it is about.
+ * `download.mts` does not export: the claim is that the line names the file it is about.
  *
  * That the copy is gone afterwards is the half `progress.test.mts` cannot reach — there the bad bytes are ones it
  * downloaded, here ones it only read, so a fix that dropped the file on the write path alone would pass that test and

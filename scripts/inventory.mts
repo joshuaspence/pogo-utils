@@ -41,17 +41,29 @@
  * the account is the user's to weigh.
  */
 
+import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device, KEY, typeable } from '../src/tools/inventory/adb.mts';
-import { iconsFor, signatureOf, type Signature } from '../src/tools/inventory/artwork.mts';
+import { type Signature } from '../src/tools/inventory/artwork.mts';
 import { bestOf, faultsOf } from '../src/tools/inventory/attempts.mts';
 import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
-import { CACHE, closest, loadGameData, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
+import { CACHE, iconsFor, loadGameData } from '../src/tools/inventory/download.mts';
+import { closest, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { clearable, identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
-import { centre, findLine, fold, ocr, type Line } from '../src/tools/inventory/ocr.mts';
+import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
+import { centre, findLine, fold, ocr, useEngine, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
-import { decodePng, difference, encodePng, screenIn, type Image } from '../src/tools/inventory/png.mts';
+import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import { showProgress } from '../src/tools/inventory/progress.mts';
+import {
+  artworkIn,
+  isDetail,
+  NO_BOX,
+  NO_OVERLAY,
+  printable,
+  readScreen,
+  refusals,
+} from '../src/tools/inventory/report.mts';
 import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -305,38 +317,20 @@ if (ignored.length > 0) {
 // quiet. `cli.test.mts` is what notices, the quiet half of its `--verbose` test failing on exactly that.
 showProgress(options.verbose);
 
+// The CLI reads with the Tesseract on `PATH`; the Inventory page installs the WebAssembly build in its place.
+useEngine(tesseractCli);
+
 const config = loadConfig(options.config);
 
 /**
- * The artwork a screenshot shows, for the forms whose numbers are identical. PGSharp's overlay is drawn over the
- * artwork, so where its box was found that is the floor to start below — a fraction written down instead would be one
- * phone's.
- */
-function artworkIn(image: Image, box: OverlayBox | null, icons: ReadonlyMap<Form, Signature>) {
-  const signature = signatureOf(image, box ? box.y + box.height : undefined);
-
-  return signature ? { signature, icons } : undefined;
-}
-
-/**
- * Everything each reader makes of one screenshot, for tuning.
- *
- * **A stitch is read twice, because the readers do not want the same image.** Every one but `parseMoves` is anchored
- * on a fraction of the height and so needs the screen the stitch records, which `screenIn` crops to; `parseMoves`
- * anchors on `GYMS & RAIDS` and wants the whole thing. Measured on the corpus the two disagree in both directions —
- * `ho-oh.png` answers `tags: []` whole against `['Shiny', 'Lucky Me']` cropped, and two captures answer no move at all
- * cropped against the right pair whole.
- *
- * So one pass each, which costs a second Tesseract run on a stitch and nothing on a screen: `screenIn` hands back the
- * very image it was given where there is no `Viewport`, and that identity is what `===` tests here.
+ * Everything each reader makes of one screenshot, for tuning: `readScreen` does the reading, which the Inventory page
+ * shares, and this prints it.
  */
 async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Signature>) {
-  const screen = screenIn(image);
-  const lines = await readLines(screen);
-  const whole = screen === image ? lines : await readLines(image);
+  const read = await readScreen(image, data, icons, config.overlay);
 
   if (options.verbose) {
-    const dump = (found: typeof lines) => {
+    const dump = (found: readonly Line[]) => {
       for (const l of found) {
         console.log(`  ${`${l.left},${l.top} ${l.width}×${l.height}`.padEnd(22)} ${l.text}`);
       }
@@ -344,37 +338,25 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
 
     // Both passes where there were two, and labelled, since the point of the flag is to show which lines a reader was
     // actually handed: a field read wrong is in the screen's set and a move read wrong is in the stitch's.
-    if (whole === lines) {
-      dump(lines);
+    if (read.whole === read.lines) {
+      dump(read.lines);
     } else {
       console.log('  --- the screen, which every reader but the moves was given');
-      dump(lines);
+      dump(read.lines);
       console.log('  --- the whole stitch, which the moves were read off');
-      dump(whole);
+      dump(read.whole);
     }
   }
 
-  const detail = await parseDetail(lines, data, screen);
-  const found = config.overlay
-    ? { box: config.overlay, overlay: await readOverlay(screen, config.overlay) }
-    : await findOverlay(screen);
-  const box = found?.box ?? null;
-  const overlay = found?.overlay ?? null;
-  const id = identify(data, detail, overlay, artworkIn(screen, box, icons));
-  console.log('detail:', detail);
-  console.log('moves:', await parseMoves(whole, data, id.form, image));
-  console.log('overlay box:', box ?? 'not found; is PGSharp running, and is a Pokémon open?');
-  console.log('overlay:', overlay ?? 'nothing read');
-  // The form carries its whole move pool, which prints as a column of `[Object]` and buries everything worth reading;
-  // the names are what a person tuning this wants to see anyway.
-  console.log('identity:', {
-    ...id,
-    form: id.form && { ...id.form, moves: id.form.moves.map((m) => m.name).join(', ') },
-  });
+  console.log('detail:', read.detail);
+  console.log('moves:', read.moves);
+  console.log('overlay box:', read.box ?? NO_BOX);
+  console.log('overlay:', read.overlay ?? NO_OVERLAY);
+  console.log('identity:', printable(read.identity));
 
   // Handed back rather than only printed, so that `snap` can refuse a screen on what was already read instead of
   // parsing it a second time; a Tesseract run is the slowest thing here.
-  return { detail, box, overlay };
+  return read;
 }
 
 /**
@@ -541,7 +523,7 @@ async function scan() {
   // Ahead of the phone, so a typo fails before anything is driven.
   const limit = count('limit', options.limit, Infinity);
   const skip = count('skip', options.skip, 0);
-  const device = new Device(options.serial);
+  const device = new Device(adbCli(options.serial));
   await device.check();
   const data = await loadGameData(CACHE, options.refresh);
   const icons = await iconsFor(CACHE, data, options.refresh);
@@ -1026,14 +1008,6 @@ function isStorage(lines: readonly Line[]): boolean {
   return findLine(lines, /\beggs?\b/) !== undefined || findLine(lines, /^search\b/) !== undefined;
 }
 
-/**
- * Whether a screen is a detail screen, which is its HP having read: the one field every detail screen states and the
- * map, the storage grid and a Pokédex entry all lack. Asked of a `Detail` rather than of a screen so that a caller
- * holding one already does not pay a second Tesseract run, and so that `snap` refuses on the test `toStorage` navigates
- * by rather than on a second notion of the same thing.
- */
-const isDetail = (detail: Detail) => detail.hp !== null;
-
 function csv(value: string | number | null): string {
   const text = value === null ? '' : String(value);
 
@@ -1273,7 +1247,7 @@ async function snap() {
     return;
   }
 
-  const device = new Device(options.serial);
+  const device = new Device(adbCli(options.serial));
   await device.check();
 
   const path = join(CACHE, 'snaps', `${name}.png`);
@@ -1360,13 +1334,7 @@ async function snap() {
   const data = await gameData();
   const read = await report(image, data, await iconsFor(CACHE, data, options.refresh));
 
-  // A configured `overlay` is taken on trust and so can never be missing, which would leave this check vacuous for
-  // anyone who sets one — hence the second case, where the box is known and nothing read inside it.
-  const refused = [
-    !isDetail(read.detail) && 'its HP did not read, so a scan could not have used this screen',
-    read.box === null && "PGSharp's overlay was not found on it",
-    read.box !== null && read.overlay === null && "PGSharp's overlay was found but nothing read inside it",
-  ].filter((why): why is string => why !== false);
+  const refused = refusals(read);
 
   if (refused.length > 0) {
     refuse(...refused);
