@@ -16,6 +16,8 @@ import { join } from 'node:path';
 import postcss, { type Declaration } from 'postcss';
 import { expect, test } from 'vitest';
 
+import { PAGES } from './page-table.ts';
+
 const ROOT = join(import.meta.dirname, '..');
 const STYLES = join(ROOT, 'src');
 
@@ -242,35 +244,12 @@ function scopedPages(css: string) {
 }
 
 /**
- * The page names the router's table holds, read out of `router.ts` as text. It cannot be imported: this project is the
- * Node half and carries no DOM lib, where `router.ts` reaches `history` — which is why `scripts/tsconfig.json` claims
- * this file as one that reads a repository file off disk rather than importing one.
- *
- * A regex over source can stop matching and report nothing rather than fail, so both ways it can come up empty throw
- * instead: a table it could not find at all, and a row whose name it missed.
+ * The page names the router's table holds. Imported from `src/page-table.ts` rather than read out of `src/router.ts`
+ * as text, which this used to do because `router.ts` reaches `history` and this project carries no DOM lib: the table
+ * moved out on its own so the build could write the manifest from it, and a regex over source was the one part of this
+ * check that could stop matching and report nothing.
  */
-function routerPages() {
-  const table = /export const PAGES = \[([\s\S]*?)\] as const/.exec(readFileSync(join(STYLES, 'router.ts'), 'utf8'));
-  const rows = table?.[1];
-
-  if (rows === undefined) {
-    throw new Error('src/router.ts: found no `export const PAGES = [...] as const` to read the page names out of');
-  }
-
-  const names = new Set([...rows.matchAll(/\bname: '([^']+)'/g)].map(([, name]) => name));
-
-  /*
-   * Counted a second time by something that is not the name, because a name pattern that had gone stale would answer
-   * with a short set rather than an error, and every sheet would then look like it scoped to a page nobody has.
-   */
-  const titled = [...rows.matchAll(/\btitle: '/g)].length;
-
-  if (titled === 0 || names.size !== titled) {
-    throw new Error(`src/router.ts: read ${names.size} page name(s) out of ${titled} row(s)`);
-  }
-
-  return names;
-}
+const routerPages = () => new Set<string>(PAGES.map((page) => page.name));
 
 test('every page a stylesheet scopes itself to is one the router has', () => {
   /*
@@ -307,7 +286,7 @@ test('the page check can tell a scoped sheet from an unscoped one', () => {
   expect(scopedPages('.backup { color: red }')).toEqual(new Set());
   expect(scopedPages("/* body[data-page='gone'] */ .backup { color: red }")).toEqual(new Set());
 
-  // And that the router's real table is what the check reads it against, rather than a pattern matching nothing.
+  // And that the router's real table is what the check reads it against.
   const pages = routerPages();
 
   expect([pages.has('events'), pages.has('integrations'), pages.has('pgsharp')]).toEqual([true, true, false]);

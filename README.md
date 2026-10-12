@@ -434,10 +434,13 @@ expressed in it at all; the two formats are not interchangeable in either direct
 ## Installing as an app
 
 [`manifest.json`](manifest.json) lets a phone add the site to its home screen and open it without the browser's toolbar,
-starting on the Events page, with a long-press shortcut to each of the six tabs. Its paths are relative, so it works
-under the Pages subdirectory as well as from a local server, and [`scripts/assemble.mts`](scripts/assemble.mts) resolves
-every one of them inside the build the same way it resolves the markup's: an icon or a shortcut naming a file that moved
-fails the build rather than drawing a letter tile on somebody's home screen.
+starting on the Events page, with a long-press shortcut to each of the six tabs. Those two members are not in the
+checkout's copy: [`scripts/build-manifest.mts`](scripts/build-manifest.mts) writes them into `dist/manifest.json` from
+the router's page table in [`src/page-table.ts`](src/page-table.ts), so renaming or adding a page moves its shortcut
+with it rather than leaving one that quietly opens the Events page. Its paths are relative, so it works under the Pages
+subdirectory as well as from a local server, and [`scripts/assemble.mts`](scripts/assemble.mts) resolves every one of
+them inside the build the same way it resolves the markup's: an icon or a shortcut naming a file that moved fails the
+build rather than drawing a letter tile on somebody's home screen.
 
 The icons the manifest names are not in the checkout at all: [`scripts/build-icons.mts`](scripts/build-icons.mts)
 renders each from [`favicon.svg`](favicon.svg) straight into `dist/icons/`, the way the calendar feed is written rather

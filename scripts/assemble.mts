@@ -22,7 +22,6 @@ const DIST = 'dist';
 const PUBLISHED = [
   '*.html',
   'favicon.svg',
-  'manifest.json',
 
   // `src/generated.ts`'s three indexes are in here, so none is named separately: `publish` throws rather than copying
   // a path twice, and the directory is what the pages fetch them under.
