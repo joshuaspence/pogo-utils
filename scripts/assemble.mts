@@ -9,6 +9,7 @@
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
 import { SERVED_TYPES } from './served-types.mts';
 
@@ -26,7 +27,30 @@ const PUBLISHED = [
   // `src/generated.ts`'s three indexes are in here, so none is named separately: `publish` throws rather than copying
   // a path twice, and the directory is what the pages fetch them under.
   'data',
+
+  // The game master the Inventory page reads a screen against: the corpus's own vended copy, at the position it holds
+  // here, rather than a second copy that could drift from the one the tests pin — or the 23 MB upstream the vend exists
+  // to avoid fetching.
+  'src/tools/inventory/fixtures/game-master.json',
 ];
+
+/**
+ * What the Inventory page's OCR runs on, copied out of `node_modules` rather than fetched from tesseract.js's CDN
+ * default, so the version the build was tested with is the one served: its worker script, and the three LSTM-only
+ * cores the worker picks between by what the browser's WebAssembly supports — relaxed SIMD, SIMD, or neither. Each is
+ * some 4 MB with the WebAssembly inlined, and a browser fetches the one it runs. A missing file fails the copy.
+ */
+const tesseract = createRequire(import.meta.url).resolve('tesseract.js');
+const core = dirname(createRequire(tesseract).resolve('tesseract.js-core/package.json'));
+
+const VENDORED: Record<string, string> = {
+  'vendor/tesseract/worker.min.js': join(dirname(tesseract), '../dist/worker.min.js'),
+  ...Object.fromEntries(
+    ['tesseract-core-relaxedsimd-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.js', 'tesseract-core-lstm.wasm.js'].map(
+      (name) => [`vendor/tesseract/${name}`, join(core, name)],
+    ),
+  ),
+};
 
 /**
  * Copies one path into the artifact, at the same position it occupies in the repository. Refusing to land on something
@@ -45,6 +69,16 @@ function publish(path: string): void {
 }
 
 let copied = 0;
+
+for (const [to, from] of Object.entries(VENDORED)) {
+  if (existsSync(join(DIST, to))) {
+    throw new Error(`${from} would overwrite ${join(DIST, to)}, which the build already wrote`);
+  }
+
+  mkdirSync(dirname(join(DIST, to)), { recursive: true });
+  cpSync(from, join(DIST, to));
+  copied += 1;
+}
 
 for (const entry of PUBLISHED) {
   const star = entry.indexOf('*');

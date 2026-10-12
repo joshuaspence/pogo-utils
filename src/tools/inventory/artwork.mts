@@ -15,10 +15,8 @@
  * margin is what stands between the match and being confidently wrong ten times.
  */
 
-import { join } from 'node:path';
-import { ICON_BASE } from '../../pokedex/icons.ts';
-import { cachedAs, type Form, type GameData } from './game-master.mts';
-import { decodePng, rgb, type Image } from './png.mts';
+import { type Form, type GameData } from './game-master.mts';
+import { rgb, type Image } from './png.mts';
 import { progress } from './progress.mts';
 
 /** How many hue bins a signature holds. Coarse on purpose: the model is lit and posed, where the icon is flat art. */
@@ -419,10 +417,15 @@ export function ambiguous(data: GameData): { drawn: Drawn[][]; short: Form[][] }
 const FETCH_BATCH = 16;
 
 /**
- * A signature per form for every form the artwork could settle, downloading the icons once and caching them beside the
- * game master. 162 files of some 24 KB on a real game master, so this is a one-off of under 4 MiB.
+ * A signature per form for every form the artwork could settle, each one's icon fetched and read by `read`, which is
+ * where the two callers differ: `download.mts` caches the icons beside the game master for `pnpm inventory`, and the
+ * Inventory page fetches them straight from `ICON_BASE`. 162 files of some 24 KB on a real game master, so this is a
+ * one-off of under 4 MiB.
  */
-export async function iconsFor(dir: string, data: GameData, refresh = false): Promise<Map<Form, Signature>> {
+export async function signaturesFor(
+  data: GameData,
+  read: (form: Drawn) => Promise<Signature>,
+): Promise<Map<Form, Signature>> {
   const { drawn: families, short } = ambiguous(data);
   const drawn = families.flat();
   const signatures = new Map<Form, Signature>();
@@ -440,15 +443,13 @@ export async function iconsFor(dir: string, data: GameData, refresh = false): Pr
 
   const signatureFor = async (form: Drawn): Promise<Signature | null> => {
     try {
-      return await cachedAs(join(dir, 'icons'), form.icon, ICON_BASE + form.icon, refresh, (bytes) =>
-        signatureOfIcon(decodePng(bytes)),
-      );
+      return await read(form);
     } catch (error) {
       // An icon is an improvement rather than a prerequisite, so one that cannot be had costs an abstention and not a
       // scan. That holds as much for a network that is down with nothing cached as for a 404, a truncated download or
       // a page served in place of the image.
       //
-      // `cachedAs` is what leaves every one of them naming the icon. This line is written as a continuation, and the
+      // `read` is what leaves every one of them naming the icon. This line is written as a continuation, and the
       // batches below keep 16 downloads in flight, so the `Downloading` above it is rarely its own.
       const reason = error instanceof Error ? error.message : String(error);
       console.error(`  ${reason}; forms sharing its numbers stay ambiguous`);

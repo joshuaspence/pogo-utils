@@ -11,6 +11,8 @@ application and reached from a shared top tab bar:
   still want it.
 - **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites, and a Live
   PokeMap display filter built from the shiny hunt list.
+- **Inventory** (`#/inventory`) — one Pokémon's detail screen read end to end, off a phone over WebUSB or from a saved
+  screenshot: what [`pnpm inventory parse`](#pokémon-inventory) prints, without installing anything.
 
 **➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
 
@@ -63,7 +65,9 @@ by a run going red.
 One caveat is local only and stays. The LAN address printed beside the local one is good for viewing the site on a phone
 but not for installing it — a plain-HTTP origin is no secure context, and Chrome will read `manifest.json` for
 installation only from one — so [Installing as an app](#installing-as-an-app) is a flow only `localhost` or Pages can
-exercise.
+exercise. WebUSB is held to a secure context the same way, and so is the Web Crypto hash the Inventory page checks its
+OCR model against before reading anything, so that page neither reaches a phone nor reads a dropped screenshot from the
+LAN address: `localhost` and Pages can do both, and the browser reaching this machine over the LAN can do neither.
 
 Static hosting cannot list a directory, so the viewer is handed the paths in
 [`data/gpx-paths.json`](data/gpx-paths.json). Nothing but the paths comes from it. Each listed file is read for what it
@@ -424,7 +428,7 @@ expressed in it at all; the two formats are not interchangeable in either direct
 ## Installing as an app
 
 [`manifest.json`](manifest.json) lets a phone add the site to its home screen and open it without the browser's toolbar,
-starting on the Events page, with a long-press shortcut to each of the five tabs. Its paths are relative, so it works
+starting on the Events page, with a long-press shortcut to each of the six tabs. Its paths are relative, so it works
 under the Pages subdirectory as well as from a local server, and [`scripts/assemble.mts`](scripts/assemble.mts) resolves
 every one of them inside the build the same way it resolves the markup's: an icon or a shortcut naming a file that moved
 fails the build rather than drawing a letter tile on somebody's home screen.
@@ -497,6 +501,44 @@ quietly ignored. The cache, the snaps and `inventory*.csv` are git-ignored, sinc
 
 Automated input is against Niantic's terms of service. The scan only reads and moves at about a person's pace, but the
 risk to the account is yours to weigh.
+
+### In the browser
+
+The **Inventory** page ([`src/pages/inventory.tsx`](src/pages/inventory.tsx)) is `snap` and `parse` without the install:
+it reads one detail screen, grabbed off a phone or dropped in as a PNG, and prints the four blocks `parse` prints —
+`detail`, `moves`, the overlay box and what read inside it, and the identity — from the same
+[`readScreen`](src/tools/inventory/report.mts). A screen a scan could not have used is refused the way `snap` refuses
+it, with the reason said: an HP that did not read, or no PGSharp overlay. What the readers made of it anyway is still
+there, folded under the refusal. A scan of storage, its CSV, the flag passes and a scroll capture stay the CLI's.
+
+The phone is reached over WebUSB with [Tango](https://tangoadb.dev/) (`@yume-chan/adb`, MIT), picked through the
+browser's own device chooser, and has to be authorised on the phone the first time as it does for `adb`. It is a
+Chromium API, so Chrome or Edge, and a phone an `adb` server on the same computer already holds cannot be claimed —
+`adb kill-server` first. Where the connection will not come up, [WebADB](https://webadb.com/) is a shell over the same
+WebUSB to find out why; it is a hosted app rather than a library, which is why the page imports Tango instead.
+
+The readers run in the browser unchanged. [`png.mts`](src/tools/inventory/png.mts) decodes with
+[fflate](https://github.com/101arrowz/fflate) rather than `node:zlib`, keeping both the `Viewport` chunk a stitch
+carries and the uncorrected colours [`artwork.mts`](src/tools/inventory/artwork.mts) picks a form by, which
+`createImageBitmap` would lose. OCR is an `Engine` installed by whatever runs the readers: the CLI in
+[`ocr-cli.mts`](src/tools/inventory/ocr-cli.mts), and [tesseract.js](https://github.com/naptha/tesseract.js)
+(Apache-2.0) in [`ocr-wasm.mts`](src/tools/inventory/ocr-wasm.mts), with the whitelist and page segmentation mode passed
+per read and TSV asked for as the CLI's `tessedit_create_tsv` is. It reads with the CLI's own model, `eng.traineddata`
+from `tessdata_fast` 4.1.0 — what `apt` and `brew` both install — fetched once from that tag and kept in the browser.
+
+Nothing read leaves the page. What it fetches carries nothing about the screen: the model, the form icons from
+`pogo_assets` that the Pokédex page already draws, and the game master — the vended
+[`fixtures/game-master.json`](src/tools/inventory/fixtures/game-master.json), which the build publishes rather than the
+page fetching the 23 MB upstream. The screenshot and its reading stay in memory, and leave only as a download.
+
+The corpus is what holds the page to the CLI. `INVENTORY_OCR=wasm pnpm test:corpus` runs
+[`screens.test.mts`](src/tools/inventory/screens.test.mts) under the WebAssembly engine, handed the CLI's model off disk
+so it reaches no network and checked to be the same file the page fetches. Every capture reads the same fields,
+identity, form, level and IVs under both. Three assertions still differ, the three that pin which route a CP took rather
+than what any capture answers: tesseract.js is a fork of Tesseract 5.1 where `apt` installs 5.3.4, and it reads
+`castform-snowy.png`, `deoxys-normal.png` and `deoxys-defense.png`'s CP straight off the label line where the CLI has to
+sweep the region for it, `charizard-gigantamax.png`'s the other way round, and the sweep offers a different stray on
+`castform-sunny.png` and `pikachu-santa-hat.png`. Pinned to the CLI's routes, they are the CLI's to keep.
 
 ## Live PokeMap watcher
 

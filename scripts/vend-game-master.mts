@@ -15,7 +15,7 @@
  * apart.
  */
 
-import { loadGameData } from '../src/tools/inventory/game-master.mts';
+import { loadGameData } from '../src/tools/inventory/download.mts';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

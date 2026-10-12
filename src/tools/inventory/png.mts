@@ -1,10 +1,16 @@
 /**
  * Just enough PNG to read what `adb exec-out screencap -p` hands back and to write a crop of it back out for Tesseract.
  * A dependency would do the same, but the whole of what is needed is an 8-bit, non-interlaced image in one of the four
- * colour types a phone produces, and Node's zlib already carries the inflate, the deflate and the CRC.
+ * colour types a phone produces.
+ *
+ * It runs in a browser as well as under Node, which is why the bytes are a `Uint8Array` rather than a `Buffer` and the
+ * zlib is [fflate](https://github.com/101arrowz/fflate)'s rather than `node:zlib`'s: a browser has no CRC at all, and
+ * only an asynchronous `DecompressionStream` for the rest, where every reader here decodes synchronously.
+ * `createImageBitmap` is no way round it either — it drops the `tEXt` chunk a stitch records its `Viewport` in, and
+ * answers colour-managed pixels where `artwork.mts` picks a form by its colour.
  */
 
-import { crc32, deflateSync, inflateSync } from 'node:zlib';
+import { unzlibSync, zlibSync } from 'fflate';
 
 /**
  * An image as four bytes a pixel, red, green, blue and alpha, row after row.
@@ -23,7 +29,63 @@ export interface Image {
   text?: Readonly<Record<string, string>>;
 }
 
-const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const SIGNATURE = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
+
+/** The CRC-32 every chunk ends with, a table of the 256 byte remainders being the usual way to it. */
+const CRC_TABLE = Uint32Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+
+  for (let k = 0; k < 8; k++) {
+    c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  }
+
+  return c;
+});
+
+export function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+
+  for (const byte of bytes) {
+    c = (CRC_TABLE[(c ^ byte) & 0xff] ?? 0) ^ (c >>> 8);
+  }
+
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+const readU32 = (bytes: Uint8Array, at: number): number =>
+  (((bytes[at] ?? 0) << 24) | ((bytes[at + 1] ?? 0) << 16) | ((bytes[at + 2] ?? 0) << 8) | (bytes[at + 3] ?? 0)) >>> 0;
+
+const writeU32 = (bytes: Uint8Array, at: number, value: number): void => {
+  bytes.set([value >>> 24, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff], at);
+};
+
+/**
+ * Latin-1 both ways, by hand: `TextDecoder('latin1')` is windows-1252 under another name, which reads `0x80`–`0x9f` as
+ * curly quotes and the euro sign rather than as the code points they are.
+ */
+const latin1 = (bytes: Uint8Array): string => {
+  let out = '';
+
+  for (const byte of bytes) {
+    out += String.fromCharCode(byte);
+  }
+
+  return out;
+};
+
+const fromLatin1 = (text: string): Uint8Array => Uint8Array.from(text, (character) => character.charCodeAt(0));
+
+const concat = (parts: readonly Uint8Array[]): Uint8Array => {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let at = 0;
+
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+
+  return out;
+};
 
 /** Bytes per pixel for each colour type this reads: greyscale, RGB, greyscale with alpha and RGBA. */
 const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 4: 2, 6: 4 };
@@ -36,8 +98,8 @@ const refuse = (why: string): Error =>
  * Refuses rather than guesses: a cut-off or damaged `screencap` stream would otherwise decode to an image of the right
  * size with garbage rows in it, and a scan reading those would record nonsense rather than stop.
  */
-export function decodePng(bytes: Buffer): Image {
-  if (!bytes.subarray(0, 8).equals(SIGNATURE)) {
+export function decodePng(bytes: Uint8Array): Image {
+  if (bytes.length < 8 || SIGNATURE.some((byte, i) => bytes[i] !== byte)) {
     throw refuse('not a PNG');
   }
 
@@ -45,29 +107,29 @@ export function decodePng(bytes: Buffer): Image {
   let height = 0;
   let channels = 0;
   let ended = false;
-  const idat: Buffer[] = [];
+  const idat: Uint8Array[] = [];
   // Null-prototype, so a file is free to carry `__proto__` as a keyword: assigning that name on a plain object reaches
   // the inherited setter and is a silent no-op, which would drop the keyword *beside* it from the same chunk.
   const text: Record<string, string> = Object.create(null);
 
   for (let at = 8; at < bytes.length && !ended;) {
-    if (at + 12 > bytes.length || at + 12 + bytes.readUInt32BE(at) > bytes.length) {
+    if (at + 12 > bytes.length || at + 12 + readU32(bytes, at) > bytes.length) {
       throw refuse('truncated PNG');
     }
 
-    const length = bytes.readUInt32BE(at);
-    const type = bytes.toString('latin1', at + 4, at + 8);
+    const length = readU32(bytes, at);
+    const type = latin1(bytes.subarray(at + 4, at + 8));
     const body = bytes.subarray(at + 8, at + 8 + length);
 
-    if (bytes.readUInt32BE(at + 8 + length) !== crc32(bytes.subarray(at + 4, at + 8 + length))) {
+    if (readU32(bytes, at + 8 + length) !== crc32(bytes.subarray(at + 4, at + 8 + length))) {
       throw refuse(`corrupt PNG: the ${type} chunk fails its CRC`);
     }
 
     at += 12 + length;
 
     if (type === 'IHDR') {
-      width = body.readUInt32BE(0);
-      height = body.readUInt32BE(4);
+      width = readU32(body, 0);
+      height = readU32(body, 4);
       const [depth, colour, , , interlace] = body.subarray(8, 13);
       channels = CHANNELS[colour ?? -1] ?? 0;
 
@@ -85,7 +147,7 @@ export function decodePng(bytes: Buffer): Image {
       const split = body.indexOf(0);
 
       if (split > 0) {
-        text[body.toString('latin1', 0, split)] = body.toString('latin1', split + 1);
+        text[latin1(body.subarray(0, split))] = latin1(body.subarray(split + 1));
       }
     }
   }
@@ -96,7 +158,14 @@ export function decodePng(bytes: Buffer): Image {
     throw refuse('truncated PNG');
   }
 
-  const raw = inflateSync(Buffer.concat(idat));
+  let raw: Uint8Array;
+
+  try {
+    raw = unzlibSync(concat(idat));
+  } catch (error) {
+    throw refuse(`corrupt PNG: its pixels do not inflate (${error instanceof Error ? error.message : String(error)})`);
+  }
+
   const stride = width * channels;
   const pixels = new Uint8Array(stride * height);
 
@@ -163,7 +232,7 @@ export function decodePng(bytes: Buffer): Image {
 /**
  * A keyword the spec allows: 1 to 79 characters, printable Latin-1, and no space leading, trailing or doubled.
  *
- * Checked in full rather than for length alone, because `Buffer.from(…, 'latin1')` keeps the low byte rather than
+ * Checked in full rather than for length alone, because writing Latin-1 keeps the low byte of a code unit rather than
  * refusing what it cannot represent — so `Nidoran♂` would be written as `NidoranB`. A NUL is the sharpest case, being
  * the chunk's own separator: `{ 'a\0b': 'x' }` reads back as `{ a: 'b\0x' }`, written without complaint.
  */
@@ -180,7 +249,7 @@ const isLatin1 = (value: string): boolean =>
     return code > 0 && code <= 0xff;
   });
 
-const text = (keyword: string, value: string): Buffer => {
+const text = (keyword: string, value: string): Uint8Array => {
   if (!KEYWORD.test(keyword)) {
     throw new Error(`a tEXt keyword is 1 to 79 characters of printable Latin-1, not ${JSON.stringify(keyword)}`);
   }
@@ -193,7 +262,7 @@ const text = (keyword: string, value: string): Buffer => {
     throw new Error(`a tEXt value is Latin-1 with no NUL in it, unlike ${JSON.stringify(value)}`);
   }
 
-  return chunk('tEXt', Buffer.from(`${keyword}\0${value}`, 'latin1'));
+  return chunk('tEXt', fromLatin1(`${keyword}\0${value}`));
 };
 
 /**
@@ -201,35 +270,35 @@ const text = (keyword: string, value: string): Buffer => {
  * written back and a caller can still override one by keyword. Assigned onto a null prototype rather than spread into a
  * literal, so a `__proto__` the file carried stays a key here instead of reaching a setter.
  */
-export function encodePng(image: Image, carry: Readonly<Record<string, string>> = {}): Buffer {
+export function encodePng(image: Image, carry: Readonly<Record<string, string>> = {}): Uint8Array {
   const carried: Record<string, string> = Object.assign(Object.create(null), image.text, carry);
   const stride = image.width * 4;
-  const raw = Buffer.alloc((stride + 1) * image.height);
+  const raw = new Uint8Array((stride + 1) * image.height);
 
   for (let y = 0; y < image.height; y++) {
     raw.set(image.data.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
   }
 
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(image.width, 0);
-  header.writeUInt32BE(image.height, 4);
+  const header = new Uint8Array(13);
+  writeU32(header, 0, image.width);
+  writeU32(header, 4, image.height);
   header.set([8, 6, 0, 0, 0], 8);
 
-  return Buffer.concat([
+  return concat([
     SIGNATURE,
     chunk('IHDR', header),
     ...Object.entries(carried).map(([keyword, value]) => text(keyword, value)),
-    chunk('IDAT', deflateSync(raw)),
+    chunk('IDAT', zlibSync(raw)),
     chunk('IEND'),
   ]);
 }
 
-function chunk(type: string, body = Buffer.alloc(0)): Buffer {
-  const out = Buffer.alloc(12 + body.length);
-  out.writeUInt32BE(body.length, 0);
-  out.write(type, 4, 'latin1');
-  body.copy(out, 8);
-  out.writeUInt32BE(crc32(out.subarray(4, 8 + body.length)), 8 + body.length);
+function chunk(type: string, body: Uint8Array = new Uint8Array(0)): Uint8Array {
+  const out = new Uint8Array(12 + body.length);
+  writeU32(out, 0, body.length);
+  out.set(fromLatin1(type), 4);
+  out.set(body, 8);
+  writeU32(out, 8 + body.length, crc32(out.subarray(4, 8 + body.length)));
 
   return out;
 }

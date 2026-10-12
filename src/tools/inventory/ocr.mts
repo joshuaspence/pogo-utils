@@ -1,8 +1,11 @@
 /**
- * Reads text off a screenshot with the Tesseract CLI, which has to be installed separately (`brew install tesseract`,
- * `apt install tesseract-ocr`) at 4.1 or later, since earlier releases' LSTM engine ignores the whitelist `ocrLine`
- * narrows a read with. Pokémon GO is drawn by Unity, so there is no view hierarchy to ask: `uiautomator dump` sees one
- * opaque surface, and the pixels are all there is.
+ * Reads text off a screenshot with Tesseract. Pokémon GO is drawn by Unity, so there is no view hierarchy to ask:
+ * `uiautomator dump` sees one opaque surface, and the pixels are all there is.
+ *
+ * Which Tesseract is an `Engine`, installed once with `useEngine` by whatever is running the readers: the CLI in
+ * `ocr-cli.mts` for `pnpm inventory`, and the WebAssembly build in `ocr-wasm.mts` for the Inventory page. Neither is
+ * imported here, since each drags in what the other platform lacks — a child process on one side, a `Worker` on the
+ * other — and the readers below this have to run on both.
  *
  * Downstream, readers anchor on where text sits wherever the screen offers something to anchor on, rather than on fixed
  * coordinates. The game lays itself out differently on every aspect ratio, and "the line above the HP" holds on all of
@@ -10,8 +13,26 @@
  * recalibrate for a new device.
  */
 
-import { encodePng, type Image } from './png.mts';
-import { execFile } from 'node:child_process';
+import { type Image } from './png.mts';
+
+/**
+ * One way of running Tesseract: the TSV it writes for an image, read in page segmentation mode `psm` and, where a
+ * `whitelist` is given, restricted to those characters. TSV rather than the plain text because the readers anchor on
+ * where text sits, which only the boxes carry.
+ *
+ * Both engines answer the same reads the same way only where they hold the same model, and both honour the whitelist
+ * only where the LSTM engine reading them is 4.1 or later — earlier releases' ignores it.
+ */
+export interface Engine {
+  tsv(image: Image, psm: number, whitelist?: string): Promise<string>;
+}
+
+let engine: Engine | null = null;
+
+/** Hands every read below to `next`, which is how the CLI and the page each pick their Tesseract. */
+export function useEngine(next: Engine): void {
+  engine = next;
+}
 
 /** One line of text as Tesseract grouped it, in the pixels of the image it was read from. */
 export interface Line {
@@ -43,8 +64,7 @@ export async function ocr(image: Image): Promise<Line[]> {
  * a number in two.
  */
 export async function ocrLine(image: Image, whitelist?: string): Promise<string | null> {
-  const options = whitelist === undefined ? [] : ['-c', `tessedit_char_whitelist=${whitelist}`];
-  const [line] = group(await tesseract(image, 7, ...options));
+  const [line] = group(await tesseract(image, 7, whitelist));
 
   return line?.text ?? null;
 }
@@ -80,7 +100,8 @@ interface Word {
 }
 
 /**
- * Tesseract's TSV rows grouped into lines.
+ * Tesseract's TSV rows grouped into lines. Only word rows are read, which is what passes over the header the CLI writes
+ * and the WebAssembly build does not.
  *
  * Words are put in order left to right, and one repeating the word before it and lying mostly over it is dropped, since
  * sparse mode sometimes reads a word twice: `smoliv.png`'s move otherwise reads `© Energy Ball am Ball`, the second
@@ -94,7 +115,7 @@ interface Word {
 function group(tsv: string): Line[] {
   const lines = new Map<string, Word[]>();
 
-  for (const row of tsv.split('\n').slice(1)) {
+  for (const row of tsv.split('\n')) {
     const cells = row.split('\t');
     const text = cells[11]?.trim();
 
@@ -134,47 +155,19 @@ function group(tsv: string): Line[] {
 }
 
 /**
- * Tesseract's TSV for an image, in page segmentation mode `psm`.
- *
- * Asked for with `tessedit_create_tsv` rather than the `tsv` config file, which a `TESSDATA_PREFIX` pointing at a
- * models-only download lacks and without which Tesseract writes plain text and still exits 0. OpenMP is held to one
- * thread, as `man tesseract` advises, because callers run reads side by side and each one's threads spin-wait against
- * the others': pinned to four cores, a pair of full-screen reads took a median 12 seconds against 0.3.
- *
- * A floating-point exception counts as reading nothing, it being the image rather than the machine that causes it:
- * Tesseract 5.3.4 dies of one every time on some whitelisted bands.
+ * Tesseract's TSV for an image, from whichever engine was installed.
  *
  * An empty image reads as nothing without asking — a crop wholly off the edge is one, and libpng refuses a PNG with no
  * width or height as `Invalid IHDR data`.
  */
-function tesseract(image: Image, psm: number, ...options: string[]): Promise<string> {
+async function tesseract(image: Image, psm: number, whitelist?: string): Promise<string> {
   if (image.width === 0 || image.height === 0) {
-    return Promise.resolve('');
+    return '';
   }
 
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      'tesseract',
-      ['stdin', 'stdout', '--psm', String(psm), '-c', 'tessedit_create_tsv=1', ...options],
-      { env: { ...process.env, OMP_THREAD_LIMIT: '1' } },
-      (error, stdout, stderr) => {
-        if (!error) {
-          resolve(stdout);
-        } else if (error.signal === 'SIGFPE') {
-          resolve('');
-        } else if (typeof error.code === 'string') {
-          const hint = error.code === 'ENOENT' ? '; install Tesseract and put it on PATH' : '';
-          reject(new Error(`could not run tesseract (${error.message})${hint}`));
-        } else {
-          const status = error.signal ? `killed by ${error.signal}` : `exited ${error.code}`;
-          reject(new Error(`tesseract ${status}: ${stderr.trim()}`));
-        }
-      },
-    );
+  if (engine === null) {
+    throw new Error('no OCR engine: `useEngine` has to be called before anything is read');
+  }
 
-    // A Tesseract that fails before reading its input closes the pipe under a PNG too big to buffer, and the EPIPE
-    // would otherwise be an unhandled error that kills Node before the exit status above can say what went wrong.
-    child.stdin?.on('error', () => {});
-    child.stdin?.end(encodePng(image));
-  });
+  return engine.tsv(image, psm, whitelist);
 }

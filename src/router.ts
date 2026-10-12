@@ -10,7 +10,7 @@
 /**
  * Every page, with what the tab bar calls it and what the document is titled while it is open, in tab order.
  *
- * `satisfies` rather than an annotation so `PAGES[n].name` stays the union of the five literals rather than widening to
+ * `satisfies` rather than an annotation so `PAGES[n].name` stays the union of the six literals rather than widening to
  * `string`: that union is `Page`, and it is what makes a misspelt page a type error at every use below.
  */
 export const PAGES = [
@@ -19,6 +19,7 @@ export const PAGES = [
   { name: 'search', label: 'Search', icon: '🔎', title: 'Pokémon GO Search Strings' },
   { name: 'pokedex', label: 'Pokédex', icon: '📖', title: 'Pokémon GO Pokédex' },
   { name: 'integrations', label: 'Integrations', icon: '🔌', title: 'Pokémon GO Integrations' },
+  { name: 'inventory', label: 'Inventory', icon: '🎒', title: 'Pokémon GO Inventory' },
 ] as const satisfies readonly { name: string; label: string; icon: string; title: string }[];
 
 export type Page = (typeof PAGES)[number]['name'];
@@ -33,7 +34,7 @@ export interface Route {
 }
 
 /**
- * Whether this names one of the five. A reader's URL is the input, so the names are checked against the table rather
+ * Whether this names one of the six. A reader's URL is the input, so the names are checked against the table rather
  * than trusted — the same reading every `fromFragment` in `src/` gives the parts of a fragment it does not recognise.
  */
 export const isPage = (value: string): value is Page => PAGES.some((page) => page.name === value);

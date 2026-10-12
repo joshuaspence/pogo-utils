@@ -11,7 +11,8 @@
  * live read per treatment would say, and that wants the band's own crop rather than a second copy of it here.
  */
 
-import { rescue } from './detail.mts';
+import { cpOn, joined, rescue } from './detail.mts';
+import { type Line } from './ocr.mts';
 import { expect, test } from 'vitest';
 
 /** How many digits the longest CP any form can show runs to, which is what `cpDigits` answers off the vended master. */
@@ -61,4 +62,41 @@ test('a line already as long as a CP admits no rescue whatever', () => {
   for (const text of ['1605', '16050', '01605', '1605 1605', '', '99999']) {
     expect(rescue(text, '1605', LONGEST), `\`${text}\` is accepted against a line already at the cap`).toBeNull();
   }
+});
+
+const line = (text: string, left: number, top: number, width: number, height: number): Line => ({
+  text,
+  left,
+  top,
+  width,
+  height,
+});
+
+/**
+ * What the WebAssembly Tesseract makes of `deoxys-defense.png`'s CP, dumped off the page's own read: the label line
+ * stops after `15`, and the rest of the number is a line of its own — read twice, once by each of `readLines`' passes,
+ * a few pixels apart. The CLI reads the same screen as one line, so only this file and a corpus run under
+ * `INVENTORY_OCR=wasm` reach the join.
+ */
+test('a CP cut in two by the line breaks is joined to the nearer half', () => {
+  const label = line('ce15', 342, 127, 156, 63);
+  const lines = [label, line('59', 516, 126, 81, 62), line('69', 498, 127, 99, 99)];
+
+  expect(cpOn(joined(label, lines).text, LONGEST), 'the two halves of the CP are no longer joined').toBe('1569');
+});
+
+/** The join's refusals: a word rather than digits, a line on another row, and a gap wider than a glyph's. */
+test('only digits abutting the line on its own row are joined to it', () => {
+  const label = line('cp15', 342, 127, 156, 63);
+
+  for (const other of [line('69 HP', 498, 127, 99, 63), line('69', 498, 300, 99, 63), line('69', 600, 127, 99, 63)]) {
+    expect(joined(label, [label, other]), `${other.text} at ${other.left},${other.top} was joined`).toBe(label);
+  }
+});
+
+/** `unown-b.png` under the same engine: one space inside the number, which the CLI reads as a slash instead. */
+test('a CP with one space inside it is read whole', () => {
+  expect(cpOn('cP48 7', LONGEST), 'a CP with a space inside it is read as its first half').toBe('487');
+  expect(cpOn('cPe518', LONGEST), 'the ordinary CP line no longer reads').toBe('518');
+  expect(cpOn('cP1605 12', LONGEST), 'a number beside a whole CP was read into it').toBe('1605');
 });

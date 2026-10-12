@@ -7,10 +7,11 @@
  * reach the rest, and the captures that do arrive with the readers rather than here.
  */
 
-import { crc32, deflateSync } from 'node:zlib';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import { expect, test } from 'vitest';
 import {
   brighten,
+  crc32 as ownCrc32,
   crop,
   decodePng,
   difference,
@@ -427,4 +428,25 @@ test('a pixel differs where any channel moves, not only red', () => {
 
 test('two images of different sizes differ completely rather than throwing', () => {
   expect(difference(ramp(4, 4), ramp(5, 4), 0, 1)).toBe(1);
+});
+
+/**
+ * The CRC and the zlib stream are this file's own and fflate's rather than Node's, so a browser can run them. Held to
+ * Node's here, which is what every PNG on disk was written with: a CRC that disagreed would refuse every one of them.
+ */
+test('the CRC is the one Node computes, and what is deflated Node inflates', () => {
+  for (const bytes of [
+    new Uint8Array(0),
+    new TextEncoder().encode('IEND'),
+    new Uint8Array(4096).map((_, i) => i * 7),
+  ]) {
+    expect(ownCrc32(bytes), `${bytes.length} bytes`).toBe(crc32(bytes));
+  }
+
+  const image = ramp(5, 3);
+  const png = encodePng(image);
+  // The signature and IHDR, then IDAT's length and type ahead of its data, and its CRC and IEND after.
+  const idat = png.subarray(8 + 25 + 8, png.length - 4 - 12);
+
+  expect(Uint8Array.from(inflateSync(idat)).length, 'the pixel stream is not one Node inflates').toBe((5 * 4 + 1) * 3);
 });
