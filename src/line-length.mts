@@ -41,12 +41,14 @@ export function width(text: string) {
 }
 
 /**
- * A heredoc's opening, `<<EOT`, `<<-EOT`, `<<'EOT'` or `<<"EOT"` but not a `<<<` here-string, capturing the word that
- * closes it. Looked for only where shell is written — a `.sh` file, a workflow's `run:` block, a Markdown code block
- * labelled as shell — since elsewhere `<<` is a shift in TypeScript or prose quoting a command, and taking one of those
- * for a heredoc would exempt every line until one happened to read `EOF`.
+ * A heredoc's opening, `<<EOT`, `<<-EOT`, `<<\EOT`, `<<'EOT'` or `<<"EOT"` but not a `<<<` here-string, capturing the
+ * word that closes it — quoted, anything up to the closing quote; bare, anything up to a space or an operator, so
+ * `<<END-OF-BODY` is closed by `END-OF-BODY` and not left open waiting for an `END`. Looked for only where shell is
+ * written — a `.sh` file, a workflow's `run:` block, a Markdown code block labelled as shell — since elsewhere `<<` is
+ * a shift in TypeScript or prose quoting a command, and taking one of those for a heredoc would exempt every line until
+ * one happened to read `EOF`. For the same reason not on a line that is a shell comment.
  */
-const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_]\w*)\1/;
+const HEREDOC = /(?<!<)<<(?!<)-?\s*(?:'([^']+)'|"([^"]+)"|\\?([^\s'"<>|;&()]+))/;
 
 /** The Markdown code block languages that hold shell. */
 const SHELL_FENCES = new Set(['bash', 'console', 'sh', 'shell', 'zsh']);
@@ -130,7 +132,9 @@ export function overlong(fileName: string, text: string): Overlong[] {
     } else if (marker === 'next-line') {
       ignoreNext = true;
     } else if (shell && !ignoring) {
-      heredoc = HEREDOC.exec(line)?.[2];
+      const start = /^\s*#/.test(line) ? null : HEREDOC.exec(line);
+
+      heredoc = start ? (start[1] ?? start[2] ?? start[3]) : undefined;
     }
 
     const key = yaml && run === undefined ? RUN.exec(line) : null;
