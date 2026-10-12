@@ -462,13 +462,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
         dot(b, cssVar('--end'), 'End').addTo(map),
       ]);
 
-      const detail = `${route.country} · ${route.latlngs.length} points · ${fmtDist(route.distance)}`;
-
-      route.line.bindPopup(
-        buildPopup(route.name, detail, 'Copy GPX', route.gpx, (ok) =>
-          setToast(ok ? `Copied “${route.name}” GPX to clipboard` : 'Copy failed'),
-        ),
-      );
+      bindRoutePopup(route);
     }
 
     for (const city of loaded.cities) {
@@ -479,13 +473,31 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
       city.marker.setStyle({ radius: 8, fillColor: cssVar('--accent') });
       city.marker.bringToFront();
-      city.marker.bindPopup(
-        buildPopup(city.name, `${city.country} · ${city.coordStr}`, 'Copy coordinates', city.coordStr, (ok) =>
-          setToast(ok ? `Copied ${city.name} coordinates to clipboard` : 'Copy failed'),
-        ),
-      );
+      bindCityPopup(city);
     }
   }, [selected, loaded]);
+
+  /**
+   * An entry's popup, bound by the effect above for every selected entry and by `select` before it opens one: that
+   * effect runs only after the render the selection causes, so a popup opened ahead of it would have nothing bound yet.
+   */
+  function bindRoutePopup(route: RouteEntry) {
+    const detail = `${route.country} · ${route.latlngs.length} points · ${fmtDist(route.distance)}`;
+
+    route.line.bindPopup(
+      buildPopup(route.name, detail, 'Copy GPX', route.gpx, (ok) =>
+        setToast(ok ? `Copied “${route.name}” GPX to clipboard` : 'Copy failed'),
+      ),
+    );
+  }
+
+  function bindCityPopup(city: CityEntry) {
+    city.marker.bindPopup(
+      buildPopup(city.name, `${city.country} · ${city.coordStr}`, 'Copy coordinates', city.coordStr, (ok) =>
+        setToast(ok ? `Copied ${city.name} coordinates to clipboard` : 'Copy failed'),
+      ),
+    );
+  }
 
   /**
    * Select a set of entries, opening the groups above their rows and scrolling the first into view. Only one place can
@@ -517,6 +529,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
     if (route) {
       map.fitBounds(route.line.getBounds(), { padding: [24, 24], maxZoom: 17 });
+      bindRoutePopup(route);
       route.line.openPopup();
       return;
     }
@@ -525,6 +538,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
     if (city) {
       map.setView(city.coords, Math.max(map.getZoom(), 12));
+      bindCityPopup(city);
       city.marker.openPopup();
     }
   }
@@ -600,14 +614,17 @@ export default function MapPage({ query: fragment }: { query: string }) {
   }
 
   // The fragment's `?event=`, read on arrival and whenever a link changes it. The files may not have arrived yet, in
-  // which case the load above spends it once they have.
+  // which case the load above spends it once they have. Keyed on the fragment alone: keyed on `loaded` too, the render
+  // the load's own `setLoaded` causes would read it back into `pending` and apply it a second time.
   useEffect(() => {
     pending.current = new URLSearchParams(fragment).get('event');
 
-    if (loaded !== null) {
-      focusEvent(loaded);
+    const held = loadedRef.current;
+
+    if (held !== null) {
+      focusEvent(held);
     }
-  }, [fragment, loaded]);
+  }, [fragment]);
 
   /**
    * The rows, grouped the way the sidebar draws them, with the filter already applied. Matched against the entries
