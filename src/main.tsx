@@ -18,14 +18,14 @@ import './nav.css';
 import './chrome.css';
 
 /*
- * Leaflet's, ahead of the page sheets because `styles.css` overrides its popup rules. The scoping makes those
+ * Leaflet's, ahead of the page sheets because `map.css` overrides its popup rules. The scoping makes those
  * overrides win on specificity alone, so the order is belt and braces rather than the thing holding them up.
  */
 import 'leaflet/dist/leaflet.css';
 
 // The pages', in the tab bar's order. Each is scoped to its own page and inert on the other four.
 import './events.css';
-import './styles.css';
+import './map.css';
 import './search.css';
 import './pokedex.css';
 import './integrations.css';
