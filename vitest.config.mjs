@@ -23,7 +23,7 @@ export default defineConfig({
   test: {
     coverage: {
       enabled: false,
-      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      include: ['src/**/*.ts', 'src/**/*.tsx', 'src/**/*.mts'],
       exclude: ['src/**/*.d.ts'],
       reporter: ['text'],
     },
