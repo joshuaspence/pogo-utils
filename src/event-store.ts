@@ -132,8 +132,9 @@ export function settleSeen(prefs: Prefs, settled: readonly ParsedEvent[]) {
 /**
  * One feed, checked to be a list. `Array.isArray` narrows no further than `any[]`, so the element type is a claim
  * rather than something the throw enforces. What makes it a safe one is `normalise`: every field is either handed to
- * `parseDate`, which answers null for anything that is not a date, or rendered as text — so a feed that changed shape
- * draws `undefined` rather than doing something with it.
+ * `parseDate`, which answers null for anything that is not a date, handed to `webLink`, which answers undefined for
+ * anything that is not a web URL, or rendered as text — so a feed that changed shape draws `undefined` rather than
+ * doing something with it.
  */
 export async function fetchEvents(url: string): Promise<readonly FeedEvent[]> {
   const res = await fetch(url, { cache: 'default' });

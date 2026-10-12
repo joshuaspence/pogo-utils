@@ -502,17 +502,20 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       >
         {/*
          * A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button
-         * a sibling rather than a child: an anchor may not contain interactive content.
+         * a sibling rather than a child: an anchor may not contain interactive content. Left out for an event whose
+         * link `webLink` dropped, rather than drawn as an overlay that opens nothing.
          */}
-        <a
-          class="card-link"
-          href={ev.link}
-          target="_blank"
-          rel="noopener"
-          aria-label={`Open “${ev.name}”`}
-          onClick={acknowledge}
-          onAuxClick={acknowledge}
-        />
+        {ev.link !== undefined && (
+          <a
+            class="card-link"
+            href={ev.link}
+            target="_blank"
+            rel="noopener"
+            aria-label={`Open “${ev.name}”`}
+            onClick={acknowledge}
+            onAuxClick={acknowledge}
+          />
+        )}
 
         {/*
          * A dismissed card only appears while "Show hidden" is on; there the same corner button restores it rather than
