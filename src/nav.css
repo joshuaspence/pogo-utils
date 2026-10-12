@@ -79,7 +79,6 @@
 .menu {
   flex: 0 0 auto;
   display: flex;
-  border-left: 1px solid var(--border);
 }
 
 .menu-toggle {
@@ -272,8 +271,8 @@
 }
 
 /**
- * Tighten the tabs on a narrow screen so less of the bar is scrolled off. Five fitted down to roughly a 540px viewport
- * this way; six fit nowhere under 800px, which is what the scrolling above is for.
+ * Tighten the tabs on a narrow screen and drop their labels, so the whole bar fits a phone. The scrolling above stays
+ * for a viewport narrower still, or a tab added later.
  */
 @media (width <= 560px) {
   .topnav {
@@ -287,5 +286,19 @@
   .topnav .tab {
     gap: 6px;
     padding: 13px 12px;
+  }
+
+  /**
+   * Six labels do not fit a phone, so the icons carry the bar alone there. Hidden visually rather than with `display:
+   * none`, which would take the label out of the accessible name too, the icon beside it being `aria-hidden`; the
+   * `title` on each tab is what names it to a pointer.
+   */
+  .topnav .tab .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }

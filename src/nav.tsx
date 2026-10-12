@@ -22,11 +22,17 @@ export function Nav({ current }: { current: Page }) {
     <div class="topbar">
       <nav class="topnav">
         {PAGES.map(({ name, label, icon }) => (
-          <a key={name} class="tab" href={toHash(name)} aria-current={name === current ? 'page' : undefined}>
+          <a
+            key={name}
+            class="tab"
+            href={toHash(name)}
+            title={label}
+            aria-current={name === current ? 'page' : undefined}
+          >
             <span class="ico" aria-hidden="true">
               {icon}
             </span>{' '}
-            {label}
+            <span class="label">{label}</span>
           </a>
         ))}
       </nav>
