@@ -469,6 +469,53 @@ test('without ntfy each match is printed once, in full, and nothing is sent', as
   ]);
 });
 
+/**
+ * The line a failed notification prints is the whole of what a watcher left running overnight leaves behind, and
+ * `fetch` calls everything below HTTP `fetch failed` — so unless the cause reaches the log the failure names nothing to
+ * act on. Port 9 is one `fetch` refuses itself, which makes the cause here `bad port` rather than the network's to
+ * decide.
+ */
+test('a notification that cannot be sent says why, cause and all', async () => {
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'GET /api/game_data':
+        return json(response, 200, JSON.parse(fixture('game-data.json')));
+      case 'POST /api/auth/login':
+        return json(response, 200, { token: 't' });
+      case 'POST /api/map/viewport':
+        return json(response, 200, viewport());
+      default:
+        return json(response, 200, {});
+    }
+  });
+
+  const controller = new AbortController();
+  const lines: string[] = [];
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      ntfy: { server: 'http://127.0.0.1:9', topic: 'secret-topic-name' },
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => lines.push(line),
+      sleep: async () => controller.abort(),
+    });
+  } finally {
+    await map.close();
+  }
+
+  expect(lines.filter((line) => line.startsWith('Could not notify'))).toStrictEqual([
+    'Could not notify 100% Dratini: fetch failed: bad port; trying again next poll',
+    'Could not notify 100% XXL Magikarp: fetch failed: bad port; trying again next poll',
+    'Could not notify Shiny 100% Rattata (Alola): fetch failed: bad port; trying again next poll',
+    'Could not notify Shiny Bulbasaur: fetch failed: bad port; trying again next poll',
+  ]);
+
+  // A publish carries the topic in its body and never in its URL, so no failure of one can print it.
+  expect(lines.join('\n')).not.toContain('secret-topic-name');
+});
+
 test('the command refuses to start without its credentials or a query', async () => {
   const start = (args: string[], env: Record<string, string>) =>
     new Promise<[number | null, string]>((done) => {

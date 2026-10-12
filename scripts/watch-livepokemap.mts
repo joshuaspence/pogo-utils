@@ -23,7 +23,7 @@
 
 import { LIVE_POKEMAP, LivePokeMap } from '../src/tools/watch/client.mts';
 import { blindSpots, parseQuery, type Query } from '../src/tools/watch/query.mts';
-import { watch } from '../src/tools/watch/watcher.mts';
+import { messageOf, watch } from '../src/tools/watch/watcher.mts';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
@@ -111,6 +111,6 @@ try {
   });
 } catch (error) {
   if (!controller.signal.aborted) {
-    fail((error as Error).message);
+    fail(messageOf(error));
   }
 }

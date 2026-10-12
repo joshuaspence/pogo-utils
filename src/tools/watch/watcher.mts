@@ -132,7 +132,7 @@ export async function watch(options: WatchOptions): Promise<void> {
             break;
           }
 
-          log(`Could not notify ${notification.title}: ${(error as Error).message}; trying again next poll`);
+          log(`Could not notify ${notification.title}: ${messageOf(error)}; trying again next poll`);
         }
       }
     } catch (error) {
@@ -146,7 +146,7 @@ export async function watch(options: WatchOptions): Promise<void> {
       }
 
       wait = backoff.failed();
-      log(`${(error as Error).message}; trying again in ${Math.round(wait / 1000)}s`);
+      log(`${messageOf(error)}; trying again in ${Math.round(wait / 1000)}s`);
     }
 
     await sleep(wait, signal);
@@ -182,7 +182,7 @@ async function startup(options: WatchOptions): Promise<[number, GameData]> {
 
         const wait = backoff.failed();
 
-        log(`Could not ${what}: ${(error as Error).message}; trying again in ${Math.round(wait / 1000)}s`);
+        log(`Could not ${what}: ${messageOf(error)}; trying again in ${Math.round(wait / 1000)}s`);
         await sleep(wait, signal);
       }
     }
@@ -196,6 +196,29 @@ async function startup(options: WatchOptions): Promise<[number, GameData]> {
   await attempt('load the map', () => client.startup(signal));
 
   return [refreshInterval(config), data];
+}
+
+/**
+ * A failure as one line, cause and all. `fetch` says only `fetch failed` for everything that goes wrong below HTTP and
+ * hangs the real reason off `cause` — where a connect failure puts an `AggregateError` whose own message is empty and
+ * whose `errors` hold one entry per address tried, so `message` alone names nothing anyone can act on. A cause already
+ * quoted in the message above it is dropped rather than said twice, which is how `LoginRefused` composes its own.
+ */
+export function messageOf(error: unknown): string {
+  const said: string[] = [];
+
+  for (let link: unknown = error; link instanceof Error; link = link.cause) {
+    const text =
+      link instanceof AggregateError
+        ? [...new Set(link.errors.filter((inner) => inner instanceof Error).map((inner) => inner.message))].join(', ')
+        : link.message;
+
+    if (text && !said.some((earlier) => earlier.includes(text))) {
+      said.push(text);
+    }
+  }
+
+  return said.join(': ') || String(error);
 }
 
 /**
