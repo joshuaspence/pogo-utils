@@ -42,10 +42,17 @@ export function width(text: string) {
 
 /**
  * A heredoc's opening, `<<EOT`, `<<-EOT`, `<<'EOT'` or `<<"EOT"`, capturing the word that closes it. Looked for only
- * where shell is written — a workflow's `run:`, a Markdown code block — since in TypeScript `a <<b` is a shift, and
- * taking it for a heredoc would exempt the rest of the file.
+ * where shell is written — a `.sh` file, a workflow's `run:` block, a Markdown code block labelled as shell — since
+ * elsewhere `<<` is a shift in TypeScript or prose quoting a command, and taking one of those for a heredoc would
+ * exempt every line until one happened to read `EOF`.
  */
 const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1/;
+
+/** The Markdown code block languages that hold shell. */
+const SHELL_FENCES = new Set(['bash', 'console', 'sh', 'shell', 'zsh']);
+
+/** A YAML `run:` key opening a block scalar, alone or as a sequence item. */
+const RUN = /^\s*(?:-\s+)?run:\s*[|>]/;
 
 /**
  * An ignore marker, which has to open a comment that opens its line — `//`, `/*`, `#` or `<!--` and then
@@ -64,16 +71,34 @@ const FENCE = /^\s*(?:```|~~~)\s*(\w*)/;
 /** The lines of `text` wider than `MAX_WIDTH` and not exempt, 1-indexed, for a file named `fileName`. */
 export function overlong(fileName: string, text: string): Overlong[] {
   const markdown = fileName.endsWith('.md');
-  const shell = /\.(md|sh|ya?ml)$/.test(fileName);
+  const yaml = /\.ya?ml$/.test(fileName);
   const found: Overlong[] = [];
 
   /** The language of the Markdown code block this is in, `''` for one that names none, or undefined outside one. */
   let fence: string | undefined;
+  /** The indentation of the `run:` key whose block this is in, or undefined outside one. */
+  let run: number | undefined;
   let heredoc: string | undefined;
   let ignoring = false;
   let ignoreNext = false;
 
   for (const [index, line] of text.split('\n').entries()) {
+    const indent = line.search(/\S/);
+    const closesFence = markdown && fence !== undefined && FENCE.test(line);
+    const leavesRun = run !== undefined && indent !== -1 && indent <= run;
+
+    // A heredoc ends with the block it was written in at the latest, so one whose closing word never comes cannot
+    // exempt the rest of the file.
+    if (closesFence || leavesRun) {
+      heredoc = undefined;
+    }
+
+    if (leavesRun) {
+      run = undefined;
+    }
+
+    const shell =
+      fileName.endsWith('.sh') || (markdown && SHELL_FENCES.has(fence ?? '')) || (yaml && run !== undefined);
     const json = fileName.endsWith('.json') || fence === 'json' || fence === 'jsonc';
     const exempt =
       ignoring ||
@@ -84,19 +109,17 @@ export function overlong(fileName: string, text: string): Overlong[] {
 
     ignoreNext = false;
 
+    const opened = markdown && fence === undefined ? FENCE.exec(line) : null;
+    const marker = MARKER.exec(line)?.[1];
+
     if (heredoc !== undefined) {
       if (line.trim() === heredoc) {
         heredoc = undefined;
       }
-
-      continue;
-    }
-
-    const opened = markdown ? FENCE.exec(line) : null;
-    const marker = MARKER.exec(line)?.[1];
-
-    if (opened) {
-      fence = fence === undefined ? (opened[1] ?? '') : undefined;
+    } else if (closesFence) {
+      fence = undefined;
+    } else if (opened) {
+      fence = opened[1] ?? '';
     } else if (marker === 'start') {
       ignoring = true;
     } else if (marker === 'end') {
@@ -105,6 +128,10 @@ export function overlong(fileName: string, text: string): Overlong[] {
       ignoreNext = true;
     } else if (shell && !ignoring) {
       heredoc = HEREDOC.exec(line)?.[2];
+    }
+
+    if (yaml && run === undefined && RUN.test(line)) {
+      run = indent;
     }
 
     if (!exempt && line.length > MAX_WIDTH) {

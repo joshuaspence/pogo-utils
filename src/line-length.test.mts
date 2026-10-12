@@ -27,7 +27,21 @@ test('a heredoc body is exempt in a workflow, up to the word that closes it', ()
   const run = lines('run: |', '  cat <<EOT', `  ${long()}`, '  EOT', `  ${long()}`);
 
   expect(overlong('a.yaml', run)).toEqual([{ line: 5, width: MAX_WIDTH + 3 }]);
+  expect(overlong('a.sh', lines('cat <<EOT', long(), 'EOT', long()))).toEqual([{ line: 4, width: MAX_WIDTH + 1 }]);
+});
+
+test('a heredoc is looked for only where shell is written, and ends with the block it was opened in', () => {
   expect(overlong('a.ts', lines('const a = b <<EOT;', long()))).toHaveLength(1);
+  expect(overlong('a.md', lines('Pipe it in with `cat <<EOF`.', long()))).toHaveLength(1);
+  expect(overlong('a.md', lines('```ts', 'a <<EOF', long(), '```'))).toHaveLength(1);
+  expect(overlong('a.yaml', lines('name: cat <<EOF', long()))).toHaveLength(1);
+
+  expect(overlong('a.md', lines('```sh', 'cat <<EOF', long(), '```', long()))).toEqual([
+    { line: 5, width: MAX_WIDTH + 1 },
+  ]);
+  expect(overlong('a.yaml', lines('  - run: |', '      cat <<EOF', `      ${long()}`, '  - name: b', long()))).toEqual([
+    { line: 5, width: MAX_WIDTH + 1 },
+  ]);
 });
 
 test('a JSON line holding one string is exempt, in a JSON file or a Markdown json block', () => {
