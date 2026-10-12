@@ -90,6 +90,9 @@ const concat = (parts: readonly Uint8Array[]): Uint8Array => {
 /** Bytes per pixel for each colour type this reads: greyscale, RGB, greyscale with alpha and RGBA. */
 const CHANNELS: Record<number, number> = { 0: 1, 2: 3, 4: 2, 6: 4 };
 
+/** The most deflate can expand by: a 258-byte match coded in as few as two bits. */
+const MAX_INFLATION = 1032;
+
 /** Why a screenshot cannot be read, with where to look, since a damaged one is far likelier than a damaged codec. */
 const refuse = (why: string): Error =>
   new Error(`${why} (did the screenshot fail? run \`adb exec-out screencap -p\` by hand to see)`);
@@ -158,20 +161,34 @@ export function decodePng(bytes: Uint8Array): Image {
     throw refuse('truncated PNG');
   }
 
+  const stride = width * channels;
+  const needed = (stride + 1) * height;
+  const compressed = concat(idat);
+
+  // Sized from the IHDR, which a forger writes along with honest CRCs, so it is held to what the stream could possibly
+  // hold before anything is allocated on its word. A hundred bytes declaring 30000×30000 would otherwise ask for
+  // gigabytes, and a zlib bomb would have the inflate ask for them itself.
+  if (needed > compressed.length * MAX_INFLATION) {
+    throw refuse(
+      `corrupt PNG: ${compressed.length} bytes of IDAT cannot hold the ${needed} that ${width}×${height} needs`,
+    );
+  }
+
   let raw: Uint8Array;
 
   try {
-    raw = unzlibSync(concat(idat));
+    // Into a buffer of exactly the size the header promised, which fflate fills without growing, so a stream that
+    // inflates further than that stops there rather than allocating for the rest.
+    raw = unzlibSync(compressed, { out: new Uint8Array(needed) });
   } catch (error) {
     throw refuse(`corrupt PNG: its pixels do not inflate (${error instanceof Error ? error.message : String(error)})`);
   }
 
-  const stride = width * channels;
-  const pixels = new Uint8Array(stride * height);
-
-  if (raw.length < (stride + 1) * height) {
-    throw refuse(`corrupt PNG: ${raw.length} bytes of pixels where ${width}×${height} needs ${(stride + 1) * height}`);
+  if (raw.length < needed) {
+    throw refuse(`corrupt PNG: ${raw.length} bytes of pixels where ${width}×${height} needs ${needed}`);
   }
+
+  const pixels = new Uint8Array(stride * height);
 
   for (let y = 0; y < height; y++) {
     const filter = raw[y * (stride + 1)] ?? 0;

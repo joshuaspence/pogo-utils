@@ -223,6 +223,27 @@ test('a pixel stream that is short or names an unknown filter is refused rather 
 });
 
 /**
+ * The header's dimensions are held to what its pixel stream could hold before anything is allocated on them, and the
+ * stream is inflated no further than they need, so neither a forged `IHDR` nor a zlib bomb can exhaust memory. Both
+ * carry honest CRCs, which a forger computes as readily as `screencap` does.
+ */
+test('dimensions the pixel stream cannot fill are refused before anything is allocated for them', () => {
+  const bytes = Buffer.from(encodePng(ramp(2, 2)));
+  bytes.writeUInt32BE(30000, 16);
+  bytes.writeUInt32BE(30000, 20);
+  bytes.writeUInt32BE(crc32(bytes.subarray(12, 29)), 29);
+
+  expect(() => decodePng(bytes)).toThrow(/bytes of IDAT cannot hold the 3600030000 that 30000×30000 needs/);
+});
+
+test('a pixel stream that inflates past what the header needs is read only as far as that', () => {
+  const bomb = withPixels(new Array<number>(64 * 1024 * 1024).fill(0));
+
+  expect(bomb.length, 'the stream really is a bomb').toBeLessThan(128 * 1024);
+  expect([...decodePng(bomb).data]).toStrictEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+});
+
+/**
  * The header is checked before the pixels, so an image this cannot read is refused rather than mis-read. Written by
  * hand because `encodePng` emits 8-bit RGBA and nothing else, so there is no way to produce one of these from it.
  */
