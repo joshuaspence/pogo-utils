@@ -7,7 +7,7 @@ application and reached from a shared top tab bar:
   subscription.
 - **Map** (`#/map`) — an interactive map of GPX walking tracks and teleport waypoints.
 - **Search** (`#/search`) — a builder for the strings the game's own Pokémon search box takes.
-- **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny, and which hunts
+- **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny and which hunts
   still want it.
 - **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites, and a Live
   PokeMap display filter built from the shiny hunt list.
