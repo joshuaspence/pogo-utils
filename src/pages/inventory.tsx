@@ -15,11 +15,12 @@
  * through `import()` like every other.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 
 import { said } from '../errors.js';
-import { connect, unreachable, type Phone } from '../inventory/webusb.js';
+import { connect, unreachable } from '../inventory/webusb.js';
 import { read, unreadable } from '../inventory/reader.js';
+import { phoneStore, usePhone } from '../phone-store.js';
 import { Device } from '../tools/inventory/adb.mts';
 import { type Line } from '../tools/inventory/ocr.mts';
 import { decodePng, encodePng, type Image } from '../tools/inventory/png.mts';
@@ -92,18 +93,13 @@ function Blocks({ reading }: { reading: Reading }) {
 }
 
 export default function InventoryPage() {
-  const [phone, setPhone] = useState<Phone | null>(null);
+  const phone = usePhone();
   const [capture, setCapture] = useState<Capture | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const blocked = unreachable();
   const unread = unreadable();
-
-  // Let go of the phone when the page is left, so the next tab or program to want it is not told it is busy.
-  const held = useRef<Phone | null>(null);
-  held.current = phone;
-  useEffect(() => () => void held.current?.close(), []);
 
   // The capture as a PNG, encoded once for the picture below and the download beside it.
   const png = useMemo(() => (capture ? Uint8Array.from(encodePng(capture.image)) : null), [capture]);
@@ -155,10 +151,7 @@ export default function InventoryPage() {
         return;
       }
 
-      // Letting go of the phone before it, which may be unplugged by now and throw for it: that is no reason to lose
-      // the one just connected, still holding its interface with nothing on the page able to let it go.
-      await phone?.close().catch(() => {});
-      setPhone(picked);
+      await phoneStore.hold(picked);
       setPhase({ kind: 'idle' });
     } catch (e) {
       setPhase({ kind: 'failed', message: `Could not connect: ${said(e)}` });
@@ -239,7 +232,8 @@ export default function InventoryPage() {
             Plug in an Android phone with USB debugging on, open a Pokémon in Pokémon GO with PGSharp’s IV display
             showing, and take whatever it shows. Close any <code>adb</code> server first: a phone held by one cannot be
             claimed here. Where the connection will not come up, <a href="https://webadb.com/">WebADB</a> is a shell
-            over the same WebUSB to find out why.
+            over the same WebUSB to find out why. The phone stays connected from tab to tab, which is what lets the
+            Search tab type its string into storage, until it is unplugged or the site is closed.
           </p>
 
           {blocked ? (

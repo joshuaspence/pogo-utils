@@ -18,11 +18,13 @@ export interface Transport {
 }
 
 /**
- * Whether `type` would send this rather than refuse it: a space, and the characters a storage search is made of.
+ * Whether `type` would send this rather than refuse it: a space, and the characters a storage search is made of —
+ * `<` and `>` among them for the type-effectiveness searches, and `.` for Mr. Mime. `type` single-quotes the text, so
+ * none of them reaches the shell as anything but itself; a `'` would end the quote, and is refused with the rest.
  * Exported so a caller can refuse a term before it has driven the phone to the box it meant to type into, `type`
  * throwing there leaving storage open with the keyboard up.
  */
-export const typeable = (text: string) => /^[\w&,!@#*+-]*$/.test(text.replaceAll(' ', ''));
+export const typeable = (text: string) => /^[\w&,!@#*+<>.-]*$/.test(text.replaceAll(' ', ''));
 
 export class Device {
   readonly #transport: Transport;

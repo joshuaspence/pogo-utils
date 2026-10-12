@@ -204,10 +204,14 @@ body[data-page='search'] {
    * The Copy button still grows for its own transient labels, `Copied` at 82.06px and the clipboard fallback's
    * `Press ⌘C` at 99.42px. Holding those would set the resting width a third wider than its word for a moment that
    * lasts 1.4 seconds.
+   *
+   * *Search*, beside Copy while a phone is held, takes the same geometry and the outline: Copy stays the filled one,
+   * being the way out the string has whether or not there is a phone.
    */
 
   button.use,
-  .output button.copy {
+  .output button.copy,
+  .output button.send {
     min-width: 5.75em;
     padding: 0 18px;
     border: 1px solid var(--accent);
@@ -219,24 +223,28 @@ body[data-page='search'] {
     cursor: pointer;
   }
 
-  button.use {
+  button.use,
+  .output button.send {
     background: transparent;
     color: var(--accent);
   }
 
   button.use:hover:not(:disabled),
-  .output button.copy:hover:not(:disabled) {
+  .output button.copy:hover:not(:disabled),
+  .output button.send:hover:not(:disabled) {
     filter: brightness(1.05);
   }
 
-  button.use:disabled {
+  button.use:disabled,
+  .output button.send:disabled {
     border-color: var(--border);
     color: var(--muted);
     font-weight: 500;
     cursor: default;
   }
 
-  button.use:focus-visible {
+  button.use:focus-visible,
+  .output button.send:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -262,6 +270,22 @@ body[data-page='search'] {
   .output button.copy.done {
     border-color: var(--start);
     background: var(--start);
+  }
+
+  /* Copy and Search side by side even in a phone's column, where stacked they would add a row to a card that sticks. */
+
+  .output .buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  /* Where a string sent to the phone has got to, said as quietly as the count above it; a failure is `.broken`. */
+
+  .output .sent {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--muted);
   }
 
   .output .meta {
@@ -1128,8 +1152,13 @@ body[data-page='search'] {
     }
 
     button.use,
-    .output button.copy {
+    .output button.copy,
+    .output button.send {
       padding: 9px 18px;
+    }
+
+    .output .buttons > button {
+      flex: 1;
     }
 
     /**

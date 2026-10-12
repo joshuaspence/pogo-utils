@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
 import { typeable } from './adb.mts';
+import { CLEAR_KEYS } from './storage.mts';
 
 const run = promisify(execFile);
 
@@ -286,14 +287,6 @@ test('`snap` refuses an untypeable `--search`, before it opens the phone', async
 });
 
 /**
- * How many backspaces clear the search box, read off the source because it is a module constant in a script that cannot
- * be imported. The bug this pins was the two numbers below disagreeing silently: the clear was 40 and the searches a
- * re-snap sends reach 50, so ten characters survived and the next term was typed onto the end of them — and the field
- * scrolls, so the merged term's visible tail read correctly and the only symptom was a result count quietly wrong.
- */
-const CLEAR_KEYS = Number(/\nconst CLEAR_KEYS = (\d+);/.exec(SOURCE)?.[1] ?? 0);
-
-/**
  * That a term the box cannot be cleared of is refused, and before the phone is opened. This is the half that makes the
  * count safe rather than lucky: a caller cannot hand over a term longer than the clear can remove without being told.
  *
@@ -301,8 +294,6 @@ const CLEAR_KEYS = Number(/\nconst CLEAR_KEYS = (\d+);/.exec(SOURCE)?.[1] ?? 0);
  * run of `a`s because `typeable` has to pass first — the refusal under test is the length and not the characters.
  */
 test('`snap` refuses a `--search` longer than the box can be cleared of, before it opens the phone', async () => {
-  expect(CLEAR_KEYS, 'the `CLEAR_KEYS` constant was not found, so this pins nothing').toBeGreaterThan(0);
-
   const failure = await run(process.execPath, [SCRIPT, 'snap', '--search', 'a'.repeat(CLEAR_KEYS + 1)]).catch(
     (error: unknown) => error,
   );
