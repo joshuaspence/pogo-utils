@@ -104,16 +104,6 @@ body[data-page='inventory'] {
     font-size: 13px;
   }
 
-  .status {
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--muted);
-  }
-
-  .status.err {
-    color: var(--accent);
-  }
-
   .heading {
     display: flex;
     flex-wrap: wrap;
