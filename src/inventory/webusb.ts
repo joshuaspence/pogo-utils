@@ -70,10 +70,10 @@ export function unreachable(): string | null {
 
 /**
  * Lets go of a connection no transport was built on, as where authentication fails: Tango releases its locks on the
- * streams but closes nothing, which would leave the phone's ADB interface claimed by this page until it is reloaded — and
- * the `adb kill-server` advice for a busy phone useless. Closing either stream closes the device and drops the listener
- * for it being unplugged; both are tried, as one may already have errored, and neither failing is worth more than the
- * error that brought the caller here.
+ * streams but closes nothing, which would leave the phone's ADB interface claimed by this page until it is reloaded —
+ * and the `adb kill-server` advice for a busy phone useless. Closing either stream closes the device and drops the
+ * listener for it being unplugged; both are tried, as one may already have errored, and neither failing is worth more
+ * than the error that brought the caller here.
  */
 export async function release(connection: {
   readable: { cancel(): Promise<void> };
