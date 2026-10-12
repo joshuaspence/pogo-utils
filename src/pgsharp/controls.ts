@@ -15,8 +15,8 @@ const SNIPE2 = {
 
 /**
  * Keyed by the control, so each appears once and its ticked state is a direct lookup. Iteration order is preserved
- * (these keys are non-integer strings), and it decides the order the keys land in the backup, so the entries stay in the
- * order PGSharp wrote them.
+ * (these keys are non-integer strings), and it decides the order the keys land in the backup, so the entries stay in
+ * the order PGSharp wrote them.
  *
  * `satisfies` rather than an annotation, because this table is read both ways: `pgsdata.ts` iterates it with
  * `Object.entries` and also names `CONTROL_RESETS.resetFeeds.hlfeeds` in source. An index signature serves the first
@@ -45,7 +45,8 @@ export const CONTROL_RESETS = {
     hlcdposy: 306.25,
   },
 
-  // The radar button shares fast-snipe button 2's position; hlscan is its filter, serialized to the string PGSharp stores.
+  // The radar button shares fast-snipe button 2's position; hlscan is its filter, serialized to the string PGSharp
+  // stores.
   resetScan: {
     hlscanx: SNIPE2.x,
     hlscany: SNIPE2.y,
@@ -65,9 +66,9 @@ export type Control = keyof typeof CONTROL_RESETS;
 
 /**
  * What the page calls each control. Beside the table rather than in the markup that renders it, which is where these
- * lived while the page was hand-written HTML: a `Record` over the table's own keys makes a control added without a label
- * a type error, where a second list in a second file goes out of step in silence — a new checkbox rendering blank, or a
- * label left behind pointing at a control that no longer exists.
+ * lived while the page was hand-written HTML: a `Record` over the table's own keys makes a control added without a
+ * label a type error, where a second list in a second file goes out of step in silence — a new checkbox rendering
+ * blank, or a label left behind pointing at a control that no longer exists.
  */
 export const CONTROL_LABELS: Record<Control, string> = {
   resetIcon: 'Floating control',

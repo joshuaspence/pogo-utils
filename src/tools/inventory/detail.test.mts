@@ -100,3 +100,10 @@ test('a CP with one space inside it is read whole', () => {
   expect(cpOn('cPe518', LONGEST), 'the ordinary CP line no longer reads').toBe('518');
   expect(cpOn('cP1605 12', LONGEST), 'a number beside a whole CP was read into it').toBe('1605');
 });
+
+/** The cap holds however the read is spaced: a digit `joined` hangs off a whole CP makes a number no form can show. */
+test('a CP longer than any form can show is refused', () => {
+  expect(cpOn('cp14417', LONGEST), 'an unspaced CP past the cap was taken').toBeNull();
+  expect(cpOn('cp14417 2', LONGEST), 'the first half of a spaced CP past the cap was taken').toBeNull();
+  expect(cpOn('cp1441', LONGEST), 'a CP at the cap is no longer read').toBe('1441');
+});

@@ -13,235 +13,47 @@
 
 import COUNTRIES from '../src/countries.ts';
 import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
-import { MIN_TRKPTS, PGR_FIELDS, PGR_NS } from '../src/gpx-dialect.ts';
-import { eventRefs, gpxSources, parseGpx } from '../src/gpx-source.mts';
-import type { FeedEvent, RouteCounts } from '../src/types.js';
-import { Node, type Document, type Element } from '@xmldom/xmldom';
+import { gpxSources } from '../src/gpx-source.mts';
+import type { FeedEvent } from '../src/types.js';
+import { entriesByEvent, entryProblems, schemaProblems, unusedCountries } from '../src/gpx-checks.mts';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { validateXML } from 'xmllint-wasm';
 
 // `--write` generates the two indexes beside the checks rather than instead of them: what it writes is what passed.
 const writeIndex = process.argv.includes('--write');
 
 const sources = gpxSources();
 const files = sources.map(({ fileName }) => fileName);
-const problems: string[] = [];
 
 if (files.length === 0) {
   console.error('No GPX files found. Run this from the repository root.');
   process.exit(1);
 }
 
-const { valid, errors } = await validateXML({
-  xml: sources,
-  schema: [readFileSync('resources/gpx.xsd', 'utf8')],
-});
+const problems = await schemaProblems(sources, readFileSync('resources/gpx.xsd', 'utf8'));
 
-if (valid) {
+if (problems.length === 0) {
   console.log(`${files.length} files validate against GPX 1.1.`);
-} else {
-  // A malformed file reports the offending source line with no position to hang it on, so the location is printed only
-  // when there is one.
-  for (const { loc, message } of errors) {
-    problems.push(loc ? `${loc.fileName}:${loc.lineNumber}: ${message}` : message);
-  }
 }
-
-/**
- * A `Set` over the shared tuple rather than a second list beside it. `has` takes a `string`, where the tuple's own
- * `includes` would reject one — the field names being literal types is what types `extText` next door.
- */
-const PGR_FIELD_NAMES = new Set<string>(PGR_FIELDS);
-
-const VARIANTS = new Set(['short', 'long']);
-
-// Spelled out of PGR_FIELDS rather than beside it, so adding a field cannot leave the message naming the old set.
-const PGR_EXPECTED = [...PGR_FIELDS].join(', ').replace(/, (?=[^,]*$)/, ' or ');
 
 const EVENTS: FeedEvent[] = JSON.parse(readFileSync('data/events.json', 'utf8'));
 
-/** The events a `<pgr:event>` may point at, by `eventID` (data/events.json). Checked against per file below. */
-const EVENT_IDS = new Set(EVENTS.map((event) => event.eventID));
+/** The events a `<pgr:event>` may point at, by `eventID` (data/events.json). */
+const eventIds = new Set(EVENTS.map((event) => event.eventID));
 
-/**
- * The element children of `el`, in document order. `childNodes` carries the whitespace between tags too, so the text
- * nodes are filtered out.
- */
-const elementChildren = (el: Element): Element[] =>
-  Array.from(el.childNodes).filter((node): node is Element => node.nodeType === Node.ELEMENT_NODE);
+const entries = entryProblems(sources, { eventIds, countries: COUNTRIES });
+problems.push(...entries.problems);
 
-// Report against the file, at the element's own line where there is one, matching the schema pass's `file:line:` form.
-const report = (fileName: string, el: Element | undefined, message: string) =>
-  problems.push(el?.lineNumber ? `${fileName}:${el.lineNumber}: ${message}` : `${fileName}: ${message}`);
-
-const beforePgr = problems.length;
-let entryCount = 0;
-
-/**
- * How many routes and waypoints each event has, by `eventID`. Filled as the entries are walked below rather than by a
- * second pass, so what gets written to data/entries-by-event.json cannot describe a file differently from the checks
- * that just validated it.
- */
-const eventIndex = new Map<string, RouteCounts>();
-
-// Which countries the files actually name, for the reverse check on COUNTRIES below.
-const usedCountries = new Set<string>();
-
-for (const { fileName, contents } of sources) {
-  let doc: Document;
-
-  try {
-    doc = parseGpx(contents);
-  } catch {
-    // Not well-formed — the schema pass above has already said so; there is nothing this pass can add.
-    continue;
-  }
-
-  /**
-   * Every `<pgr:event>` names an event `data/events.json` still has, since a typo or an event renamed out from under
-   * it would otherwise sit in the file unnoticed.
-   *
-   * Read through `eventRefs` rather than the field walk below, because `scripts/prune-events.mts` cuts these elements
-   * through the same function — which is what keeps the pruner from leaving behind a reference this check then refuses,
-   * failing every Pages deploy until the file is edited by hand. It also reaches a `<pgr:event>` outside a `<trk>` or
-   * `<wpt>`, which the walk never visits and the pruner would still cut.
-   */
-  for (const { element, eventID } of eventRefs(doc)) {
-    if (eventID && !EVENT_IDS.has(eventID)) {
-      report(fileName, element, `<${element.tagName}> is "${eventID}" — not an eventID in data/events.json`);
-    }
-  }
-
-  const tracks = Array.from(doc.getElementsByTagName('trk')).map((trk) => ({
-    trk,
-    points: trk.getElementsByTagName('trkpt').length,
-  }));
-
-  /**
-   * A `<trk>` and a `<wpt>` are the two things the viewer turns into entries, and each must name its country. An
-   * emptied `<trk>` (no `<trkpt>`) is what a cleared track looks like on export; `eachTrack` skips it, so its `pgr`
-   * fields are not required and nothing is checked for it here.
-   */
-  const kept = tracks.filter(({ points }) => points > 0);
-  const entries = [...kept.map(({ trk }) => trk), ...Array.from(doc.getElementsByTagName('wpt'))];
-
-  /**
-   * A `<trk>` that kept a single point is a track there is no line to draw between, and `gpxEntries` throws on it. The
-   * schema cannot say so — `trkpt` is `minOccurs="0"` — so without this the file passed every check, went into both
-   * generated indexes and broke the Routes page when someone opened it.
-   */
-  for (const { trk, points } of kept) {
-    if (points < MIN_TRKPTS) {
-      report(fileName, trk, `<trk> has ${points} <trkpt> — expected at least ${MIN_TRKPTS}`);
-    }
-  }
-
-  /**
-   * A file with neither is the other half of that gap: `gpxEntries` throws rather than drawing an empty map, and the
-   * file reaches the viewer because `GPX_PATHS` is every `.gpx` in the repository.
-   */
-  if (entries.length === 0) {
-    report(fileName, undefined, 'has no <trk> or <wpt>');
-  }
-
-  for (const entry of entries) {
-    entryCount++;
-    const ext = elementChildren(entry).find((child) => child.localName === 'extensions');
-    const counts: Record<string, number> = {};
-    let eventId = null;
-
-    for (const field of ext ? elementChildren(ext) : []) {
-      // xmldom types `localName` as nullable on every node rather than narrowing it on `Element`. `''` stands in
-      // because it is in no branch below, exactly as `null` would be.
-      const name = field.localName ?? '';
-
-      // A `pgr`-namespace element the viewer has no field for is a misspelling. A foreign element from another tool is
-      // not ours to judge — the viewer leaves it be, and so does this.
-      if (field.namespaceURI === PGR_NS && !PGR_FIELD_NAMES.has(name)) {
-        report(fileName, field, `<${field.tagName}> is not a pgr field — expected ${PGR_EXPECTED}`);
-        continue;
-      }
-
-      if (!PGR_FIELD_NAMES.has(name)) {
-        continue;
-      }
-
-      counts[name] = (counts[name] || 0) + 1;
-      const text = field.textContent?.trim() ?? '';
-
-      if (name === 'event' && text) {
-        eventId = text;
-      }
-
-      if (name === 'country' && text) {
-        usedCountries.add(text);
-      }
-
-      if (!text) {
-        report(fileName, field, `<${field.tagName}> is empty`);
-      } else if (name === 'variant' && !VARIANTS.has(text)) {
-        report(fileName, field, `<${field.tagName}> is "${text}" — expected short or long`);
-      } else if (name === 'country' && !Object.hasOwn(COUNTRIES, text)) {
-        // The viewer groups by continent and flags each favourite from `src/countries.ts`, so a country missing from
-        // it has no continent and no flag and the backup build throws rather than importing it.
-        report(fileName, field, `<${field.tagName}> is "${text}" — not a country in COUNTRIES (src/countries.ts)`);
-      }
-    }
-
-    // Each field is one value rather than a list: a second `<pgr:country>` is a silent contradiction, the viewer
-    // keeping only the first.
-    for (const name of PGR_FIELDS) {
-      const seen = counts[name] ?? 0;
-
-      if (seen > 1) {
-        report(fileName, ext, `<${entry.localName}> has ${seen} <pgr:${name}> fields — expected one`);
-      }
-    }
-
-    if (!counts.country) {
-      report(fileName, entry, `<${entry.localName}> has no <pgr:country>`);
-    }
-
-    /**
-     * The other two things the viewer refuses an entry for, each valid GPX 1.1 and so invisible to the schema pass
-     * above: `placeName` wants a direct-child `<name>` with text in it, and `gpxEntries` wants a `<trk>` it can draw,
-     * which takes two points. Neither refusal is a skip — both throw, which rejects the whole file, so one nameless
-     * waypoint takes every route beside it off the map.
-     */
-    if (!elementChildren(entry).some((child) => child.localName === 'name' && child.textContent?.trim())) {
-      report(fileName, entry, `<${entry.localName}> has no <name>`);
-    }
-
-    if (entry.localName === 'trk' && entry.getElementsByTagName('trkpt').length < 2) {
-      report(fileName, entry, '<trk> has fewer than two <trkpt> — too few to draw');
-    }
-
-    // Split by element the way the viewer does: the events page counts routes and waypoints separately, so an index
-    // that merged them could not label a card.
-    if (eventId) {
-      const tally = eventIndex.get(eventId) || { routes: 0, waypoints: 0 };
-      tally[entry.localName === 'trk' ? 'routes' : 'waypoints'] += 1;
-      eventIndex.set(eventId, tally);
-    }
-  }
+if (entries.problems.length === 0) {
+  console.log(`${entries.entryCount} entries carry the pgr fields the viewer needs.`);
 }
 
-if (problems.length === beforePgr) {
-  console.log(`${entryCount} entries carry the pgr fields the viewer needs.`);
-}
+const unused = unusedCountries(COUNTRIES, entries.usedCountries);
 
-/**
- * The other direction of the COUNTRIES check above: an entry in that table no file names. Nothing reaches it except
- * through a `<pgr:country>` read out of a file, so such an entry is unreachable — a leftover from a route since
- * removed, or one added for a route that never arrived. Either way the table says it is the countries in use.
- */
-const unusedCountries = Object.keys(COUNTRIES).filter((country) => !usedCountries.has(country));
-
-for (const country of unusedCountries) {
+for (const country of unused) {
   problems.push(`src/countries.ts: "${country}" is in COUNTRIES but no file names it — remove it, or add its route`);
 }
 
-if (unusedCountries.length === 0) {
+if (unused.length === 0) {
   console.log(`src/countries.ts lists exactly the ${Object.keys(COUNTRIES).length} countries in use.`);
 }
 
@@ -264,9 +76,9 @@ if (writeIndex) {
  * The events page links through to an event's routes, and the only record of which event an entry belongs to is a
  * `<pgr:event>` inside a GPX file. Finding that would cost the page a fetch of every one of them to learn that a
  * handful carry an event at all, so the association is precomputed here into ENTRIES_BY_EVENT — the same bargain
- * GPX_PATHS strikes, out of the tally the walk above kept rather than a reading of its own.
+ * GPX_PATHS strikes, out of the tally `entryProblems` kept rather than a reading of its own.
  *
- * Keys are sorted so that two runs over the same repository produce the same bytes, and the file is written only once
+ * `entriesByEvent` sorts the keys so that two runs produce the same bytes, and the file is written only once
  * everything above has passed: an index naming an event that does not exist would be worse than none. The refusal is a
  * problem rather than a silence because nothing downstream would notice the gap — `scripts/assemble.mts` copies `data/`
  * whole, so a file that was never written is simply not in the artifact, and the Events page 404s for it.
@@ -274,10 +86,8 @@ if (writeIndex) {
 if (writeIndex && problems.length) {
   problems.push(`Refusing to write ${ENTRIES_BY_EVENT} from files that do not validate.`);
 } else if (writeIndex) {
-  const sorted = [...eventIndex].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-
-  writeFileSync(ENTRIES_BY_EVENT, `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`);
-  console.log(`Wrote ${ENTRIES_BY_EVENT} — ${eventIndex.size} event(s) with entries.`);
+  writeFileSync(ENTRIES_BY_EVENT, entriesByEvent(entries.eventIndex));
+  console.log(`Wrote ${ENTRIES_BY_EVENT} — ${entries.eventIndex.size} event(s) with entries.`);
 }
 
 if (problems.length === 0) {

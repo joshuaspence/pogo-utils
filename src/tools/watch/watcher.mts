@@ -99,7 +99,8 @@ export async function watch(options: WatchOptions): Promise<void> {
       const matched = match(answer, queries, now());
 
       debug(
-        `${answer.pokemon?.length ?? 0} spawns, ${answer.my_shiny_pokemon?.length ?? 0} shinies, ${matched.length} wanted`,
+        `${answer.pokemon?.length ?? 0} spawns, ` +
+          `${answer.my_shiny_pokemon?.length ?? 0} shinies, ${matched.length} wanted`,
       );
 
       for (const { spawn, reasons, by } of matched) {
@@ -198,16 +199,19 @@ async function startup(options: WatchOptions): Promise<[number, GameData]> {
 }
 
 /**
- * What the account turned out to be able to see, said once. Which lists come back is a matter of its plan rather than of
- * anything sent: Live PokeMap's own pricing gives Pokémon with IVs from Explorer up and "your own shinies" at Premium,
- * and the viewport says which of the second this account has as `shiny_access`. Said rather than assumed, so a query
- * waiting on shinies an account cannot be shown is pointed out on the first poll rather than left to wait.
+ * What the account turned out to be able to see, said once. Which lists come back is a matter of its plan rather than
+ * of anything sent: Live PokeMap's own pricing gives Pokémon with IVs from Explorer up and "your own shinies" at
+ * Premium, and the viewport says which of the second this account has as `shiny_access`. Said rather than assumed, so a
+ * query waiting on shinies an account cannot be shown is pointed out on the first poll rather than left to wait.
  */
 export function firstAnswer(answer: ViewportResponse): string {
   const counts = `${answer.pokemon?.length ?? 0} spawns and ${answer.my_shiny_pokemon?.length ?? 0} shinies`;
 
   if (answer.shiny_access === false) {
-    return `First poll: ${counts}. This account has no shiny access (Live PokeMap Premium), so no shiny will be notified`;
+    return (
+      `First poll: ${counts}. ` +
+      'This account has no shiny access (Live PokeMap Premium), so no shiny will be notified'
+    );
   }
 
   return `First poll: ${counts}${answer.shiny_access ? ', with shiny access' : ''}`;

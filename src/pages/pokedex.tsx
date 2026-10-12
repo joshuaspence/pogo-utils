@@ -233,8 +233,8 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
    * The entries the filters leave, in dex order — what the grid shows and what the dialog's arrows step through.
    *
    * Derived on every render rather than kept, which is what retires the ordering the imperative page had to arrange by
-   * hand: it filtered before rendering the dialog so the arrows were decided against the current list, since a link that
-   * changed the query and the open species together would otherwise place the entry in the list it was replacing.
+   * hand: it filtered before rendering the dialog so the arrows were decided against the current list, since a link
+   * that changed the query and the open species together would otherwise place the entry in the list it was replacing.
    */
   const visible = ENTRIES.filter((entry) => matches(entry, state));
   const shown = new Set(visible.map((entry) => entry.dex));
@@ -245,8 +245,8 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
 
   const mine = toFragment(state);
 
-  // A link pasted into the address bar of a page already open changes the fragment without reloading; the shell hands the
-  // new query down, and reading it here is what stops the controls describing the previous visit.
+  // A link pasted into the address bar of a page already open changes the fragment without reloading; the shell hands
+  // the new query down, and reading it here is what stops the controls describing the previous visit.
   useEffect(() => {
     setState(fromFragment(fragment));
   }, [fragment]);

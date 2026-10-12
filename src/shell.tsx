@@ -33,10 +33,10 @@ const PAGES: Record<Page, () => Promise<{ default: PageComponent }>> = {
 /**
  * The route the address bar currently describes.
  *
- * `hashchange` is the only thing that moves it. The pages write their own state back with `replaceState`, which fires no
- * such event — deliberately, since a page re-reading a fragment it had just written would be told to adopt the state it
- * is already in, once per keystroke. What is left to this is arrival: a link followed in, a tab clicked, and the Back
- * button, which are the three ways a reader changes page.
+ * `hashchange` is the only thing that moves it. The pages write their own state back with `replaceState`, which fires
+ * no such event — deliberately, since a page re-reading a fragment it had just written would be told to adopt the state
+ * it is already in, once per keystroke. What is left to this is arrival: a link followed in, a tab clicked, and the
+ * Back button, which are the three ways a reader changes page.
  */
 function useRoute(): Route {
   const [route, setRoute] = useState(() => fromHash(location.hash));
@@ -113,9 +113,9 @@ export function Shell() {
       <Nav current={page} />
       {failed === null ? (
         /*
-         * Keyed by page, so switching tabs builds a new component rather than handing the next page the mounted state of
-         * the last one. Two pages that both open on a `<dialog>` or hold a Leaflet map are not interchangeable, however
-         * alike their trees look to the reconciler.
+         * Keyed by page, so switching tabs builds a new component rather than handing the next page the mounted state
+         * of the last one. Two pages that both open on a `<dialog>` or hold a Leaflet map are not interchangeable,
+         * however alike their trees look to the reconciler.
          */
         Component && <Component key={page} query={query} />
       ) : (

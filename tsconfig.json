@@ -38,7 +38,8 @@
     // Nothing ambient at all, as in `tsconfig.shared.json`: every type these modules use is either in the lib set above
     // or reached through an import. An unset `types` would pull in every installed @types package instead, which is how
     // Node's globals would reach a browser module — so the empty list is the setting rather than the absence of one.
-    // `@types/leaflet` and `@types/tz-lookup` are unaffected, being found through their packages rather than as globals.
+    // `@types/leaflet` and `@types/tz-lookup` are unaffected, being found through their packages rather than as
+    // globals.
     //
     // WebUSB is the one exception, being a browser API `lib.dom` does not carry: the Inventory page drives a phone over
     // it, and Tango's declarations name `USBDevice` and the rest as the globals `@types/w3c-web-usb` declares.
@@ -56,14 +57,14 @@
 
     // The inventory readers are `.mts` files written for Node, which names a module by its own extension, and they name
     // each other that way. They are checked here as well as in `scripts/` — here without Node's globals and there
-    // without the DOM's — so a reader reaching for either fails one of the two, and only the two together say it runs on
-    // both. Allowed because nothing here emits JavaScript; esbuild resolves an `.mts` specifier as it stands.
+    // without the DOM's — so a reader reaching for either fails one of the two, and only the two together say it runs
+    // on both. Allowed because nothing here emits JavaScript; esbuild resolves an `.mts` specifier as it stands.
     "allowImportingTsExtensions": true,
 
     // `react-jsx` is the modern transform, which imports what it needs rather than expecting a name in scope, so no
     // module here has to import Preact to write JSX. The source it imports from is the setting that points it at Preact
-    // instead of React; `scripts/bundle.mts` is told the same pair, since it is the half that does the transform and the
-    // compiler only checks it.
+    // instead of React; `scripts/bundle.mts` is told the same pair, since it is the half that does the transform and
+    // the compiler only checks it.
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },

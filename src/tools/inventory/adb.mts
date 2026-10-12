@@ -1,6 +1,6 @@
 /**
- * The phone, driven over ADB. Everything a scan asks of it is eight methods over one `Transport`, which is the only part
- * that differs between the CLI and the Inventory page: `adb-cli.mts` runs the `adb` binary, and
+ * The phone, driven over ADB. Everything a scan asks of it is eight methods over one `Transport`, which is the only
+ * part that differs between the CLI and the Inventory page: `adb-cli.mts` runs the `adb` binary, and
  * `src/inventory/webusb.ts` speaks the protocol over WebUSB from the page.
  */
 

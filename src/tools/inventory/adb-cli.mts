@@ -1,7 +1,7 @@
 /**
- * The `adb` binary as a `Transport`, which is how `pnpm inventory` reaches the phone. Each call is a fresh `adb` process
- * rather than a held shell, which costs a few tens of milliseconds against animations that take most of a second and
- * means a dropped USB connection fails one call loudly instead of leaving a shell writing into nothing.
+ * The `adb` binary as a `Transport`, which is how `pnpm inventory` reaches the phone. Each call is a fresh `adb`
+ * process rather than a held shell, which costs a few tens of milliseconds against animations that take most of a
+ * second and means a dropped USB connection fails one call loudly instead of leaving a shell writing into nothing.
  */
 
 import { type Transport } from './adb.mts';
