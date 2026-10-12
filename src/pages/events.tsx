@@ -147,11 +147,15 @@ const TRACK_MAX_DAYS = 120;
  * A card's picture, which takes itself off the card when it fails to load rather than leaving the browser's
  * broken-image glyph. Its own component so the failure is state rather than a node removing itself from a tree the
  * reconciler believes it still owns.
+ *
+ * What failed is remembered as the URL rather than as a boolean, for the reason `Sprite` gives on the Pokédex: a fresh
+ * `src` deserves a fresh chance to load. Cards are keyed by event ID, so the refetch hands this same instance a rehosted
+ * image under an unchanged event, and a flag would keep it hidden for the life of the page.
  */
 function Thumb({ src }: { src: string }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
-  return failed ? null : <img class="thumb" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
+  return failed === src ? null : <img class="thumb" src={src} alt="" loading="lazy" onError={() => setFailed(src)} />;
 }
 
 /**
