@@ -247,41 +247,39 @@ const spelling = (junction: Group['junction'], pills: readonly Leaf[]) =>
   pills.map((pill) => leafText(pill) ?? '').join(junction === 'all' ? '&' : ',').length;
 
 /**
- * A union term written in place of the whole of what it covers, on whichever side of the junction they were arranged:
- * either backdrop is a backdrop, and neither backdrop rules out both. `terms.js` names a union more briefly than the
- * terms it covers and a test holds the table to it, so there is nothing to weigh.
+ * A union term written in place of the whole of what it covers, on the one side of the junction where that is the same
+ * search: either backdrop is a backdrop, so in an `any` the required ones go, and neither backdrop rules out both, so in
+ * an `all` the refused ones do. The other side is not an equivalence — two backdrops AND'd ask for one that is both, and
+ * two refusals OR'd let through everything short of both — so it is left for the reader to see. `terms.js` names a
+ * union more briefly than the terms it covers and a test holds the table to it, so there is nothing to weigh.
  *
  * Null is "nothing to do here", which is every arrangement short of the whole of what the union covers.
  */
-function shortUnion(union: Term, pills: readonly TermPill[]): TermPill[] | null {
+function shortUnion(junction: Group['junction'], union: Term, pills: readonly TermPill[]): TermPill[] | null {
   const covers = union.covers;
 
   if (!covers) {
     return null;
   }
 
-  let next = [...pills];
-  let changed = false;
+  const negated = junction === 'all';
+  const side = pills.filter((pill) => pill.negated === negated);
+  const covered = side.filter((pill) => covers.includes(pill.id));
 
-  for (const negated of [false, true]) {
-    const side = next.filter((pill) => pill.negated === negated);
-    const covered = side.filter((pill) => covers.includes(pill.id));
-
-    if (covered.length === 0) {
-      continue;
-    }
-
-    // Beside the union itself a term it covers adds nothing to that side, so it goes — however many are on it.
-    if (side.some((pill) => pill.id === union.id)) {
-      next = next.filter((pill) => !covered.includes(pill));
-      changed = true;
-    } else if (new Set(covered.map((pill) => pill.id)).size === covers.length) {
-      next = [...next.filter((pill) => !covered.includes(pill)), pillOf(union.id, negated)];
-      changed = true;
-    }
+  if (covered.length === 0) {
+    return null;
   }
 
-  return changed ? next : null;
+  // Beside the union itself a term it covers adds nothing to that side, so it goes — however many are on it.
+  if (side.some((pill) => pill.id === union.id)) {
+    return pills.filter((pill) => !covered.includes(pill));
+  }
+
+  if (new Set(covered.map((pill) => pill.id)).size === covers.length) {
+    return [...pills.filter((pill) => !covered.includes(pill)), pillOf(union.id, negated)];
+  }
+
+  return null;
 }
 
 /**
@@ -297,7 +295,7 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
   // A category holding a union term overlaps itself and so cannot be exclusive, and Background — the one holding one —
   // declares neither fact below. The two reductions therefore never reach for the same pill.
   if (union) {
-    return shortUnion(union, pills);
+    return shortUnion(junction, union, pills);
   }
 
   const required = pills.filter((pill) => !pill.negated);
