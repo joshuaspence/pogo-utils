@@ -769,7 +769,7 @@ const POKEMON = {
   LANDORUS: new Pokemon(645).isLegendary().addForms('INCARNATE_FORME', 'THERIAN_FORME'),
   KYUREM: new Pokemon(646).isLegendary().addForms('NORMAL', 'BLACK', 'WHITE'),
   KELDEO: new Pokemon(647).isMythical().addForms('ORDINARY_FORM', 'RESOLUTE_FORM'),
-  MELOETTA: new Pokemon(648).isMythical().addForm('ARIA_FORME').addForm('PIROUETTE_FORM').isNotReleased(),
+  MELOETTA: new Pokemon(648).isMythical().addForm('ARIA_FORME').addForm('PIROUETTE_FORME').isNotReleased(),
   GENESECT: new Pokemon(649).isMythical().addForms('NORMAL', 'DOUSE_DRIVE', 'SHOCK_DRIVE', 'BURN_DRIVE', 'CHILL_DRIVE'),
 
   // Generation 6
@@ -967,7 +967,7 @@ const POKEMON = {
       'STEEL',
       'WATER',
     ),
-  MINIOR: new Pokemon(774).isNotReleased().addForms('METEOR_FORM', 'CORE_FORME'),
+  MINIOR: new Pokemon(774).isNotReleased().addForms('METEOR_FORM', 'CORE_FORM'),
   KOMALA: new Pokemon(775),
   TURTONATOR: new Pokemon(776),
   TOGEDEMARU: new Pokemon(777),

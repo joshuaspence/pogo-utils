@@ -140,3 +140,25 @@ test('a spelling in the table wins over the rule, and the two tables are not one
     'Hero of Many Battles',
   ]);
 });
+
+test('no species calls one of its forms a Form and another a Forme', () => {
+  // The games pick one word per species — every Meloetta is a Forme, every Minior a Form — and `titleise` keeps
+  // whichever suffix the constant carries, so a species that declares one of each shows one label wrong with nothing
+  // failing. Read per species rather than over `FORMS`, which pools every species' names and so cannot see the mix.
+  const suffixes = (pokemon: (typeof POKEMON)[keyof typeof POKEMON], found = new Set<string>()) => {
+    for (const variant of pokemon.variants) {
+      const suffix = variant.form?.match(/_(FORME?)$/)?.[1];
+
+      if (suffix !== undefined) {
+        found.add(suffix);
+      }
+
+      suffixes(variant.pokemon, found);
+    }
+
+    return found;
+  };
+
+  expect(CONSTANTS.filter((constant) => suffixes(POKEMON[constant as keyof typeof POKEMON]).size > 1)).toEqual([]);
+  expect([formNameOf('PIROUETTE_FORME'), formNameOf('CORE_FORM')]).toEqual(['Pirouette Forme', 'Core Form']);
+});
