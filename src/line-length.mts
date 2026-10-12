@@ -70,8 +70,8 @@ const MARKER = /^\s*(?:\/\/|\/\*|#|<!--)\s*line-length-ignore-(start|end|next-li
 /** A JSON line that is one string, perhaps after its key and perhaps before a comma. */
 const JSON_STRING = /^\s*(?:"(?:[^"\\]|\\.)*"\s*:\s*)?"(?:[^"\\]|\\.)*",?$/;
 
-/** A Markdown code fence, capturing its language. */
-const FENCE = /^\s*(?:```|~~~)\s*(\w*)/;
+/** A Markdown code fence opening, capturing its run of backticks or tildes and its language. */
+const FENCE = /^ {0,3}(`{3,}|~{3,})\s*([\w-]*)/;
 
 /** The lines of `text` wider than `MAX_WIDTH` and not exempt, 1-indexed, for a file named `fileName`. */
 export function overlong(fileName: string, text: string): Overlong[] {
@@ -81,6 +81,8 @@ export function overlong(fileName: string, text: string): Overlong[] {
 
   /** The language of the Markdown code block this is in, `''` for one that names none, or undefined outside one. */
   let fence: string | undefined;
+  /** The backticks or tildes that opened that block, which only a run as long of the same character closes. */
+  let fenceMarker: string | undefined;
   /** The column of the `run:` key whose block this is in, or undefined outside one. */
   let run: number | undefined;
   let heredoc: string | undefined;
@@ -89,7 +91,13 @@ export function overlong(fileName: string, text: string): Overlong[] {
 
   for (const [index, line] of text.split('\n').entries()) {
     const indent = line.search(/\S/);
-    const closesFence = markdown && fence !== undefined && FENCE.test(line);
+    // Closed, as CommonMark closes one, only by a run of the same character at least as long with nothing after it —
+    // so a fence shown inside a code block, as an example of writing one, does not end the block it is shown in.
+    const closesFence =
+      fenceMarker !== undefined &&
+      line.trim().length >= fenceMarker.length &&
+      line.trim() === (fenceMarker[0] ?? '').repeat(line.trim().length) &&
+      /^ {0,3}\S/.test(line);
     const leavesRun = run !== undefined && indent !== -1 && indent <= run;
 
     // A heredoc ends with the block it was written in at the latest, so one whose closing word never comes cannot
@@ -123,8 +131,10 @@ export function overlong(fileName: string, text: string): Overlong[] {
       }
     } else if (closesFence) {
       fence = undefined;
+      fenceMarker = undefined;
     } else if (opened) {
-      fence = opened[1] ?? '';
+      fenceMarker = opened[1];
+      fence = opened[2] ?? '';
     } else if (marker === 'start') {
       ignoring = true;
     } else if (marker === 'end') {

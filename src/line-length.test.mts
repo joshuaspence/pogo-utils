@@ -59,6 +59,9 @@ test('a JSON line holding one string is exempt, in a JSON file or a Markdown jso
   expect(overlong('a.json', `  "a": [${long()}]`)).toHaveLength(1);
   expect(overlong('a.md', lines('```json', string, '```'))).toEqual([]);
   expect(overlong('a.md', lines('```sh', string, '```'))).toHaveLength(1);
+  expect(overlong('a.md', lines('````json', '```', string, '````'))).toEqual([]);
+  expect(overlong('a.md', lines('~~~json', '```', string, '~~~'))).toEqual([]);
+  expect(overlong('a.md', lines('```json', '```sh', string, '```'))).toEqual([]);
 });
 
 test('the ignore markers exempt the next line or a region, and only as a comment opening its line', () => {
