@@ -201,19 +201,25 @@ async function startup(options: WatchOptions): Promise<[number, GameData]> {
 /**
  * A failure as one line, cause and all. `fetch` says only `fetch failed` for everything that goes wrong below HTTP and
  * hangs the real reason off `cause` — where a connect failure puts an `AggregateError` whose own message is empty and
- * whose `errors` hold one entry per address tried, so `message` alone names nothing anyone can act on. A cause already
- * quoted in the message above it is dropped rather than said twice, which is how `LoginRefused` composes its own.
+ * whose `errors` hold one entry per address tried, so `message` alone names nothing anyone can act on.
+ *
+ * Dropped as a repeat only where the message above quotes a cause whole, as `LoginRefused` quotes its own; one that
+ * merely reads as a fragment of an earlier message is its own reason and is kept. `cause` is writable, so the walk
+ * stops at a link it has already seen rather than circling forever in a watcher nobody is watching.
  */
 export function messageOf(error: unknown): string {
   const said: string[] = [];
+  const walked = new Set<unknown>();
 
-  for (let link: unknown = error; link instanceof Error; link = link.cause) {
+  for (let link: unknown = error; link instanceof Error && !walked.has(link); link = link.cause) {
+    walked.add(link);
+
     const text =
       link instanceof AggregateError
         ? [...new Set(link.errors.filter((inner) => inner instanceof Error).map((inner) => inner.message))].join(', ')
         : link.message;
 
-    if (text && !said.some((earlier) => earlier.includes(text))) {
+    if (text && !said.some((earlier) => earlier === text || earlier.endsWith(`: ${text}`))) {
       said.push(text);
     }
   }

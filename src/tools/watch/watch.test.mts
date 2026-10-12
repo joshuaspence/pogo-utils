@@ -286,6 +286,18 @@ test('a failure is reported with its cause rather than as a bare wrapper', () =>
     'Live PokeMap refused the login: Invalid username or password',
   );
 
+  // A cause the message above it merely reads as a fragment of is its own reason, not a repeat of one.
+  expect(messageOf(new Error('Request failed: 503 reading /api/config', { cause: new Error('503') }))).toBe(
+    'Request failed: 503 reading /api/config: 503',
+  );
+
+  // `cause` is writable, so a cycle is reachable, and a walk that circled one would hang an overnight run silently.
+  const circular = new Error('outer');
+
+  circular.cause = new Error('inner', { cause: circular });
+
+  expect(messageOf(circular)).toBe('outer: inner');
+
   expect(messageOf(new ApiError('Try later', 429, 'RATE_LIMITED'))).toBe('Try later');
   expect(messageOf('not an error at all')).toBe('not an error at all');
 });
