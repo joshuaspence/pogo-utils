@@ -13,13 +13,12 @@
 import { ordinaryIcon, type Icons } from '../src/pokedex/icons.ts';
 import type { GameData } from '../src/tools/inventory/game-master.mts';
 import { fold } from '../src/pokemon/names.ts';
-import { POKEMON_ICONS } from '../src/generated.ts';
+import { GAME_MASTER, POKEMON_ICONS } from '../src/generated.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const MASTER = 'src/tools/inventory/fixtures/game-master.json';
 const SPECIES = 'src/pokemon/pokedex.ts';
 
-const data: GameData = JSON.parse(readFileSync(MASTER, 'utf8'));
+const data: GameData = JSON.parse(readFileSync(GAME_MASTER, 'utf8'));
 
 /** Every form the game master holds, by the species it belongs to, in the order that file lists them. */
 const forms = new Map<number, GameData['forms']>();
@@ -141,7 +140,7 @@ let rendered = 0;
  * which is the silent return to pixel sprites the floor below is here to stop, arriving by a route that passes it.
  */
 if (forms.size === 0) {
-  throw new Error(`${MASTER}: holds no forms at all, so the fixture is unreadable`);
+  throw new Error(`${GAME_MASTER}: holds no forms at all, so the fixture is unreadable`);
 }
 
 for (let dex = 1; dex <= last; dex++) {
@@ -163,7 +162,7 @@ for (let dex = 1; dex <= last; dex++) {
  * upstream releases species.
  */
 if (rendered < last / 2) {
-  throw new Error(`${MASTER}: only ${rendered} of ${last} species have an icon, so the fixture is unreadable`);
+  throw new Error(`${GAME_MASTER}: only ${rendered} of ${last} species have an icon, so the fixture is unreadable`);
 }
 
 writeFileSync(POKEMON_ICONS, JSON.stringify(icons satisfies Icons));

@@ -11,6 +11,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, extname, join } from 'node:path';
+import { GAME_MASTER, TESSERACT_VENDOR } from '../src/generated.ts';
 import { SERVED_TYPES } from './served-types.mts';
 
 const DIST = 'dist';
@@ -30,7 +31,7 @@ const PUBLISHED = [
   // The game master the Inventory page reads a screen against: the corpus's own vended copy, at the position it holds
   // here, rather than a second copy that could drift from the one the tests pin — or the 23 MB upstream the vend exists
   // to avoid fetching.
-  'src/tools/inventory/fixtures/game-master.json',
+  GAME_MASTER,
 ];
 
 /**
@@ -43,10 +44,10 @@ const tesseract = createRequire(import.meta.url).resolve('tesseract.js');
 const core = dirname(createRequire(tesseract).resolve('tesseract.js-core/package.json'));
 
 const VENDORED: Record<string, string> = {
-  'vendor/tesseract/worker.min.js': join(dirname(tesseract), '../dist/worker.min.js'),
+  [`${TESSERACT_VENDOR}worker.min.js`]: join(dirname(tesseract), '../dist/worker.min.js'),
   ...Object.fromEntries(
     ['tesseract-core-relaxedsimd-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.js', 'tesseract-core-lstm.wasm.js'].map(
-      (name) => [`vendor/tesseract/${name}`, join(core, name)],
+      (name) => [`${TESSERACT_VENDOR}${name}`, join(core, name)],
     ),
   ),
 };
