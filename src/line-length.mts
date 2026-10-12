@@ -41,12 +41,12 @@ export function width(text: string) {
 }
 
 /**
- * A heredoc's opening, `<<EOT`, `<<-EOT`, `<<'EOT'` or `<<"EOT"`, capturing the word that closes it. Looked for only
- * where shell is written — a `.sh` file, a workflow's `run:` block, a Markdown code block labelled as shell — since
- * elsewhere `<<` is a shift in TypeScript or prose quoting a command, and taking one of those for a heredoc would
- * exempt every line until one happened to read `EOF`.
+ * A heredoc's opening, `<<EOT`, `<<-EOT`, `<<'EOT'` or `<<"EOT"` but not a `<<<` here-string, capturing the word that
+ * closes it. Looked for only where shell is written — a `.sh` file, a workflow's `run:` block, a Markdown code block
+ * labelled as shell — since elsewhere `<<` is a shift in TypeScript or prose quoting a command, and taking one of those
+ * for a heredoc would exempt every line until one happened to read `EOF`.
  */
-const HEREDOC = /<<-?\s*(['"]?)([A-Za-z_]\w*)\1/;
+const HEREDOC = /(?<!<)<<(?!<)-?\s*(['"]?)([A-Za-z_]\w*)\1/;
 
 /** The Markdown code block languages that hold shell. */
 const SHELL_FENCES = new Set(['bash', 'console', 'sh', 'shell', 'zsh']);
