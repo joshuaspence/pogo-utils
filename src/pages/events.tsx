@@ -290,7 +290,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
      * this is for the one arrival. A card dismissed individually stays dismissed, that being a decision about the
      * event rather than a blanket rule.
      */
-    hiddenFor(prefs, view).delete(match.heading);
+    hiddenFor(prefs, view).delete(match.eventType);
     setSearch(match.name);
   }
 
@@ -391,11 +391,11 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     commit('filterScope');
   }
 
-  function toggleType(heading: string) {
+  function toggleType(eventType: string) {
     const hidden = hiddenFor(prefs, view);
 
-    if (!hidden.delete(heading)) {
-      hidden.add(heading);
+    if (!hidden.delete(eventType)) {
+      hidden.add(eventType);
     }
 
     // Named from the scope rather than the set, so the two cannot disagree about where a click just went — the one way
@@ -439,23 +439,26 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * The per-type filter chips, from the categories the feed currently carries. Each wears its type's colour class,
-   * which turns the row into the legend for the colour-coded cards and bars — and that needs the `eventType` slug the
-   * colours are keyed by, where the filters are keyed by the human `heading`. So the pairing is read off the events
-   * rather than kept as a second list that could drift.
+   * The per-type filter chips, from the categories the feed currently carries. Each is keyed by the `eventType` slug,
+   * which is what the filters store and the colours are keyed by, and labelled with the human `heading` — so the
+   * pairing is read off the events rather than kept as a second list that could drift. An event the feed gives no
+   * heading still gets a chip, labelled with its slug as the badge on its card is, until one of its type carries a
+   * heading to put there instead.
    *
-   * The entries are sorted rather than the keys, so the slug arrives with its heading, and the comparator is spelled
-   * out because a bare `.sort()` over pairs would stringify each one whole.
+   * The entries are sorted by label rather than the keys, so the chips read alphabetically as a reader sees them, and
+   * the comparator is spelled out because a bare `.sort()` over pairs would stringify each one whole.
    */
-  const slugs = new Map<string, string>();
+  const labels = new Map<string, string>();
 
   for (const ev of events) {
-    if (ev.heading && !slugs.has(ev.heading)) {
-      slugs.set(ev.heading, ev.eventType);
+    const label = labels.get(ev.eventType);
+
+    if (label === undefined || (label === ev.eventType && ev.heading)) {
+      labels.set(ev.eventType, ev.heading || ev.eventType);
     }
   }
 
-  const types = [...slugs].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const types = [...labels].sort(([, a], [, b]) => (a < b ? -1 : a > b ? 1 : 0));
   const hidden = hiddenFor(prefs, view);
   const newly = newlyVisible().length;
 
@@ -833,7 +836,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
     // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed
-    // by the chip's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
+    // by the chip's state alone — a track emptied by dismissals or a search term keeps its row.
     const filteredTypes = new Set<string>();
 
     for (const ev of events) {
@@ -843,7 +846,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         continue;
       }
 
-      if (hidden.has(ev.heading)) {
+      if (hidden.has(ev.eventType)) {
         filteredTypes.add(ev.eventType);
       }
 
@@ -877,9 +880,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
        */
       const items = track.items.filter((item) => item.startMs < rangeEndMs).sort((a, b) => a.startMs - b.startMs);
 
-      // A track the filter has switched off drops out entirely. Only when it is also empty, so a type sharing its row
-      // with a still-visible heading keeps the row and its visible events.
-      if (items.length === 0 && filteredTypes.has(track.type)) {
+      // A track the filter has switched off drops out entirely. A row is one `eventType`, which is what the chips
+      // switch, so there is no still-visible part of it to keep.
+      if (filteredTypes.has(track.type)) {
         return [];
       }
 
@@ -1077,15 +1080,15 @@ export default function EventsPage({ query: fragment }: { query: string }) {
          * per-view scope that set changes with the view — a row showing the last view's would be a stale legend.
          */}
         <div class="type-filters" role="group" aria-label="Filter by event type">
-          {types.map(([heading, eventType]) => (
+          {types.map(([eventType, label]) => (
             <button
-              key={heading}
+              key={eventType}
               type="button"
-              class={`chip${hidden.has(heading) ? ' off' : ''}${typeClass(eventType)}`}
-              aria-pressed={!hidden.has(heading)}
-              onClick={() => toggleType(heading)}
+              class={`chip${hidden.has(eventType) ? ' off' : ''}${typeClass(eventType)}`}
+              aria-pressed={!hidden.has(eventType)}
+              onClick={() => toggleType(eventType)}
             >
-              {heading}
+              {label}
             </button>
           ))}
         </div>

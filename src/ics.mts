@@ -211,6 +211,6 @@ export function calendarEvents(feed: readonly FeedEvent[], local: readonly FeedE
 
   return [...byId.values()]
     .filter((ev) => icsDate(ev.start) ?? icsDate(ev.end))
-    .filter((ev) => !RECURRING.has(ev.heading))
+    .filter((ev) => !RECURRING.has(ev.eventType))
     .sort((a, b) => byCodeUnit(a.start ?? '', b.start ?? '') || byCodeUnit(a.eventID, b.eventID));
 }

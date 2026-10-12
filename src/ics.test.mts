@@ -136,7 +136,7 @@ test('a local event overrides a feed event of the same ID rather than duplicatin
 test('recurring and undated events are left out', () => {
   const chosen = calendarEvents(
     [
-      event({ eventID: 'recurring', heading: RECURRING_TYPES[0] }),
+      event({ eventID: 'recurring', eventType: RECURRING_TYPES[0] }),
       event({ eventID: 'undated', start: null, end: null }),
       event({ eventID: 'date-only', start: '2026-05-01', end: '2026-05-02' }),
       event({ eventID: 'kept' }),

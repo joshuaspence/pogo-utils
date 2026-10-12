@@ -78,10 +78,10 @@ test('a first visit gets the defaults, and a null seen set', () => {
 test('the default hidden set is the recurring types and three standing states', () => {
   expect(RECURRING_TYPES.every((type) => DEFAULT_HIDDEN.includes(type))).toBe(true);
   expect(DEFAULT_HIDDEN.filter((type) => !RECURRING.has(type))).toEqual([
-    'Choose Your Path',
-    'GO Battle League',
-    'GO Pass',
-    'Twitch Drops',
+    'choose-your-path',
+    'go-battle-league',
+    'go-pass',
+    'twitch-drops',
   ]);
 });
 
@@ -95,13 +95,38 @@ test('an empty stored set is not a first visit', () => {
 });
 
 test('a stored set is read back as its members', () => {
-  store('hiddenTypes', ['Community Day', 'Raid Hour']);
+  store('hiddenTypes', ['community-day', 'raid-hour']);
   store('dismissed', ['event-a']);
 
   const prefs = loadPrefs();
 
-  expect(prefs.hiddenTypes).toEqual(new Set(['Community Day', 'Raid Hour']));
+  expect(prefs.hiddenTypes).toEqual(new Set(['community-day', 'raid-hour']));
   expect(prefs.dismissed).toEqual(new Set(['event-a']));
+});
+
+/**
+ * The type sets were keyed by `heading` before they were keyed by `eventType` slug, so a reader who saved a filter then
+ * still holds headings. Each reads back as its slug, in the global set and every view's alike, and one no feed ever
+ * paired with a slug is kept as it is rather than dropped. The dismissals beside them are `eventID`s and are not
+ * touched.
+ */
+test('a type set saved as headings reads back as slugs', () => {
+  store('hiddenTypes', ['Raid Hour', 'Pokémon Spotlight Hour', 'community-day', 'Some Future Type']);
+  store('hiddenByView', { cards: ['GO Pass', 'Choose Your Path'] });
+  store('dismissed', ['Season']);
+
+  const prefs = loadPrefs();
+
+  expect(prefs.hiddenTypes).toEqual(
+    new Set(['raid-hour', 'pokemon-spotlight-hour', 'community-day', 'Some Future Type']),
+  );
+  expect(prefs.hiddenByView).toEqual({ cards: new Set(['go-pass', 'choose-your-path']) });
+  expect(prefs.dismissed).toEqual(new Set(['Season']));
+});
+
+/** Every default is a slug the Tracks view or the feed knows, rather than a heading that would match nothing. */
+test('the default hidden set is all slugs', () => {
+  expect(DEFAULT_HIDDEN.every((type) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(type))).toBe(true);
 });
 
 /**
@@ -131,7 +156,7 @@ test('unreadable storage reads as a first visit rather than throwing', () => {
 
 /**
  * A stray non-string is dropped rather than carried, which costs nothing: these members are compared against `eventID`s
- * and `heading`s, so a number among them is one nothing can ever equal. The strings beside it survive, so this says the
+ * and `eventType` slugs, so a number among them is one nothing can ever equal. The strings beside it survive, so this says the
  * bad member was dropped rather than the whole value.
  */
 test('a non-string member is dropped and the rest kept', () => {
@@ -156,9 +181,9 @@ test.for([
  * unusable value is left out for the same reason it would be at the top level.
  */
 test('the per-view sets are read sparsely', () => {
-  store('hiddenByView', { cards: ['Community Day'], calendar: [], tracks: 'nonsense' });
+  store('hiddenByView', { cards: ['community-day'], calendar: [], tracks: 'nonsense' });
 
-  expect(loadPrefs().hiddenByView).toEqual({ cards: new Set(['Community Day']), calendar: new Set() });
+  expect(loadPrefs().hiddenByView).toEqual({ cards: new Set(['community-day']), calendar: new Set() });
 });
 
 test('a per-view value that is not an object at all reads as no views', () => {
@@ -172,15 +197,15 @@ test('a per-view value that is not an object at all reads as no views', () => {
  * as a first visit and hand the defaults back to a reader who had unticked them.
  */
 test('the legacy object is carried across and removed', () => {
-  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: ['Raid Hour'], dismissed: ['event-a'] }));
+  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: ['raid-hour'], dismissed: ['event-a'] }));
 
   const prefs = loadPrefs();
 
-  expect(prefs.hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(prefs.hiddenTypes).toEqual(new Set(['raid-hour']));
   expect(prefs.dismissed).toEqual(new Set(['event-a']));
   expect(storage.getItem('pgo-events:prefs')).toBeNull();
   expect(storage.snapshot()).toEqual({
-    [KEYS.hiddenTypes]: '["Raid Hour"]',
+    [KEYS.hiddenTypes]: '["raid-hour"]',
     [KEYS.dismissed]: '["event-a"]',
   });
 });
@@ -223,8 +248,8 @@ test('the unprefixed keys are carried across and removed', () => {
 
   const prefs = loadPrefs();
 
-  expect(prefs.hiddenTypes).toEqual(new Set(['Raid Hour']));
-  expect(prefs.hiddenByView).toEqual({ cards: new Set(['Community Day']) });
+  expect(prefs.hiddenTypes).toEqual(new Set(['raid-hour']));
+  expect(prefs.hiddenByView).toEqual({ cards: new Set(['community-day']) });
   expect(prefs.filterScope).toBe('view');
   expect(prefs.dismissed).toEqual(new Set(['event-a']));
   expect(prefs.seen).toEqual(new Set(['event-b']));
@@ -266,13 +291,13 @@ test('an unparseable unprefixed value is carried across as it stands', () => {
  * the unqualified keys are the later state, so they are what survives where the two disagree.
  */
 test('the unprefixed keys win over a legacy object holding both', () => {
-  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: ['Raid Hour'], dismissed: ['from-object'] }));
+  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: ['raid-hour'], dismissed: ['from-object'] }));
   storage.setItem('events:dismissed', '["from-key"]');
 
   const prefs = loadPrefs();
 
   expect(prefs.dismissed).toEqual(new Set(['from-key']));
-  expect(prefs.hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(prefs.hiddenTypes).toEqual(new Set(['raid-hour']));
   expect(storage.getItem('pgo-events:prefs')).toBeNull();
 });
 
@@ -334,7 +359,7 @@ test('inside the migration window that same key is carried', () => {
   vi.setSystemTime(new Date('2026-10-10T00:00:00Z'));
   storage.setItem('events:hidden-types', '["Raid Hour"]');
 
-  expect(loadPrefs().hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(['raid-hour']));
   expect(storage.snapshot()).toEqual({ [KEYS.hiddenTypes]: '["Raid Hour"]' });
 });
 
@@ -351,7 +376,7 @@ test('inside the migration window that same key is carried', () => {
 test('the migration window is still open — when this fails, delete the migration', () => {
   storage.setItem('events:hidden-types', '["Raid Hour"]');
 
-  expect(loadPrefs().hiddenTypes).toEqual(new Set(['Raid Hour']));
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(['raid-hour']));
 });
 
 /**
@@ -475,22 +500,22 @@ const prefsFor = (over: Partial<Prefs>): Prefs => ({
 /** JSON has no Set, so one replacer writes a bare set and the object of per-view sets alike, as their members. */
 test('persist writes a set as its members, and the per-view object as sets of them', () => {
   const prefs = prefsFor({
-    hiddenTypes: new Set(['Community Day']),
-    hiddenByView: { cards: new Set(['Raid Hour']) },
+    hiddenTypes: new Set(['community-day']),
+    hiddenByView: { cards: new Set(['raid-hour']) },
   });
 
   persist(prefs, 'hiddenTypes');
   persist(prefs, 'hiddenByView');
 
   expect(storage.snapshot()).toEqual({
-    [KEYS.hiddenTypes]: '["Community Day"]',
-    [KEYS.hiddenByView]: '{"cards":["Raid Hour"]}',
+    [KEYS.hiddenTypes]: '["community-day"]',
+    [KEYS.hiddenByView]: '{"cards":["raid-hour"]}',
   });
 });
 
 /** One key at a time, so toggling a type filter cannot rewrite the dismissals beside it. */
 test('persist writes the one key it was named', () => {
-  const prefs = prefsFor({ hiddenTypes: new Set(['Community Day']), dismissed: new Set(['event-a']) });
+  const prefs = prefsFor({ hiddenTypes: new Set(['community-day']), dismissed: new Set(['event-a']) });
 
   persist(prefs, 'hiddenTypes');
 
@@ -514,7 +539,7 @@ test('a written seen set round-trips, and a null one stays absent', () => {
 });
 
 test('hiddenFor answers the global set where the scope is global', () => {
-  const prefs = prefsFor({ filterScope: 'global', hiddenTypes: new Set(['Community Day']) });
+  const prefs = prefsFor({ filterScope: 'global', hiddenTypes: new Set(['community-day']) });
 
   expect(hiddenFor(prefs, 'cards')).toBe(prefs.hiddenTypes);
   expect(prefs.hiddenByView).toEqual({});
@@ -526,20 +551,20 @@ test('hiddenFor answers the global set where the scope is global', () => {
  * as a bug. The seed is a copy rather than the same set, which is what lets the two then diverge.
  */
 test('hiddenFor seeds a view from the global set, as a copy', () => {
-  const prefs = prefsFor({ filterScope: 'view', hiddenTypes: new Set(['Community Day']) });
+  const prefs = prefsFor({ filterScope: 'view', hiddenTypes: new Set(['community-day']) });
   const forCards = hiddenFor(prefs, 'cards');
 
-  expect(forCards).toEqual(new Set(['Community Day']));
+  expect(forCards).toEqual(new Set(['community-day']));
   expect(forCards).not.toBe(prefs.hiddenTypes);
 
-  forCards.add('Raid Hour');
-  expect(prefs.hiddenTypes).toEqual(new Set(['Community Day']));
-  expect(hiddenFor(prefs, 'calendar')).toEqual(new Set(['Community Day']));
+  forCards.add('raid-hour');
+  expect(prefs.hiddenTypes).toEqual(new Set(['community-day']));
+  expect(hiddenFor(prefs, 'calendar')).toEqual(new Set(['community-day']));
 });
 
 /** A view that has been filtered keeps what it holds rather than being re-seeded on every read. */
 test('hiddenFor returns the same set for a view it has already seeded', () => {
-  const prefs = prefsFor({ filterScope: 'view', hiddenTypes: new Set(['Community Day']) });
+  const prefs = prefsFor({ filterScope: 'view', hiddenTypes: new Set(['community-day']) });
 
   expect(hiddenFor(prefs, 'cards')).toBe(hiddenFor(prefs, 'cards'));
 });
@@ -548,7 +573,7 @@ test('hiddenFor returns the same set for a view it has already seeded', () => {
 test('hiddenFor leaves a stored empty set empty', () => {
   const prefs = prefsFor({
     filterScope: 'view',
-    hiddenTypes: new Set(['Community Day']),
+    hiddenTypes: new Set(['community-day']),
     hiddenByView: { cards: new Set() },
   });
 
