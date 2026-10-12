@@ -34,7 +34,9 @@ export function lastIndexOf(bytes: Uint8Array, needle: Uint8Array): number {
  */
 export function statusCut(bytes: Uint8Array, command: readonly string[]): Uint8Array {
   const at = lastIndexOf(bytes, new TextEncoder().encode(`\n${EXIT_MARK}`));
-  const status = at < 0 ? NaN : Number(new TextDecoder().decode(bytes.subarray(at + EXIT_MARK.length + 1)));
+  // Digits or nothing: a marker with the run cut off after it decodes to '', which `Number` would read as a clean 0.
+  const digits = at < 0 ? '' : new TextDecoder().decode(bytes.subarray(at + EXIT_MARK.length + 1));
+  const status = /^\d+$/.test(digits) ? Number(digits) : NaN;
 
   if (status !== 0) {
     throw new Error(`${command.join(' ')} exited ${Number.isNaN(status) ? 'without saying how' : status}`);

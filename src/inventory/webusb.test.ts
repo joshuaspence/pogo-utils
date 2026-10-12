@@ -26,6 +26,10 @@ test('a status other than zero fails the command, naming it and the status', () 
 
 test('output with no status after it fails rather than passing for a success', () => {
   expect(() => statusCut(bytes('cut off'), ['screencap', '-p'])).toThrow(/exited without saying how/);
+  // The marker made it but the digits after it did not, which would otherwise read as `Number('')`: a clean 0.
+  expect(() => statusCut(bytes('half a png', '\npogo-utils-exit:'), ['screencap', '-p'])).toThrow(
+    /exited without saying how/,
+  );
 });
 
 test('the last marker is the one read, where the output itself holds the same text', () => {
