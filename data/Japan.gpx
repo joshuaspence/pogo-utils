@@ -174,6 +174,23 @@
   </trk>
 
   <trk>
+    <name>PokéPark Kanto</name>
+    <extensions>
+      <pgr:city>Inagi, Tokyo</pgr:city>
+      <pgr:country>Japan</pgr:country>
+    </extensions>
+    <trkseg>
+      <trkpt lat="35.624880" lon="139.520360"/>
+      <trkpt lat="35.625543" lon="139.520866"/>
+      <trkpt lat="35.626226" lon="139.520774"/>
+      <trkpt lat="35.626611" lon="139.521509"/>
+      <trkpt lat="35.626280" lon="139.521961"/>
+      <trkpt lat="35.626078" lon="139.521519"/>
+      <trkpt lat="35.625837" lon="139.521598"/>
+    </trkseg>
+  </trk>
+
+  <trk>
     <name>Ueno Park</name>
     <extensions>
       <pgr:city>Tokyo</pgr:city>
