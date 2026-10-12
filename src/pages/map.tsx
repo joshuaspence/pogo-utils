@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import COUNTRIES from '../countries.js';
 import { byKey, fmtDist, gpxEntries, routeDistance, type Route, type Waypoint } from '../routes.js';
 import { copyText, el } from '../dom.js';
+import { LOCAL_EVENTS } from '../event-feed.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
 import { said } from '../errors.js';
@@ -79,8 +80,8 @@ async function loadGpxFile(file: string): Promise<{ routes: Route[]; waypoints: 
 }
 
 /**
- * The name to show for a `<pgr:event>`, which the files record only by `eventID`. `data/events.json` is where that name
- * lives — the same file `validate-gpx.mts` checks those IDs against.
+ * The name to show for a `<pgr:event>`, which the files record only by `eventID`. `LOCAL_EVENTS` is where that name lives
+ * — the same file `validate-gpx.mts` checks those IDs against.
  *
  * A fetch that fails leaves every entry naming its event by ID, which reads well enough and still links to the right
  * place, so a missing calendar is not worth withholding a page of routes over.
@@ -89,7 +90,7 @@ async function loadEventNames(): Promise<ReadonlyMap<string, string>> {
   const names = new Map<string, string>();
 
   try {
-    const res = await fetch('data/events.json');
+    const res = await fetch(LOCAL_EVENTS);
 
     if (!res.ok) {
       throw new Error(`${res.status} ${res.statusText}`.trim());
@@ -99,7 +100,7 @@ async function loadEventNames(): Promise<ReadonlyMap<string, string>> {
       names.set(event.eventID, event.name);
     }
   } catch (e) {
-    console.error(`data/events.json: ${said(e)} — entries will name their event by ID`);
+    console.error(`${LOCAL_EVENTS}: ${said(e)} — entries will name their event by ID`);
   }
 
   return names;
