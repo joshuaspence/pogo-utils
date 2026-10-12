@@ -275,7 +275,7 @@ function shortUnion(union: Term, pills: readonly TermPill[]): TermPill[] | null 
     if (side.some((pill) => pill.id === union.id)) {
       next = next.filter((pill) => !covered.includes(pill));
       changed = true;
-    } else if (covered.length === covers.length) {
+    } else if (new Set(covered.map((pill) => pill.id)).size === covers.length) {
       next = [...next.filter((pill) => !covered.includes(pill)), pillOf(union.id, negated)];
       changed = true;
     }
@@ -286,7 +286,8 @@ function shortUnion(union: Term, pills: readonly TermPill[]): TermPill[] | null 
 
 /**
  * One category's terms within one junction, said as shortly as the category's own arithmetic allows. The pills handed
- * back replace the ones that were read; an empty list is a category that has turned out to say nothing at all.
+ * back replace the ones that were read; an empty list is a category that has turned out to ask for everything, which
+ * only an `any` can do, and which makes that whole `any` ask for nothing.
  *
  * Null is "leave these alone", which is the answer for every arrangement the facts in `terms.js` do not settle.
  */
@@ -315,7 +316,10 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
 
   // Every term of an exhaustive category, OR'd: a search for anything at all. Exclusivity is not wanted here, only
   // that every Pokémon has one of these — which is why all eighteen types reduce where seventeen of them do not.
-  if (required.length === category.terms.length) {
+  // Distinct terms are what is counted, a link carrying five copies of one chip asking for that chip and no more.
+  const chosen = new Set(required.map((pill) => pill.id));
+
+  if (chosen.size === category.terms.length) {
     return [];
   }
 
@@ -325,7 +329,6 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
     return null;
   }
 
-  const chosen = new Set(required.map((pill) => pill.id));
   const left = category.terms.filter((term) => !chosen.has(term.id)).map((term) => pillOf(term.id, true));
 
   // `0*,1*,2*,3*` against `!4*`, measured by the writer that will produce one of them.
@@ -450,6 +453,13 @@ function short(node: Node, told: Told): Node {
             pills.map(termPill).filter((pill) => pill !== null),
           )
         : null;
+
+    // A category asking for everything in an `any` is a part that asks nothing, which makes the whole group ask
+    // nothing — the same answer the spans give below. Splicing only the category away would leave its neighbours
+    // standing, a strictly narrower search than the one arranged.
+    if (shortened?.length === 0) {
+      return { ...node, parts: [] };
+    }
 
     if (shortened !== null) {
       parts = spliced(parts, pills, shortened);
