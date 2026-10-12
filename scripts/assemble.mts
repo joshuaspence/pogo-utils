@@ -248,9 +248,9 @@ if (missing.length > 0) {
  *
  * The scan above answers "is everything the markup names here", which a stylesheet nothing names passes without being
  * read. That is not hypothetical. esbuild emits a CSS file per chunk, so a stylesheet imported by a page the shell
- * reaches through `import()` lands beside that page's chunk — and esbuild ships no runtime to fetch it, so the five page
- * sheets were written into the artifact and no document ever loaded one. Every page rendered unstyled, and nothing in the
- * build said so: the module graph was complete, the markup resolved, the byte counts looked plausible.
+ * reaches through `import()` lands beside that page's chunk — and esbuild ships no runtime to fetch it, so the five
+ * page sheets were written into the artifact and no document ever loaded one. Every page rendered unstyled, and nothing
+ * in the build said so: the module graph was complete, the markup resolved, the byte counts looked plausible.
  *
  * `src/main.tsx` importing all seven is the fix. This is what stops the next page-local `import './x.css'` from quietly
  * reintroducing it.

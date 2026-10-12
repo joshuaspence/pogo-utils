@@ -62,7 +62,9 @@ const CHIP: Record<ChipState, { glyph: string; said: string }> = {
   out: { glyph: '!', said: 'ruled out' },
 };
 
-/** What a junction's button says, and what it means — the words rather than `&` and `,`, which the string already has. */
+/**
+ * What a junction's button says, and what it means — the words rather than `&` and `,`, which the string already has.
+ */
 const JUNCTION: Record<Junction, { label: string; said: string }> = {
   all: { label: 'All of', said: 'every pill in this group has to match' },
   any: { label: 'Any of', said: 'one pill in this group matching is enough' },
@@ -413,7 +415,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
 
-  /** The fragment this state would be linked as, which is both what goes in the address bar and when to put it there. */
+  /**
+   * The fragment this state would be linked as, which is both what goes in the address bar and when to put it there.
+   */
   const mine = toFragment(state);
 
   /**
@@ -1420,8 +1424,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           </p>
 
           <p class="help" id="importHelp">
-            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are{' '}
-            <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
+            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and
+            <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
             <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
             The game takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above
             writes it back as clauses the game does take.

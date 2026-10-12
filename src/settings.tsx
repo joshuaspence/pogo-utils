@@ -39,7 +39,9 @@ export function Settings() {
    */
   const [status, setStatus] = useState<string | null>(null);
 
-  /** The file picker Import clicks, hidden so the two controls match each other rather than one being browser-styled. */
+  /**
+   * The file picker Import clicks, hidden so the two controls match each other rather than one being browser-styled.
+   */
   const picker = useRef<HTMLInputElement>(null);
 
   useDismiss(open, () => setOpen(false), root);

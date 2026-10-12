@@ -29,6 +29,7 @@ jobs:
           - 'css'
           - 'html'
           - 'js'
+          - 'line-length'
           - 'prettier'
           - 'types'
           - 'xml'

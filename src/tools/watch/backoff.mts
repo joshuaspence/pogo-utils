@@ -1,7 +1,7 @@
 /**
  * How long to wait after a request fails, doubling from the poll interval to a ceiling and starting over on the first
- * answer. A refused or failed request is retried at the poll rate by nothing: a 429 asked again every fifteen seconds is
- * how one account becomes a banned one, and an outage asked about that often is load on somebody else's bad day.
+ * answer. A refused or failed request is retried at the poll rate by nothing: a 429 asked again every fifteen seconds
+ * is how one account becomes a banned one, and an outage asked about that often is load on somebody else's bad day.
  *
  * Jittered by up to a quarter either way so that a watcher restarted alongside another does not keep step with it. The
  * random source is a parameter so a test can hold it still.

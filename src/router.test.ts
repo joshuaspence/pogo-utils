@@ -14,7 +14,10 @@ import { expect, test } from 'vitest';
 
 import { HOME, PAGES, fromHash, isPage, pageOf, toHash, type Page } from './router.js';
 
-/** The shapes the pages actually produce, rather than invented ones: a `.`-joined set, a `-` range, a `?` inside a value. */
+/**
+ * The shapes the pages actually produce, rather than invented ones: a `.`-joined set, a `-` range, a `?` inside a
+ * value.
+ */
 const QUERIES = [
   '',
   'q=pika',

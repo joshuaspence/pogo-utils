@@ -3,8 +3,8 @@
  * posted to the topic's URL with headers alongside: a header carries ASCII, and a species name does not always fit in
  * it — `Nidoran♀`, `Flabébé`. The JSON form takes the same fields with none of that.
  *
- * The topic is as good as a password on the public server, anyone who knows it being able to read what is sent there, so
- * it is never printed: a failure says the server and the status and stops there.
+ * The topic is as good as a password on the public server, anyone who knows it being able to read what is sent there,
+ * so it is never printed: a failure says the server and the status and stops there.
  */
 
 export interface Notification {

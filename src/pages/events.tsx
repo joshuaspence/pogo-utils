@@ -133,8 +133,9 @@ const REVEALS = [
 ] as const satisfies readonly { name: keyof Reveals; label: string; cardsOnly: boolean }[];
 
 // Tracks view geometry. TRACK_DAY_PX is the single source for a day column's width: the bars are positioned in pixels
-// from it, and the same value is handed to CSS as the --track-day custom property for the gridline background, so the two
-// cannot drift. The timeline runs from a couple of days before today to the latest event end, clamped to a sane span.
+// from it, and the same value is handed to CSS as the --track-day custom property for the gridline background, so the
+// two cannot drift. The timeline runs from a couple of days before today to the latest event end, clamped to a sane
+// span.
 const TRACK_DAY_PX = 40;
 const TRACK_BAR_H = 22;
 const TRACK_LANE_GAP = 4;
@@ -493,8 +494,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         style={{ '--i': String(Math.min(index, STAGGER_MAX)) }}
       >
         {/*
-         * A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button a
-         * sibling rather than a child: an anchor may not contain interactive content.
+         * A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button
+         * a sibling rather than a child: an anchor may not contain interactive content.
          */}
         <a
           class="card-link"
@@ -529,10 +530,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </button>
 
         {/*
-         * The mark for an event that has appeared since the reader last acknowledged the page, and the button that clears
-         * it. A sibling of the overlay link for the same reason the dismiss button is one: that link covers the card and
-         * would swallow the click. It takes the opposite corner, so the card's two controls read as a pair — and the left
-         * edge is already the status stripe.
+         * The mark for an event that has appeared since the reader last acknowledged the page, and the button that
+         * clears it. A sibling of the overlay link for the same reason the dismiss button is one: that link covers the
+         * card and would swallow the click. It takes the opposite corner, so the card's two controls read as a pair —
+         * and the left edge is already the status stripe.
          */}
         {fresh && (
           <button
@@ -567,10 +568,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           )}
 
           {/*
-           * What this repository added for the event, linking through to it on the map. Last, so that the absolute dates
-           * and the relative ones stay together above it. The query is what lands the link on the entry rather than on a
-           * page of 81 rows. The stylesheet puts the Map tab's own glyph in front, so the destination is named the same
-           * way twice; the accessible name says it in words instead.
+           * What this repository added for the event, linking through to it on the map. Last, so that the absolute
+           * dates and the relative ones stay together above it. The query is what lands the link on the entry rather
+           * than on a page of 81 rows. The stylesheet puts the Map tab's own glyph in front, so the destination is
+           * named the same way twice; the accessible name says it in words instead.
            */}
           {summary !== null && (
             <a
@@ -607,8 +608,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       classes.push('cont-right');
     }
 
-    // A ring, not a badge: there is no room for a control in eleven pixels, so a bar says an event is new and the header
-    // carries the only way to clear it.
+    // A ring, not a badge: there is no room for a control in eleven pixels, so a bar says an event is new and the
+    // header carries the only way to clear it.
     if (isNew(ev)) {
       classes.push('new');
     }
@@ -824,8 +825,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
-    // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed by
-    // the chip's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
+    // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed
+    // by the chip's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
     const filteredTypes = new Set<string>();
 
     for (const ev of events) {
@@ -888,11 +889,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           {items.map((item) => {
             const left = Math.max(item.startMs, rangeStartMs);
             const right = Math.min(item.endMs, rangeEndMs);
+            const status = statusOf(item.ev, now).kind;
 
             return (
               <a
                 key={item.ev.eventID}
-                class={`bar ${statusOf(item.ev, now).kind}${isNew(item.ev) ? ' new' : ''}${typeClass(item.ev.eventType)}`}
+                class={`bar ${status}${isNew(item.ev) ? ' new' : ''}${typeClass(item.ev.eventType)}`}
                 href={item.ev.link}
                 target="_blank"
                 rel="noopener"
@@ -998,7 +1000,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         <button
           type="button"
           class="ghost"
-          title="Default every view's type filters, hide ended and undated events, restore dismissals and clear new marks"
+          title={
+            "Default every view's type filters, hide ended and undated events, " +
+            'restore dismissals and clear new marks'
+          }
           onClick={reset}
         >
           Reset
