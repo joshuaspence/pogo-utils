@@ -155,11 +155,6 @@ export async function connect(): Promise<Phone | null> {
   };
 
   /**
-   * A command's output, by the shell protocol where the phone has it — Android 7 on — which keeps stderr out of what is
-   * answered and says how the command exited. The older protocol interleaves the two, which for a screenshot would put
-   * a warning in the middle of a PNG; it is the fallback rather than the rule.
-   */
-  /**
    * A command's output over the protocol older phones have, which carries one stream and no exit status. So stderr is
    * sent to `/dev/null`, where it cannot land in the middle of a PNG, and the status is printed after the output on a
    * line of its own — a newline, a marker and the number — then cut back off and held to zero, as the shell protocol's
@@ -172,6 +167,11 @@ export async function connect(): Promise<Phone | null> {
     return statusCut(bytes, command);
   };
 
+  /**
+   * A command's output, by the shell protocol where the phone has it — Android 7 on — which keeps stderr out of what is
+   * answered and says how the command exited. The older protocol interleaves the two, which for a screenshot would put
+   * a warning in the middle of a PNG; it is the fallback rather than the rule.
+   */
   const output = async (command: readonly string[]): Promise<Uint8Array> => {
     const shell = adb.subprocess.shellProtocol;
 
