@@ -82,6 +82,8 @@ export interface Phone {
   name: string;
   transport: Transport;
   close(): Promise<void>;
+  /** Settles once the connection is over: resolving where it was closed, rejecting where the phone was unplugged. */
+  disconnected: Promise<void>;
 }
 
 /**
@@ -197,5 +199,6 @@ export async function connect(): Promise<Phone | null> {
       screencap: () => run(['screencap', '-p']),
     },
     close: () => adb.close(),
+    disconnected: adb.disconnected,
   };
 }

@@ -80,6 +80,7 @@
     "src/tools/inventory/adb.mts",
     "src/tools/inventory/artwork.mts",
     "src/tools/inventory/badges.mts",
+    "src/tools/inventory/config.mts",
     "src/tools/inventory/detail.mts",
     "src/tools/inventory/game-master.mts",
     "src/tools/inventory/identify.mts",
@@ -89,7 +90,9 @@
     "src/tools/inventory/overlay.mts",
     "src/tools/inventory/png.mts",
     "src/tools/inventory/progress.mts",
-    "src/tools/inventory/report.mts"
+    "src/tools/inventory/report.mts",
+    "src/tools/inventory/stitch.mts",
+    "src/tools/inventory/storage.mts"
   ],
   "exclude": [
     "src/countries.ts",

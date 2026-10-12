@@ -22,6 +22,8 @@
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 
+import { said } from '../errors.js';
+import { usePhone } from '../phone-store.js';
 import { compose, emptyState, fromFragment, names, presetTree, toFragment, type State } from '../search/query.js';
 import { optimise } from '../search/optimise.js';
 import { read } from '../search/parse.js';
@@ -353,6 +355,16 @@ function current(state: State) {
     : { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: false };
 }
 
+/**
+ * Where the last string sent to the phone has got to, and which string that was: an answer is about the string sent, so
+ * it is shown only while that is still the string on the page.
+ */
+interface Sent {
+  query: string;
+  kind: 'busy' | 'done' | 'failed';
+  message: string;
+}
+
 /** A pill on its way somewhere: what is moving, where it came from, and where the pointer has it now. */
 interface Drag {
   node: Node;
@@ -406,6 +418,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const [offered, setOffered] = useState<readonly Offer[]>([]);
   const [active, setActive] = useState(-1);
   const [copyLabel, setCopyLabel] = useState('Copy');
+  const phone = usePhone();
+  const [sent, setSent] = useState<Sent | null>(null);
 
   const textRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -582,6 +596,41 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       setCopyLabel('Press ⌘C');
     }
   }
+
+  /**
+   * The string typed into storage on the phone, the way `snap --search` types it: from wherever the game is, to the
+   * grid and into its box. The OCR it reads its way there with is fetched only now, so a reader with no phone never
+   * downloads it.
+   */
+  async function sendToPhone() {
+    if (phone === null) {
+      return;
+    }
+
+    const term = query;
+    const say = (kind: Sent['kind'], message: string) => setSent({ query: term, kind, message });
+
+    say('busy', `Searching on ${phone.name}…`);
+
+    try {
+      const { searchStorage } = await import('../inventory/reader.js');
+      const found = await searchStorage(
+        phone.transport,
+        term,
+        (fraction) =>
+          say('busy', `Fetching the OCR model, ${Math.round(fraction * 100)}% — once, then kept in this browser…`),
+        (message) => say('busy', `${message}, finding storage…`),
+      );
+      const counted = found === null ? '' : found === 0 ? ': nothing matched' : `: ${found} Pokémon matched`;
+
+      say('done', `Searched storage on ${phone.name}${counted}.`);
+    } catch (e) {
+      say('failed', `Could not search on ${phone.name}: ${said(e)}`);
+    }
+  }
+
+  const sending = sent?.kind === 'busy';
+  const answer = sent !== null && (sending || sent.query === query) ? sent : null;
 
   useEffect(() => {
     if (copyLabel === 'Copy') {
@@ -962,14 +1011,29 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <code id="query" ref={queryRef} class={query ? undefined : 'empty'} aria-live="polite">
               {query || 'Nothing arranged yet'}
             </code>
-            <button
-              type="button"
-              class={copyLabel === 'Copy' ? 'copy' : 'copy done'}
-              disabled={!query || error !== null}
-              onClick={copy}
-            >
-              {copyLabel}
-            </button>
+            <span class="buttons">
+              <button
+                type="button"
+                class={copyLabel === 'Copy' ? 'copy' : 'copy done'}
+                disabled={!query || error !== null}
+                onClick={copy}
+              >
+                {copyLabel}
+              </button>
+
+              {/* The same string sent the other way out, which only a phone held over WebUSB gives it. */}
+              {phone !== null && (
+                <button
+                  type="button"
+                  class="send"
+                  title={`Type this into Pokémon storage’s search on ${phone.name}`}
+                  disabled={!query || error !== null || sending}
+                  onClick={() => void sendToPhone()}
+                >
+                  Search
+                </button>
+              )}
+            </span>
           </div>
 
           <div class="meta">
@@ -988,6 +1052,15 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               </button>
             </span>
           </div>
+
+          {answer !== null && (
+            <p
+              class={answer.kind === 'failed' ? 'broken' : 'sent'}
+              role={answer.kind === 'failed' ? 'alert' : 'status'}
+            >
+              {answer.message}
+            </p>
+          )}
 
           <p class="broken" hidden={error === null}>
             {ticked(error ?? '')}

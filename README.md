@@ -6,7 +6,8 @@ application and reached from a shared top tab bar:
 - **Events** (`#/events`) — a calendar of current and upcoming in-game events, also published as a calendar
   subscription.
 - **Map** (`#/map`) — an interactive map of GPX walking tracks and teleport waypoints.
-- **Search** (`#/search`) — a builder for the strings the game's own Pokémon search box takes.
+- **Search** (`#/search`) — a builder for the strings the game's own Pokémon search box takes, which it can type into
+  that box itself on a phone the Inventory page has connected.
 - **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny and which hunts still
   want it.
 - **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites, and a Live
@@ -525,6 +526,13 @@ browser's own device chooser, and has to be authorised on the phone the first ti
 Chromium API, so Chrome or Edge, and a phone an `adb` server on the same computer already holds cannot be claimed —
 `adb kill-server` first. Where the connection will not come up, [WebADB](https://webadb.com/) is a shell over the same
 WebUSB to find out why; it is a hosted app rather than a library, which is why the page imports Tango instead.
+
+The connection outlives the tab it was made on: [`src/phone-store.ts`](src/phone-store.ts) holds it for the document
+until the phone is unplugged, so `adb` cannot reach the phone until then or until the site is closed. That is what the
+Search page's **Search** button uses. Beside **Copy** while a phone is held, it drives storage the way `snap --search`
+does, through the same [`storage`](src/tools/inventory/storage.mts) and its `DEFAULTS`: the game launched if it is not
+in front, storage opened from the map or a detail screen, the string typed into the box, and the game's own count of
+what matched reported back. The OCR it finds its way with is fetched on the first press rather than with the page.
 
 The readers run in the browser unchanged. [`png.mts`](src/tools/inventory/png.mts) decodes with
 [fflate](https://github.com/101arrowz/fflate) rather than `node:zlib`, keeping both the `Viewport` chunk a stitch
