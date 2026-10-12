@@ -8,6 +8,7 @@
  * anything about the screen; the screenshot and what it reads as stay in memory here, and leave only as a download.
  */
 
+import { GAME_MASTER, TESSERACT_VENDOR } from '../generated.js';
 import { ICON_BASE } from '../pokedex/icons.js';
 import { signatureOfIcon, signaturesFor, type Signature } from '../tools/inventory/artwork.mts';
 import { type Form, type GameData } from '../tools/inventory/game-master.mts';
@@ -16,15 +17,6 @@ import { MODEL, tesseractWasm } from '../tools/inventory/ocr-wasm.mts';
 import { decodePng, type Image } from '../tools/inventory/png.mts';
 import { showProgress } from '../tools/inventory/progress.mts';
 import { readScreen, type Reading } from '../tools/inventory/report.mts';
-
-/**
- * Where the build publishes the game master, at the position it holds in the repository: `scripts/assemble.mts` copies
- * the corpus's own fixture rather than a second copy of it, so the page and the tests read the same forms.
- */
-const GAME_MASTER = 'src/tools/inventory/fixtures/game-master.json';
-
-/** Tesseract.js's worker script and its cores, which the build copies out of `node_modules` beside the bundle. */
-const VENDOR = 'vendor/tesseract/';
 
 /**
  * How many workers to read with at most. Each holds its own copy of the model and its own WebAssembly heap, which on a
@@ -76,8 +68,8 @@ function prepare(onModel: (fraction: number) => void): Promise<Kit> {
       tesseractWasm({
         langPath: MODEL,
         workers: Math.min(navigator.hardwareConcurrency || 1, MAX_WORKERS),
-        workerPath: VENDOR + 'worker.min.js',
-        corePath: VENDOR,
+        workerPath: TESSERACT_VENDOR + 'worker.min.js',
+        corePath: TESSERACT_VENDOR,
         cache: true,
         progress: onModel,
       }),

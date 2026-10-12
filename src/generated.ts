@@ -14,3 +14,14 @@ export const GPX_PATHS = 'data/gpx-paths.json';
 export const ENTRIES_BY_EVENT = 'data/entries-by-event.json';
 export const POKEMON_ICONS = 'data/pokemon-icons.json';
 export const EVENTS_FEED = 'events.ics';
+
+/**
+ * The Inventory page's two fetches, which the build has to publish where the page asks for them: the game master that
+ * `scripts/vend-game-master.mts` writes and `scripts/build-sprites.mts` also reads, and the directory
+ * `scripts/assemble.mts` copies Tesseract.js's worker and cores into. The page's copy was only ever a `fetch` string,
+ * which no build or lint step reads, so a path moved under it was a 404 at runtime behind a green build.
+ *
+ * `TESSERACT_VENDOR` ends in a slash because Tesseract.js takes it as a `corePath` it appends a file name to.
+ */
+export const GAME_MASTER = 'src/tools/inventory/fixtures/game-master.json';
+export const TESSERACT_VENDOR = 'vendor/tesseract/';
