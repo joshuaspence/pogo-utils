@@ -4,9 +4,9 @@
  * one thing this suite cannot plug in.
  */
 
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
-import { statusCut } from './webusb.js';
+import { release, statusCut } from './webusb.js';
 
 const bytes = (...parts: (string | number[])[]) =>
   Uint8Array.from(parts.flatMap((part) => (typeof part === 'string' ? [...new TextEncoder().encode(part)] : part)));
@@ -32,4 +32,15 @@ test('the last marker is the one read, where the output itself holds the same te
   expect(new TextDecoder().decode(statusCut(bytes('\npogo-utils-exit:1', '\npogo-utils-exit:0'), ['cat']))).toBe(
     '\npogo-utils-exit:1',
   );
+});
+
+test('a connection let go of is closed both ways, though one way fails', async () => {
+  const connection = {
+    readable: { cancel: vi.fn(() => Promise.resolve()) },
+    writable: { close: vi.fn(() => Promise.reject(new TypeError('the stream is errored'))) },
+  };
+
+  await expect(release(connection)).resolves.toBeUndefined();
+  expect(connection.writable.close).toHaveBeenCalledOnce();
+  expect(connection.readable.cancel).toHaveBeenCalledOnce();
 });
