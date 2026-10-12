@@ -2,6 +2,9 @@
  * The site's top tab bar, shared by every page, so they read as co-equal destinations rather than one hanging off
  * another. The active tab is marked with aria-current="page", which doubles
  * as the styling hook. Uses the tokens from theme.css.
+ *
+ * Every class here is a name no other sheet selects. The page sheets are scoped to `body[data-page='…']`, and the bar is
+ * inside the body too, so a page that paints a name the bar uses paints the bar on that page alone.
  */
 
 /**
@@ -58,7 +61,7 @@
   border-bottom: 3px solid transparent;
 }
 
-.topnav .tab .ico {
+.topnav .tab .tab-icon {
   font-size: 17px;
   line-height: 1;
 }
@@ -293,7 +296,7 @@
    * none`, which would take the label out of the accessible name too, the icon beside it being `aria-hidden`; the
    * `title` on each tab is what names it to a pointer.
    */
-  .topnav .tab .label {
+  .topnav .tab .tab-label {
     position: absolute;
     width: 1px;
     height: 1px;

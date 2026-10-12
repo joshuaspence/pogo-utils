@@ -29,10 +29,10 @@ export function Nav({ current }: { current: Page }) {
             title={label}
             aria-current={name === current ? 'page' : undefined}
           >
-            <span class="ico" aria-hidden="true">
+            <span class="tab-icon" aria-hidden="true">
               {icon}
             </span>{' '}
-            <span class="label">{label}</span>
+            <span class="tab-label">{label}</span>
           </a>
         ))}
       </nav>
