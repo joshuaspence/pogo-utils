@@ -155,6 +155,22 @@ test('a name fragment matches anywhere in the name', () => {
   expect(names).toContain('Pecharunt');
 });
 
+/**
+ * A query comes out of the fragment of a link someone shared, and is tested against every entry on every render, so a
+ * long one has to cost its length rather than its square. A long run of zeros ending in something other than a digit is
+ * the shape that backtracks when the leading zeros and the digits after them can trade characters, and leading zeros
+ * before a real number still have to read as that number. The budget is generous for linear work and orders of
+ * magnitude short of what the quadratic version took over the whole dex.
+ */
+test('a long run of zeros costs its length, not its square', () => {
+  const zeros = '0'.repeat(5_000);
+  const started = performance.now();
+
+  expect(admitted({ q: `${zeros}x` })).toEqual([]);
+  expect(admitted({ q: `#${zeros}25` })).toEqual([entryAt(25)]);
+  expect(performance.now() - started).toBeLessThan(1_000);
+});
+
 test('an empty query admits everything', () => {
   expect(matchesQuery(entryAt(25), '   ')).toBe(true);
 });
