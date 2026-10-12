@@ -14,15 +14,21 @@ import { parseQuery } from './query.mts';
 import { watch } from './watcher.mts';
 import type { ViewportResponse, WireSpawn } from './wire.mts';
 import { spawn as run } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 
 const SCRIPT = fileURLToPath(new URL('../../../scripts/watch-livepokemap.mts', import.meta.url));
 const fixturePath = (name: string) => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 const fixture = (name: string) => readFileSync(fixturePath(name), 'utf8');
+
+// The command reads a `.env` in the directory it runs from, so every run below is given one of its own or none at all
+// rather than the repository root's, which is a developer's real credentials.
+const NO_ENV = fixturePath('');
 
 const PASSWORD = 'correct horse battery staple';
 const TOKENS = ['eyJ.first-token.sig', 'eyJ.second-token.sig'];
@@ -129,6 +135,7 @@ test('polls once per interval, logs in again when refused, writes nothing and no
   const ntfy = await standIn((_request, response) => json(response, 200, { id: 'x' }));
 
   const child = run(process.execPath, [SCRIPT, fixturePath('shiny-hunt.json'), fixturePath('xxl.json')], {
+    cwd: NO_ENV,
     env: {
       ...process.env,
       LPM_BASE_URL: map.url,
@@ -472,7 +479,10 @@ test('without ntfy each match is printed once, in full, and nothing is sent', as
 test('the command refuses to start without its credentials or a query', async () => {
   const start = (args: string[], env: Record<string, string>) =>
     new Promise<[number | null, string]>((done) => {
-      const child = run(process.execPath, [SCRIPT, ...args], { env: { PATH: process.env.PATH ?? '', ...env } });
+      const child = run(process.execPath, [SCRIPT, ...args], {
+        cwd: NO_ENV,
+        env: { PATH: process.env.PATH ?? '', ...env },
+      });
       let output = '';
 
       child.stderr.on('data', (chunk) => (output += chunk));
@@ -493,4 +503,48 @@ test('the command refuses to start without its credentials or a query', async ()
     1,
     expect.stringContaining('config.json: not a Live PokeMap display filter'),
   ]);
+});
+
+/**
+ * A `.env` is where a password belongs rather than a shell's history, read from the directory the command runs in —
+ * `pnpm` runs a script from the repository root. Here the file is the only source of the password and of the server to
+ * reach, so a login at all is the proof it was read, while the username it carries is the proof that an environment
+ * variable beats the file's. That precedence is what keeps every test above independent of a developer's own `.env`;
+ * running without one is the test before this.
+ */
+test('the command reads its credentials from .env, and the environment wins over the file', async () => {
+  const map = await standIn((request, response) =>
+    request.path === '/api/auth/login'
+      ? json(response, 401, {
+          success: false,
+          error: { code: 'INVALID_CREDENTIALS', message: 'Invalid username or password' },
+        })
+      : json(response, 200, {}),
+  );
+  const root = mkdtempSync(join(tmpdir(), 'watch-livepokemap-'));
+
+  writeFileSync(join(root, '.env'), `LPM_BASE_URL=${map.url}\nLPM_USERNAME=the-file\nLPM_PASSWORD=the-file\n`);
+
+  const child = run(process.execPath, [SCRIPT, fixturePath('shiny-hunt.json')], {
+    cwd: root,
+    env: { PATH: process.env.PATH ?? '', LPM_USERNAME: 'the-environment' },
+  });
+  let output = '';
+
+  child.stderr.on('data', (chunk) => (output += chunk));
+
+  try {
+    // A refused login stops the command, so there is nothing to wait out: what it sent by then is all it will send.
+    expect(await new Promise<number | null>((exited) => child.on('exit', exited))).toBe(1);
+  } finally {
+    child.kill('SIGKILL');
+    await map.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+
+  expect(output).toContain('Live PokeMap refused the login');
+  expect(map.requests.find((request) => request.path === '/api/auth/login')?.body).toStrictEqual({
+    username: 'the-environment',
+    password: 'the-file',
+  });
 });
