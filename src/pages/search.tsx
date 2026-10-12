@@ -23,7 +23,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { compose, emptyState, fromFragment, names, presetTree, toFragment, type State } from '../search/query.js';
-import { optimise } from '../search/optimise.js';
+import { optimise, type Lossy } from '../search/optimise.js';
 import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
@@ -328,6 +328,9 @@ export function boxText(typed: Typed | null, path: Path, edge: Edge, bound: numb
   return bound === null ? '' : String(bound);
 }
 
+/** What a string nobody shortened says about itself: it is the search arranged, in neither direction. */
+const EXACT: Lossy = { narrowed: false, widened: false };
+
 /**
  * The string the page is showing, which is the string the Copy button writes — one answer rather than two compositions
  * that could disagree about which of them the reader is looking at.
@@ -341,7 +344,7 @@ function current(state: State) {
   const plain = compose(state);
 
   if (!state.optimise) {
-    return { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: false };
+    return { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: EXACT };
   }
 
   const { state: shortened, rewrites, lossy } = optimise(state);
@@ -350,7 +353,7 @@ function current(state: State) {
 
   return worth
     ? { ...short, was: plain.query.length, rewrites, lossy }
-    : { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: false };
+    : { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: EXACT };
 }
 
 /** A pill on its way somewhere: what is moving, where it came from, and where the pointer has it now. */
@@ -1008,9 +1011,14 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 {index < rewrites.length - 1 ? ', ' : ''}
               </span>
             ))}
-            {lossy && (
+            {lossy.narrowed && (
               <span class="lossy">
                 {' A dex number matches the species itself, where the name would also have matched a nickname.'}
+              </span>
+            )}
+            {lossy.widened && (
+              <span class="lossy">
+                {' A shortened name also matches any nickname beginning with it, which the full name would not.'}
               </span>
             )}
           </p>
