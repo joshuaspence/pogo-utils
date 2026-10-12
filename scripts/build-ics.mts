@@ -219,7 +219,7 @@ const dated = [...byId.values()]
   .filter((ev) => icsDate(ev.start) ?? icsDate(ev.end))
   .sort((a, b) => byCodeUnit(a.start ?? '', b.start ?? '') || byCodeUnit(a.eventID, b.eventID));
 
-const events = dated.filter((ev) => !RECURRING.has(ev.heading));
+const events = dated.filter((ev) => !RECURRING.has(ev.eventType));
 
 mkdirSync(DIST, { recursive: true });
 writeFileSync(FEED.file, calendar(FEED, events, index));
