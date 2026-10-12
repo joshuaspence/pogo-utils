@@ -254,7 +254,7 @@ test('an any of all but some of a partition is written as the complement where t
   expect(short(all(yes('star3'), yes('star4')))).toBe('3*&4*');
 });
 
-test('a union term is written in place of the whole of what it covers, on either side', () => {
+test('a union term is written in place of the whole of what it covers, on the side its junction allows', () => {
   const background = category('background');
   const union = background.terms.find((one) => one.covers);
 
@@ -273,6 +273,16 @@ test('a union term is written in place of the whole of what it covers, on either
   // searches a reader would want the sight of: the first is the Event backdrops, the second matches nothing.
   expect(short(all(yes('background'), no('locationbackground')))).toBe('background&!locationbackground');
   expect(short(any(yes('locationbackground')))).toBe('locationbackground');
+
+  /*
+   * On the other side the union is not the same search, so it is not written in. Two backdrops AND'd ask for one that
+   * is both and match nothing; the union beside one of them is that one; two refusals OR'd let through everything but a
+   * Pokémon with both; and a refusal of the union OR'd with one of a covered term is that refusal alone.
+   */
+  expect(short(all(yes('locationbackground'), yes('specialbackground')))).toBe('locationbackground&specialbackground');
+  expect(short(all(yes('background'), yes('locationbackground')))).toBe('background&locationbackground');
+  expect(short(any(no('locationbackground'), no('specialbackground')))).toBe('!locationbackground,!specialbackground');
+  expect(short(any(no('background'), no('locationbackground')))).toBe('!background,!locationbackground');
 });
 
 test('a union term is named more briefly than the terms it covers', () => {
