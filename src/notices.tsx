@@ -3,13 +3,15 @@
  * them when opened.
  *
  * A notice is anything the reader has not acknowledged yet. The list is not a history — clearing one is acknowledging
- * it, and an acknowledged notice is gone rather than greyed. New events are the only kind so far; another kind joins by
- * adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one or all of them.
+ * it, and an acknowledged notice is gone rather than greyed. Two kinds so far, new events and a new PGSharp release;
+ * another joins by adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one
+ * or all of them.
  */
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 
-import { eventStore, useEventStore, type EventStore } from './event-store.js';
+import { eventStore, useEventStore } from './event-store.js';
+import { releaseStore, useReleaseStore } from './pgsharp/release-store.js';
 import { toHash } from './router.js';
 
 /** One entry in the list, whatever kind of thing it reports. */
@@ -22,6 +24,12 @@ export interface Notice {
   /** Where choosing it takes the reader. */
   href: string;
 
+  /**
+   * Off this site, so opened in a new tab — and acknowledged by being chosen, since nothing here learns otherwise that
+   * the reader followed it. An event needs neither: its link opens the Events page on it, which acknowledges it there.
+   */
+  external?: boolean;
+
   /** Acknowledge it, which is what takes it off the list — and off anywhere else the same fact is shown. */
   clear: () => void;
 }
@@ -32,7 +40,9 @@ const dayFmt = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeri
  * One notice per event the Events page would mark New. Choosing one opens that page on the event, through the same
  * `?event=` link the Map page's route cards use; clearing one marks the event seen, which takes the mark off its card.
  */
-function eventNotices(store: EventStore): Notice[] {
+function eventNotices(): Notice[] {
+  const store = eventStore;
+
   return store.newlyVisible().map((ev) => ({
     key: `event:${ev.eventID}`,
     title: ev.name,
@@ -43,27 +53,53 @@ function eventNotices(store: EventStore): Notice[] {
 }
 
 /**
+ * The PGSharp release, while it is a version this browser has not acknowledged — never on a first visit, which takes
+ * the current one as its baseline. Choosing it downloads that APK, the same link the Integrations page's button names.
+ */
+function releaseNotices(): Notice[] {
+  const release = releaseStore.unacknowledged();
+
+  return release === null
+    ? []
+    : [
+        {
+          key: `pgsharp:${release.version}`,
+          title: `PGSharp ${release.version}`,
+          detail: 'New version · download the APK',
+          href: release.url,
+          external: true,
+          clear: () => releaseStore.acknowledge(),
+        },
+      ];
+}
+
+/**
  * One kind of notice: what of it is waiting, and how to clear all of that at once. The second is its own rather than a
  * loop over each notice's `clear`, which for events would write the seen set and redraw every reader once per event.
  */
 interface Source {
-  notices: (store: EventStore) => Notice[];
-  clearAll: (store: EventStore) => void;
+  notices: () => Notice[];
+  clearAll: () => void;
 }
 
 /** Every kind of notice, in the order the list shows them. */
 const SOURCES: readonly Source[] = [
-  { notices: eventNotices, clearAll: (store) => store.acknowledge(store.newlyVisible()) },
+  { notices: releaseNotices, clearAll: () => releaseStore.acknowledge() },
+  { notices: eventNotices, clearAll: () => eventStore.acknowledge(eventStore.newlyVisible()) },
 ];
 
 export function Notices() {
-  const store = useEventStore();
+  // Each redraws this whenever its store changes; the stores themselves are read through `SOURCES`.
+  useEventStore();
+  useReleaseStore();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
-  // The feed once per document, whichever tab it opens on. The Events page asks for the same load and is handed it.
+  // Both files once per document, whichever tab it opens on. The Events and Integrations pages ask for the same loads
+  // and are handed them.
   useEffect(() => {
     void eventStore.ensureLoaded();
+    void releaseStore.ensureLoaded();
   }, []);
 
   // A click anywhere outside, or Escape, closes the list, the way any menu closes.
@@ -93,7 +129,7 @@ export function Notices() {
     };
   }, [open]);
 
-  const notices = SOURCES.flatMap((source) => source.notices(store));
+  const notices = SOURCES.flatMap((source) => source.notices());
   const count = notices.length;
   const label = count === 0 ? 'Notifications: none' : `Notifications: ${count} new`;
 
@@ -125,7 +161,7 @@ export function Notices() {
               class="notices-clear-all"
               onClick={() => {
                 for (const source of SOURCES) {
-                  source.clearAll(store);
+                  source.clearAll();
                 }
               }}
             >
@@ -140,7 +176,18 @@ export function Notices() {
           <ul>
             {notices.map((notice) => (
               <li key={notice.key}>
-                <a href={notice.href} onClick={() => setOpen(false)}>
+                <a
+                  href={notice.href}
+                  target={notice.external ? '_blank' : undefined}
+                  rel={notice.external ? 'noopener' : undefined}
+                  onClick={() => {
+                    setOpen(false);
+
+                    if (notice.external) {
+                      notice.clear();
+                    }
+                  }}
+                >
                   <span class="notices-title">{notice.title}</span>
                   <span class="notices-detail">{notice.detail}</span>
                 </a>

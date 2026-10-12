@@ -33,6 +33,12 @@ the saved event filters on whichever tab the reader opens, once per page load. T
 record of what has been seen, so clearing either clears both. [`src/event-store.ts`](src/event-store.ts) holds it, and
 [`src/notices.tsx`](src/notices.tsx) is where another kind of notice would join the list.
 
+The list's other kind is a new PGSharp release. The Vend workflow's hourly run saves the current APK to
+`data/pgsharp-release.json`, committing only when it changes, and every tab reads that file too. It is compared with the
+last version this browser cleared, stored under `pogo-utils:pgsharp:acknowledged`. A first visit stores the current
+version as the baseline instead of reporting it, as `settleSeen` does for events.
+[`src/pgsharp/release-store.ts`](src/pgsharp/release-store.ts) holds it.
+
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored under [`data/`](data) as one `*.gpx` file per country,
 [`data/Australia.gpx`](data/Australia.gpx) and so on — the files themselves are the source of truth. The map page reads
 them directly, so to run it locally build the site and serve `dist/` over HTTP (the files are loaded via `fetch`). The
