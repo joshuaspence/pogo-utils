@@ -296,8 +296,8 @@
     "heading": "Community Day",
     "link": "https://leekduck.com/events/october-communityday2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-10-october-communityday2026/zorua-october-cd-2026.png",
-    "start": "2026-10-10T14:00:00.000",
-    "end": "2026-10-10T17:00:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "palkia-in-5-star-raid-battles-october-2026",
@@ -516,8 +516,8 @@
     "heading": "Event",
     "link": "https://leekduck.com/events/world-space-week-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-04-world-space-week-2026/world-space-week-2026.jpg",
-    "start": "2026-10-04T00:00:00.000",
-    "end": "2026-10-10T23:59:00.000"
+    "start": null,
+    "end": null
   },
   {
     "eventID": "yveltal-in-5-star-raid-battles-october-2026",
