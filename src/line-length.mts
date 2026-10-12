@@ -79,7 +79,10 @@ export function overlong(fileName: string, text: string): Overlong[] {
   const yaml = /\.ya?ml$/.test(fileName);
   const found: Overlong[] = [];
 
-  /** The language of the Markdown code block this is in, `''` for one that names none, or undefined outside one. */
+  /**
+   * The language of the Markdown code block this is in, lowercased, `''` for one that names none, or undefined outside
+   * one.
+   */
   let fence: string | undefined;
   /** The backticks or tildes that opened that block, which only a run as long of the same character closes. */
   let fenceMarker: string | undefined;
@@ -134,7 +137,7 @@ export function overlong(fileName: string, text: string): Overlong[] {
       fenceMarker = undefined;
     } else if (opened) {
       fenceMarker = opened[1];
-      fence = opened[2] ?? '';
+      fence = (opened[2] ?? '').toLowerCase();
     } else if (marker === 'start') {
       ignoring = true;
     } else if (marker === 'end') {

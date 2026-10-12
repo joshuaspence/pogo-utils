@@ -44,6 +44,7 @@ test('a heredoc is looked for only where shell is written, and ends with the blo
   expect(overlong('a.sh', lines('cat <<\\EOF', long(), 'EOF', long()))).toEqual([{ line: 4, width: MAX_WIDTH + 1 }]);
   expect(overlong('a.yaml', lines('- run: |', '    echo <<EOF', '  env:', '    A: <<B', long()))).toHaveLength(1);
 
+  expect(overlong('a.md', lines('```Bash', 'cat <<EOF', long(), 'EOF', '```'))).toEqual([]);
   expect(overlong('a.md', lines('```sh', 'cat <<EOF', long(), '```', long()))).toEqual([
     { line: 5, width: MAX_WIDTH + 1 },
   ]);
