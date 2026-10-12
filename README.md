@@ -170,6 +170,13 @@ blurb, a rehosted image or a reordering upstream is not a diff here. That is wha
 differs, and the run passes without a commit when it does not. An empty list or an event with no `eventID` is refused
 rather than written, an empty list being what a broken scrape looks like.
 
+Each event also carries `added`, the instant this repository first vended it. It is carried forward from the previous
+copy, so only an event the feed has just gained reads the clock and an unchanged feed is still an unchanged file. The
+feed has no published date of its own, and this is what lets a browser record everything it has seen as one instant
+rather than as one ID per event. The same run stamps any entry in [`data/events.json`](data/events.json) that lacks one,
+which is why the workflow also runs on a push to that file: a stamp written by hand could predate one already deployed
+by the time it landed, and a browser that had seen past that would never mark the event New.
+
 [`data/events.json`](data/events.json), this repository's own list, is not replaced wholesale but pruned: the
 [Prune workflow](.github/workflows/prune.yaml) runs [`scripts/prune-events.mts`](scripts/prune-events.mts) daily, which
 removes every event that has ended everywhere — a naive end once it has passed at UTC−12 — along with any `<pgr:event>`

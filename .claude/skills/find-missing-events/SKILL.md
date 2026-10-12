@@ -135,6 +135,9 @@ An entry takes this shape, and only `name`, `start` and `end` are yours to judge
 }
 ```
 
+- **Leave `added` out.** It is the instant the event first reached the site, and the Vend workflow stamps it on the push
+  that lands the entry. One written now would predate whatever the workflow vends before this lands, and a browser that
+  had already seen past that would never mark the event New.
 - **`eventType` and `heading` are always `regional-event` and `Regional Event`.** They are what gives the event its
   colour and its filter chip on the page, and this file holds nothing else.
 - **`eventID` is yours to choose and is not the article slug.** It is a short, stable name ending in the event's year:

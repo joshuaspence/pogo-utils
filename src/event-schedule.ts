@@ -4,9 +4,7 @@
  * one — `src/pages/events.tsx` is a page component and so unreachable outside a browser.
  */
 
-import { HAS_ZONE } from './event-feed.js';
-
-import type { FeedEvent } from './types.js';
+import { HAS_ZONE, type StampedEvent } from './event-feed.js';
 
 /**
  * A feed entry with its dates parsed — the only shape the page itself works in. Not `Event`, which would shadow the
@@ -24,6 +22,9 @@ export interface ParsedEvent {
 
   /** Whether the feed gave `start` a zone, so the label can say "your local time". */
   startHasZone: boolean;
+
+  /** When the event was first vended, or null for one not yet stamped — see `StampedEvent`. */
+  added: Date | null;
 }
 
 export type StatusKind = 'active' | 'upcoming' | 'tbd' | 'ended';
@@ -187,7 +188,7 @@ export function packLanes(items: readonly TrackItem[]) {
   return laneEnds.length;
 }
 
-function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
+function normalise(raw: readonly StampedEvent[]): ParsedEvent[] {
   return raw.map((e) => ({
     eventID: e.eventID,
     name: e.name,
@@ -198,6 +199,7 @@ function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
     start: parseDate(e.start),
     end: parseDate(e.end),
     startHasZone: typeof e.start === 'string' && HAS_ZONE.test(e.start),
+    added: parseDate(e.added ?? null),
   }));
 }
 
@@ -209,11 +211,13 @@ function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
  * The Map is annotated because a bare `new Map()` is a `Map<any, any>` that `set` does not refine, so `normalise`
  * would check nothing at all about what it was handed.
  */
-export function mergeEvents(feed: readonly FeedEvent[], local: readonly FeedEvent[]): ParsedEvent[] {
-  const byEventId = new Map<string, FeedEvent>();
+export function mergeEvents(feed: readonly StampedEvent[], local: readonly StampedEvent[]): ParsedEvent[] {
+  const byEventId = new Map<string, StampedEvent>();
 
+  // An override the vend has yet to stamp keeps the stamp of the feed entry it replaces, the event being no newer for
+  // having been corrected here.
   for (const e of [...feed, ...local]) {
-    byEventId.set(e.eventID, e);
+    byEventId.set(e.eventID, { ...e, added: e.added ?? byEventId.get(e.eventID)?.added });
   }
 
   return normalise([...byEventId.values()]).sort(

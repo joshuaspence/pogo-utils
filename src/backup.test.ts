@@ -29,7 +29,7 @@ function storePrefs(): Prefs {
     hiddenByView: { cards: new Set(['Raid Hour']), calendar: new Set() },
     filterScope: 'view',
     dismissed: new Set(['event-a']),
-    seen: new Set(['event-b', 'event-c']),
+    seen: { through: Date.parse('2026-10-01T00:00:00.000Z'), ids: new Set(['event-b', 'event-c']) },
   };
 
   for (const name of Object.keys(KEYS) as (keyof typeof KEYS)[]) {
@@ -55,8 +55,11 @@ test('a cleared browser restores to the preferences it was exported from', () =>
   expect(loadPrefs()).toEqual(was);
 });
 
+const EMPTY_SEEN = () => ({ through: null, ids: new Set<string>() });
+const SOME_SEEN = () => ({ through: 1_000, ids: new Set(['e']) });
+
 /**
- * `seen` null is a first visit and `seen` empty is a reader who has acknowledged everything, and the two have to stay
+ * `seen` null is a first visit and `seen` empty is a reader who has acknowledged nothing, and the two have to stay
  * apart across a round trip — this being the distinction the whole of `event-prefs.ts` is built on, and the one a JSON
  * round trip is most likely to quietly collapse. An absent key and a `null` one both read as a first visit, so the
  * assertion is on what `loadPrefs` answers rather than on which of the two the file carries.
@@ -64,9 +67,9 @@ test('a cleared browser restores to the preferences it was exported from', () =>
 test.for([
   { seen: 'absent', write: () => undefined, reads: null },
   { seen: 'null', write: () => persist({ ...emptyPrefs(), seen: null }, 'seen'), reads: null },
-  { seen: 'empty', write: () => persist({ ...emptyPrefs(), seen: new Set<string>() }, 'seen'), reads: new Set() },
-  { seen: 'populated', write: () => persist({ ...emptyPrefs(), seen: new Set(['e']) }, 'seen'), reads: new Set(['e']) },
-])('a seen set that is $seen round-trips as itself', ({ write, reads }) => {
+  { seen: 'empty', write: () => persist({ ...emptyPrefs(), seen: EMPTY_SEEN() }, 'seen'), reads: EMPTY_SEEN() },
+  { seen: 'populated', write: () => persist({ ...emptyPrefs(), seen: SOME_SEEN() }, 'seen'), reads: SOME_SEEN() },
+])('a seen record that is $seen round-trips as itself', ({ write, reads }) => {
   write();
 
   const text = writeBackup();
@@ -118,7 +121,7 @@ test('a key the file omits is left as it was', () => {
 
   expect(prefs.dismissed).toEqual(new Set(['from-file']));
   expect(prefs.hiddenTypes).toEqual(new Set(['Community Day', 'Raid Hour']));
-  expect(prefs.seen).toEqual(new Set(['event-b', 'event-c']));
+  expect(prefs.seen?.ids).toEqual(new Set(['event-b', 'event-c']));
 });
 
 /**

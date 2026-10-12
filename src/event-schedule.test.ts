@@ -46,6 +46,7 @@ const parsed = (over: Partial<ParsedEvent>): ParsedEvent => ({
   start: null,
   end: null,
   startHasZone: false,
+  added: null,
   ...over,
 });
 
@@ -280,6 +281,28 @@ test('a local entry overrides a feed entry of the same eventID', () => {
   );
 
   expect(merged.map((ev) => ev.name)).toEqual(['As we have it']);
+});
+
+/**
+ * The stamp is the one thing an override does not take wholesale: an entry `data/events.json` has yet to have stamped
+ * keeps the feed entry's, the event being no newer for having been corrected here, and one it has stamped keeps its own.
+ */
+test.for([
+  { local: undefined, added: '2026-09-01T00:00:00.000Z' },
+  { local: '2026-10-01T00:00:00.000Z', added: '2026-10-01T00:00:00.000Z' },
+])('an override stamped $local is first vended at $added', ({ local, added }) => {
+  const [ev] = mergeEvents(
+    [{ ...feedEvent({ eventID: 'a' }), added: '2026-09-01T00:00:00.000Z' }],
+    [{ ...feedEvent({ eventID: 'a' }), added: local }],
+  );
+
+  expect(ev?.added?.toISOString()).toBe(added);
+});
+
+test('an event with no stamp, or one that will not parse, has none', () => {
+  const merged = mergeEvents([feedEvent({ eventID: 'a' }), { ...feedEvent({ eventID: 'b' }), added: 'whenever' }], []);
+
+  expect(merged.map((ev) => ev.added)).toEqual([null, null]);
 });
 
 test('an entry the feed does not carry is added rather than dropped', () => {

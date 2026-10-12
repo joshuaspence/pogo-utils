@@ -16,8 +16,23 @@ export interface Prefs {
 
   dismissed: Set<string>;
 
-  /** Null is a first visit, where an empty set is a reader who has acknowledged everything — see `settleSeen`. */
-  seen: Set<string> | null;
+  /** Null is a first visit, where an empty record is a reader who has acknowledged nothing — see `settleSeen`. */
+  seen: Seen | null;
+}
+
+/**
+ * What this browser has acknowledged, in two halves so that its size follows what is still new rather than the feed.
+ *
+ * `through` covers every stamped event at once: one first vended at or before it has been seen. It is advanced only
+ * past events that all have been, so it never covers one that has not, and a stamp is never older than the vend that
+ * wrote it, so no event the reader has yet to be shown arrives beneath it. `ids` holds the rest the reader has seen —
+ * an event not yet stamped, or one acknowledged while an earlier one is still new. Between them a first visit stores
+ * one instant and nothing else.
+ */
+export interface Seen {
+  /** An instant in epoch milliseconds, or null before any stamped event has been seen. */
+  through: number | null;
+  ids: Set<string>;
 }
 
 /**
@@ -137,6 +152,33 @@ function stringsOf(value: unknown): string[] | null {
 function readSet(key: string): Set<string> | null {
   const members = stringsOf(readJSON(key));
   return members === null ? null : new Set(members);
+}
+
+/**
+ * The seen record, or null where its key has never been written. A bare list is the shape this key held before
+ * `through`, one ID per event, and reads as those IDs with nothing yet covered; the first settle folds what it can.
+ */
+function readSeen(key: string): Seen | null {
+  const stored = readJSON(key);
+  const listed = stringsOf(stored);
+
+  if (listed !== null) {
+    return { through: null, ids: new Set(listed) };
+  }
+
+  if (stored === null || typeof stored !== 'object') {
+    return null;
+  }
+
+  const { through, ids } = stored as Record<string, unknown>;
+  const members = stringsOf(ids);
+
+  // Without its list this is no record this code wrote, and reading it as an empty one would mark every event new.
+  if (members === null) {
+    return null;
+  }
+
+  return { through: typeof through === 'number' && Number.isFinite(through) ? through : null, ids: new Set(members) };
 }
 
 /**
@@ -282,7 +324,7 @@ export function loadPrefs(): Prefs {
 
     // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
     // No legacy fallback, and `legacySet` will not take `seen` to give it one — see `LEGACY_SETS`.
-    seen: readSet(keyFor('seen')),
+    seen: readSeen(keyFor('seen')),
   };
 }
 
@@ -308,7 +350,7 @@ export function clearPrefs() {
   }
 }
 
-/** JSON has no Set, so one replacer serialises a bare set and the object of per-view sets alike, as their members. */
+/** JSON has no Set, so one replacer serialises a bare set and any object holding sets alike, as their members. */
 const asArrays = (_key: string, value: unknown) => (value instanceof Set ? [...value] : value);
 
 /**

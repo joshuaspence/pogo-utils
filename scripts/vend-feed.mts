@@ -6,12 +6,30 @@
  * The one script that touches the network, which is why it is no step of `pnpm build`: `pnpm lint:types` *is*
  * `pnpm build`, so folding it in would put somebody else's server in front of every lint.
  *
- * Nothing here reads the clock, so an unchanged file after a run means the feed has not moved. `vendable` is what
- * makes that true of a list re-scraped every ten minutes; this file is the fetch and the write around it.
+ * The clock is read only for an event this repository has never vended, so an unchanged file after a run still means
+ * the feed has not moved. `vendable` is what makes that true of a list re-scraped every ten minutes, and `stamp`
+ * carrying each `added` forward is what keeps it true of the stamps.
+ *
+ * It stamps `data/events.json` too, whose entries are written by hand and land without one. That is the vend's job
+ * rather than the author's for the reason `stamp` gives, and why the Vend workflow runs on a push to that file.
  */
 
-import { UPSTREAM_URL, vendable, VENDED_EVENTS } from '../src/event-feed.ts';
-import { writeFileSync } from 'node:fs';
+import {
+  LOCAL_EVENTS,
+  stamp,
+  stampsOf,
+  UPSTREAM_URL,
+  vendable,
+  VENDED_EVENTS,
+  type StampedEvent,
+} from '../src/event-feed.ts';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+
+const readEvents = (path: string): StampedEvent[] => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : []);
+
+const previous = readEvents(VENDED_EVENTS);
+const local = readEvents(LOCAL_EVENTS);
+const now = new Date();
 
 const res = await fetch(UPSTREAM_URL);
 
@@ -19,10 +37,21 @@ if (!res.ok) {
   throw new Error(`${UPSTREAM_URL}: ${res.status} ${res.statusText}`);
 }
 
-const events = vendable(await res.json());
+// The previous copy's stamp first, then a local entry's for an ID upstream has only now picked up: the event was on the
+// page already, so arriving in the feed does not make it new. A later entry in the `Map` wins, hence the order.
+const events = stamp(vendable(await res.json()), new Map([...stampsOf(local), ...stampsOf(previous)]), now);
 
 // Two-space and newline-terminated because `prettier --check .` reads this file like any other, `data/` being no part
 // of `.prettierignore`. Written by hand rather than left to a formatter run so that the workflow commits what it
 // generated.
 writeFileSync(VENDED_EVENTS, `${JSON.stringify(events, null, 2)}\n`);
 console.log(`${VENDED_EVENTS}: ${events.length} events`);
+
+// An override takes the stamp of the feed entry it replaces, for the same reason. Written only when something was
+// unstamped, so a run that stamps nothing leaves a hand-kept file exactly as it was.
+const unstamped = local.filter((ev) => !ev.added).map((ev) => ev.eventID);
+
+if (unstamped.length > 0) {
+  writeFileSync(LOCAL_EVENTS, `${JSON.stringify(stamp(local, stampsOf(events), now), null, 2)}\n`);
+  console.log(`${LOCAL_EVENTS}: stamped ${unstamped.join(', ')}`);
+}
