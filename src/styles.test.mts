@@ -137,6 +137,56 @@ test('no stylesheet gives one class name to two kinds of element', () => {
 });
 
 /**
+ * Every class name a sheet's selectors mention, wherever in the selector it sits. Read through the parser for the
+ * reason `hiddenHides` gives, so a nested rule is read by its own selector, and nothing in a comment or a declaration —
+ * a `url(x.png)` — is taken for one.
+ */
+function selectedClasses(css: string) {
+  const classes = new Set<string>();
+
+  postcss.parse(css).walkRules((rule) => {
+    for (const [, name] of rule.selector.matchAll(/\.([A-Za-z_][\w-]*)/g)) {
+      if (name !== undefined) {
+        classes.add(name);
+      }
+    }
+  });
+
+  return classes;
+}
+
+test('no other stylesheet selects a class the top bar is styled by', () => {
+  /*
+   * What the wrapper in `search.css` does not cover. It keeps each page's sheet off the other pages, but the bar is
+   * inside the body on every page, so a page's rule for one of its own names paints the bar too wherever the bar uses
+   * the same name.
+   *
+   * It has happened once. The Search page's section headings are `.label`, which was also the text beside each tab's
+   * icon, so on that page alone every tab's label went 11px, bold and uppercase — and grey on the open tab, the
+   * heading's colour set on the label itself outranking the accent it would have inherited from the tab.
+   *
+   * Any mention rather than only a rule that could reach the bar today: `.card .label` cannot, but whether a context
+   * can is a question about the markup that reading the sheets does not answer. The names are the bar's to keep.
+   */
+  const bar = selectedClasses(readFileSync(join(STYLES, 'nav.css'), 'utf8'));
+  const taken: string[] = [];
+
+  for (const sheet of sources('.css').filter((sheet) => sheet !== join(STYLES, 'nav.css'))) {
+    for (const name of selectedClasses(readFileSync(sheet, 'utf8'))) {
+      if (bar.has(name)) {
+        taken.push(`${sheet.slice(ROOT.length + 1)} selects .${name}, which the top bar is styled by`);
+      }
+    }
+  }
+
+  // Named rather than counted, so a failure says which name a page has taken from the bar and in which sheet.
+  expect(taken.sort()).toEqual([]);
+
+  // And that the bar's names were read at all, rather than a walk that found nothing to hold the others against.
+  expect(bar.size).toBeGreaterThan(0);
+});
+
+/**
  * A selector with every `:not(…)` removed, innermost first until it stops changing. `:not([hidden])` selects an element
  * that is *shown*, so a rule keyed on one has nothing to do with hiding and must not be asked to hide unconditionally —
  * `.filters:not([hidden]) ~ .x {display: none}` hides a sibling while the panel is open, and an `!important` there
@@ -309,6 +359,20 @@ test('the class check can tell a shared name from a narrowed one', () => {
   const nested = paintedClasses('.pill { color: red } .parts .pill { color: blue }');
 
   expect([nested.bare.has('pill'), nested.tagged.has('pill')]).toEqual([true, false]);
+});
+
+test('the bar check reads every class a selector mentions and nothing else', () => {
+  // The same reason the others have one: a reader that found nothing would report no taken names however many there
+  // were.
+  expect(selectedClasses('.topnav .tab .tab-label:hover, .menu > .x { color: red }')).toEqual(
+    new Set(['topnav', 'tab', 'tab-label', 'menu', 'x']),
+  );
+
+  // Nested under a page's wrapper, which is the shape every page sheet is in.
+  expect(selectedClasses("body[data-page='search'] { --w: 9px; .label { color: red } }")).toEqual(new Set(['label']));
+
+  // A comment and a declaration's value are not selectors.
+  expect(selectedClasses('/* .gone */ .a { background: url(x.png) }')).toEqual(new Set(['a']));
 });
 
 test('the check can tell a missing id from a present one', () => {

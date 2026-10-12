@@ -52,7 +52,8 @@ function plate(colour: string): [number, number, number] {
 
 /**
  * The one square size an icon declares. The `sizes` member may name several, and an icon rendered from a vector could
- * honour that, but a file holding two sizes at once is not something this writes — so it is refused rather than guessed.
+ * honour that, but a file holding two sizes at once is not something this writes — so it is refused rather than
+ * guessed.
  */
 function square(icon: string, sizes: string): number {
   const match = /^(\d+)x\1$/.exec(sizes);

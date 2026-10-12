@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { said } from '../errors.js';
 import { usePhone } from '../phone-store.js';
 import { compose, emptyState, fromFragment, names, presetTree, toFragment, type State } from '../search/query.js';
-import { optimise } from '../search/optimise.js';
+import { optimise, type Lossy } from '../search/optimise.js';
 import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
@@ -64,7 +64,9 @@ const CHIP: Record<ChipState, { glyph: string; said: string }> = {
   out: { glyph: '!', said: 'ruled out' },
 };
 
-/** What a junction's button says, and what it means — the words rather than `&` and `,`, which the string already has. */
+/**
+ * What a junction's button says, and what it means — the words rather than `&` and `,`, which the string already has.
+ */
 const JUNCTION: Record<Junction, { label: string; said: string }> = {
   all: { label: 'All of', said: 'every pill in this group has to match' },
   any: { label: 'Any of', said: 'one pill in this group matching is enough' },
@@ -330,6 +332,9 @@ export function boxText(typed: Typed | null, path: Path, edge: Edge, bound: numb
   return bound === null ? '' : String(bound);
 }
 
+/** What a string nobody shortened says about itself: it is the search arranged, in neither direction. */
+const EXACT: Lossy = { narrowed: false, widened: false };
+
 /**
  * The string the page is showing, which is the string the Copy button writes — one answer rather than two compositions
  * that could disagree about which of them the reader is looking at.
@@ -343,7 +348,7 @@ function current(state: State) {
   const plain = compose(state);
 
   if (!state.optimise) {
-    return { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: false };
+    return { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: EXACT };
   }
 
   const { state: shortened, rewrites, lossy } = optimise(state);
@@ -352,7 +357,7 @@ function current(state: State) {
 
   return worth
     ? { ...short, was: plain.query.length, rewrites, lossy }
-    : { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: false };
+    : { ...plain, was: null, rewrites: [] as readonly [string, string][], lossy: EXACT };
 }
 
 /**
@@ -427,7 +432,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
 
-  /** The fragment this state would be linked as, which is both what goes in the address bar and when to put it there. */
+  /**
+   * The fragment this state would be linked as, which is both what goes in the address bar and when to put it there.
+   */
   const mine = toFragment(state);
 
   /**
@@ -1081,9 +1088,14 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 {index < rewrites.length - 1 ? ', ' : ''}
               </span>
             ))}
-            {lossy && (
+            {lossy.narrowed && (
               <span class="lossy">
                 {' A dex number matches the species itself, where the name would also have matched a nickname.'}
+              </span>
+            )}
+            {lossy.widened && (
+              <span class="lossy">
+                {' A shortened name also matches any nickname beginning with it, which the full name would not.'}
               </span>
             )}
           </p>
@@ -1492,9 +1504,12 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             {ticked(typedError ?? '')}
           </p>
 
+          {/* Laid out by hand: Prettier leaves a trailing `{' '}` out of the width it fills to, and so set the first
+              line five characters past 120. */}
+          {/* prettier-ignore */}
           <p class="help" id="importHelp">
-            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and <code>:</code> are{' '}
-            <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
+            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and{' '}
+            <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
             <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
             The game takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above
             writes it back as clauses the game does take.

@@ -15,13 +15,12 @@
  * apart.
  */
 
+import { GAME_MASTER } from '../src/generated.ts';
 import { loadGameData } from '../src/tools/inventory/download.mts';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import prettier from 'prettier';
-
-const OUTPUT = 'src/tools/inventory/fixtures/game-master.json';
 
 const dir = mkdtempSync(join(tmpdir(), 'game-master-'));
 const data = await loadGameData(dir).finally(() => rmSync(dir, { recursive: true }));
@@ -35,11 +34,11 @@ if (data.forms.every((form) => form.icon === null)) {
 // Formatted here rather than by a `prettier --write` chained after this in `package.json`, so that running the script
 // on its own cannot leave the tree failing `lint:prettier` — and through Prettier's own config resolution rather than a
 // width written down twice, which is also what keeps the 30,000-line diff of a re-vend readable.
-const options = await prettier.resolveConfig(OUTPUT);
+const options = await prettier.resolveConfig(GAME_MASTER);
 
-writeFileSync(OUTPUT, await prettier.format(JSON.stringify(data), { ...options, filepath: OUTPUT }));
+writeFileSync(GAME_MASTER, await prettier.format(JSON.stringify(data), { ...options, filepath: GAME_MASTER }));
 
 console.error(
-  `${OUTPUT}: ${data.forms.length} forms over ${data.species.length} species, ${data.moves.length} moves, ` +
+  `${GAME_MASTER}: ${data.forms.length} forms over ${data.species.length} species, ${data.moves.length} moves, ` +
     `${data.types.length} types, ${data.cpm.length} levels`,
 );

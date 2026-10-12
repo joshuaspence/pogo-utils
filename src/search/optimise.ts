@@ -35,7 +35,19 @@ type Span = [number, number];
 /** What one pass over the tree collected, for the page to show under the string. */
 interface Told {
   rewrites: [string, string][];
-  lossy: boolean;
+  lossy: Lossy;
+}
+
+/**
+ * How the shortened string strays from the one arranged, in each of the two directions it can. A name matches
+ * nicknames as well as species, so the two rewrites of a name miss in opposite directions: a dex number matches the
+ * species alone and so *narrows*, and a shorter fragment matches every nickname beginning with it and so *widens*.
+ * They are kept apart because the second is the one that matters on a mass transfer — an added match is a Pokémon the
+ * reader did not ask to see, and may not notice in the list.
+ */
+export interface Lossy {
+  narrowed: boolean;
+  widened: boolean;
 }
 
 /**
@@ -161,7 +173,8 @@ function dexOf(fragment: string): number[] | null {
 
 /**
  * One name written as short as it goes. The name itself, the shortest leading fragment of it that still reaches the
- * same species, and those species as dex numbers are three spellings of one search.
+ * same species, and those species as dex numbers are three spellings of one search *as far as species go* — the game
+ * matches a name against nicknames too, which the fragment widens and the numbers drop, and `short` says so.
  *
  * Leading fragments rather than fragments from anywhere, for the reason `dexOf` gives, which also keeps what is
  * written recognisable as the name it came from. A name resolving to nothing is passed through untouched.
@@ -234,46 +247,45 @@ const spelling = (junction: Group['junction'], pills: readonly Leaf[]) =>
   pills.map((pill) => leafText(pill) ?? '').join(junction === 'all' ? '&' : ',').length;
 
 /**
- * A union term written in place of the whole of what it covers, on whichever side of the junction they were arranged:
- * either backdrop is a backdrop, and neither backdrop rules out both. `terms.js` names a union more briefly than the
- * terms it covers and a test holds the table to it, so there is nothing to weigh.
+ * A union term written in place of the whole of what it covers, on the one side of the junction where that is the same
+ * search: either backdrop is a backdrop, so in an `any` the required ones go, and neither backdrop rules out both, so in
+ * an `all` the refused ones do. The other side is not an equivalence — two backdrops AND'd ask for one that is both, and
+ * two refusals OR'd let through everything short of both — so it is left for the reader to see. `terms.js` names a
+ * union more briefly than the terms it covers and a test holds the table to it, so there is nothing to weigh.
  *
  * Null is "nothing to do here", which is every arrangement short of the whole of what the union covers.
  */
-function shortUnion(union: Term, pills: readonly TermPill[]): TermPill[] | null {
+function shortUnion(junction: Group['junction'], union: Term, pills: readonly TermPill[]): TermPill[] | null {
   const covers = union.covers;
 
   if (!covers) {
     return null;
   }
 
-  let next = [...pills];
-  let changed = false;
+  const negated = junction === 'all';
+  const side = pills.filter((pill) => pill.negated === negated);
+  const covered = side.filter((pill) => covers.includes(pill.id));
 
-  for (const negated of [false, true]) {
-    const side = next.filter((pill) => pill.negated === negated);
-    const covered = side.filter((pill) => covers.includes(pill.id));
-
-    if (covered.length === 0) {
-      continue;
-    }
-
-    // Beside the union itself a term it covers adds nothing to that side, so it goes — however many are on it.
-    if (side.some((pill) => pill.id === union.id)) {
-      next = next.filter((pill) => !covered.includes(pill));
-      changed = true;
-    } else if (covered.length === covers.length) {
-      next = [...next.filter((pill) => !covered.includes(pill)), pillOf(union.id, negated)];
-      changed = true;
-    }
+  if (covered.length === 0) {
+    return null;
   }
 
-  return changed ? next : null;
+  // Beside the union itself a term it covers adds nothing to that side, so it goes — however many are on it.
+  if (side.some((pill) => pill.id === union.id)) {
+    return pills.filter((pill) => !covered.includes(pill));
+  }
+
+  if (new Set(covered.map((pill) => pill.id)).size === covers.length) {
+    return [...pills.filter((pill) => !covered.includes(pill)), pillOf(union.id, negated)];
+  }
+
+  return null;
 }
 
 /**
  * One category's terms within one junction, said as shortly as the category's own arithmetic allows. The pills handed
- * back replace the ones that were read; an empty list is a category that has turned out to say nothing at all.
+ * back replace the ones that were read; an empty list is a category that has turned out to ask for everything, which
+ * only an `any` can do, and which makes that whole `any` ask for nothing.
  *
  * Null is "leave these alone", which is the answer for every arrangement the facts in `terms.js` do not settle.
  */
@@ -283,15 +295,21 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
   // A category holding a union term overlaps itself and so cannot be exclusive, and Background — the one holding one —
   // declares neither fact below. The two reductions therefore never reach for the same pill.
   if (union) {
-    return shortUnion(union, pills);
+    return shortUnion(junction, union, pills);
   }
 
   const required = pills.filter((pill) => !pill.negated);
   const refused = pills.filter((pill) => pill.negated);
 
-  // An `all` asking for one of a category's terms has ruled the rest out already, so a refusal beside it says nothing.
-  if (junction === 'all' && category.exclusive && required.length === 1 && refused.length > 0) {
-    return required;
+  // An `all` asking for one of a category's terms has ruled the rest out already, so a refusal of another one beside it
+  // says nothing. A refusal of that same term is the one that says everything — `shadow&!shadow` matches nothing — and
+  // stays where the reader can see it.
+  const [only] = required;
+
+  if (junction === 'all' && category.exclusive && only && required.length === 1 && refused.length > 0) {
+    const kept = refused.filter((pill) => pill.id === only.id);
+
+    return kept.length === refused.length ? null : [...required, ...kept];
   }
 
   // Mixed polarity at one junction is the arrangement nothing below is stated for. Nor is an `all`: two terms of an
@@ -302,7 +320,10 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
 
   // Every term of an exhaustive category, OR'd: a search for anything at all. Exclusivity is not wanted here, only
   // that every Pokémon has one of these — which is why all eighteen types reduce where seventeen of them do not.
-  if (required.length === category.terms.length) {
+  // Distinct terms are what is counted, a link carrying five copies of one chip asking for that chip and no more.
+  const chosen = new Set(required.map((pill) => pill.id));
+
+  if (chosen.size === category.terms.length) {
     return [];
   }
 
@@ -312,7 +333,6 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
     return null;
   }
 
-  const chosen = new Set(required.map((pill) => pill.id));
   const left = category.terms.filter((term) => !chosen.has(term.id)).map((term) => pillOf(term.id, true));
 
   // `0*,1*,2*,3*` against `!4*`, measured by the writer that will produce one of them.
@@ -410,7 +430,10 @@ function short(node: Node, told: Told): Node {
     }
 
     if (shortened.numbered) {
-      told.lossy = true;
+      told.lossy.narrowed = true;
+    } else if (shortened.text !== name.text && !name.text.startsWith('+')) {
+      // A family is left out: it is the families of the species the name reaches, which the fragment keeps the same.
+      told.lossy.widened = true;
     }
 
     return { ...name, text: shortened.text };
@@ -435,6 +458,13 @@ function short(node: Node, told: Told): Node {
           )
         : null;
 
+    // A category asking for everything in an `any` is a part that asks nothing, which makes the whole group ask
+    // nothing — the same answer the spans give below. Splicing only the category away would leave its neighbours
+    // standing, a strictly narrower search than the one arranged.
+    if (shortened?.length === 0) {
+      return { ...node, parts: [] };
+    }
+
     if (shortened !== null) {
       parts = spliced(parts, pills, shortened);
     }
@@ -454,11 +484,11 @@ function short(node: Node, told: Told): Node {
  * arranged, so turning the optimiser off puts the original string back rather than having to undo a rewrite.
  *
  * `rewrites` is the pairs worth showing, a reader who cannot see why `charmander` became `4` having been handed a
- * string to trust on a mass transfer with no way to check it. `lossy` marks the one reduction that is not an
- * equivalence — a name matches nicknames as well as species, where a dex number matches the species alone.
+ * string to trust on a mass transfer with no way to check it. `lossy` marks the reductions that are not an
+ * equivalence, both of them rewrites of a name, which is the one leaf matching nicknames as well as species.
  */
 export function optimise(state: State) {
-  const told: Told = { rewrites: [], lossy: false };
+  const told: Told = { rewrites: [], lossy: { narrowed: false, widened: false } };
   const tree = short(state.tree, told);
 
   return { state: { ...state, tree }, rewrites: told.rewrites, lossy: told.lossy };

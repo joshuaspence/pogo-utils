@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import COUNTRIES from '../countries.js';
 import { byKey, fmtDist, gpxEntries, routeDistance, type Route, type Waypoint } from '../routes.js';
 import { copyText, el } from '../dom.js';
+import { LOCAL_EVENTS } from '../event-feed.js';
 import { GPX_PATHS } from '../generated.js';
 import { loadManifest, parseGpxDocument } from '../gpx.js';
 import { said } from '../errors.js';
@@ -79,8 +80,8 @@ async function loadGpxFile(file: string): Promise<{ routes: Route[]; waypoints: 
 }
 
 /**
- * The name to show for a `<pgr:event>`, which the files record only by `eventID`. `data/events.json` is where that name
- * lives — the same file `validate-gpx.mts` checks those IDs against.
+ * The name to show for a `<pgr:event>`, which the files record only by `eventID`. `LOCAL_EVENTS` is where that name lives
+ * — the same file `validate-gpx.mts` checks those IDs against.
  *
  * A fetch that fails leaves every entry naming its event by ID, which reads well enough and still links to the right
  * place, so a missing calendar is not worth withholding a page of routes over.
@@ -89,7 +90,7 @@ async function loadEventNames(): Promise<ReadonlyMap<string, string>> {
   const names = new Map<string, string>();
 
   try {
-    const res = await fetch('data/events.json');
+    const res = await fetch(LOCAL_EVENTS);
 
     if (!res.ok) {
       throw new Error(`${res.status} ${res.statusText}`.trim());
@@ -99,7 +100,7 @@ async function loadEventNames(): Promise<ReadonlyMap<string, string>> {
       names.set(event.eventID, event.name);
     }
   } catch (e) {
-    console.error(`data/events.json: ${said(e)} — entries will name their event by ID`);
+    console.error(`${LOCAL_EVENTS}: ${said(e)} — entries will name their event by ID`);
   }
 
   return names;
@@ -157,8 +158,8 @@ function buildPopup(name: string, detail: string, copyLabel: string, text: strin
 }
 
 /**
- * A copy button that says how it went. Its own component so the flash is state belonging to the one button rather than a
- * timer and a captured label in a WeakMap keyed by element, which is what it took to do this to a node.
+ * A copy button that says how it went. Its own component so the flash is state belonging to the one button rather than
+ * a timer and a captured label in a WeakMap keyed by element, which is what it took to do this to a node.
  */
 function CopyButton({ text, title, onCopied }: { text: string; title: string; onCopied: (ok: boolean) => void }) {
   const [flash, setFlash] = useState<string | null>(null);
@@ -215,7 +216,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
    */
   const loadedRef = useRef<Loaded | null>(null);
 
-  /** The page could not even read the manifest, so there is nothing to draw and the message says what to do about it. */
+  /**
+   * The page could not even read the manifest, so there is nothing to draw and the message says what to do about it.
+   */
   const [fatal, setFatal] = useState<string | null>(null);
   const [unreachable, setUnreachable] = useState<readonly Failure[]>([]);
   const [rejected, setRejected] = useState<readonly Failure[]>([]);
@@ -243,8 +246,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
   const rows = useRef(new Map<string, HTMLElement>());
 
   /**
-   * An `?event=` the fragment named that has not been applied yet, because the files it names entries in had not arrived.
-   * Spent once, so a hashchange lands it and nothing else re-applies it.
+   * An `?event=` the fragment named that has not been applied yet, because the files it names entries in had not
+   * arrived. Spent once, so a hashchange lands it and nothing else re-applies it.
    */
   const pending = useRef<string | null>(null);
 
@@ -368,7 +371,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
           const marker = L.circleMarker(place.coords, cityStyle(place)).addTo(map);
           const entry: CityEntry = { ...place, id: `w${cities.length}`, marker };
 
-          marker.bindTooltip(place.name);
+          // An element rather than the string: Leaflet assigns string content with innerHTML, and the name is read out
+          // of a GPX file.
+          marker.bindTooltip(el('span', null, place.name));
           marker.on('click', () => select([entry.id], { pan: false }));
           cities.push(entry);
         }
@@ -461,13 +466,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
         dot(b, cssVar('--end'), 'End').addTo(map),
       ]);
 
-      const detail = `${route.country} · ${route.latlngs.length} points · ${fmtDist(route.distance)}`;
-
-      route.line.bindPopup(
-        buildPopup(route.name, detail, 'Copy GPX', route.gpx, (ok) =>
-          setToast(ok ? `Copied “${route.name}” GPX to clipboard` : 'Copy failed'),
-        ),
-      );
+      bindRoutePopup(route);
     }
 
     for (const city of loaded.cities) {
@@ -478,13 +477,31 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
       city.marker.setStyle({ radius: 8, fillColor: cssVar('--accent') });
       city.marker.bringToFront();
-      city.marker.bindPopup(
-        buildPopup(city.name, `${city.country} · ${city.coordStr}`, 'Copy coordinates', city.coordStr, (ok) =>
-          setToast(ok ? `Copied ${city.name} coordinates to clipboard` : 'Copy failed'),
-        ),
-      );
+      bindCityPopup(city);
     }
   }, [selected, loaded]);
+
+  /**
+   * An entry's popup, bound by the effect above for every selected entry and by `select` before it opens one: that
+   * effect runs only after the render the selection causes, so a popup opened ahead of it would have nothing bound yet.
+   */
+  function bindRoutePopup(route: RouteEntry) {
+    const detail = `${route.country} · ${route.latlngs.length} points · ${fmtDist(route.distance)}`;
+
+    route.line.bindPopup(
+      buildPopup(route.name, detail, 'Copy GPX', route.gpx, (ok) =>
+        setToast(ok ? `Copied “${route.name}” GPX to clipboard` : 'Copy failed'),
+      ),
+    );
+  }
+
+  function bindCityPopup(city: CityEntry) {
+    city.marker.bindPopup(
+      buildPopup(city.name, `${city.country} · ${city.coordStr}`, 'Copy coordinates', city.coordStr, (ok) =>
+        setToast(ok ? `Copied ${city.name} coordinates to clipboard` : 'Copy failed'),
+      ),
+    );
+  }
 
   /**
    * Select a set of entries, opening the groups above their rows and scrolling the first into view. Only one place can
@@ -516,6 +533,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
     if (route) {
       map.fitBounds(route.line.getBounds(), { padding: [24, 24], maxZoom: 17 });
+      bindRoutePopup(route);
       route.line.openPopup();
       return;
     }
@@ -524,6 +542,7 @@ export default function MapPage({ query: fragment }: { query: string }) {
 
     if (city) {
       map.setView(city.coords, Math.max(map.getZoom(), 12));
+      bindCityPopup(city);
       city.marker.openPopup();
     }
   }
@@ -599,14 +618,17 @@ export default function MapPage({ query: fragment }: { query: string }) {
   }
 
   // The fragment's `?event=`, read on arrival and whenever a link changes it. The files may not have arrived yet, in
-  // which case the load above spends it once they have.
+  // which case the load above spends it once they have. Keyed on the fragment alone: keyed on `loaded` too, the render
+  // the load's own `setLoaded` causes would read it back into `pending` and apply it a second time.
   useEffect(() => {
     pending.current = new URLSearchParams(fragment).get('event');
 
-    if (loaded !== null) {
-      focusEvent(loaded);
+    const held = loadedRef.current;
+
+    if (held !== null) {
+      focusEvent(held);
     }
-  }, [fragment, loaded]);
+  }, [fragment]);
 
   /**
    * The rows, grouped the way the sidebar draws them, with the filter already applied. Matched against the entries
@@ -780,8 +802,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
                           {held.map((row) => {
                             const classes = ['route'];
 
-                            // A waypoint carries coordinates where a track carries GPX, which is also what the stylesheet
-                            // tells the two apart by — so the one field decides the class, the glyph and what Copy copies.
+                            // A waypoint carries coordinates where a track carries GPX, which is also what the
+                            // stylesheet tells the two apart by — so the one field decides the class, the glyph and
+                            // what Copy copies.
                             const place = row.coordStr !== null;
 
                             if (place) {
@@ -898,8 +921,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
             ([kind, heading, failures]) =>
               failures.length > 0 && (
                 // Keyed because this is a list, even though a two-row one whose order never changes: an anonymous
-                // fragment is matched by position, so the pair would be told apart by where they sit rather than by which
-                // they are.
+                // fragment is matched by position, so the pair would be told apart by where they sit rather than by
+                // which they are.
                 <Fragment key={kind}>
                   <b>{heading}</b>
                   <ul>

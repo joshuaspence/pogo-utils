@@ -39,7 +39,9 @@ export function Settings() {
    */
   const [status, setStatus] = useState<string | null>(null);
 
-  /** The file picker Import clicks, hidden so the two controls match each other rather than one being browser-styled. */
+  /**
+   * The file picker Import clicks, hidden so the two controls match each other rather than one being browser-styled.
+   */
   const picker = useRef<HTMLInputElement>(null);
 
   useDismiss(open, () => setOpen(false), root);
@@ -68,6 +70,15 @@ export function Settings() {
     try {
       const incoming = parseBackup(await file.text());
 
+      // Nothing in the file is nothing to change, and leaving before the copy and the corrections is what makes the
+      // message below true: the copy would put a file in the reader's Downloads for an import that touched nothing,
+      // and the corrections are not free — the Events page closes a reveal the reader had opened — so running them
+      // anyway would say nothing changed on the one render where *Show ended* had just emptied itself.
+      if (incoming.length === 0) {
+        setStatus('That backup held no saved preferences, so nothing changed.');
+        return;
+      }
+
       // Judged before anything is saved and saved before anything is written, so a copy is taken only for a file that
       // is about to be applied. This is the undo: a reader who picks the wrong file has nothing else to go back to,
       // and the keys it replaces are the ones nothing can reconstruct.
@@ -80,14 +91,6 @@ export function Settings() {
       }
 
       const written = applyBackup(incoming);
-
-      // Nothing written is nothing to correct, and leaving before the corrections is what makes the message below
-      // true: they are not free — the Events page closes a reveal the reader had opened — so running them anyway would
-      // say nothing changed on the one render where *Show ended* had just emptied itself.
-      if (written.length === 0) {
-        setStatus('That backup held no saved preferences, so nothing changed.');
-        return;
-      }
 
       eventStore.restored();
 

@@ -575,6 +575,9 @@ the ntfy app on the phone. The topic is as good as a password on the public serv
 what is sent there, so pick one nobody would guess. None of these values, nor the token the login answers, is ever
 printed; `--verbose` adds each request as it is sent and a line per poll.
 
+Any of these can go in a `.env` at the repository root instead of the command line, one `NAME=value` per line, which git
+ignores. One set on the command line still wins over the file.
+
 Each notification names the species and form, why it matched (shiny, 100%, XXL, XXS), IV, CP and level, where the spawn
 is and when it despawns, and opens that spot in Google Maps when tapped. A spawn notifies once however many queries want
 it and however many polls carry it.

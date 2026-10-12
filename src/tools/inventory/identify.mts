@@ -311,7 +311,9 @@ function sameTypes(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((t) => b.includes(t));
 }
 
-/** Whether two forms are the same Pokémon to everything but the artwork: one dex, one set of types and one stat line. */
+/**
+ * Whether two forms are the same Pokémon to everything but the artwork: one dex, one set of types and one stat line.
+ */
 function sameNumbers(a: Form, b: Form): boolean {
   return (
     a.dex === b.dex &&

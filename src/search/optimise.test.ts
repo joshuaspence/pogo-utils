@@ -26,6 +26,9 @@ const span = (from: number | null, to: number | null): Leaf => ({ kind: 'range',
 const all = (...parts: Node[]) => group('all', parts);
 const any = (...parts: Node[]) => group('any', parts);
 
+/** What an untouched string, or one rewritten without straying, says about itself. */
+const EXACT = { narrowed: false, widened: false };
+
 const state = (tree: Node): State => ({ ...emptyState(), tree });
 
 /** The string an arrangement composes to once shortened, which is the only thing the page shows for it. */
@@ -54,14 +57,29 @@ const term = (id: string) => TERMS_BY_ID.get(id)?.term;
 
 test('a name is written as short as it goes, wherever the pill sits', () => {
   // `charmander` names one species and so does `4`, and the game reads the two the same way.
-  expect(told(all(named('charmander')))).toEqual({ query: '4', rewrites: [['charmander', '4']], lossy: true });
+  expect(told(all(named('charmander')))).toEqual({
+    query: '4',
+    rewrites: [['charmander', '4']],
+    lossy: { narrowed: true, widened: false },
+  });
 
   // The one reduction that needs to know nothing about what is around it, so it reaches a pill at any depth.
   expect(short(any(all(named('charmander'), yes('shiny')), named('bulbasaur')))).toBe('4,1&shiny,1');
 
   // A name that resolves to nothing is passed through: a nickname, a misspelling, or a fragment landing on a species
   // the dex cannot spell.
-  expect(told(all(named('mr snuggles')))).toEqual({ query: 'mr snuggles', rewrites: [], lossy: false });
+  expect(told(all(named('mr snuggles')))).toEqual({ query: 'mr snuggles', rewrites: [], lossy: EXACT });
+});
+
+test('a name shortened to a fragment says it now matches more nicknames', () => {
+  // `eev` reaches Eevee alone among species, as `eevee` does and in fewer characters than `133`. But the game matches a
+  // name against nicknames too, and `eev` is also every Pokémon nicknamed *Eevie* — a match the reader did not ask for,
+  // which is the wrong direction to be silent about in a string a mass transfer is run from.
+  expect(told(all(named('eevee')))).toEqual({
+    query: 'eev',
+    rewrites: [['eevee', 'eev']],
+    lossy: { narrowed: false, widened: true },
+  });
 });
 
 test('a family keeps its name, there being no family data here to turn it into numbers', () => {
@@ -69,12 +87,12 @@ test('a family keeps its name, there being no family data here to turn it into n
   const { query, lossy } = told(all(named('+charmander')));
 
   expect(query.startsWith('+')).toBe(true);
-  expect(lossy).toBe(false);
+  expect(lossy).toEqual(EXACT);
 });
 
 test('a name the game cannot spell is left alone', () => {
   // `pokedex.js` drops the apostrophe, so `farfetchd` reads as an ordinary word where the game's name is `Farfetch'd`.
-  expect(told(all(named('farfetch')))).toEqual({ query: 'farfetch', rewrites: [], lossy: false });
+  expect(told(all(named('farfetch')))).toEqual({ query: 'farfetch', rewrites: [], lossy: EXACT });
 });
 
 test('dex spans AND’d collapse into their overlap, and OR’d into their union', () => {
@@ -144,6 +162,12 @@ test('an all asking for one term of an exclusive category drops the refusals bes
   expect(short(all(yes('shadow'), no('purified')))).toBe('shadow');
   expect(short(all(yes('star4'), no('star0')))).toBe(term('star4'));
 
+  // Refusing the very term asked for is a search for nothing, and the reader is owed the sight of that: it is left
+  // standing whatever other refusals beside it go.
+  expect(short(all(yes('shadow'), no('shadow')))).toBe('shadow&!shadow');
+  expect(short(all(yes('star3'), no('star3')))).toBe('3*&!3*');
+  expect(short(all(yes('shadow'), no('shadow'), no('purified')))).toBe('shadow&!shadow');
+
   // A category that declares nothing gets nothing: a Pokémon can be any number of these at once.
   expect(category('status').exclusive).toBeUndefined();
   expect(short(all(yes('shiny'), no('lucky')))).toBe('shiny&!lucky');
@@ -175,6 +199,45 @@ test('an any of every term of an exhaustive category asks for nothing at all', (
   expect(short(any(...butOne.map((one) => yes(one.id))))).toBe(butOne.map((one) => one.term).join(','));
 });
 
+test('an any holding every term of an exhaustive category asks nothing, whatever else is beside them', () => {
+  const gender = category('gender');
+  const type = category('type');
+  const appraisal = category('appraisal');
+
+  expect([gender.exhaustive, type.exhaustive, appraisal.exhaustive]).toEqual([true, true, true]);
+  expect(TERMS_BY_ID.has('shiny')).toBe(true);
+
+  // Everything OR'd with Shiny is still everything, where splicing the category away alone would leave `shiny`.
+  expect(short(any(...gender.terms.map((one) => yes(one.id)), yes('shiny')))).toBe('');
+  expect(short(any(yes('shiny'), ...type.terms.map((one) => yes(one.id))))).toBe('');
+  expect(short(any(...appraisal.terms.map((one) => yes(one.id)), named('pikachu')))).toBe('');
+
+  // Nested, the group goes and the `all` around it keeps the rest of what it asks.
+  expect(short(all(yes('lucky'), any(...gender.terms.map((one) => yes(one.id)), yes('shiny'))))).toBe('lucky');
+});
+
+test('copies of one chip are one term, not every term of its category', () => {
+  const appraisal = category('appraisal');
+
+  expect(appraisal.terms.length).toBe(5);
+
+  // Five copies of `0*` ask for `0*`, however many pills that is.
+  const copies = Array.from({ length: appraisal.terms.length }, () => yes('star0'));
+
+  expect(short(any(...copies))).not.toBe('');
+  expect(short(any(...copies)).split(',')).toContain(term('star0'));
+});
+
+test('copies of one covered term are not the whole of what a union covers', () => {
+  const union = category('background').terms.find((one) => one.covers);
+  const first = 'locationbackground';
+
+  expect(union?.covers).toContain(first);
+
+  // Two copies of one covered term are that term, not the union of it and the one beside it.
+  expect(short(all(yes(first), yes(first)))).not.toBe(term('background'));
+});
+
 test('an any of all but some of a partition is written as the complement where that is shorter', () => {
   const appraisal = category('appraisal');
 
@@ -191,7 +254,7 @@ test('an any of all but some of a partition is written as the complement where t
   expect(short(all(yes('star3'), yes('star4')))).toBe('3*&4*');
 });
 
-test('a union term is written in place of the whole of what it covers, on either side', () => {
+test('a union term is written in place of the whole of what it covers, on the side its junction allows', () => {
   const background = category('background');
   const union = background.terms.find((one) => one.covers);
 
@@ -210,6 +273,16 @@ test('a union term is written in place of the whole of what it covers, on either
   // searches a reader would want the sight of: the first is the Event backdrops, the second matches nothing.
   expect(short(all(yes('background'), no('locationbackground')))).toBe('background&!locationbackground');
   expect(short(any(yes('locationbackground')))).toBe('locationbackground');
+
+  /*
+   * On the other side the union is not the same search, so it is not written in. Two backdrops AND'd ask for one that
+   * is both and match nothing; the union beside one of them is that one; two refusals OR'd let through everything but a
+   * Pokémon with both; and a refusal of the union OR'd with one of a covered term is that refusal alone.
+   */
+  expect(short(all(yes('locationbackground'), yes('specialbackground')))).toBe('locationbackground&specialbackground');
+  expect(short(all(yes('background'), yes('locationbackground')))).toBe('background&locationbackground');
+  expect(short(any(no('locationbackground'), no('specialbackground')))).toBe('!locationbackground,!specialbackground');
+  expect(short(any(no('background'), no('locationbackground')))).toBe('!background,!locationbackground');
 });
 
 test('a union term is named more briefly than the terms it covers', () => {

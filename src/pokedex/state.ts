@@ -98,6 +98,10 @@ export function toFragment(state: State) {
  * Whether an entry answers what was typed. A number is a dex number — `25`, `#25` and `#0025` all mean Pikachu, and
  * only Pikachu, since a reader typing a number has one species in mind rather than every number with a 25 in it. Any
  * other text is part of a name, folded the way the search page folds it so `flabebe` still finds Flabébé.
+ *
+ * The digits are bounded because `0*` and an unbounded `\d+` overlap, and a run of zeros that ends in anything but a
+ * digit then backtracks quadratically — over a query read out of a shared link, for every entry in the grid. Seven is
+ * already far past the end of the dex, so the bound turns nothing away that could have named a species.
  */
 export function matchesQuery(entry: Entry, query: string) {
   const typed = query.trim();
@@ -106,7 +110,7 @@ export function matchesQuery(entry: Entry, query: string) {
     return true;
   }
 
-  const number = typed.match(/^#?0*(\d+)$/);
+  const number = typed.match(/^#?0*(\d{1,7})$/);
 
   if (number) {
     return entry.dex === Number(number[1]);

@@ -1,7 +1,7 @@
 /**
- * What the top bar's two menus share: a click anywhere outside one, focus moving out of it, or Escape closes it, the way
- * any menu closes. One hook rather than a copy in each, so the notifications list and the settings panel cannot come
- * to close differently.
+ * What the top bar's two menus share: a click anywhere outside one, focus moving out of it, or Escape closes it, the
+ * way any menu closes. One hook rather than a copy in each, so the notifications list and the settings panel cannot
+ * come to close differently.
  *
  * Focus as well as the pointer, because the two panels hang from the same corner of the bar. A pointer opening one
  * presses down outside the other first, which closes it; a keyboard press on a button fires its click with no

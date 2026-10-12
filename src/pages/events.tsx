@@ -133,8 +133,9 @@ const REVEALS = [
 ] as const satisfies readonly { name: keyof Reveals; label: string; cardsOnly: boolean }[];
 
 // Tracks view geometry. TRACK_DAY_PX is the single source for a day column's width: the bars are positioned in pixels
-// from it, and the same value is handed to CSS as the --track-day custom property for the gridline background, so the two
-// cannot drift. The timeline runs from a couple of days before today to the latest event end, clamped to a sane span.
+// from it, and the same value is handed to CSS as the --track-day custom property for the gridline background, so the
+// two cannot drift. The timeline runs from a couple of days before today to the latest event end, clamped to a sane
+// span.
 const TRACK_DAY_PX = 40;
 const TRACK_BAR_H = 22;
 const TRACK_LANE_GAP = 4;
@@ -147,11 +148,15 @@ const TRACK_MAX_DAYS = 120;
  * A card's picture, which takes itself off the card when it fails to load rather than leaving the browser's
  * broken-image glyph. Its own component so the failure is state rather than a node removing itself from a tree the
  * reconciler believes it still owns.
+ *
+ * What failed is remembered as the URL rather than as a boolean, for the reason `Sprite` gives on the Pokédex: a fresh
+ * `src` deserves a fresh chance to load. Cards are keyed by event ID, so the refetch hands this same instance a rehosted
+ * image under an unchanged event, and a flag would keep it hidden for the life of the page.
  */
 function Thumb({ src }: { src: string }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
 
-  return failed ? null : <img class="thumb" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
+  return failed === src ? null : <img class="thumb" src={src} alt="" loading="lazy" onError={() => setFailed(src)} />;
 }
 
 /**
@@ -285,7 +290,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
      * this is for the one arrival. A card dismissed individually stays dismissed, that being a decision about the
      * event rather than a blanket rule.
      */
-    hiddenFor(prefs, view).delete(match.heading);
+    hiddenFor(prefs, view).delete(match.eventType);
     setSearch(match.name);
   }
 
@@ -386,11 +391,11 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     commit('filterScope');
   }
 
-  function toggleType(heading: string) {
+  function toggleType(eventType: string) {
     const hidden = hiddenFor(prefs, view);
 
-    if (!hidden.delete(heading)) {
-      hidden.add(heading);
+    if (!hidden.delete(eventType)) {
+      hidden.add(eventType);
     }
 
     // Named from the scope rather than the set, so the two cannot disagree about where a click just went — the one way
@@ -434,23 +439,26 @@ export default function EventsPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * The per-type filter chips, from the categories the feed currently carries. Each wears its type's colour class,
-   * which turns the row into the legend for the colour-coded cards and bars — and that needs the `eventType` slug the
-   * colours are keyed by, where the filters are keyed by the human `heading`. So the pairing is read off the events
-   * rather than kept as a second list that could drift.
+   * The per-type filter chips, from the categories the feed currently carries. Each is keyed by the `eventType` slug,
+   * which is what the filters store and the colours are keyed by, and labelled with the human `heading` — so the
+   * pairing is read off the events rather than kept as a second list that could drift. An event the feed gives no
+   * heading still gets a chip, labelled with its slug as the badge on its card is, until one of its type carries a
+   * heading to put there instead.
    *
-   * The entries are sorted rather than the keys, so the slug arrives with its heading, and the comparator is spelled
-   * out because a bare `.sort()` over pairs would stringify each one whole.
+   * The entries are sorted by label rather than the keys, so the chips read alphabetically as a reader sees them, and
+   * the comparator is spelled out because a bare `.sort()` over pairs would stringify each one whole.
    */
-  const slugs = new Map<string, string>();
+  const labels = new Map<string, string>();
 
   for (const ev of events) {
-    if (ev.heading && !slugs.has(ev.heading)) {
-      slugs.set(ev.heading, ev.eventType);
+    const label = labels.get(ev.eventType);
+
+    if (label === undefined || (label === ev.eventType && ev.heading)) {
+      labels.set(ev.eventType, ev.heading || ev.eventType);
     }
   }
 
-  const types = [...slugs].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const types = [...labels].sort(([, a], [, b]) => (a < b ? -1 : a > b ? 1 : 0));
   const hidden = hiddenFor(prefs, view);
   const newly = newlyVisible().length;
 
@@ -493,18 +501,21 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         style={{ '--i': String(Math.min(index, STAGGER_MAX)) }}
       >
         {/*
-         * A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button a
-         * sibling rather than a child: an anchor may not contain interactive content.
+         * A transparent overlay link makes the whole card open the event's source page while keeping the dismiss button
+         * a sibling rather than a child: an anchor may not contain interactive content. Left out for an event whose
+         * link `webLink` dropped, rather than drawn as an overlay that opens nothing.
          */}
-        <a
-          class="card-link"
-          href={ev.link}
-          target="_blank"
-          rel="noopener"
-          aria-label={`Open “${ev.name}”`}
-          onClick={acknowledge}
-          onAuxClick={acknowledge}
-        />
+        {ev.link !== undefined && (
+          <a
+            class="card-link"
+            href={ev.link}
+            target="_blank"
+            rel="noopener"
+            aria-label={`Open “${ev.name}”`}
+            onClick={acknowledge}
+            onAuxClick={acknowledge}
+          />
+        )}
 
         {/*
          * A dismissed card only appears while "Show hidden" is on; there the same corner button restores it rather than
@@ -529,10 +540,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </button>
 
         {/*
-         * The mark for an event that has appeared since the reader last acknowledged the page, and the button that clears
-         * it. A sibling of the overlay link for the same reason the dismiss button is one: that link covers the card and
-         * would swallow the click. It takes the opposite corner, so the card's two controls read as a pair — and the left
-         * edge is already the status stripe.
+         * The mark for an event that has appeared since the reader last acknowledged the page, and the button that
+         * clears it. A sibling of the overlay link for the same reason the dismiss button is one: that link covers the
+         * card and would swallow the click. It takes the opposite corner, so the card's two controls read as a pair —
+         * and the left edge is already the status stripe.
          */}
         {fresh && (
           <button
@@ -567,10 +578,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           )}
 
           {/*
-           * What this repository added for the event, linking through to it on the map. Last, so that the absolute dates
-           * and the relative ones stay together above it. The query is what lands the link on the entry rather than on a
-           * page of 81 rows. The stylesheet puts the Map tab's own glyph in front, so the destination is named the same
-           * way twice; the accessible name says it in words instead.
+           * What this repository added for the event, linking through to it on the map. Last, so that the absolute
+           * dates and the relative ones stay together above it. The query is what lands the link on the entry rather
+           * than on a page of 81 rows. The stylesheet puts the Map tab's own glyph in front, so the destination is
+           * named the same way twice; the accessible name says it in words instead.
            */}
           {summary !== null && (
             <a
@@ -607,8 +618,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       classes.push('cont-right');
     }
 
-    // A ring, not a badge: there is no room for a control in eleven pixels, so a bar says an event is new and the header
-    // carries the only way to clear it.
+    // A ring, not a badge: there is no room for a control in eleven pixels, so a bar says an event is new and the
+    // header carries the only way to clear it.
     if (isNew(ev)) {
       classes.push('new');
     }
@@ -824,8 +835,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     let latestEnd = rangeStartMs + TRACK_MIN_DAYS * DAY_MS;
 
-    // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed by
-    // the chip's `heading` state alone — a track emptied by dismissals or a search term keeps its row.
+    // Track types whose filter chip is off, so the whole row can be dropped rather than left as an empty ghost. Keyed
+    // by the chip's state alone — a track emptied by dismissals or a search term keeps its row.
     const filteredTypes = new Set<string>();
 
     for (const ev of events) {
@@ -835,7 +846,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         continue;
       }
 
-      if (hidden.has(ev.heading)) {
+      if (hidden.has(ev.eventType)) {
         filteredTypes.add(ev.eventType);
       }
 
@@ -869,9 +880,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
        */
       const items = track.items.filter((item) => item.startMs < rangeEndMs).sort((a, b) => a.startMs - b.startMs);
 
-      // A track the filter has switched off drops out entirely. Only when it is also empty, so a type sharing its row
-      // with a still-visible heading keeps the row and its visible events.
-      if (items.length === 0 && filteredTypes.has(track.type)) {
+      // A track the filter has switched off drops out entirely. A row is one `eventType`, which is what the chips
+      // switch, so there is no still-visible part of it to keep.
+      if (filteredTypes.has(track.type)) {
         return [];
       }
 
@@ -888,11 +899,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           {items.map((item) => {
             const left = Math.max(item.startMs, rangeStartMs);
             const right = Math.min(item.endMs, rangeEndMs);
+            const status = statusOf(item.ev, now).kind;
 
             return (
               <a
                 key={item.ev.eventID}
-                class={`bar ${statusOf(item.ev, now).kind}${isNew(item.ev) ? ' new' : ''}${typeClass(item.ev.eventType)}`}
+                class={`bar ${status}${isNew(item.ev) ? ' new' : ''}${typeClass(item.ev.eventType)}`}
                 href={item.ev.link}
                 target="_blank"
                 rel="noopener"
@@ -947,7 +959,13 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     <>
       <header class="page">
         <h1>Pokémon GO Events</h1>
-        <p class="sub">{count}</p>
+        {/*
+         * The live region, rather than `<main>`: the count is the one line that answers a search, a filter or a load,
+         * where the body under it changes on every keystroke and with the relative times on the minute tick.
+         */}
+        <p class="sub" aria-live="polite">
+          {count}
+        </p>
 
         {/*
          * How many events have appeared since this browser last acknowledged them, and the one control that clears them
@@ -998,7 +1016,10 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         <button
           type="button"
           class="ghost"
-          title="Default every view's type filters, hide ended and undated events, restore dismissals and clear new marks"
+          title={
+            "Default every view's type filters, hide ended and undated events, " +
+            'restore dismissals and clear new marks'
+          }
           onClick={reset}
         >
           Reset
@@ -1059,15 +1080,15 @@ export default function EventsPage({ query: fragment }: { query: string }) {
          * per-view scope that set changes with the view — a row showing the last view's would be a stale legend.
          */}
         <div class="type-filters" role="group" aria-label="Filter by event type">
-          {types.map(([heading, eventType]) => (
+          {types.map(([eventType, label]) => (
             <button
-              key={heading}
+              key={eventType}
               type="button"
-              class={`chip${hidden.has(heading) ? ' off' : ''}${typeClass(eventType)}`}
-              aria-pressed={!hidden.has(heading)}
-              onClick={() => toggleType(heading)}
+              class={`chip${hidden.has(eventType) ? ' off' : ''}${typeClass(eventType)}`}
+              aria-pressed={!hidden.has(eventType)}
+              onClick={() => toggleType(eventType)}
             >
-              {heading}
+              {label}
             </button>
           ))}
         </div>
@@ -1093,7 +1114,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </div>
       </section>
 
-      <main aria-live="polite">{failed === null && drawn.body}</main>
+      <main>{failed === null && drawn.body}</main>
 
       <footer>
         <p>
