@@ -17,7 +17,9 @@ export interface ParsedEvent {
   name: string;
   heading: string;
   eventType: string;
-  link: string;
+
+  /** The event's source page, or undefined where the feed's was not a web URL — see `webLink`. */
+  link: string | undefined;
   image: string;
   start: Date | null;
   end: Date | null;
@@ -187,13 +189,28 @@ export function packLanes(items: readonly TrackItem[]) {
   return laneEnds.length;
 }
 
+/** An absolute `http:` or `https:` URL, matched case-insensitively as a browser parses a scheme. */
+const WEB_URL = /^https?:\/\//i;
+
+/**
+ * The feed's `link` if it is a web URL, otherwise undefined. It becomes an `href` on this site — the card's overlay and
+ * both views' bars — and the feed is refetched from a third party every ten minutes without review, so a `javascript:`
+ * or `data:` URL, by misconfiguration or compromise, is dropped rather than published: the event is drawn without a
+ * link. The reasoning `releaseFromApk` gives for its APK URL, and checked the same way, on the string as given, since
+ * that is what a browser will follow. Matched on the string rather than through a `URL` for the same reason too: the
+ * shared project declares neither the browser's globals nor Node's.
+ */
+export function webLink(link: unknown): string | undefined {
+  return typeof link === 'string' && WEB_URL.test(link) ? link : undefined;
+}
+
 function normalise(raw: readonly FeedEvent[]): ParsedEvent[] {
   return raw.map((e) => ({
     eventID: e.eventID,
     name: e.name,
     heading: e.heading,
     eventType: e.eventType,
-    link: e.link,
+    link: webLink(e.link),
     image: e.image,
     start: parseDate(e.start),
     end: parseDate(e.end),

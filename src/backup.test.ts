@@ -25,8 +25,8 @@ const restore = (text: string) => applyBackup(parseBackup(text));
 /** A reader with every kind of value in play: two sets, the per-view object, the scalar, and a populated `seen`. */
 function storePrefs(): Prefs {
   const prefs: Prefs = {
-    hiddenTypes: new Set(['Community Day', 'Raid Hour']),
-    hiddenByView: { cards: new Set(['Raid Hour']), calendar: new Set() },
+    hiddenTypes: new Set(['community-day', 'raid-hour']),
+    hiddenByView: { cards: new Set(['raid-hour']), calendar: new Set() },
     filterScope: 'view',
     dismissed: new Set(['event-a']),
     seen: new Set(['event-b', 'event-c']),
@@ -117,7 +117,7 @@ test('a key the file omits is left as it was', () => {
   const prefs = loadPrefs();
 
   expect(prefs.dismissed).toEqual(new Set(['from-file']));
-  expect(prefs.hiddenTypes).toEqual(new Set(['Community Day', 'Raid Hour']));
+  expect(prefs.hiddenTypes).toEqual(new Set(['community-day', 'raid-hour']));
   expect(prefs.seen).toEqual(new Set(['event-b', 'event-c']));
 });
 
@@ -293,7 +293,7 @@ test.for([
  * and for `seen` the difference between the two is a first visit against a reader who has acknowledged everything.
  */
 test('a write that fails partway puts back what it found', () => {
-  persist({ ...emptyPrefs(), hiddenTypes: new Set(['Community Day']) }, 'hiddenTypes');
+  persist({ ...emptyPrefs(), hiddenTypes: new Set(['community-day']) }, 'hiddenTypes');
 
   const before = storage.snapshot();
 
@@ -302,7 +302,7 @@ test('a write that fails partway puts back what it found', () => {
   storage.refusesWritesTo.add(KEYS.seen);
 
   expect(() =>
-    restore(JSON.stringify({ version: 1, [KEYS.hiddenTypes]: ['Raid Hour'], [KEYS.seen]: ['event-a'] })),
+    restore(JSON.stringify({ version: 1, [KEYS.hiddenTypes]: ['raid-hour'], [KEYS.seen]: ['event-a'] })),
   ).toThrow(/quota/);
 
   expect(storage.snapshot()).toEqual(before);

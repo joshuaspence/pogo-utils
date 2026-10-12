@@ -9,6 +9,9 @@
 # Claude
 /.claude/worktrees/
 
+# Credentials
+/.env
+
 # Inventory scans
 /inventory*.csv
 

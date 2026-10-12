@@ -96,11 +96,31 @@ test("the cards view's own type filters are the ones counted, whichever view is 
   await store.load();
 
   store.prefs.filterScope = 'view';
-  store.prefs.hiddenByView['calendar'] = new Set(['Events']);
+  store.prefs.hiddenByView['calendar'] = new Set(['event']);
   expect(ids(store)).toEqual(['b']);
 
-  store.prefs.hiddenByView['cards'] = new Set(['Events']);
+  store.prefs.hiddenByView['cards'] = new Set(['event']);
   expect(ids(store)).toEqual([]);
+});
+
+/**
+ * The type filters key on the `eventType` slug, so a type survives its heading being reworded upstream, and an event
+ * the feed gives no heading is filtered with its own type rather than with every other headingless one.
+ */
+test('a hidden type is matched by its slug, whatever its heading says', async () => {
+  const { store, source } = storeOver([feedEvent('a')]);
+
+  await store.load();
+  source.feed = [
+    feedEvent('a'),
+    feedEvent('renamed', { heading: 'Raid Hour (Reworded)', eventType: 'raid-battles' }),
+    feedEvent('bare', { heading: '', eventType: 'research' }),
+    feedEvent('kept', { heading: '', eventType: 'wild-area' }),
+  ];
+  await store.load();
+  store.prefs.hiddenTypes = new Set(['raid-battles', 'research']);
+
+  expect(ids(store)).toEqual(['kept']);
 });
 
 test('the Events page search narrows the list while it is open, and closing the page lifts it', async () => {
@@ -168,11 +188,11 @@ test('reloading the preferences keeps the object every reader holds', () => {
   const store = new EventStore(async () => []);
   const held = store.prefs;
 
-  held.hiddenTypes.delete('Season');
+  held.hiddenTypes.delete('season');
   store.reloadPrefs();
 
   expect(store.prefs).toBe(held);
-  expect(held.hiddenTypes.has('Season')).toBe(true);
+  expect(held.hiddenTypes.has('season')).toBe(true);
 });
 
 test('an import re-reads storage, settles a seen set the file left out, and tells every reader', async () => {
@@ -185,12 +205,12 @@ test('an import re-reads storage, settles a seen set the file left out, and tell
   store.subscribe(listener);
 
   // What an import writes: a file from a browser that hid Events and had not yet stored a seen set.
-  storage.setItem(KEYS.hiddenTypes, JSON.stringify(['Events']));
+  storage.setItem(KEYS.hiddenTypes, JSON.stringify(['event']));
   storage.removeItem(KEYS.seen);
   store.restored();
 
   expect(store.prefs).toBe(held);
-  expect(held.hiddenTypes.has('Events')).toBe(true);
+  expect(held.hiddenTypes.has('event')).toBe(true);
   expect(store.restores).toBe(1);
   expect(JSON.parse(storage.getItem(KEYS.seen) ?? 'null')).toEqual(['a', 'b']);
   expect(listener).toHaveBeenCalled();
