@@ -68,6 +68,21 @@ export function unreachable(): string | null {
   return null;
 }
 
+/**
+ * Lets go of a connection no transport was built on, as where authentication fails: Tango releases its locks on the
+ * streams but closes nothing, which would leave the phone's ADB interface claimed by this page until it is reloaded — and
+ * the `adb kill-server` advice for a busy phone useless. Closing either stream closes the device and drops the listener
+ * for it being unplugged; both are tried, as one may already have errored, and neither failing is worth more than the
+ * error that brought the caller here.
+ */
+export async function release(connection: {
+  readable: { cancel(): Promise<void> };
+  writable: { close(): Promise<void> };
+}): Promise<void> {
+  await connection.writable.close().catch(() => undefined);
+  await connection.readable.cancel().catch(() => undefined);
+}
+
 /** A phone this page holds a connection to, with what the chooser called it. */
 export interface Phone {
   name: string;
@@ -111,13 +126,20 @@ export async function connect(): Promise<Phone | null> {
     throw error;
   }
 
-  const adb = new Adb(
-    await AdbDaemonTransport.authenticate({
+  let transport;
+
+  try {
+    transport = await AdbDaemonTransport.authenticate({
       serial: device.serial,
       connection,
       credentialStore: new AdbWebCredentialStore('pogo-utils'),
-    }),
-  );
+    });
+  } catch (error) {
+    await release(connection);
+    throw error;
+  }
+
+  const adb = new Adb(transport);
 
   /**
    * A command's output, given up on after `TIMEOUT_MS` as `adb-cli.mts` gives up on `adb`: a phone that stops answering
