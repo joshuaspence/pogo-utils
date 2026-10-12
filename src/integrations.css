@@ -204,17 +204,9 @@ body[data-page='integrations'] {
     color: var(--track);
   }
 
-  .backup .status {
-    font-size: 12px;
-    line-height: 1.45;
-    color: var(--muted);
-  }
+  /* The rest of `.status` is chrome.css's; a backup that built is the one place a status reads as success. */
 
   .backup .status.ok {
     color: var(--start);
-  }
-
-  .backup .status.err {
-    color: var(--accent);
   }
 }
