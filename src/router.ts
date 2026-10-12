@@ -7,25 +7,13 @@
  * `404.html`, which answers HTTP 404 while rendering the page — fine in a browser, a dead link to a crawler.
  */
 
+import { HOME, PAGES, toHash, type Page } from './page-table.js';
+
 /**
- * Every page, with what the tab bar calls it and what the document is titled while it is open, in tab order.
- *
- * `satisfies` rather than an annotation so `PAGES[n].name` stays the union of the six literals rather than widening to
- * `string`: that union is `Page`, and it is what makes a misspelt page a type error at every use below.
+ * Re-exported so the pages keep one module to import routing from. The table lives apart because the build reads it
+ * too, and this file reaches `history`.
  */
-export const PAGES = [
-  { name: 'events', label: 'Events', icon: '📅', title: 'Pokémon GO Events' },
-  { name: 'map', label: 'Map', icon: '🗺️', title: 'Pokémon GO Routes' },
-  { name: 'search', label: 'Search', icon: '🔎', title: 'Pokémon GO Search Strings' },
-  { name: 'pokedex', label: 'Pokédex', icon: '📖', title: 'Pokémon GO Pokédex' },
-  { name: 'integrations', label: 'Integrations', icon: '🔌', title: 'Pokémon GO Integrations' },
-  { name: 'inventory', label: 'Inventory', icon: '🎒', title: 'Pokémon GO Inventory' },
-] as const satisfies readonly { name: string; label: string; icon: string; title: string }[];
-
-export type Page = (typeof PAGES)[number]['name'];
-
-/** Where a reader with no fragment lands, and where one naming a page that does not exist is sent. */
-export const HOME: Page = 'events';
+export { HOME, PAGES, toHash, type Page };
 
 /** A page and the state it was left in, which together are the whole of what a link to this site carries. */
 export interface Route {
@@ -56,12 +44,6 @@ export function fromHash(hash: string): Route {
 
   return { page: name, query: cut < 0 ? '' : path.slice(cut + 1) };
 }
-
-/**
- * The fragment for a route, which is what every link and every `replaceState` in the app is built from. A page with no
- * state of its own gets no `?`, so a tab arrived at by clicking reads `#/map` rather than `#/map?`.
- */
-export const toHash = (page: Page, query = '') => (query ? `#/${page}?${query}` : `#/${page}`);
 
 /**
  * Writes a page's own state into the address bar without navigating. `replaceState` rather than assigning

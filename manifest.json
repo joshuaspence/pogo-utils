@@ -2,7 +2,6 @@
   "name": "Pokémon GO Utilities",
   "short_name": "PoGo Utils",
   "description": "Events calendar, GPX route map, search strings, a Pokédex, exports for PGSharp and Live PokeMap, and a reader for a Pokémon's detail screen.",
-  "start_url": "./#/events",
   "display": "standalone",
   "background_color": "#f7f8fa",
   "theme_color": "#ffffff",
@@ -10,13 +9,5 @@
     { "src": "icons/192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/512.png", "sizes": "512x512", "type": "image/png" },
     { "src": "icons/maskable-768.png", "sizes": "768x768", "type": "image/png", "purpose": "maskable" }
-  ],
-  "shortcuts": [
-    { "name": "Events", "url": "./#/events" },
-    { "name": "Map", "url": "./#/map" },
-    { "name": "Search", "url": "./#/search" },
-    { "name": "Pokédex", "url": "./#/pokedex" },
-    { "name": "Integrations", "url": "./#/integrations" },
-    { "name": "Inventory", "url": "./#/inventory" }
   ]
 }
