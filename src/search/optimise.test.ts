@@ -175,6 +175,45 @@ test('an any of every term of an exhaustive category asks for nothing at all', (
   expect(short(any(...butOne.map((one) => yes(one.id))))).toBe(butOne.map((one) => one.term).join(','));
 });
 
+test('an any holding every term of an exhaustive category asks nothing, whatever else is beside them', () => {
+  const gender = category('gender');
+  const type = category('type');
+  const appraisal = category('appraisal');
+
+  expect([gender.exhaustive, type.exhaustive, appraisal.exhaustive]).toEqual([true, true, true]);
+  expect(TERMS_BY_ID.has('shiny')).toBe(true);
+
+  // Everything OR'd with Shiny is still everything, where splicing the category away alone would leave `shiny`.
+  expect(short(any(...gender.terms.map((one) => yes(one.id)), yes('shiny')))).toBe('');
+  expect(short(any(yes('shiny'), ...type.terms.map((one) => yes(one.id))))).toBe('');
+  expect(short(any(...appraisal.terms.map((one) => yes(one.id)), named('pikachu')))).toBe('');
+
+  // Nested, the group goes and the `all` around it keeps the rest of what it asks.
+  expect(short(all(yes('lucky'), any(...gender.terms.map((one) => yes(one.id)), yes('shiny'))))).toBe('lucky');
+});
+
+test('copies of one chip are one term, not every term of its category', () => {
+  const appraisal = category('appraisal');
+
+  expect(appraisal.terms.length).toBe(5);
+
+  // Five copies of `0*` ask for `0*`, however many pills that is.
+  const copies = Array.from({ length: appraisal.terms.length }, () => yes('star0'));
+
+  expect(short(any(...copies))).not.toBe('');
+  expect(short(any(...copies)).split(',')).toContain(term('star0'));
+});
+
+test('copies of one covered term are not the whole of what a union covers', () => {
+  const union = category('background').terms.find((one) => one.covers);
+  const first = 'locationbackground';
+
+  expect(union?.covers).toContain(first);
+
+  // Two copies of one covered term are that term, not the union of it and the one beside it.
+  expect(short(all(yes(first), yes(first)))).not.toBe(term('background'));
+});
+
 test('an any of all but some of a partition is written as the complement where that is shorter', () => {
   const appraisal = category('appraisal');
 
