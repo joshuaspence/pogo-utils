@@ -35,7 +35,19 @@ type Span = [number, number];
 /** What one pass over the tree collected, for the page to show under the string. */
 interface Told {
   rewrites: [string, string][];
-  lossy: boolean;
+  lossy: Lossy;
+}
+
+/**
+ * How the shortened string strays from the one arranged, in each of the two directions it can. A name matches
+ * nicknames as well as species, so the two rewrites of a name miss in opposite directions: a dex number matches the
+ * species alone and so *narrows*, and a shorter fragment matches every nickname beginning with it and so *widens*.
+ * They are kept apart because the second is the one that matters on a mass transfer — an added match is a Pokémon the
+ * reader did not ask to see, and may not notice in the list.
+ */
+export interface Lossy {
+  narrowed: boolean;
+  widened: boolean;
 }
 
 /**
@@ -161,7 +173,8 @@ function dexOf(fragment: string): number[] | null {
 
 /**
  * One name written as short as it goes. The name itself, the shortest leading fragment of it that still reaches the
- * same species, and those species as dex numbers are three spellings of one search.
+ * same species, and those species as dex numbers are three spellings of one search *as far as species go* — the game
+ * matches a name against nicknames too, which the fragment widens and the numbers drop, and `short` says so.
  *
  * Leading fragments rather than fragments from anywhere, for the reason `dexOf` gives, which also keeps what is
  * written recognisable as the name it came from. A name resolving to nothing is passed through untouched.
@@ -410,7 +423,10 @@ function short(node: Node, told: Told): Node {
     }
 
     if (shortened.numbered) {
-      told.lossy = true;
+      told.lossy.narrowed = true;
+    } else if (shortened.text !== name.text && !name.text.startsWith('+')) {
+      // A family is left out: it is the families of the species the name reaches, which the fragment keeps the same.
+      told.lossy.widened = true;
     }
 
     return { ...name, text: shortened.text };
@@ -454,11 +470,11 @@ function short(node: Node, told: Told): Node {
  * arranged, so turning the optimiser off puts the original string back rather than having to undo a rewrite.
  *
  * `rewrites` is the pairs worth showing, a reader who cannot see why `charmander` became `4` having been handed a
- * string to trust on a mass transfer with no way to check it. `lossy` marks the one reduction that is not an
- * equivalence — a name matches nicknames as well as species, where a dex number matches the species alone.
+ * string to trust on a mass transfer with no way to check it. `lossy` marks the reductions that are not an
+ * equivalence, both of them rewrites of a name, which is the one leaf matching nicknames as well as species.
  */
 export function optimise(state: State) {
-  const told: Told = { rewrites: [], lossy: false };
+  const told: Told = { rewrites: [], lossy: { narrowed: false, widened: false } };
   const tree = short(state.tree, told);
 
   return { state: { ...state, tree }, rewrites: told.rewrites, lossy: told.lossy };

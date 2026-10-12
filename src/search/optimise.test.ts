@@ -26,6 +26,9 @@ const span = (from: number | null, to: number | null): Leaf => ({ kind: 'range',
 const all = (...parts: Node[]) => group('all', parts);
 const any = (...parts: Node[]) => group('any', parts);
 
+/** What an untouched string, or one rewritten without straying, says about itself. */
+const EXACT = { narrowed: false, widened: false };
+
 const state = (tree: Node): State => ({ ...emptyState(), tree });
 
 /** The string an arrangement composes to once shortened, which is the only thing the page shows for it. */
@@ -54,14 +57,29 @@ const term = (id: string) => TERMS_BY_ID.get(id)?.term;
 
 test('a name is written as short as it goes, wherever the pill sits', () => {
   // `charmander` names one species and so does `4`, and the game reads the two the same way.
-  expect(told(all(named('charmander')))).toEqual({ query: '4', rewrites: [['charmander', '4']], lossy: true });
+  expect(told(all(named('charmander')))).toEqual({
+    query: '4',
+    rewrites: [['charmander', '4']],
+    lossy: { narrowed: true, widened: false },
+  });
 
   // The one reduction that needs to know nothing about what is around it, so it reaches a pill at any depth.
   expect(short(any(all(named('charmander'), yes('shiny')), named('bulbasaur')))).toBe('4,1&shiny,1');
 
   // A name that resolves to nothing is passed through: a nickname, a misspelling, or a fragment landing on a species
   // the dex cannot spell.
-  expect(told(all(named('mr snuggles')))).toEqual({ query: 'mr snuggles', rewrites: [], lossy: false });
+  expect(told(all(named('mr snuggles')))).toEqual({ query: 'mr snuggles', rewrites: [], lossy: EXACT });
+});
+
+test('a name shortened to a fragment says it now matches more nicknames', () => {
+  // `eev` reaches Eevee alone among species, as `eevee` does and in fewer characters than `133`. But the game matches a
+  // name against nicknames too, and `eev` is also every Pokémon nicknamed *Eevie* — a match the reader did not ask for,
+  // which is the wrong direction to be silent about in a string a mass transfer is run from.
+  expect(told(all(named('eevee')))).toEqual({
+    query: 'eev',
+    rewrites: [['eevee', 'eev']],
+    lossy: { narrowed: false, widened: true },
+  });
 });
 
 test('a family keeps its name, there being no family data here to turn it into numbers', () => {
@@ -69,12 +87,12 @@ test('a family keeps its name, there being no family data here to turn it into n
   const { query, lossy } = told(all(named('+charmander')));
 
   expect(query.startsWith('+')).toBe(true);
-  expect(lossy).toBe(false);
+  expect(lossy).toEqual(EXACT);
 });
 
 test('a name the game cannot spell is left alone', () => {
   // `pokedex.js` drops the apostrophe, so `farfetchd` reads as an ordinary word where the game's name is `Farfetch'd`.
-  expect(told(all(named('farfetch')))).toEqual({ query: 'farfetch', rewrites: [], lossy: false });
+  expect(told(all(named('farfetch')))).toEqual({ query: 'farfetch', rewrites: [], lossy: EXACT });
 });
 
 test('dex spans AND’d collapse into their overlap, and OR’d into their union', () => {
