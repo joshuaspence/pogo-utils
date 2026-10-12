@@ -1,7 +1,8 @@
 /**
- * The event feed, shared by the four parts that read it: `scripts/vend-feed.mts` copies upstream into `VENDED_EVENTS`,
- * `src/pages/events.tsx` and `scripts/build-ics.mts` each merge that copy with this repository's own list, and
- * `scripts/prune-events.mts` drops the entries `prunable` says are over.
+ * The event feed, shared by the five parts that read it: `scripts/vend-feed.mts` copies upstream into `VENDED_EVENTS`,
+ * `src/pages/events.tsx` and `scripts/build-ics.mts` each merge that copy with this repository's own list,
+ * `scripts/prune-events.mts` drops the entries `prunable` says are over, and `src/pages/map.tsx` reads that list for the
+ * names of the events its routes belong to.
  */
 
 import type { FeedEvent, RouteCounts } from './types.js';
