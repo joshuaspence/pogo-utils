@@ -368,7 +368,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
           const marker = L.circleMarker(place.coords, cityStyle(place)).addTo(map);
           const entry: CityEntry = { ...place, id: `w${cities.length}`, marker };
 
-          marker.bindTooltip(place.name);
+          // An element rather than the string: Leaflet assigns string content with innerHTML, and the name is read out
+          // of a GPX file.
+          marker.bindTooltip(el('span', null, place.name));
           marker.on('click', () => select([entry.id], { pan: false }));
           cities.push(entry);
         }
