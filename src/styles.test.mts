@@ -438,3 +438,46 @@ test('a rule keyed on a shown element is not a hiding rule', () => {
     kept: [],
   });
 });
+
+/**
+ * The sheets under `src/` that `main.tsx` imports, resolved to paths. Only relative specifiers are this check's: a
+ * package's sheet — `leaflet/dist/leaflet.css` — lives outside `src/` and is no file the walk would find.
+ */
+function importedSheets(source: string) {
+  return new Set(
+    [...source.matchAll(/^import\s+['"](\.{1,2}\/[^'"]+\.css)['"];?$/gm)].map(([, spec]) => join(STYLES, spec ?? '')),
+  );
+}
+
+test('every stylesheet under src/ is imported from main.tsx', () => {
+  /*
+   * The half of "every sheet is imported from the entry" that `scripts/assemble.mts` cannot see. A sheet imported from
+   * a page reaches `dist/src/` and is caught there as one no document links; a sheet nothing imports never enters
+   * esbuild's graph, never reaches `dist/`, and leaves its page unstyled with the build and every check above green —
+   * those walk `src/`, so they check a forgotten sheet's scoping as carefully as a loaded one's.
+   */
+  const imported = importedSheets(readFileSync(join(STYLES, 'main.tsx'), 'utf8'));
+  const missing = sources('.css')
+    .filter((sheet) => !imported.has(sheet))
+    .map((sheet) => `${sheet.slice(ROOT.length + 1)} is not imported from src/main.tsx`);
+
+  // Named rather than counted, so a failure says which sheet is never loaded.
+  expect(missing.sort()).toEqual([]);
+
+  // And that the imports were read at all, rather than a pattern matching nothing against a walk that found nothing.
+  expect(imported.size).toBeGreaterThan(0);
+});
+
+test('the import check reads relative sheets and nothing else', () => {
+  const imported = importedSheets(
+    [
+      "import './theme.css';",
+      'import "./nested/page.css"',
+      "import 'leaflet/dist/leaflet.css';",
+      "import { byId } from './dom.js';",
+      "// import './commented.css';",
+    ].join('\n'),
+  );
+
+  expect(imported).toEqual(new Set([join(STYLES, 'theme.css'), join(STYLES, 'nested/page.css')]));
+});
