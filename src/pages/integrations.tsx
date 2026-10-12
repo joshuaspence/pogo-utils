@@ -23,7 +23,8 @@ import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filte
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
-import { DOWNLOAD_URL, type Release, releaseFromApk, VENDED_RELEASE } from '../pgsharp/release.js';
+import { releaseStore, useReleaseStore } from '../pgsharp/release-store.js';
+import { DOWNLOAD_URL } from '../pgsharp/release.js';
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -102,32 +103,6 @@ function downloadBytes(bytes: Uint8Array<ArrayBuffer>, name: string) {
  */
 const FEED_COUNT = JSON.parse(CONTROL_RESETS.resetFeeds.hlfeeds).length;
 
-/**
- * The release `scripts/vend-pgsharp.mts` last wrote, its URL put through the same `releaseFromApk` the vend did, so the
- * button links to `dl.pgsharp.com` or to nothing it read here. A miss of any kind leaves the button on PGSharp's
- * unversioned link rather than failing the page.
- */
-async function fetchRelease(): Promise<Release | null> {
-  try {
-    const res = await fetch(VENDED_RELEASE, { cache: 'default' });
-
-    if (!res.ok) {
-      throw new Error(`${res.status} ${res.statusText}`);
-    }
-
-    const raw: Partial<Release> = await res.json();
-
-    if (typeof raw.url !== 'string') {
-      throw new Error('no url');
-    }
-
-    return releaseFromApk(raw.url);
-  } catch (e) {
-    console.error(`${VENDED_RELEASE}: ${said(e)} — the download button will not name a version`);
-    return null;
-  }
-}
-
 /** What the last press of the button came to, and whether it is a failure the status line should colour red. */
 interface Status {
   message: string;
@@ -142,10 +117,11 @@ export default function IntegrationsPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
-  const [release, setRelease] = useState<Release | null>(null);
+  // The top bar has usually asked for it already, in which case this is handed the same load.
+  const { release } = useReleaseStore();
 
   useEffect(() => {
-    void fetchRelease().then(setRelease);
+    void releaseStore.ensureLoaded();
   }, []);
 
   /**
