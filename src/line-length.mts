@@ -48,7 +48,7 @@ export function width(text: string) {
  * a shift in TypeScript or prose quoting a command, and taking one of those for a heredoc would exempt every line until
  * one happened to read `EOF`. For the same reason not on a line that is a shell comment.
  */
-const HEREDOC = /(?<!<)<<(?!<)-?\s*(?:'([^']+)'|"([^"]+)"|\\?([^\s'"<>|;&()]+))/;
+const HEREDOC = /(?<!<)<<(?!<)-?\s*(?:'([^']+)'|"([^"]+)"|\\?([^\s'"<>|;&()]+))/g;
 
 /** The Markdown code block languages that hold shell. */
 const SHELL_FENCES = new Set(['bash', 'console', 'sh', 'shell', 'zsh']);
@@ -88,7 +88,8 @@ export function overlong(fileName: string, text: string): Overlong[] {
   let fenceMarker: string | undefined;
   /** The column of the `run:` key whose block this is in, or undefined outside one. */
   let run: number | undefined;
-  let heredoc: string | undefined;
+  /** The words closing the heredocs open here, in the order they close: `cat <<A <<B` reads `A`'s body first. */
+  let heredocs: string[] = [];
   let ignoring = false;
   let ignoreNext = false;
 
@@ -106,7 +107,7 @@ export function overlong(fileName: string, text: string): Overlong[] {
     // A heredoc ends with the block it was written in at the latest, so one whose closing word never comes cannot
     // exempt the rest of the file.
     if (closesFence || leavesRun) {
-      heredoc = undefined;
+      heredocs = [];
     }
 
     if (leavesRun) {
@@ -119,7 +120,7 @@ export function overlong(fileName: string, text: string): Overlong[] {
     const exempt =
       ignoring ||
       ignoreNext ||
-      heredoc !== undefined ||
+      heredocs.length > 0 ||
       (markdown && fence === undefined && /^\s*\|/.test(line)) ||
       (json && JSON_STRING.test(line));
 
@@ -128,9 +129,9 @@ export function overlong(fileName: string, text: string): Overlong[] {
     const opened = markdown && fence === undefined ? FENCE.exec(line) : null;
     const marker = MARKER.exec(line)?.[1];
 
-    if (heredoc !== undefined) {
-      if (line.trim() === heredoc) {
-        heredoc = undefined;
+    if (heredocs.length > 0) {
+      if (line.trim() === heredocs[0]) {
+        heredocs.shift();
       }
     } else if (closesFence) {
       fence = undefined;
@@ -145,9 +146,9 @@ export function overlong(fileName: string, text: string): Overlong[] {
     } else if (marker === 'next-line') {
       ignoreNext = true;
     } else if (shell && !ignoring) {
-      const start = /^\s*#/.test(line) ? null : HEREDOC.exec(line);
+      const starts = /^\s*#/.test(line) ? [] : [...line.matchAll(HEREDOC)];
 
-      heredoc = start ? (start[1] ?? start[2] ?? start[3]) : undefined;
+      heredocs = starts.map((start) => start[1] ?? start[2] ?? start[3] ?? '');
     }
 
     const key = yaml && run === undefined ? RUN.exec(line) : null;
