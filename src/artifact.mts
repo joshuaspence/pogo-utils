@@ -1,14 +1,15 @@
 /**
- * What `assemble.mts` copies into the artifact and the checks it then holds the artifact to, as functions of the
- * directory they read. Apart from that script so the suite can import them, the script's own top level writing into
- * `dist/` as soon as it is loaded — `src/assemble.test.mts` holds each decision here to an artifact of its own.
+ * What `scripts/assemble.mts` copies into the artifact and the checks it then holds the artifact to, as functions of
+ * the directory they read. Here rather than in the script so the suite can import them — the script's own top level
+ * writes into `dist/` as soon as it is loaded — and beside `artifact.test.mts`, which holds each decision to an
+ * artifact of its own.
  */
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, extname, join, relative } from 'node:path';
-import { GAME_MASTER, TESSERACT_VENDOR } from '../src/generated.ts';
-import { SERVED_TYPES } from './served-types.mts';
+import { GAME_MASTER, TESSERACT_VENDOR } from './generated.ts';
+import { SERVED_TYPES } from '../scripts/served-types.mts';
 
 export const DIST = 'dist';
 
@@ -161,7 +162,10 @@ export const manifestLinks = (markup: string): string[] =>
 export type References = {
   pages: string[];
 
-  /** Deduplicated, because every page links the same manifest and its icons want reporting once rather than six times. */
+  /**
+   * Deduplicated, because every page links the same manifest and its icons want reporting once rather than six
+   * times.
+   */
   manifests: Set<string>;
 
   checked: number;
@@ -239,10 +243,10 @@ export function scanReferences(dist: string): References {
  * The other direction for stylesheets: every one under `dist/src/` that nothing in `named` links, relative to `dist`.
  *
  * The reference scan answers "is everything the markup names here", which a stylesheet nothing names passes without
- * being read. That is not hypothetical. esbuild emits a CSS file per chunk, so a stylesheet imported by a page the shell
- * reaches through `import()` lands beside that page's chunk — and esbuild ships no runtime to fetch it, so the five page
- * sheets were written into the artifact and no document ever loaded one. Every page rendered unstyled, and nothing in the
- * build said so: the module graph was complete, the markup resolved, the byte counts looked plausible.
+ * being read. That is not hypothetical. esbuild emits a CSS file per chunk, so a stylesheet imported by a page the
+ * shell reaches through `import()` lands beside that page's chunk — and esbuild ships no runtime to fetch it, so the
+ * five page sheets were written into the artifact and no document ever loaded one. Every page rendered unstyled, and
+ * nothing in the build said so: the module graph was complete, the markup resolved, the byte counts looked plausible.
  *
  * `src/main.tsx` importing all seven is the fix. This is what stops the next page-local `import './x.css'` from quietly
  * reintroducing it.

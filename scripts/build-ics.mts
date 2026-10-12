@@ -13,7 +13,7 @@
 import { LOCAL_EVENTS, VENDED_EVENTS } from '../src/event-feed.ts';
 import { ENTRIES_BY_EVENT } from '../src/generated.ts';
 import type { FeedEvent, RouteIndex } from '../src/types.js';
-import { calendar, calendarEvents, DIST, FEED } from './ics.mts';
+import { calendar, calendarEvents, DIST, FEED } from '../src/ics.mts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const feed: FeedEvent[] = JSON.parse(readFileSync(VENDED_EVENTS, 'utf8'));

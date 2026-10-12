@@ -122,8 +122,8 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
 
   /**
    * The first worker started while the model is kept, which every later one waits on: a cold cache would otherwise have
-   * each of the first few reads' workers fetch the same 4 MB at once, where waiting lets the rest read the first's copy.
-   * Whether it started is not waited on — a later worker that finds nothing kept fetches for itself.
+   * each of the first few reads' workers fetch the same 4 MB at once, where waiting lets the rest read the first's
+   * copy. Whether it started is not waited on — a later worker that finds nothing kept fetches for itself.
    */
   let warm: Promise<unknown> | null = null;
 

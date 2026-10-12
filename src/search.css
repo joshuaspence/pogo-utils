@@ -12,8 +12,8 @@
  * Each of these sheets was the only one in its document and could style `.chip`, `.name` and `.copy` as it liked. One
  * document loads all five, and between them they give nineteen class names a different meaning per page — `.chip` is a
  * three-state term toggle here, a plain on/off filter on the Pokédex and a type legend on the Events calendar. The
- * wrapper is what keeps each sheet's meaning to its own page; `data-page` is set on the body by the shell, from the same
- * table the router validates a fragment against.
+ * wrapper is what keeps each sheet's meaning to its own page; `data-page` is set on the body by the shell, from the
+ * same table the router validates a fragment against.
  */
 body[data-page='search'] {
   /**
@@ -35,10 +35,10 @@ body[data-page='search'] {
   --chip-l: 40%;
 
   /**
-   * The dark pair, declared straight into the query rather than onto the `:root` this named while the sheet was alone in
-   * its document. Nested, a `:root` is a *descendant* of the wrapper and matches nothing at all — the pair would never be
-   * read and every chip would carry the light lightness on a dark background. A declaration inside a nested conditional
-   * applies to the rule enclosing it, which is the wrapper, which is where the light pair above sits.
+   * The dark pair, declared straight into the query rather than onto the `:root` this named while the sheet was alone
+   * in its document. Nested, a `:root` is a *descendant* of the wrapper and matches nothing at all — the pair would
+   * never be read and every chip would carry the light lightness on a dark background. A declaration inside a nested
+   * conditional applies to the rule enclosing it, which is the wrapper, which is where the light pair above sits.
    */
   @media (prefers-color-scheme: dark) {
     --chip-s: 55%;
@@ -138,8 +138,8 @@ body[data-page='search'] {
 
   /**
    * The string is code and is read character by character — an l against a 1 decides whether a search works — so it is
-   * set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search string
-   * invites copying half of it.
+   * set in a mono face at a size that survives being read that way. It scrolls rather than wraps: a wrapped search
+   * string invites copying half of it.
    */
 
   .output code#query {
@@ -504,8 +504,8 @@ body[data-page='search'] {
 
   /**
    * An icon in one of those labels is sized up, because a label is 11px and an emoji that small reads as punctuation
-   * rather than as a mark of its own. `line-height: 1` keeps the taller glyph from stretching the heading's line box, the
-   * same reason the nav's tab icons carry it.
+   * rather than as a mark of its own. `line-height: 1` keeps the taller glyph from stretching the heading's line box,
+   * the same reason the nav's tab icons carry it.
    */
 
   .label .ico {
@@ -596,8 +596,8 @@ body[data-page='search'] {
 
   /**
    * The name box and the species it is offering. The list floats over what is beneath it rather than taking a place in
-   * the flow, because a list that pushes the page down as you type moves the chips you were about to click; that is what
-   * the wrapper is for, since an absolute position needs something to be absolute within.
+   * the flow, because a list that pushes the page down as you type moves the chips you were about to click; that is
+   * what the wrapper is for, since an absolute position needs something to be absolute within.
    */
 
   .combobox {
@@ -640,8 +640,8 @@ body[data-page='search'] {
   }
 
   /**
-   * What tells a family row from the species row above it. Faded rather than recoloured, so it stays the quieter half of
-   * the row on the one the keyboard or the pointer has reached as well as on the seven it has not.
+   * What tells a family row from the species row above it. Faded rather than recoloured, so it stays the quieter half
+   * of the row on the one the keyboard or the pointer has reached as well as on the seven it has not.
    */
 
   .suggestions .family {

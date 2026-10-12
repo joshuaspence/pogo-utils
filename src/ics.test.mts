@@ -7,7 +7,7 @@
  * happens not to hold today: a span across a daylight-saving change, a date with no time, a field carrying a newline.
  */
 
-import { calendar, calendarEvents, escape, FEED, fold, icsDate, SITE, vevent } from '../scripts/ics.mts';
+import { calendar, calendarEvents, escape, FEED, fold, icsDate, SITE, vevent } from './ics.mts';
 import RECURRING_TYPES from './recurring-types.ts';
 import type { FeedEvent } from './types.js';
 import { expect, test } from 'vitest';

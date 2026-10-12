@@ -17,7 +17,7 @@ import {
   scanReferences,
   unservedFiles,
   VENDORED,
-} from './artifact.mts';
+} from '../src/artifact.mts';
 
 let copied = 0;
 

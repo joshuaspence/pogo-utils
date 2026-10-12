@@ -1,7 +1,7 @@
 /**
- * Global, and the one rule here that is. A body box as tall as the viewport overflows visibly on the four pages that are
- * longer than one, which is the scrolling they already do, so there is nothing to scope — where the `overflow: hidden`
- * below very much is this page's.
+ * Global, and the one rule here that is. A body box as tall as the viewport overflows visibly on the four pages that
+ * are longer than one, which is the scrolling they already do, so there is nothing to scope — where the `overflow:
+ * hidden` below very much is this page's.
  */
 html,
 body {
@@ -17,8 +17,9 @@ body {
  * router validates a fragment against.
  *
  * This is the sheet that needed it most. The three declarations here were a bare `body` rule, and an unscoped
- * `overflow: hidden` would have reached all five pages — the Pokédex grid of 1025 species with a scrollbar and no way to
- * use it. The bare `header` and `footer` rules below would likewise have drawn a border under every other page's heading.
+ * `overflow: hidden` would have reached all five pages — the Pokédex grid of 1025 species with a scrollbar and no way
+ * to use it. The bare `header` and `footer` rules below would likewise have drawn a border under every other page's
+ * heading.
  */
 body[data-page='map'] {
   display: flex;
@@ -30,8 +31,8 @@ body[data-page='map'] {
    *
    * It is the one box this layout did not have to account for before. `.app` was a direct child of `<body>` in the old
    * document and took its height from the flex column above; the shell renders into a `<div>` between the two, which is
-   * `display: block` and so sized by its content. `.app`'s `flex: 1` then had no flex parent to fill and the map came out
-   * 413px tall in a 757px viewport — the sidebar's content height, with the rest of the window below it empty.
+   * `display: block` and so sized by its content. `.app`'s `flex: 1` then had no flex parent to fill and the map came
+   * out 413px tall in a 757px viewport — the sidebar's content height, with the rest of the window below it empty.
    *
    * `min-height: 0` for the reason `.app` and `#sidebar` below carry it: a flex item's floor is its content, so without
    * this the route list refuses to shrink and pushes the column past the viewport instead of scrolling inside it.
@@ -154,9 +155,10 @@ body[data-page='map'] {
   }
 
   /**
-   * How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent names
-   * and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows there,
-   * and the count follows the filter (see the input handler in app.js) so it never contradicts what is on screen.
+   * How many entries the group holds. Every group starts collapsed, so without this the page is five bare continent
+   * names and no hint of what is behind them. Right-aligned to line up with the distance each route row already shows
+   * there, and the count follows the filter (see the input handler in app.js) so it never contradicts what is on
+   * screen.
    */
 
   .continent .gcount,
@@ -229,10 +231,10 @@ body[data-page='map'] {
   }
 
   /**
-   * An entry added for an event is drawn in --event on the map, whichever of the two kinds it is, so its marker follows:
-   * the shape still says line or dot, and the colour says where it came from. Keyed off the event line the row already
-   * carries rather than a second class saying the same thing, and placed after `.route.city` because the two selectors
-   * have equal specificity and a waypoint's row matches both.
+   * An entry added for an event is drawn in --event on the map, whichever of the two kinds it is, so its marker
+   * follows: the shape still says line or dot, and the colour says where it came from. Keyed off the event line the row
+   * already carries rather than a second class saying the same thing, and placed after `.route.city` because the two
+   * selectors have equal specificity and a waypoint's row matches both.
    */
 
   .route:has(.eventline)::before {
@@ -307,8 +309,8 @@ body[data-page='map'] {
 
   /**
    * Only a row carrying an event wraps, and the name is given a basis of zero within it so that it cannot push the
-   * distance and the Copy button down as well — the second line is for the event alone. Asking for the wrap on every row
-   * moved that pair onto its own line on 29 of the 80 rows here, none of which have an event.
+   * distance and the Copy button down as well — the second line is for the event alone. Asking for the wrap on every
+   * row moved that pair onto its own line on 29 of the 80 rows here, none of which have an event.
    */
 
   .route:has(.eventline) {
@@ -320,9 +322,9 @@ body[data-page='map'] {
   }
 
   /**
-   * Takes a line of its own — `flex-basis` on the span is what wraps it there — and indents by the marker plus its gap so
-   * it starts under the name rather than under the marker. The span carries the width so the link inside stays as wide as
-   * its text: were the link itself the full-width item, clicking the empty space beside it would leave the page
+   * Takes a line of its own — `flex-basis` on the span is what wraps it there — and indents by the marker plus its gap
+   * so it starts under the name rather than under the marker. The span carries the width so the link inside stays as
+   * wide as its text: were the link itself the full-width item, clicking the empty space beside it would leave the page
    * instead of selecting the entry, which is what clicking anywhere else on the row does.
    */
 
@@ -426,8 +428,8 @@ body[data-page='map'] {
 
   /**
    * No `display` of its own, and that is the rule: the `hidden` attribute is what says whether there is anything to
-   * report, and an author `display` here would outrank the UA stylesheet's `[hidden] {display: none}` and pin the banner
-   * open. `position: absolute` is enough to make it a block when it is shown.
+   * report, and an author `display` here would outrank the UA stylesheet's `[hidden] {display: none}` and pin the
+   * banner open. `position: absolute` is enough to make it a block when it is shown.
    */
   #banner {
     position: absolute;
@@ -507,8 +509,9 @@ body[data-page='map'] {
   }
 
   /**
-   * A reader who has asked the operating system for less movement still gets the layout, colour and elevation — only the
-   * swinging chevron, the fading copy button and the toast's slide go, each becoming an instant change of state instead.
+   * A reader who has asked the operating system for less movement still gets the layout, colour and elevation — only
+   * the swinging chevron, the fading copy button and the toast's slide go, each becoming an instant change of state
+   * instead.
    */
 
   @media (prefers-reduced-motion: reduce) {

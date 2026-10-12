@@ -1,13 +1,13 @@
 /**
- * The rules `validate-gpx.mts` holds the repository's GPX files to, as functions of the files and the tables they are
- * checked against. Apart from that script so the suite can import them, the script's own top level listing the
- * repository and exiting the process as soon as it is loaded — `src/validate-gpx.test.mts` holds each rule here to a
- * document it turns down.
+ * The rules `scripts/validate-gpx.mts` holds the repository's GPX files to, as functions of the files and the tables
+ * they are checked against. Here rather than in the script so the suite can import them — the script's own top level
+ * lists the repository and exits the process as soon as it is loaded — and beside `gpx-checks.test.mts`, which holds
+ * each rule to a document it turns down.
  */
 
-import { MIN_TRKPTS, PGR_FIELDS, PGR_NS } from '../src/gpx-dialect.ts';
-import { eventRefs, parseGpx } from '../src/gpx-source.mts';
-import type { RouteCounts } from '../src/types.js';
+import { MIN_TRKPTS, PGR_FIELDS, PGR_NS } from './gpx-dialect.ts';
+import { eventRefs, parseGpx } from './gpx-source.mts';
+import type { RouteCounts } from './types.js';
 import { Node, type Document, type Element } from '@xmldom/xmldom';
 import { validateXML } from 'xmllint-wasm';
 
@@ -34,8 +34,8 @@ export type EntryPass = {
 };
 
 /**
- * Every way `sources` falls short of GPX 1.1 against `schema`, which is `resources/gpx.xsd`: not well-formed, or not the
- * shape the schema allows.
+ * Every way `sources` falls short of GPX 1.1 against `schema`, which is `resources/gpx.xsd`: not well-formed, or not
+ * the shape the schema allows.
  */
 export async function schemaProblems(sources: readonly GpxSource[], schema: string): Promise<string[]> {
   const { valid, errors } = await validateXML({ xml: [...sources], schema: [schema] });
@@ -75,7 +75,8 @@ export function entryProblems(sources: readonly GpxSource[], { eventIds, countri
   const usedCountries = new Set<string>();
   let entryCount = 0;
 
-  // Report against the file, at the element's own line where there is one, matching the schema pass's `file:line:` form.
+  // Report against the file, at the element's own line where there is one, matching the schema pass's `file:line:`
+  // form.
   const report = (fileName: string, el: Element | undefined, message: string) =>
     problems.push(el?.lineNumber ? `${fileName}:${el.lineNumber}: ${message}` : `${fileName}: ${message}`);
 

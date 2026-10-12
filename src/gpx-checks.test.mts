@@ -6,7 +6,7 @@
  * Written out rather than read from `data/`, which holds only files that pass.
  */
 
-import { entriesByEvent, entryProblems, schemaProblems, unusedCountries } from '../scripts/gpx-checks.mts';
+import { entriesByEvent, entryProblems, schemaProblems, unusedCountries } from './gpx-checks.mts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';

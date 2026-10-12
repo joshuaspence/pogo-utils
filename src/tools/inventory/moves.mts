@@ -140,8 +140,8 @@ const MOVE_TAB = /\b(gyms|raids|trainer battles)\b/;
 const BELOW_MOVES = /\b(new attack|caught|hatched|traded|swap buddies|transfer|appraise)\b/;
 
 /**
- * The caption under a move the weather boosts: furniture, and three edits from Weather Ball. Matched by its start, since
- * OCR cuts it to `WEATHER BON` about as often as not.
+ * The caption under a move the weather boosts: furniture, and three edits from Weather Ball. Matched by its start,
+ * since OCR cuts it to `WEATHER BON` about as often as not.
  */
 const CAPTION = /\bweather bon/;
 
@@ -149,5 +149,7 @@ const CAPTION = /\bweather bon/;
 const MOVE_ROWS = 6;
 const MOVE_WIDTH = 0.62;
 
-/** Move names are words, with a hyphen in a few — `Lock-On`, `Power-Up Punch` — and a `+` or two after the Apex ones. */
+/**
+ * Move names are words, with a hyphen in a few — `Lock-On`, `Power-Up Punch` — and a `+` or two after the Apex ones.
+ */
 const MOVE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-'+ ";

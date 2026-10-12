@@ -15,7 +15,7 @@ import COUNTRIES from '../src/countries.ts';
 import { ENTRIES_BY_EVENT, GPX_PATHS } from '../src/generated.ts';
 import { gpxSources } from '../src/gpx-source.mts';
 import type { FeedEvent } from '../src/types.js';
-import { entriesByEvent, entryProblems, schemaProblems, unusedCountries } from './gpx-checks.mts';
+import { entriesByEvent, entryProblems, schemaProblems, unusedCountries } from '../src/gpx-checks.mts';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 // `--write` generates the two indexes beside the checks rather than instead of them: what it writes is what passed.

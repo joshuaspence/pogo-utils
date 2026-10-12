@@ -1,13 +1,14 @@
 /**
- * What `build-ics.mts` writes, as functions of what it reads: the iCalendar spelling of a feed event and the selection
- * of which events go in. Apart from that script so the suite can import it, the script's own top level reading
- * `data/` and writing `dist/` as soon as it is loaded — `src/build-ics.test.mts` holds each decision here to a case.
+ * What `scripts/build-ics.mts` writes, as functions of what it reads: the iCalendar spelling of a feed event and the
+ * selection of which events go in. Here rather than in the script so the suite can import it — the script's own top
+ * level reads `data/` and writes `dist/` as soon as it is loaded — and beside `ics.test.mts`, which holds each
+ * decision to a case.
  */
 
-import { byCodeUnit, HAS_ZONE, routeSummary } from '../src/event-feed.ts';
-import { EVENTS_FEED } from '../src/generated.ts';
-import RECURRING_TYPES from '../src/recurring-types.ts';
-import type { FeedEvent, RouteIndex } from '../src/types.js';
+import { byCodeUnit, HAS_ZONE, routeSummary } from './event-feed.ts';
+import { EVENTS_FEED } from './generated.ts';
+import RECURRING_TYPES from './recurring-types.ts';
+import type { FeedEvent, RouteIndex } from './types.js';
 import { join } from 'node:path';
 
 /**
@@ -17,9 +18,9 @@ import { join } from 'node:path';
 export const SITE = 'https://joshuaspence.github.io/pogo-utils';
 
 /**
- * The artifact this writes into, which `scripts/assemble.mts` spells for itself. Made by `build-ics.mts` rather than taken for
- * granted: the only thing that creates `dist/` is esbuild in `scripts/bundle.mts`, which left `pnpm build:ics` on its
- * own failing on an `ENOENT` for a directory the step before it happened to make.
+ * The artifact this writes into, which `scripts/assemble.mts` spells for itself. Made by `scripts/build-ics.mts` rather
+ * than taken for granted: the only thing that creates `dist/` is esbuild in `scripts/bundle.mts`, which left
+ * `pnpm build:ics` on its own failing on an `ENOENT` for a directory the step before it happened to make.
  */
 export const DIST = 'dist';
 

@@ -18,7 +18,7 @@ import {
   scanReferences,
   unservedFiles,
   VENDORED,
-} from '../scripts/artifact.mts';
+} from './artifact.mts';
 import { TESSERACT_VENDOR } from './generated.ts';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
