@@ -34,7 +34,8 @@
     "vend": "npm-run-all --continue-on-error --parallel --print-label 'vend:*'",
     "vend:events": "node scripts/vend-feed.mts",
     "vend:game-master": "node scripts/vend-game-master.mts",
-    "vend:pgsharp": "node scripts/vend-pgsharp.mts"
+    "vend:pgsharp": "node scripts/vend-pgsharp.mts",
+    "watch:livepokemap": "node scripts/watch-livepokemap.mts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
