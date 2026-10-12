@@ -8,6 +8,7 @@
 
 import { Notices } from './notices.js';
 import { PAGES, toHash, type Page } from './router.js';
+import { Settings } from './settings.js';
 
 /**
  * A tab links the page's bare fragment, so clicking one opens that page in its default state rather than carrying the
@@ -31,10 +32,11 @@ export function Nav({ current }: { current: Page }) {
       </nav>
 
       {/*
-       * Outside the `<nav>`, which scrolls sideways on a phone and so would clip the list this opens. It is not a tab
-       * either: it goes nowhere until a notice in it is chosen.
+       * Outside the `<nav>`, which scrolls sideways on a phone and so would clip the panels these open. Neither is a
+       * tab either: the notifications go nowhere until a notice in them is chosen, and the settings belong to no page.
        */}
       <Notices />
+      <Settings />
     </div>
   );
 }

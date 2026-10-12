@@ -174,3 +174,24 @@ test('reloading the preferences keeps the object every reader holds', () => {
   expect(store.prefs).toBe(held);
   expect(held.hiddenTypes.has('Season')).toBe(true);
 });
+
+test('an import re-reads storage, settles a seen set the file left out, and tells every reader', async () => {
+  const { store } = storeOver([feedEvent('a'), feedEvent('b')]);
+
+  await store.load();
+
+  const held = store.prefs;
+  const listener = vi.fn();
+  store.subscribe(listener);
+
+  // What an import writes: a file from a browser that hid Events and had not yet stored a seen set.
+  storage.setItem(KEYS.hiddenTypes, JSON.stringify(['Events']));
+  storage.removeItem(KEYS.seen);
+  store.restored();
+
+  expect(store.prefs).toBe(held);
+  expect(held.hiddenTypes.has('Events')).toBe(true);
+  expect(store.restores).toBe(1);
+  expect(JSON.parse(storage.getItem(KEYS.seen) ?? 'null')).toEqual(['a', 'b']);
+  expect(listener).toHaveBeenCalled();
+});
