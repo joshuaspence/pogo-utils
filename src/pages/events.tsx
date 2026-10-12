@@ -947,7 +947,13 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     <>
       <header class="page">
         <h1>Pokémon GO Events</h1>
-        <p class="sub">{count}</p>
+        {/*
+         * The live region, rather than `<main>`: the count is the one line that answers a search, a filter or a load,
+         * where the body under it changes on every keystroke and with the relative times on the minute tick.
+         */}
+        <p class="sub" aria-live="polite">
+          {count}
+        </p>
 
         {/*
          * How many events have appeared since this browser last acknowledged them, and the one control that clears them
@@ -1093,7 +1099,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         </div>
       </section>
 
-      <main aria-live="polite">{failed === null && drawn.body}</main>
+      <main>{failed === null && drawn.body}</main>
 
       <footer>
         <p>
