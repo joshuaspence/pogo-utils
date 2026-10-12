@@ -21,7 +21,6 @@
     "lint:html": "html-validate '**/*.html'",
     "lint:js": "eslint .",
     "lint:js:fix": "eslint --fix .",
-    "lint:line-length": "node scripts/check-line-length.mts",
     "lint:prettier": "prettier --check .",
     "lint:prettier:fix": "prettier --write .",
     "lint:types": "pnpm build",

@@ -123,8 +123,7 @@ The Routes page's Copy button hands over the one entry it sits beside, written b
 than the country file it was read from.
 
 Every file is real GPX 1.1 and is checked against the schema on each push, using the copy of it vendored at
-[`resources/gpx.xsd`](resources/gpx.xsd). That check, the HTML, CSS and JavaScript linters, and one that holds every
-line — comments included, which Prettier never reflows — to 120 characters, run together:
+[`resources/gpx.xsd`](resources/gpx.xsd). That check, and the HTML, CSS and JavaScript linters, run together:
 
 ```sh
 pnpm install
