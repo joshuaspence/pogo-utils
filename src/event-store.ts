@@ -184,6 +184,12 @@ export class EventStore {
   #prefs: Prefs | null = null;
   #filter: CardsFilter | null = null;
   #inflight: Promise<void> | null = null;
+  /**
+   * Whether `events` came from both files. A load that lost one still draws the other, but settles nothing against it:
+   * pruning against half the events would forget every ID the reader had acknowledged in the missing file, and seeding
+   * from them would mark the whole of that file new on the next good load.
+   */
+  #whole = false;
 
   constructor(fetchList = fetchEvents) {
     this.#fetchList = fetchList;
@@ -274,9 +280,15 @@ export class EventStore {
     this.settle();
   }
 
-  /** Settle the seen set against the events already loaded, for a Reset or an import that has just emptied it. */
+  /**
+   * Settle the seen set against the events already loaded, for a Reset or an import that has just emptied it — unless
+   * they came from one file alone, for the reason `#whole` gives.
+   */
   settle() {
-    settleSeen(this.prefs, this.events);
+    if (this.#whole) {
+      settleSeen(this.prefs, this.events);
+    }
+
     this.emit();
   }
 
@@ -324,7 +336,12 @@ export class EventStore {
       local.status === 'fulfilled' ? local.value : [],
     );
 
-    settleSeen(this.prefs, merged);
+    this.#whole = feed.status === 'fulfilled' && local.status === 'fulfilled';
+
+    if (this.#whole) {
+      settleSeen(this.prefs, merged);
+    }
+
     this.events = merged;
     this.failed = null;
     this.generation += 1;

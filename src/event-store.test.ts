@@ -215,3 +215,58 @@ test('an import re-reads storage, settles a seen set the file left out, and tell
   expect(JSON.parse(storage.getItem(KEYS.seen) ?? 'null')).toEqual(['a', 'b']);
   expect(listener).toHaveBeenCalled();
 });
+
+test('a load that finds only one file keeps the seen set the other file earned', async () => {
+  const source = { feed: [feedEvent('a'), feedEvent('b')], local: [feedEvent('c')], feedFails: false };
+  const fetchList = vi.fn(async (url: string) => {
+    if (!url.endsWith('events-feed.json')) {
+      return source.local;
+    }
+
+    if (source.feedFails) {
+      throw new Error('502 Bad Gateway');
+    }
+
+    return source.feed;
+  });
+  const store = new EventStore(fetchList);
+
+  await store.load();
+  source.feedFails = true;
+  await store.load();
+
+  expect(store.events.map((ev) => ev.eventID)).toEqual(['c']);
+  expect(JSON.parse(storage.getItem(KEYS.seen) ?? 'null')).toEqual(['a', 'b', 'c']);
+
+  source.feedFails = false;
+  await store.load();
+
+  expect(ids(store)).toEqual([]);
+});
+
+test('a first visit that finds only one file seeds nothing, so the other is not marked new when it arrives', async () => {
+  const source = { local: [feedEvent('c')], feedFails: true };
+  const fetchList = vi.fn(async (url: string) => {
+    if (!url.endsWith('events-feed.json')) {
+      return source.local;
+    }
+
+    if (source.feedFails) {
+      throw new Error('502 Bad Gateway');
+    }
+
+    return [feedEvent('a')];
+  });
+  const store = new EventStore(fetchList);
+
+  await store.load();
+  store.settle();
+
+  expect(storage.getItem(KEYS.seen)).toBeNull();
+
+  source.feedFails = false;
+  await store.load();
+
+  expect(ids(store)).toEqual([]);
+  expect(JSON.parse(storage.getItem(KEYS.seen) ?? 'null')).toEqual(['a', 'c']);
+});
