@@ -65,7 +65,8 @@ export const CP_LABEL = /\b[cg][pe]\s?[a-z]?\s?(\d{2,5}(?: \d{1,3})?)\b/;
 /**
  * The CP a line carrying `CP_LABEL` states, as its digits alone. The two halves of a number with a space in it are
  * joined only where the whole is no longer than `longest`, the most digits any CP runs to, so a second number OCR set
- * beside the CP is left off it rather than read into a CP no Pokémon has.
+ * beside the CP is left off it rather than read into a CP no Pokémon has. Null where what is left is still longer than
+ * that, spaced or not: `joined` can hang a stray digit off the artwork onto a whole `cp1441`, and a `14417` is no CP.
  */
 export function cpOn(text: string, longest: number): string | null {
   const read = CP_LABEL.exec(fold(text))?.[1];
@@ -75,8 +76,9 @@ export function cpOn(text: string, longest: number): string | null {
   }
 
   const joined = read.replace(' ', '');
+  const cp = joined.length <= longest ? joined : (read.split(' ')[0] ?? '');
 
-  return joined.length <= longest ? joined : (read.split(' ')[0] ?? null);
+  return cp.length <= longest ? cp : null;
 }
 
 /**
