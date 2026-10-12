@@ -11,6 +11,7 @@ import {
   startOfDay,
   statusOf,
   typeClass,
+  webLink,
   weekColumns,
   windowOf,
   type ParsedEvent,
@@ -365,4 +366,43 @@ test('a merge drops a date it cannot parse', () => {
   expect(ev?.start).toBeNull();
   expect(ev?.end).toBeNull();
   expect(statusOf(parsed({ ...ev }), NOW).kind).toBe('tbd');
+});
+
+/**
+ * The feed's `link` becomes an `href`, so only a web URL survives. The rest are what a strayed feed might carry: a
+ * scheme that runs or embeds something, a relative path that would resolve against this site, and a value that is not
+ * a string at all.
+ */
+test.for(['https://leekduck.com/events/a/', 'http://leekduck.com/events/a/', 'HTTPS://leekduck.com/events/a/'])(
+  'a web link %s is kept',
+  (link) => {
+    expect(webLink(link)).toBe(link);
+  },
+);
+
+test.for([
+  'javascript:alert(1)',
+  ' javascript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  'https:leekduck.com',
+  '//leekduck.com/events/a/',
+  '/events/a/',
+  '',
+  null,
+  undefined,
+  42,
+])('a link %s is dropped', (link) => {
+  expect(webLink(link)).toBeUndefined();
+});
+
+test('a merge drops a link that is not a web URL and keeps the event', () => {
+  const merged = mergeEvents(
+    [feedEvent({ eventID: 'bad', link: 'javascript:alert(1)' }), feedEvent({ eventID: 'good' })],
+    [],
+  );
+
+  expect(Object.fromEntries(merged.map((ev) => [ev.eventID, ev.link]))).toEqual({
+    bad: undefined,
+    good: 'https://example.invalid/',
+  });
 });

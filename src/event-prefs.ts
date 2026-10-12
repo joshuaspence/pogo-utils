@@ -105,16 +105,50 @@ const LEGACY_SETS = ['hiddenTypes', 'dismissed'] as const satisfies readonly (ke
 /**
  * The types hidden on a first visit: the recurring ones, which fire every week and crowd the feed, plus the ones that
  * describe a standing state rather than somewhere to be at a time — Choose Your Path, a GO Battle League rotation, a
- * GO Pass and Twitch Drops. They are `heading`s, the currency of `hiddenTypes`. Once any preference is saved the
- * stored set is authoritative, so turning one of these on sticks.
+ * GO Pass and Twitch Drops. They are `eventType` slugs, the currency of `hiddenTypes`. Once any preference is saved
+ * the stored set is authoritative, so turning one of these on sticks.
  *
  * Those extras stay out of `RECURRING_TYPES` because that list also says what the trimmed `events.ics` leaves out,
  * and each is a dated one-off worth keeping in a subscription.
  */
-export const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'Choose Your Path', 'GO Battle League', 'GO Pass', 'Twitch Drops'];
+export const DEFAULT_HIDDEN = [...RECURRING_TYPES, 'choose-your-path', 'go-battle-league', 'go-pass', 'twitch-drops'];
 
 /** The same list as a set, for the per-event lookups `isNew` and `settleSeen` do over every event on every render. */
 export const RECURRING = new Set(RECURRING_TYPES);
+
+/**
+ * The `heading` each type was stored under before the type sets were keyed by `eventType` slug, which is what a reader
+ * who saved a filter before then still holds, and what a backup taken then still carries. Every pairing the feed and
+ * `data/events.json` had shown at the time, one-to-one in both directions, plus Choose Your Path from `DEFAULT_HIDDEN`.
+ *
+ * Translated on every read rather than rewritten once, so an old backup imported later lands the same way, and the
+ * next click writes the slugs back. A member not listed here is kept as it is: a slug already, or a heading no feed
+ * here ever paired with one, which matches nothing either way.
+ */
+const HEADING_SLUGS: ReadonlyMap<string, string> = new Map([
+  ['Choose Your Path', 'choose-your-path'],
+  ['Community Day', 'community-day'],
+  ['Event', 'event'],
+  ['GO Battle League', 'go-battle-league'],
+  ['GO Pass', 'go-pass'],
+  ['Max Battles', 'max-battles'],
+  ['Max Mondays', 'max-mondays'],
+  ['Pokémon GO Tour', 'pokemon-go-tour'],
+  ['Pokémon Spotlight Hour', 'pokemon-spotlight-hour'],
+  ['Raid Battles', 'raid-battles'],
+  ['Raid Day', 'raid-day'],
+  ['Raid Hour', 'raid-hour'],
+  ['Regional Event', 'regional-event'],
+  ['Research', 'research'],
+  ['Season', 'season'],
+  ['Twitch Drops', 'twitch-drops'],
+  ['Wild Area', 'wild-area'],
+]);
+
+/** A stored type set with any `heading` it still carries translated to its slug — see `HEADING_SLUGS`. */
+function asSlugs(types: Set<string> | null): Set<string> | null {
+  return types === null ? null : new Set([...types].map((type) => HEADING_SLUGS.get(type) ?? type));
+}
 
 /** One stored value as it stands, or null where the key has never been written or storage cannot be read at all. */
 function readRaw(key: string): string | null {
@@ -142,7 +176,7 @@ function readJSON(key: string): unknown {
 /**
  * The members of a stored array that are strings, or null where the value is not an array. Filtering is also what
  * narrows: `Array.isArray` alone gets no further than `any[]`, where a `typeof` in a `filter` infers the predicate.
- * Dropping a stray costs nothing — these are compared against `eventID`s and `heading`s.
+ * Dropping a stray costs nothing — these are compared against `eventID`s and `eventType` slugs.
  */
 function stringsOf(value: unknown): string[] | null {
   return Array.isArray(value) ? (value as readonly unknown[]).filter((m) => typeof m === 'string') : null;
@@ -193,7 +227,7 @@ function readSetsByView(key: string): Record<string, Set<string>> {
     const strings = stringsOf(members);
 
     if (strings !== null) {
-      sets[name] = new Set(strings);
+      sets[name] = new Set(strings.map((type) => HEADING_SLUGS.get(type) ?? type));
     }
   }
 
@@ -313,7 +347,7 @@ export function loadPrefs(): Prefs {
   migrateLegacy();
 
   return {
-    hiddenTypes: readSet(keyFor('hiddenTypes')) ?? legacySet('hiddenTypes') ?? new Set(DEFAULT_HIDDEN),
+    hiddenTypes: asSlugs(readSet(keyFor('hiddenTypes')) ?? legacySet('hiddenTypes')) ?? new Set(DEFAULT_HIDDEN),
     hiddenByView: readSetsByView(keyFor('hiddenByView')),
 
     // Anything but 'view' is global, so an unwritten or unreadable value lands on the default rather than on a scope

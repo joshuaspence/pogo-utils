@@ -52,7 +52,7 @@ export interface CardsFilter {
  * Nothing is new before the first feed has settled the seen record, so a slow fetch cannot flash badges over every card.
  */
 export function isNew(prefs: Prefs, ev: ParsedEvent) {
-  return prefs.seen !== null && !RECURRING.has(ev.heading) && !covers(prefs.seen, ev);
+  return prefs.seen !== null && !RECURRING.has(ev.eventType) && !covers(prefs.seen, ev);
 }
 
 /** Whether the seen record says the reader has seen this event, by its stamp or by its ID. */
@@ -71,7 +71,7 @@ export function admits(
   hidden: ReadonlySet<string>,
   { reveals, search }: Pick<CardsFilter, 'reveals' | 'search'>,
 ) {
-  if (hidden.has(ev.heading)) {
+  if (hidden.has(ev.eventType)) {
     return false;
   }
 
@@ -134,7 +134,7 @@ export function settleSeen(prefs: Prefs, settled: readonly ParsedEvent[]) {
     return;
   }
 
-  const tracked = settled.filter((ev) => !RECURRING.has(ev.heading));
+  const tracked = settled.filter((ev) => !RECURRING.has(ev.eventType));
   const seen = prefs.seen ?? { through: null, ids: new Set(tracked.map((ev) => ev.eventID)) };
 
   const stamps = tracked.flatMap((ev) =>
@@ -160,8 +160,9 @@ export function settleSeen(prefs: Prefs, settled: readonly ParsedEvent[]) {
 /**
  * One feed, checked to be a list. `Array.isArray` narrows no further than `any[]`, so the element type is a claim
  * rather than something the throw enforces. What makes it a safe one is `normalise`: every field is either handed to
- * `parseDate`, which answers null for anything that is not a date, or rendered as text — so a feed that changed shape
- * draws `undefined` rather than doing something with it.
+ * `parseDate`, which answers null for anything that is not a date, handed to `webLink`, which answers undefined for
+ * anything that is not a web URL, or rendered as text — so a feed that changed shape draws `undefined` rather than
+ * doing something with it.
  */
 export async function fetchEvents(url: string): Promise<readonly FeedEvent[]> {
   const res = await fetch(url, { cache: 'default' });

@@ -42,82 +42,27 @@
  */
 
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
-import { Device, KEY, typeable } from '../src/tools/inventory/adb.mts';
+import { Device } from '../src/tools/inventory/adb.mts';
 import { type Signature } from '../src/tools/inventory/artwork.mts';
 import { bestOf, faultsOf } from '../src/tools/inventory/attempts.mts';
-import { CP_LABEL, parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
+import { DEFAULTS, type Config, type Point } from '../src/tools/inventory/config.mts';
+import { parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, iconsFor, loadGameData } from '../src/tools/inventory/download.mts';
 import { closest, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { clearable, identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
-import { centre, findLine, fold, ocr, useEngine, type Line } from '../src/tools/inventory/ocr.mts';
+import { fold, ocr, useEngine, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import { showProgress } from '../src/tools/inventory/progress.mts';
-import {
-  artworkIn,
-  isDetail,
-  NO_BOX,
-  NO_OVERLAY,
-  printable,
-  readScreen,
-  refusals,
-} from '../src/tools/inventory/report.mts';
-import { offsetBetween, stitch, SCREEN_BAND, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
+import { artworkIn, NO_BOX, NO_OVERLAY, printable, readScreen, refusals } from '../src/tools/inventory/report.mts';
+import { offsetBetween, stitch, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
+import { storage, unsearchable } from '../src/tools/inventory/storage.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
-
-type Point = [number, number];
-
-interface Config {
-  package: string;
-  /** Where to tap, as fractions of the screen's width and height. Used where OCR cannot find the control by name. */
-  taps: {
-    /** The Poké Ball on the map that opens the main menu. */
-    mainMenu: Point;
-    /**
-     * The Pokémon button in that menu. Tapped blind rather than found by its label, because that label sits above the
-     * icon rather than inside it and tapping it dismisses the menu.
-     */
-    pokemonButton: Point;
-    /** The search box at the top of storage. */
-    search: Point;
-    /** The first Pokémon in the storage grid. */
-    firstTile: Point;
-    /** The close button at the foot of the detail screen. */
-    closeDetail: Point;
-  };
-  swipes: {
-    /** From one Pokémon to the next. */
-    next: [Point, Point];
-    /** Down the detail screen to the moves, and back up. */
-    scrollDown: [Point, Point];
-    scrollUp: [Point, Point];
-  };
-  /** How long to let each animation settle before the next screenshot, in milliseconds. */
-  waits: {
-    launch: number;
-    tap: number;
-    swipe: number;
-    scroll: number;
-    menu: number;
-    search: number;
-  };
-  /**
-   * Where PGSharp's overlay sits, if it is known. Left out, the scanner finds it on the first Pokémon whose box it can
-   * make out and uses that for the rest of the run, which is what lets one configuration suit any phone.
-   */
-  overlay?: OverlayBox;
-  /**
-   * The band of the screen that scrolls, which `--scroll` lines its frames up inside. Everything outside it is
-   * furniture that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and lining frames up
-   * over those finds the shift that keeps *them* still, which is none. `SCREEN_BAND` says where it was measured.
-   */
-  scrollBand: Band;
-}
 
 /**
  * The band a screen is watched for movement in, and how much of it may still differ for it to count as still. The
@@ -145,33 +90,6 @@ const SCROLL_DRAG_MS = 1000;
  * something. So this is where a drag stops being one, and what it leaves is under a line of the panel's own text.
  */
 const SCROLL_BACK_FLOOR = 0.012;
-
-const DEFAULTS: Config = {
-  package: 'com.nianticlabs.pokemongo',
-  taps: {
-    mainMenu: [0.5, 0.91],
-    pokemonButton: [0.25, 0.82],
-    search: [0.5, 0.155],
-    firstTile: [0.18, 0.27],
-    closeDetail: [0.5, 0.93],
-  },
-  swipes: {
-    next: [
-      [0.85, 0.3],
-      [0.15, 0.3],
-    ],
-    scrollDown: [
-      [0.5, 0.78],
-      [0.5, 0.28],
-    ],
-    scrollUp: [
-      [0.5, 0.35],
-      [0.5, 0.9],
-    ],
-  },
-  waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, search: 1500 },
-  scrollBand: SCREEN_BAND,
-};
 
 /** The searches that answer the yes-or-no columns, each column named for the game's own search term. */
 const FLAGS = ['shiny', 'lucky', 'costume', 'shadow', 'purified'] as const;
@@ -218,20 +136,6 @@ const COLUMNS = [
 
 /** How many times one detail screen is read before its reading is taken as final. */
 const READ_ATTEMPTS = 3;
-
-/**
- * How many backspaces clear the search box, and **the longest term `--search` will accept** — one number on purpose,
- * the box having no length of its own: all 234 characters of a patterned run landed with no sign of a cap, so what
- * bounds it is what this script types into it.
- *
- * It was 40, shorter than the 50 characters a re-snap sends, so ten survived the clear and the next term was typed
- * onto the end of them. The failure is silent, which is what makes the bound worth enforcing: the field scrolls, so a
- * merged term looks exactly like a clean one and the only symptom is a result count quietly wrong.
- *
- * Generous because generosity is free — `device.key` sends every code in one `input keyevent`, and a backspace on an
- * empty field does nothing. A term typed into the box by hand can still exceed it; clear it by hand too.
- */
-const CLEAR_KEYS = 300;
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
@@ -357,166 +261,6 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
   // Handed back rather than only printed, so that `snap` can refuse a screen on what was already read instead of
   // parsing it a second time; a Tesseract run is the slowest thing here.
   return read;
-}
-
-/**
- * Getting about storage on the phone: to the grid, a search typed into it, and where the first tile of what it left is.
- *
- * Shared by `scan` and `snap --search` rather than written once each, because the two have to agree about what a grid
- * is and which tile is its first. A second copy would drift, and the way it would show is a capture pinned off the
- * *second* Pokémon the search matched — a screenshot of the wrong Pokémon looks just like one of the right Pokémon.
- *
- * Taps are sized against a screenshot rather than `Config`, every position in it being a fraction of the screen so that
- * one configuration suits any phone of the same shape.
- */
-function storage(device: Device, config: Config, data: GameData, screen: Image) {
-  let searchBox: Point | null = null;
-  let fronted: Promise<void> | null = null;
-
-  const at = (p: Point): Point => [p[0] * screen.width, p[1] * screen.height];
-
-  const tap = async (p: Point, wait = config.waits.tap) => {
-    await device.tap(p);
-    await sleep(wait);
-  };
-
-  const swipe = async ([from, to]: [Point, Point], wait: number) => {
-    await device.swipe(at(from), at(to));
-    await sleep(wait);
-  };
-
-  /**
-   * The first Pokémon's CP label in a grid, which doubles as how a grid is told from the suggestions panel drawn over
-   * it: the panel carries no CP anywhere.
-   */
-  const tileLabel = (lines: readonly Line[]) =>
-    lines.find((l) => l.top > (searchBox?.[1] ?? 0) && fold(l.text).search(CP_LABEL) === 0);
-
-  /**
-   * How many Pokémon a search matched, off the game's own counter beside the magnifier in the POKEMON tab — `(1)`, or
-   * `(0)` where it found nothing — or null where the counter did not read.
-   *
-   * This is what separates the two halves `tileLabel` cannot. A grid whose first CP label misread and a search that
-   * matched nothing both leave no label, and the counter says which: measured on a shiny Ho-Oh the search matched, the
-   * tile read as `2738,` with its `CP` lost entirely while the counter beside it read `(1)`. The label is small grey
-   * text over a pale tile where the counter is the header's own, which is why one reads and the other does not.
-   *
-   * Matched on the raw text rather than the folded, `fold` stripping the brackets that carry the meaning — `(1)` and
-   * `6/12` both fold to a bare number. Above the search box for the same reason: a tile's `96%` has no brackets, but a
-   * nickname could, where nothing above the box is a Pokémon at all.
-   */
-  const matches = (lines: readonly Line[]): number | null => {
-    for (const line of lines) {
-      const counted = /\((\d+)\)/.exec(line.text);
-
-      if (counted && line.top < (searchBox?.[1] ?? Infinity)) {
-        return Number(counted[1]);
-      }
-    }
-
-    return null;
-  };
-
-  /**
-   * Launched where it is not already in front, which is the phone's answer to give rather than the user's: a game
-   * running and a game showing are different states, and only the second is one `toStorage` can start from. A game in
-   * the background still needs the launch to bring it forward — skipping it there taps the launcher instead, three
-   * times over, and reports that storage cannot be found. The wait goes with the launch, since thirty seconds is what a
-   * cold start costs and a game already drawn is past it; measured, a resume takes the focus back in 676ms.
-   *
-   * It belongs to `toStorage` rather than to each caller because it is `toStorage`'s own precondition, and a caller is
-   * free to forget it: every path that drives storage gets it from here whether its author thought of the backgrounded
-   * phone or not. Asked once per run rather than before every search, which is the one `adb` call `scan` spent when it
-   * owned this rather than one for each flag.
-   */
-  const foreground = async () => {
-    if ((await device.focused()) === config.package) {
-      console.error('Pokémon GO is already in front');
-    } else {
-      console.error('Launching Pokémon GO');
-      await device.launch(config.package);
-      await sleep(config.waits.launch);
-    }
-  };
-
-  /** Gets to the storage grid from wherever the game is: the map, a detail screen, or the grid already. */
-  const toStorage = async () => {
-    await (fronted ??= foreground());
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const image = await device.screenshot();
-      const lines = await readLines(image);
-
-      if (isStorage(lines)) {
-        return lines;
-      }
-
-      if (isDetail(await parseDetail(lines, data, image))) {
-        await tap(at(config.taps.closeDetail));
-        continue;
-      }
-
-      await tap(at(config.taps.mainMenu), config.waits.menu);
-      await tap(at(config.taps.pokemonButton), config.waits.search);
-    }
-
-    // Opening it by hand is enough on its own now: storage showing means the game is in front, so the next run reads
-    // that off the phone and neither relaunches it nor waits for a cold start it is not doing.
-    throw new Error('could not find Pokémon storage; open it by hand and run again');
-  };
-
-  /** Types a search into storage's search box, replacing whatever was there, and answers the grid it leaves. */
-  const search = async (term: string) => {
-    let lines = await toStorage();
-    searchBox ??= ((l) => (l ? centre(l) : null))(findLine(lines, /\bsearch\b/)) ?? at(config.taps.search);
-    await tap(searchBox);
-    await device.key(KEY.MOVE_END, ...Array<number>(CLEAR_KEYS).fill(KEY.DEL));
-
-    if (term) {
-      await device.type(term);
-    }
-
-    await device.key(KEY.ENTER);
-    await sleep(config.waits.search);
-    lines = await readLines(await device.screenshot());
-
-    // Clearing the box uncovers the Recent and Recommended suggestions, and Enter only takes the keyboard away; Back
-    // closes them and leaves the unfiltered grid behind. An empty search matches everything, so a grid with nothing in
-    // it is that panel and can be nothing else — which is a surer test than the panel's own headings, since PGSharp's
-    // toolbar sits down the left edge over their first letters and `Recent` reads as `serccemt` behind it. Getting
-    // this wrong is expensive rather than merely unhelpful: `firstTile` then falls back to its blind tap, which lands
-    // on the first Recent chip and quietly opens whatever was searched for last.
-    if (term === '' && !tileLabel(lines)) {
-      await device.key(KEY.BACK);
-      await sleep(config.waits.search);
-      lines = await readLines(await device.screenshot());
-
-      // A grid whose labels all misread is taken for the panel too, and Back closes storage itself from there.
-      if (!isStorage(lines)) {
-        lines = await toStorage();
-      }
-    }
-
-    return lines;
-  };
-
-  /**
-   * Where the first Pokémon in a grid is, to be tapped.
-   *
-   * The row comes from the grid and the column from the configuration, which is not a compromise but the right split.
-   * How far down the first row sits depends on whether a search is showing, so it has to be read; which column is
-   * first does not, since the grid is three even columns and 0.18 of the width lands in the leftmost of them on both
-   * phones tried. Taking the column from the label as well would open the *second* Pokémon whenever the first one's CP
-   * failed to OCR — in an `xxl` grid of five, the top row's only legible label was the middle tile's, so the walk began
-   * one along and marked four. One short is the hardest kind of wrong to notice.
-   */
-  const firstTile = (grid: readonly Line[]): Point => {
-    const label = tileLabel(grid);
-
-    return label ? [at(config.taps.firstTile)[0], label.top + label.height * 2.5] : at(config.taps.firstTile);
-  };
-
-  return { at, tap, swipe, search, tileLabel, matches, firstTile };
 }
 
 async function scan() {
@@ -1004,10 +748,6 @@ function looseKeyOf(detail: Detail, overlay: Overlay | null): string {
   return [detail.hp, detail.weight, detail.height, iv].join('|');
 }
 
-function isStorage(lines: readonly Line[]): boolean {
-  return findLine(lines, /\beggs?\b/) !== undefined || findLine(lines, /^search\b/) !== undefined;
-}
-
 function csv(value: string | number | null): string {
   const text = value === null ? '' : String(value);
 
@@ -1212,34 +952,23 @@ async function scrollUp(device: Device, screen: Image, pixels: number) {
 async function snap() {
   const name = rest[0] ?? new Date().toISOString().replaceAll(':', '-');
 
-  // Refused before the phone is opened, since nothing it answers could change it, and against `adb`'s own test rather
-  // than a second copy of it: a term `type` will not send is one the phone would be driven to storage and into the
-  // search box for before anything said so.
-  if (options.search !== undefined && !typeable(options.search)) {
-    console.error(`snap: --search ${JSON.stringify(options.search)} has characters the phone cannot be sent`);
+  // Refused before the phone is opened: a term `type` will not send, or one longer than the box can be cleared of, is
+  // one the phone would be driven to storage and into the search box for before anything said so.
+  const unsent = options.search === undefined ? null : unsearchable(options.search);
+
+  if (unsent !== null) {
+    console.error(`snap: --search ${unsent}`);
     process.exitCode = 1;
 
     return;
   }
 
-  // A term longer than the box can be cleared of would be typed onto the end of whatever `CLEAR_KEYS` left behind, and
-  // a merged term is the one failure the screen does not show: the field scrolls, so its visible tail reads correctly
-  // either way. Refused rather than trusted to a count, which is how 40 backspaces cost a pass of the corpus.
-  if (options.search !== undefined && options.search.length > CLEAR_KEYS) {
-    console.error(
-      `snap: --search is ${options.search.length} characters, more than the ${CLEAR_KEYS} the box can be cleared of`,
-    );
-    process.exitCode = 1;
-
-    return;
-  }
-
-  // The one term `typeable` passes and `--search` cannot use: it is `*`-quantified, so both `''` and a run of spaces
-  // satisfy it. An empty search matches everything, which would snap whatever the unfiltered grid happens to show first
-  // and exit 0 — a capture under a name claiming it is something else, and the unreproducible snap `--search` is here
-  // to replace. `--search "$TERM"` with `TERM` unset is how it arrives. A whitespace-only term is worse still: `search`
-  // types the space, so the `term === ''` test that closes the suggestions panel is skipped, and `firstTile` falls back
-  // to its blind tap onto the first Recent chip — opening whatever was searched for last.
+  // The one term `unsearchable` passes and `--search` cannot use: `typeable` is `*`-quantified, so both `''` and a run
+  // of spaces satisfy it. An empty search matches everything, which would snap whatever the unfiltered grid happens to
+  // show first and exit 0 — a capture under a name claiming it is something else, and the unreproducible snap
+  // `--search` is here to replace. `--search "$TERM"` with `TERM` unset is how it arrives. A whitespace-only term is
+  // worse still: `search` types the space, so the `term === ''` test that closes the suggestions panel is skipped, and
+  // `firstTile` falls back to its blind tap onto the first Recent chip — opening whatever was searched for last.
   if (options.search?.trim() === '') {
     console.error('snap: --search needs a term; an empty one matches everything, so the capture would name nothing');
     process.exitCode = 1;

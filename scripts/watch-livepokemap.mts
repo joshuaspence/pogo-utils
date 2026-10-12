@@ -14,6 +14,8 @@
  *   NTFY_TOKEN                  an ntfy access token, for a server or topic that needs one
  *   LPM_BASE_URL                Live PokeMap itself, `https://play.livepokemap.com` unless set
  *
+ * Any of these can come from `.env` at the repository root instead, which one set on the command line overrides.
+ *
  * It runs in the foreground until stopped. None of the secrets above is printed; nor is the token the login answers.
  * `--verbose` adds every request as it is sent and a line per poll.
  *
@@ -24,12 +26,12 @@
 import { LIVE_POKEMAP, LivePokeMap } from '../src/tools/watch/client.mts';
 import { blindSpots, parseQuery, type Query } from '../src/tools/watch/query.mts';
 import { watch } from '../src/tools/watch/watcher.mts';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 const USAGE =
   'usage: pnpm watch:livepokemap [--verbose] FILTER.json…  ' +
-  '(with LPM_USERNAME and LPM_PASSWORD set, and NTFY_TOPIC to notify a phone)';
+  '(with LPM_USERNAME and LPM_PASSWORD set, in the environment or `.env`, and NTFY_TOPIC to notify a phone)';
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
@@ -54,6 +56,11 @@ function fail(message: string): never {
 
 if (positionals.length === 0) {
   fail(USAGE);
+}
+
+// A file keeps a password out of the shell's history; a variable already in the environment wins over the file.
+if (existsSync('.env')) {
+  process.loadEnvFile('.env');
 }
 
 const { LPM_USERNAME: username, LPM_PASSWORD: password, NTFY_TOPIC: topic } = process.env;
