@@ -5,7 +5,7 @@
  *
  * Usage, from the repository root:
  *
- *   LPM_USERNAME=… LPM_PASSWORD=… [NTFY_TOPIC=…] pnpm watch [--verbose] FILTER.json…
+ *   LPM_USERNAME=… LPM_PASSWORD=… [NTFY_TOPIC=…] pnpm watch:livepokemap [--verbose] FILTER.json…
  *
  *   LPM_USERNAME, LPM_PASSWORD  the Live PokeMap account to log in as
  *   NTFY_TOPIC                  the ntfy topic to publish to, which anyone who knows it can read; unset, it runs
@@ -28,7 +28,7 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 const USAGE =
-  'usage: pnpm watch [--verbose] FILTER.json…  (with LPM_USERNAME and LPM_PASSWORD set, and NTFY_TOPIC to notify a phone)';
+  'usage: pnpm watch:livepokemap [--verbose] FILTER.json…  (with LPM_USERNAME and LPM_PASSWORD set, and NTFY_TOPIC to notify a phone)';
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,

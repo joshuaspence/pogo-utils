@@ -500,13 +500,13 @@ risk to the account is yours to weigh.
 
 ## Live PokeMap watcher
 
-`pnpm watch` keeps a [Live PokeMap](https://livepokemap.com) session open the way a browser tab would and pushes a
-notification to a phone through [ntfy](https://ntfy.sh) for each spawn one of its queries wants. A query is a Live
-PokeMap display filter, one file each: whatever its own **Export** writes, or the shiny hunt the
+`pnpm watch:livepokemap` keeps a [Live PokeMap](https://livepokemap.com) session open the way a browser tab would and
+pushes a notification to a phone through [ntfy](https://ntfy.sh) for each spawn one of its queries wants. A query is a
+Live PokeMap display filter, one file each: whatever its own **Export** writes, or the shiny hunt the
 [Integrations page](#import-into-live-pokemap) copies, pasted into a file.
 
 ```sh
-LPM_USERNAME=… LPM_PASSWORD=… NTFY_TOPIC=… pnpm watch shiny-hunt.json perfect-dratini.json
+LPM_USERNAME=… LPM_PASSWORD=… NTFY_TOPIC=… pnpm watch:livepokemap shiny-hunt.json perfect-dratini.json
 ```
 
 It runs in the foreground until stopped. Leave `NTFY_TOPIC` unset to run it console only: each match is printed in full

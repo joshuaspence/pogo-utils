@@ -20,7 +20,7 @@ import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 
-const SCRIPT = fileURLToPath(new URL('../../../scripts/watch.mts', import.meta.url));
+const SCRIPT = fileURLToPath(new URL('../../../scripts/watch-livepokemap.mts', import.meta.url));
 const fixturePath = (name: string) => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 const fixture = (name: string) => readFileSync(fixturePath(name), 'utf8');
 
