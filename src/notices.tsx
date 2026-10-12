@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { eventStore, useEventStore } from './event-store.js';
 import { releaseStore, useReleaseStore } from './pgsharp/release-store.js';
+import { useDismiss } from './popover.js';
 import { toHash } from './router.js';
 
 /** One entry in the list, whatever kind of thing it reports. */
@@ -102,42 +103,17 @@ export function Notices() {
     void releaseStore.ensureLoaded();
   }, []);
 
-  // A click anywhere outside, or Escape, closes the list, the way any menu closes.
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const away = (event: PointerEvent) => {
-      if (!(event.target instanceof Node && root.current?.contains(event.target))) {
-        setOpen(false);
-      }
-    };
-
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', away);
-    document.addEventListener('keydown', escape);
-
-    return () => {
-      document.removeEventListener('pointerdown', away);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
+  useDismiss(open, () => setOpen(false), root);
 
   const notices = SOURCES.flatMap((source) => source.notices());
   const count = notices.length;
   const label = count === 0 ? 'Notifications: none' : `Notifications: ${count} new`;
 
   return (
-    <div class="notices" ref={root}>
+    <div class="menu notices" ref={root}>
       <button
         type="button"
-        class="notices-toggle"
+        class="menu-toggle"
         aria-expanded={open}
         aria-controls="notices-list"
         aria-label={label}
@@ -152,8 +128,8 @@ export function Notices() {
         )}
       </button>
 
-      <div class="notices-panel" id="notices-list" hidden={!open}>
-        <div class="notices-head">
+      <div class="menu-panel" id="notices-list" hidden={!open}>
+        <div class="menu-head">
           <span>Notifications</span>
           {count > 0 && (
             <button

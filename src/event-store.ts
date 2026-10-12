@@ -172,6 +172,12 @@ export class EventStore {
   /** How many loads have landed, which is what the cards' entry animation is keyed by. */
   generation = 0;
 
+  /**
+   * How many imports have written over storage this document. The import lives in the top bar's settings rather than
+   * on the Events page, so this is how that page learns one has landed and drops the session reveals it holds itself.
+   */
+  restores = 0;
+
   readonly #fetchList: (url: string) => Promise<readonly FeedEvent[]>;
   readonly #listeners = new Set<() => void>();
   #prefs: Prefs | null = null;
@@ -255,6 +261,16 @@ export class EventStore {
     }
 
     this.commit('seen');
+  }
+
+  /**
+   * Re-read the preferences an import has just written and settle them against the feed, as one change: `settleSeen`
+   * reads an absent `seen` as a first visit, and a file that left it out must not mark every event new.
+   */
+  restored() {
+    this.reloadPrefs();
+    this.restores += 1;
+    this.settle();
   }
 
   /** Settle the seen set against the events already loaded, for a Reset or an import that has just emptied it. */

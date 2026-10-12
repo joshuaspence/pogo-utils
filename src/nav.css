@@ -5,10 +5,14 @@
  */
 
 /**
- * The bar itself, holding the tabs and the notifications control beside them. The background and rule are drawn here
- * rather than on the tabs, so they run under both.
+ * The bar itself, holding the tabs and the notifications and settings controls beside them. The background and rule are
+ * drawn here rather than on the tabs, so they run under all of it.
+ *
+ * Positioned so the panels its menus open hang from its right edge rather than each from its own control: the bell sits
+ * a gear's width in from the edge, and a phone-wide panel anchored to it would run that far off the left of the screen.
  */
 .topbar {
+  position: relative;
   display: flex;
   align-items: stretch;
   background: var(--panel);
@@ -69,17 +73,15 @@
 }
 
 /**
- * The notifications control, at the bar's far end. Positioned so the list it opens hangs from it, and outside the
- * scrolling `.topnav` so that list is not clipped by it.
+ * The notifications and settings controls, at the bar's far end, outside the scrolling `.topnav` so the panels they
+ * open are not clipped by it.
  */
-.notices {
-  position: relative;
+.menu {
   flex: 0 0 auto;
   display: flex;
-  border-left: 1px solid var(--border);
 }
 
-.notices-toggle {
+.menu-toggle {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -91,8 +93,8 @@
   cursor: pointer;
 }
 
-.notices-toggle:hover,
-.notices-toggle[aria-expanded='true'] {
+.menu-toggle:hover,
+.menu-toggle[aria-expanded='true'] {
   color: var(--text);
 }
 
@@ -115,7 +117,7 @@
  * Over everything, the Map page's Leaflet panes and controls included: Leaflet stacks its own up to 1000, and the map's
  * toast sits at 1200.
  */
-.notices-panel {
+.menu-panel {
   position: absolute;
   top: 100%;
   right: 6px;
@@ -131,7 +133,7 @@
   font-size: 13px;
 }
 
-.notices-head {
+.menu-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -155,23 +157,23 @@
   color: var(--muted);
 }
 
-.notices-panel ul {
+.notices .menu-panel ul {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.notices-panel li {
+.notices .menu-panel li {
   display: flex;
   align-items: flex-start;
   border-bottom: 1px solid var(--border);
 }
 
-.notices-panel li:last-child {
+.notices .menu-panel li:last-child {
   border-bottom: none;
 }
 
-.notices-panel li a {
+.notices .menu-panel li a {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -182,8 +184,8 @@
   text-decoration: none;
 }
 
-.notices-panel li a:hover,
-.notices-panel li a:focus-visible {
+.notices .menu-panel li a:hover,
+.notices .menu-panel li a:focus-visible {
   background: var(--accent-soft);
 }
 
@@ -213,20 +215,90 @@
 }
 
 /**
- * Tighten the tabs on a narrow screen so less of the bar is scrolled off. Five fitted down to roughly a 540px viewport
- * this way; six fit nowhere under 800px, which is what the scrolling above is for.
+ * The settings panel's contents: a titled section per thing it controls, each a line of explanation, its buttons, and
+ * the line that reports what the last press did.
+ */
+.settings-section {
+  padding: 10px 12px 12px;
+}
+
+.settings-section h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.settings-note {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-actions button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-actions button:hover,
+.settings-actions button:focus-visible {
+  border-color: var(--track);
+  color: var(--track);
+}
+
+.settings-status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/**
+ * Waits in the DOM with nothing in it, for the reason the markup gives; an empty block has no line box, so its margin
+ * is the whole of what it costs and this takes that away.
+ */
+.settings-status:empty {
+  margin: 0;
+}
+
+/**
+ * Tighten the tabs on a narrow screen and drop their labels, so the whole bar fits a phone. The scrolling above stays
+ * for a viewport narrower still, or a tab added later.
  */
 @media (width <= 560px) {
   .topnav {
     padding: 0 4px;
   }
 
-  .notices-toggle {
+  .menu-toggle {
     padding: 0 10px;
   }
 
   .topnav .tab {
     gap: 6px;
     padding: 13px 12px;
+  }
+
+  /**
+   * Six labels do not fit a phone, so the icons carry the bar alone there. Hidden visually rather than with `display:
+   * none`, which would take the label out of the accessible name too, the icon beside it being `aria-hidden`; the
+   * `title` on each tab is what names it to a pointer.
+   */
+  .topnav .tab .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }

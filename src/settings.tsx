@@ -1,0 +1,172 @@
+/**
+ * The settings control at the end of the top bar, beside the notifications, on every tab: a gear that opens a panel
+ * for what belongs to the browser rather than to any one page. So far that is the backup of everything this app keeps
+ * in `localStorage` — export it as a file, or import one back — which lived on the Events page while the events
+ * preferences were the only thing stored, and moved here once other tabs had choices of their own worth carrying.
+ */
+
+import { useRef, useState } from 'preact/hooks';
+
+import { applyBackup, backupName, ownedKeys, parseBackup, rescueName, writeBackup } from './backup.js';
+import { said } from './errors.js';
+import { eventStore } from './event-store.js';
+import { useDismiss } from './popover.js';
+
+/**
+ * Hand text over as a download, a synthetic click on an `<a download>` being the only way a page can name a file.
+ * `downloadBytes` in `src/pages/integrations.tsx` is the same shape for bytes, and the two are worth collapsing into
+ * `dom.ts` as their own change — one that reaches a page this one does not touch.
+ */
+function downloadText(text: string, name: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  const a = document.createElement('a');
+
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function Settings() {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  /**
+   * What the last export or import had to say, or null before either. A line of its own rather than a toast, since a
+   * refusal is the one thing here a reader may need to read twice and act on.
+   */
+  const [status, setStatus] = useState<string | null>(null);
+
+  /** The file picker Import clicks, hidden so the two controls match each other rather than one being browser-styled. */
+  const picker = useRef<HTMLInputElement>(null);
+
+  useDismiss(open, () => setOpen(false), root);
+
+  /**
+   * Hand the saved preferences over as a file. A storage failure is reported rather than swallowed: `writeBackup` lets
+   * one through for exactly this reason, a download that quietly did not happen being worse than one that says why.
+   */
+  function exportPrefs() {
+    try {
+      const name = backupName(new Date());
+
+      downloadText(writeBackup(), name);
+      setStatus(`Saved ${name}.`);
+    } catch (e) {
+      setStatus(`Could not save a backup: ${said(e)}`);
+    }
+  }
+
+  /**
+   * Read a backup back, over whatever is stored now. Keys the file omits are left alone, so a faithful restore is one
+   * into a cleared browser, which is the browser's own site data and not the Events page's Reset: `reset()` names the
+   * five keys that page owns, where an import writes through anything in the namespace.
+   */
+  async function importPrefs(file: File) {
+    try {
+      const incoming = parseBackup(await file.text());
+
+      // Judged before anything is saved and saved before anything is written, so a copy is taken only for a file that
+      // is about to be applied. This is the undo: a reader who picks the wrong file has nothing else to go back to,
+      // and the keys it replaces are the ones nothing can reconstruct.
+      //
+      // The skip is not a formality. `settleSeen` writes `seen` as soon as the feed lands, so a loaded page nearly
+      // always has something stored — except in the one flow this exists for, a reader who has just cleared their
+      // browser and imports before the feed arrives, where a copy of nothing would be the first thing they saw.
+      if (ownedKeys().length > 0) {
+        downloadText(writeBackup(), rescueName(new Date()));
+      }
+
+      const written = applyBackup(incoming);
+
+      // Nothing written is nothing to correct, and leaving before the corrections is what makes the message below
+      // true: they are not free — the Events page closes a reveal the reader had opened — so running them anyway would
+      // say nothing changed on the one render where *Show ended* had just emptied itself.
+      if (written.length === 0) {
+        setStatus('That backup held no saved preferences, so nothing changed.');
+        return;
+      }
+
+      eventStore.restored();
+
+      setStatus(`Restored ${written.length} saved preference${written.length === 1 ? '' : 's'}.`);
+    } catch (e) {
+      setStatus(`Could not restore that backup: ${said(e)}`);
+    }
+  }
+
+  return (
+    <div class="menu settings" ref={root}>
+      <button
+        type="button"
+        class="menu-toggle"
+        aria-expanded={open}
+        aria-controls="settings-panel"
+        aria-label="Settings"
+        title="Settings"
+        onClick={() => setOpen(!open)}
+      >
+        <span aria-hidden="true">⚙️</span>
+      </button>
+
+      <div class="menu-panel" id="settings-panel" hidden={!open}>
+        <div class="menu-head">
+          <span>Settings</span>
+        </div>
+
+        <section class="settings-section" aria-labelledby="settings-backup">
+          <h2 id="settings-backup">Backup</h2>
+          <p class="settings-note">
+            Save the preferences this browser has stored as a file, or read one back. An import replaces the preferences
+            the file names, leaves the rest, and first downloads a copy of what it replaces.
+          </p>
+
+          <div class="settings-actions">
+            <button type="button" title="Save every preference this browser has stored as a file" onClick={exportPrefs}>
+              Export
+            </button>
+            <button
+              type="button"
+              title="Read a saved file back, replacing the preferences it names and leaving the rest"
+              onClick={() => picker.current?.click()}
+            >
+              Import
+            </button>
+          </div>
+
+          {/*
+           * Clicked by the button above rather than shown, a file input being unstyleable. `value` is cleared as the
+           * change is read so that picking the same file twice in a row fires a second time rather than nothing.
+           */}
+          <input
+            ref={picker}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(event) => {
+              const [file] = event.currentTarget.files ?? [];
+
+              event.currentTarget.value = '';
+
+              if (file !== undefined) {
+                void importPrefs(file);
+              }
+            }}
+          />
+
+          {/*
+           * Present from the first render even with nothing to say: `hidden` takes an element out of the accessibility
+           * tree, so a live region that arrives with its first message reads as a region appearing rather than as one
+           * whose contents changed, and the refusal goes unannounced to the reader who most needs it. Empty rather than
+           * `hidden`, and `:empty` is what keeps it from costing a gap.
+           */}
+          <p class="settings-status" aria-live="polite">
+            {status}
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
