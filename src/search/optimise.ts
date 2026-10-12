@@ -303,9 +303,15 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
   const required = pills.filter((pill) => !pill.negated);
   const refused = pills.filter((pill) => pill.negated);
 
-  // An `all` asking for one of a category's terms has ruled the rest out already, so a refusal beside it says nothing.
-  if (junction === 'all' && category.exclusive && required.length === 1 && refused.length > 0) {
-    return required;
+  // An `all` asking for one of a category's terms has ruled the rest out already, so a refusal of another one beside it
+  // says nothing. A refusal of that same term is the one that says everything — `shadow&!shadow` matches nothing — and
+  // stays where the reader can see it.
+  const [only] = required;
+
+  if (junction === 'all' && category.exclusive && only && required.length === 1 && refused.length > 0) {
+    const kept = refused.filter((pill) => pill.id === only.id);
+
+    return kept.length === refused.length ? null : [...required, ...kept];
   }
 
   // Mixed polarity at one junction is the arrangement nothing below is stated for. Nor is an `all`: two terms of an

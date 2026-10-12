@@ -162,6 +162,12 @@ test('an all asking for one term of an exclusive category drops the refusals bes
   expect(short(all(yes('shadow'), no('purified')))).toBe('shadow');
   expect(short(all(yes('star4'), no('star0')))).toBe(term('star4'));
 
+  // Refusing the very term asked for is a search for nothing, and the reader is owed the sight of that: it is left
+  // standing whatever other refusals beside it go.
+  expect(short(all(yes('shadow'), no('shadow')))).toBe('shadow&!shadow');
+  expect(short(all(yes('star3'), no('star3')))).toBe('3*&!3*');
+  expect(short(all(yes('shadow'), no('shadow'), no('purified')))).toBe('shadow&!shadow');
+
   // A category that declares nothing gets nothing: a Pokémon can be any number of these at once.
   expect(category('status').exclusive).toBeUndefined();
   expect(short(all(yes('shiny'), no('lucky')))).toBe('shiny&!lucky');
