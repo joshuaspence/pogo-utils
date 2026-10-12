@@ -28,7 +28,8 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 const USAGE =
-  'usage: pnpm watch:livepokemap [--verbose] FILTER.json…  (with LPM_USERNAME and LPM_PASSWORD set, and NTFY_TOPIC to notify a phone)';
+  'usage: pnpm watch:livepokemap [--verbose] FILTER.json…  ' +
+  '(with LPM_USERNAME and LPM_PASSWORD set, and NTFY_TOPIC to notify a phone)';
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,

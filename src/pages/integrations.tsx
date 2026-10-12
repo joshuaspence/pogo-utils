@@ -151,9 +151,9 @@ export default function IntegrationsPage() {
   }
 
   /**
-   * Build the file and hand it over. Everything between the favourites and the bytes is `buildBackup`'s, so what is left
-   * here is the three things only a page can do: read which boxes are ticked, offer the result as a download, and say
-   * how it went.
+   * Build the file and hand it over. Everything between the favourites and the bytes is `buildBackup`'s, so what is
+   * left here is the three things only a page can do: read which boxes are ticked, offer the result as a download, and
+   * say how it went.
    */
   async function run() {
     setRunning(true);

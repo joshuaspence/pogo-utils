@@ -1,7 +1,7 @@
 /**
  * The spawns already notified, so that the same one on the next poll — and on every poll until it despawns — reaches
- * the phone once. Keyed by `encounter_id`, which is the spawn's own identity rather than anything a query says about it,
- * so two queries matching one spawn are one notification as well.
+ * the phone once. Keyed by `encounter_id`, which is the spawn's own identity rather than anything a query says about
+ * it, so two queries matching one spawn are one notification as well.
  *
  * Asking and remembering are separate so that a spawn is remembered only once its notification has gone: one ntfy
  * refused is tried again on the next poll rather than lost.

@@ -96,7 +96,7 @@ const LARVITAR: WireSpawn = {
   iv_percent: 100,
 };
 
-test('the command polls once per interval, logs in again when refused, writes nothing and notifies each spawn once', async () => {
+test('polls once per interval, logs in again when refused, writes nothing and notifies each spawn once', async () => {
   let logins = 0;
   let viewports = 0;
 

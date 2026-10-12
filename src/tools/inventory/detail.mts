@@ -54,7 +54,8 @@ export async function readLines(image: Image): Promise<Line[]> {
  * cost a capture its whole form — as `ce`: `deoxys-attack.png` reads `ce1441`, digits perfectly right and the `P`
  * taken for an `e`. Both halves of the label are a glyph OCR gets wrong, so both are a pair rather than a letter.
  *
- * It admits 23 captures, 20 reading the CP exactly off the line; `wholeCp` recovers the other three. The two go together: the label says which line, the band says the whole number.
+ * It admits 23 captures, 20 reading the CP exactly off the line; `wholeCp` recovers the other three. The two go
+ * together: the label says which line, the band says the whole number.
  *
  * A number may carry one space, which `cpOn` takes out: the WebAssembly Tesseract the Inventory page reads with answers
  * `cP48 7` off `unown-b.png`, where the CLI's `cP48/7` leaves `wholeCp` to find the 487. Read as `48` alone, the band

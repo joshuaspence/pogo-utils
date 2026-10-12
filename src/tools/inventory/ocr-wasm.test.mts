@@ -151,7 +151,9 @@ test('terminating stops a worker that is reading, not only the idle ones', async
   await expect(queued).rejects.toThrow(/stopped/);
 });
 
-/** A worker that fails while its model is being checked is stopped, being in no pool anything else could stop it from. */
+/**
+ * A worker that fails while its model is being checked is stopped, being in no pool anything else could stop it from.
+ */
 test('a worker whose model cannot be checked is stopped, not left running', async () => {
   vi.spyOn(crypto.subtle, 'digest').mockRejectedValue(new Error('no digest'));
 

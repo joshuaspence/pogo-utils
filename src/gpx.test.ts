@@ -215,8 +215,8 @@ test.for([
  * and that nothing of its neighbours comes along.
  *
  * The assertions are over the parsed result rather than the exact bytes wherever they can be, because attribute order
- * in a serializer's output is its own business — xmldom writes the `xmlns` it adds last where a browser writes it first,
- * and a test pinning the string would be pinning the stand-in rather than the contract.
+ * in a serializer's output is its own business — xmldom writes the `xmlns` it adds last where a browser writes it
+ * first, and a test pinning the string would be pinning the stand-in rather than the contract.
  */
 const TWO_TRACKS =
   '<trk><name>Tan Track</name>' +

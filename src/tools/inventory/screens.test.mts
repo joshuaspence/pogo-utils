@@ -1321,9 +1321,9 @@ test('the corpus is the shape `COVERAGE` says it is', () => {
  * phone says what the Pokémon was.
  *
  * None of the 43 any more, where eight raise a note at all — so the trigger costs the corpus no extra read, and would
- * cost one only on a reading that could improve. That it costs one *there* is held by the `identify notes` test above rather than here: that one
- * asserts what `identify` answers on all 43 against `notesOf`, which is empty for a row with no `defects`, so a capture
- * that starts raising a note without earning one fails there.
+ * cost one only on a reading that could improve. That it costs one *there* is held by the `identify notes` test above
+ * rather than here: that one asserts what `identify` answers on all 43 against `notesOf`, which is empty for a row with
+ * no `defects`, so a capture that starts raising a note without earning one fails there.
  *
  * The eight it does not reach are the ones `unseparated` names, and they are a limit rather than a gap: a form sharing
  * every number the screen prints is the artwork's to separate, and it has either declined or had no icon for every
@@ -1778,8 +1778,8 @@ test('the artwork chooses within one set of numbers, past the costumes and no fu
 /**
  * A name that is another species' is still a nickname once the numbers have found the real one, and what is reported
  * afterwards is about the species searched rather than the one the name ruled in. `growlithe-nickname.png` renamed
- * `Eevee` matches Eevee, whose forms fit none of Fire/Rock at this HP, so every species is searched and Hisuian Growlithe
- * found; a bracketed form naming nothing is then no form of whatever fits, not of Eevee.
+ * `Eevee` matches Eevee, whose forms fit none of Fire/Rock at this HP, so every species is searched and Hisuian
+ * Growlithe found; a bracketed form naming nothing is then no form of whatever fits, not of Eevee.
  */
 test('a name that is another species is a nickname once the numbers say otherwise', async () => {
   const { detail, overlay, artwork } = await readingOf('growlithe-nickname.png');

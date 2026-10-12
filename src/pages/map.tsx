@@ -158,8 +158,8 @@ function buildPopup(name: string, detail: string, copyLabel: string, text: strin
 }
 
 /**
- * A copy button that says how it went. Its own component so the flash is state belonging to the one button rather than a
- * timer and a captured label in a WeakMap keyed by element, which is what it took to do this to a node.
+ * A copy button that says how it went. Its own component so the flash is state belonging to the one button rather than
+ * a timer and a captured label in a WeakMap keyed by element, which is what it took to do this to a node.
  */
 function CopyButton({ text, title, onCopied }: { text: string; title: string; onCopied: (ok: boolean) => void }) {
   const [flash, setFlash] = useState<string | null>(null);
@@ -216,7 +216,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
    */
   const loadedRef = useRef<Loaded | null>(null);
 
-  /** The page could not even read the manifest, so there is nothing to draw and the message says what to do about it. */
+  /**
+   * The page could not even read the manifest, so there is nothing to draw and the message says what to do about it.
+   */
   const [fatal, setFatal] = useState<string | null>(null);
   const [unreachable, setUnreachable] = useState<readonly Failure[]>([]);
   const [rejected, setRejected] = useState<readonly Failure[]>([]);
@@ -244,8 +246,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
   const rows = useRef(new Map<string, HTMLElement>());
 
   /**
-   * An `?event=` the fragment named that has not been applied yet, because the files it names entries in had not arrived.
-   * Spent once, so a hashchange lands it and nothing else re-applies it.
+   * An `?event=` the fragment named that has not been applied yet, because the files it names entries in had not
+   * arrived. Spent once, so a hashchange lands it and nothing else re-applies it.
    */
   const pending = useRef<string | null>(null);
 
@@ -800,8 +802,9 @@ export default function MapPage({ query: fragment }: { query: string }) {
                           {held.map((row) => {
                             const classes = ['route'];
 
-                            // A waypoint carries coordinates where a track carries GPX, which is also what the stylesheet
-                            // tells the two apart by — so the one field decides the class, the glyph and what Copy copies.
+                            // A waypoint carries coordinates where a track carries GPX, which is also what the
+                            // stylesheet tells the two apart by — so the one field decides the class, the glyph and
+                            // what Copy copies.
                             const place = row.coordStr !== null;
 
                             if (place) {
@@ -918,8 +921,8 @@ export default function MapPage({ query: fragment }: { query: string }) {
             ([kind, heading, failures]) =>
               failures.length > 0 && (
                 // Keyed because this is a list, even though a two-row one whose order never changes: an anonymous
-                // fragment is matched by position, so the pair would be told apart by where they sit rather than by which
-                // they are.
+                // fragment is matched by position, so the pair would be told apart by where they sit rather than by
+                // which they are.
                 <Fragment key={kind}>
                   <b>{heading}</b>
                   <ul>

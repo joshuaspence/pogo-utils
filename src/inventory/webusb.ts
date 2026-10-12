@@ -17,7 +17,9 @@ import { type Transport } from '../tools/inventory/adb.mts';
 /** What the exit status is printed behind on a phone without the shell protocol; see `legacy` in `connect`. */
 const EXIT_MARK = 'pogo-utils-exit:';
 
-/** Where `needle` last occurs in `bytes`, or -1: a byte search, the output it is run over being binary as often as not. */
+/**
+ * Where `needle` last occurs in `bytes`, or -1: a byte search, the output it is run over being binary as often as not.
+ */
 export function lastIndexOf(bytes: Uint8Array, needle: Uint8Array): number {
   for (let at = bytes.length - needle.length; at >= 0; at--) {
     if (needle.every((byte, i) => bytes[at + i] === byte)) {
@@ -50,11 +52,15 @@ const TIMEOUT_MS = 30_000;
 
 /**
  * Why this page cannot reach a phone, or null where it can. WebUSB needs a secure context, which is `localhost` and the
- * published site but not the LAN address `pnpm serve` prints; and it is a Chromium API, so Firefox and Safari have none.
+ * published site but not the LAN address `pnpm serve` prints; and it is a Chromium API, so Firefox and Safari have
+ * none.
  */
 export function unreachable(): string | null {
   if (!window.isSecureContext) {
-    return 'WebUSB needs a secure context: open this page from localhost or the published site rather than a LAN address.';
+    return (
+      'WebUSB needs a secure context: ' +
+      'open this page from localhost or the published site rather than a LAN address.'
+    );
   }
 
   if (AdbDaemonWebUsbDeviceManager.BROWSER === undefined) {
@@ -66,10 +72,10 @@ export function unreachable(): string | null {
 
 /**
  * Lets go of a connection no transport was built on, as where authentication fails: Tango releases its locks on the
- * streams but closes nothing, which would leave the phone's ADB interface claimed by this page until it is reloaded — and
- * the `adb kill-server` advice for a busy phone useless. Closing either stream closes the device and drops the listener
- * for it being unplugged; both are tried, as one may already have errored, and neither failing is worth more than the
- * error that brought the caller here.
+ * streams but closes nothing, which would leave the phone's ADB interface claimed by this page until it is reloaded —
+ * and the `adb kill-server` advice for a busy phone useless. Closing either stream closes the device and drops the
+ * listener for it being unplugged; both are tried, as one may already have errored, and neither failing is worth more
+ * than the error that brought the caller here.
  */
 export async function release(connection: {
   readable: { cancel(): Promise<void> };
@@ -113,7 +119,8 @@ export async function connect(): Promise<Phone | null> {
   } catch (error) {
     if (error instanceof AdbDaemonWebUsbDevice.DeviceBusyError) {
       throw new Error(
-        'the phone is held by another program, usually an adb server on this computer: run `adb kill-server` and try again',
+        'the phone is held by another program, usually an adb server on this computer: ' +
+          'run `adb kill-server` and try again',
         { cause: error },
       );
     }

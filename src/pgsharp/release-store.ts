@@ -21,8 +21,8 @@ import { KEY_PREFIX } from '../event-prefs.js';
 import { releaseFromApk, VENDED_RELEASE, type Release } from './release.js';
 
 /**
- * Under `KEY_PREFIX`, so `src/backup.ts`'s sweep carries it. Stored as a JSON string rather than the bare version, since
- * a backup carries values it can parse and leaves out the rest.
+ * Under `KEY_PREFIX`, so `src/backup.ts`'s sweep carries it. Stored as a JSON string rather than the bare version,
+ * since a backup carries values it can parse and leaves out the rest.
  */
 export const ACKNOWLEDGED_KEY = `${KEY_PREFIX}pgsharp:acknowledged`;
 

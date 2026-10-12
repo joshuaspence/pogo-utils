@@ -8,9 +8,9 @@
  * Everything below is scoped to the open page.
  *
  * Each of these sheets was the only one in its document and could style `.body`, `.note` and `.group` as it liked. One
- * document loads all five, and between them they give nineteen class names — `.card`, `.chip`, `.grid`, `.name`, `.meta`
- * among them — a different meaning per page. The wrapper is what keeps each sheet's meaning to its own page; `data-page`
- * is set on the body by the shell, from the same table the router validates a fragment against.
+ * document loads all five, and between them they give nineteen class names — `.card`, `.chip`, `.grid`, `.name`,
+ * `.meta` among them — a different meaning per page. The wrapper is what keeps each sheet's meaning to its own page;
+ * `data-page` is set on the body by the shell, from the same table the router validates a fragment against.
  */
 body[data-page='integrations'] {
   /**
@@ -71,9 +71,9 @@ body[data-page='integrations'] {
   }
 
   /**
-   * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only ever
-   * heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full contrast,
-   * an accent on hover and a focus ring tell the two apart.
+   * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only
+   * ever heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full
+   * contrast, an accent on hover and a focus ring tell the two apart.
    */
 
   .backup details.subgroup > summary {

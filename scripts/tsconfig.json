@@ -41,9 +41,9 @@
     "allowImportingTsExtensions": true
   },
   // The entry points here, and everything under `src/` written as an `.mts` file, which is this project's by that name
-  // alone: the browser project's `src/**/*.ts` does not match one, so an `.mts` under `src/` belongs to whichever of the
-  // two claims it and would otherwise be checked by neither. What is there now is the inventory library — it reaches
-  // `node:child_process` for `adb` and the Tesseract CLI, so it needs Node's lib and must not have the DOM's —
+  // alone: the browser project's `src/**/*.ts` does not match one, so an `.mts` under `src/` belongs to whichever of
+  // the two claims it and would otherwise be checked by neither. What is there now is the inventory library — it
+  // reaches `node:child_process` for `adb` and the Tesseract CLI, so it needs Node's lib and must not have the DOM's —
   // `src/gpx-source.mts`, which reaches the same for `git ls-files`, and the two tests that read a repository file off
   // disk rather than importing one: `src/styles.test.mts` the stylesheets, `src/build.test.mts` the `package.json`.
   "include": ["*.mts", "../src/**/*.mts"],
