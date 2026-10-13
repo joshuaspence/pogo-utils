@@ -14,6 +14,8 @@
   which may be the one in force. The approval comes from Claude, which `claude-review.yaml` runs on every pull request
   that is neither a draft nor a bot's — nobody here can approve their own. So open it ready for review rather than as a
   draft: a draft gets no review, and waits on someone to mark it ready before the approval it needs can come.
+- **An unresolved conversation blocks the merge.** Green checks are not enough while any review thread is open, so a
+  pull request carrying one waits on its author: fix what the thread raises or reply with why not, then resolve it.
 - **Ask whether a pull request should merge itself.** `gh pr merge --auto --squash` hands it to GitHub, which merges the
   moment the checks pass and the review approves — with nobody looking at it again. That is the user's call rather than
   a default to assume either way, so when they have not said, ask before opening it, and leave auto-merge off until they
