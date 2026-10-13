@@ -339,6 +339,15 @@ test('an arrangement that spreads past the cap is refused rather than built', ()
   expect(clausesFor(pairs(UNDER))).toHaveLength(2 ** UNDER);
 });
 
+test('a pill with nothing written in it does not wave a product past the cap', () => {
+  // It zeroes the `any` it sits in, but only after every part before it has been multiplied out — which, from a link
+  // putting `Rcp..` beside twenty OR'd triples, is 3^20 clauses built to be thrown away.
+  const pending: Leaf = { kind: 'range', id: 'cp', from: null, to: null, negated: false };
+
+  expect(clausesOf(any(pairs(UNDER + 1), pending)).error).toContain(String(CLAUSES));
+  expect(clausesFor(any(pairs(UNDER), pending))).toEqual([]);
+});
+
 test('the cap bounds the whole tree rather than the one node it is checked in', () => {
   // An `any` multiplies and an `all` sums, so a check inside the product could only ever bound one group. Two groups
   // each inside the cap are over it between them, and twenty of them spread to 10,240 clauses and half a megabyte of
