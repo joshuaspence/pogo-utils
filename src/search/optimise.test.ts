@@ -250,6 +250,19 @@ test('an any of all but some of a partition is written as the complement where t
   // Two of them are not: `!0*&!1*&!2*` is longer than `3*,4*`, so the two spellings are weighed and the short one won.
   expect(short(any(yes('star3'), yes('star4')))).toBe('3*,4*');
 
+  // Three of them leave two out, and `!3*&!4*` is shorter than `0*,1*,2*` — but the pills go back into this `any`,
+  // where `!3*,!4*` is every Pokémon there is, none being both. Every choice of three stays as it was arranged.
+  const ids = appraisal.terms.map((one) => one.id);
+  const threes = ids.flatMap((first, i) =>
+    ids.slice(i + 1).flatMap((second, j) => ids.slice(i + j + 2).map((third) => [first, second, third])),
+  );
+
+  expect(threes).toHaveLength(10);
+
+  for (const three of threes) {
+    expect(short(any(...three.map(yes)))).toBe(three.map(term).join(','));
+  }
+
   // An `all` of two is a search for nothing, and the reader is owed the sight of that rather than a rewrite of it.
   expect(short(all(yes('star3'), yes('star4')))).toBe('3*&4*');
 });

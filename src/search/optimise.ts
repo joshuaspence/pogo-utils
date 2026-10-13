@@ -335,6 +335,13 @@ function shortCategory(junction: Group['junction'], category: Category, pills: r
 
   const left = category.terms.filter((term) => !chosen.has(term.id)).map((term) => pillOf(term.id, true));
 
+  // The terms left out say it only AND'd, and they are spliced into this `any` to be OR'd: `!3*,!4*` is every Pokémon,
+  // none being both. Two or more would want an `all` of their own, which the composer distributes across every
+  // neighbour in this `any`, so what it costs is not the length of those pills and cannot be weighed here.
+  if (left.length > 1) {
+    return null;
+  }
+
   // `0*,1*,2*,3*` against `!4*`, measured by the writer that will produce one of them.
   return spelling('all', left) < spelling('any', required) ? left : null;
 }
