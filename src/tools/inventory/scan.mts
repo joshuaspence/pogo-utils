@@ -116,25 +116,84 @@ export interface Steps<R extends { key: string | null }> {
   back: () => Promise<void>;
 }
 
+/** One thing a walk did: a swipe forward or back, or a read and the key it answered. */
+type Step = { move: 1 | -1 } | { key: string | null };
+
+/** Where a walk would be, and what each place in storage read, had storage ended at one place. */
+interface World {
+  at: number;
+  known: Map<number, string>;
+}
+
+/**
+ * Plays `log` over a storage whose last Pokémon is at `end`, where a swipe past either end goes nowhere: the world the
+ * walk was in if that is where storage ends, or null if it would have read one place two different ways.
+ */
+function replay(log: readonly Step[], from: number, end: number): World | null {
+  const known = new Map<number, string>();
+  let at = from;
+
+  for (const step of log) {
+    if ('move' in step) {
+      at = Math.min(Math.max(at + step.move, 0), end);
+    } else if (step.key !== null) {
+      if ((known.get(at) ?? step.key) !== step.key) {
+        return null;
+      }
+
+      known.set(at, step.key);
+    }
+  }
+
+  return { at, known };
+}
+
+/**
+ * How far to swipe back to tell the worlds apart, if any distance can: the shortest at which storage still going on
+ * and every place it might have ended would land on Pokémon already read differently, failing that the shortest at
+ * which a read could rule any of them out. No further than `index`, so storage still going on never lands on its
+ * start, and the same distance forward brings the walk back to where it was in every world.
+ */
+function distance(worlds: Map<number, World>, index: number): number | undefined {
+  let fallback: number | undefined;
+
+  for (let k = 1; k <= index; k++) {
+    const landed = new Map([...worlds].map(([end, { at, known }]) => [end, known.get(Math.max(at - k, 0))]));
+    const open = landed.get(Infinity);
+    const ended = [...landed].filter(([end]) => end !== Infinity).map(([, key]) => key);
+
+    if (open !== undefined && ended.every((key) => key !== undefined && key !== open)) {
+      return k;
+    }
+
+    const keys = new Set([...landed.values()]);
+
+    // A read rules out a world only where it lands on a Pokémon already read, and differently from it.
+    if (fallback === undefined && keys.size > 1) {
+      fallback = k;
+    }
+  }
+
+  return fallback;
+}
+
 /**
  * Hands `visit` each Pokémon from the one open at `from`, `first` being that one's reading where it has already been
  * made, and stops after `max` of them or at the end of storage.
  *
- * The end is a swipe that goes nowhere, so the Pokémon read again is the last one again — but a key carries nothing
- * positional, and the next Pokémon can be a genuine twin of the last: storage sorts a species' duplicates together,
- * and HP, weight and height are read at the precision the game prints them. So a key read twice is settled by position
- * instead. Swiping back over every Pokémon in the run of that key lands on the run's first where this is a twin, and
- * on the one before the run where the last swipe went nowhere — one that read differently, or the run would have
- * started there.
+ * The end is a swipe that goes nowhere, so the Pokémon read next is the last one again — but a key carries nothing
+ * positional, and the next Pokémon can be a genuine twin of the last: storage sorts a species' duplicates together, and
+ * HP, weight and height are read at the precision the game prints them. Nor does a screen OCR missed say what it was,
+ * so the Pokémon read after one may be that one read again. So the walk keeps every swipe and read it has made, and
+ * each place storage might have ended — every one it has visited, until a read rules it out by reading that place two
+ * ways. Where one is left beside storage going on, it swipes back to where the two would land on Pokémon it read
+ * differently, reads, and swipes forward again.
  *
- * A run that starts where the walk did has nothing before it known to read differently — the first Pokémon in storage,
- * or one `from` skipped to that may have twins behind it — so there the walk stops and says so rather than guess:
- * guessing twin at the end of storage would visit the last Pokémon again.
- *
- * Nor is a screen that could not be read known to read differently, so the swipe back goes past any that sit just
- * before the run, to the last one that was read. Landing there again, on what it read then, is the end of storage —
- * unless a screen it swiped back past is a twin of that one, so the walk stops and says so there too. Landing on the
- * run's key, or on a third, is the earliest of the unread screens, so a twin.
+ * Where nothing it has read can tell them apart — a run of twins from the start of the pass, the first Pokémon in
+ * storage or one `from` skipped to, with nothing known before it — the walk stops and says so rather than visit a
+ * Pokémon it may already have written. A screen that may be new, unread or reading differently from the last, it
+ * visits all the same: a wrong guess there writes again only a Pokémon whose screen once went unread, and says so when
+ * the end comes.
  */
 export async function walk<R extends { key: string | null }>(
   { read, next, back }: Steps<R>,
@@ -143,62 +202,86 @@ export async function walk<R extends { key: string | null }>(
   from: number,
   first?: R,
 ) {
+  const log: Step[] = [];
+  let ends = [Infinity];
   let pending = first;
-  let previous: string | null = null;
-  let lastRead = from - 1;
-  let since = from;
-  let before: string | null = null;
-  let anchor = from - 1;
+  let latest: string | null = null;
   let misses = 0;
+
+  const swipe = async (move: 1 | -1, times: number) => {
+    for (let i = 0; i < times; i++) {
+      await (move === 1 ? next() : back());
+      log.push({ move });
+    }
+  };
+
+  const worlds = () =>
+    new Map(
+      ends.flatMap((end) => {
+        const world = replay(log, from, end);
+        return world ? [[end, world] as const] : [];
+      }),
+    );
 
   for (let index = from; index < from + max; index++) {
     const reading = pending ?? (await read());
     pending = undefined;
+    log.push({ key: reading.key });
+    misses = reading.key === null ? misses + 1 : 0;
 
-    if (reading.key === null) {
-      if (++misses >= 3) {
-        console.error('  three unreadable screens in a row; stopping this pass');
+    if (misses >= 3) {
+      console.error('  three unreadable screens in a row; stopping this pass');
+      break;
+    }
+
+    let possible = worlds();
+
+    while (possible.has(Infinity) && possible.size > 1) {
+      const k = distance(possible, index);
+
+      if (k === undefined) {
         break;
       }
-    } else if (reading.key !== previous) {
-      misses = 0;
-      before = previous;
-      anchor = lastRead;
-      previous = reading.key;
-      lastRead = since = index;
-    } else if (anchor < from) {
-      console.error(`  every Pokémon this pass has read is ${reading.key}, so its end cannot be told; stopping it`);
-      break;
-    } else {
-      misses = 0;
-      lastRead = index;
-      const run = index - anchor - 1;
 
-      for (let i = 0; i < run; i++) {
-        await back();
-      }
+      await swipe(-1, k);
+      const { key } = await read();
+      log.push({ key });
+      await swipe(1, k);
+      ends = [...possible.keys()];
+      possible = worlds();
 
-      const landed = (await read()).key;
-
-      if (landed !== reading.key) {
-        if (anchor + 1 === since) {
-          break;
-        }
-
-        if (landed === null || landed === before) {
-          console.error(
-            `  the screen before ${reading.key} could not be read, so its end cannot be told; stopping this pass`,
-          );
-          break;
-        }
-      }
-
-      for (let i = 0; i < run; i++) {
-        await next();
+      if (key === null) {
+        break;
       }
     }
 
+    ends = [...possible.keys()];
+
+    if (ends.length === 0) {
+      console.error('  one screen read two different ways, so this pass cannot tell where it is; stopping it');
+      break;
+    }
+
+    if (!possible.has(Infinity)) {
+      const repeats = index - 1 - Math.min(...ends);
+
+      if (repeats > 0) {
+        console.error(`  storage may have ended ${repeats} Pokémon ago, past a screen that would not read`);
+      }
+
+      break;
+    }
+
+    if (possible.size > 1 && reading.key !== null && reading.key === latest) {
+      console.error(
+        `  ${reading.key} may be the last Pokémon read again, so its end cannot be told; stopping this pass`,
+      );
+      break;
+    }
+
+    latest = reading.key ?? latest;
     await visit(reading, index);
-    await next();
+    ends.push(index);
+    await swipe(1, 1);
   }
 }

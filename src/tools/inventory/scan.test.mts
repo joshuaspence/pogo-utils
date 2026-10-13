@@ -227,19 +227,41 @@ test('a miss just before a run that ends storage does not visit the last Pokémo
     [null, 1],
     ['a', 2],
   ]);
-  expect(error).toHaveBeenCalledWith(expect.stringContaining('its end cannot be told'));
+  expect(error).not.toHaveBeenCalled();
   error.mockRestore();
 });
 
-test('a miss on a twin of the Pokémon before a run stops the walk, saying why', async () => {
+test('a miss on the last Pokémon in storage ends the walk there', async () => {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
+  expect(await walked(['o', 'p', 'q'], Infinity, 0, [2])).toEqual([
+    ['o', 0],
+    ['p', 1],
+    [null, 2],
+  ]);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});
+
+test('a miss on a twin of the Pokémon before a run is settled by the run going on', async () => {
   expect(await walked(['x', 'x', 'a', 'a'], Infinity, 0, [1])).toEqual([
     ['x', 0],
     [null, 1],
     ['a', 2],
+    ['a', 3],
   ]);
-  expect(error).toHaveBeenCalledWith(expect.stringContaining('its end cannot be told'));
+});
+
+// The two read the same at every place a swipe back can reach, so the walk writes the same rows for both and says the
+// last may be the unread one again, which it is in the second.
+test.for([
+  ['a twin of the first', ['x', 'x', 'a']],
+  ['the last', ['x', 'a']],
+] as const)('a miss on %s, just before the end, says the last row may repeat', async ([, keys]) => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect((await walked(keys, Infinity, 0, [1])).map(([key]) => key)).toEqual(['x', null, 'a']);
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('storage may have ended 1 Pokémon ago'));
   error.mockRestore();
 });
 
