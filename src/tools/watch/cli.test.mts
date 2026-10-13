@@ -569,7 +569,7 @@ test('a notification that cannot be sent says why, cause and all', async () => {
   expect(lines.join('\n')).not.toContain('secret-topic-name');
 });
 
-test('the command refuses to start without its credentials or a query', async () => {
+test('the command refuses to start without its credentials, a query or an ntfy server it can parse', async () => {
   const start = (args: string[], env: Record<string, string>) =>
     new Promise<[number | null, string]>((done) => {
       const child = run(process.execPath, [SCRIPT, ...args], {
@@ -590,12 +590,22 @@ test('the command refuses to start without its credentials or a query', async ()
     NTFY_TOPIC: 't',
   });
 
+  // Live PokeMap on a port `fetch` refuses, so a check that let the server through would fail at the login instead.
+  const [noScheme, because] = await start([fixturePath('shiny-hunt.json')], {
+    LPM_USERNAME: 'u',
+    LPM_PASSWORD: 'p',
+    LPM_BASE_URL: 'http://127.0.0.1:9',
+    NTFY_TOPIC: 't',
+    NTFY_SERVER: 'ntfy.example.com',
+  });
+
   expect(noQuery).toBe(1);
   expect([noPassword, said]).toStrictEqual([1, expect.stringContaining('LPM_PASSWORD is not set')]);
   expect([notFilter, why]).toStrictEqual([
     1,
     expect.stringContaining('config.json: not a Live PokeMap display filter'),
   ]);
+  expect([noScheme, because]).toStrictEqual([1, expect.stringContaining('NTFY_SERVER is not a URL: ntfy.example.com')]);
 });
 
 /**

@@ -24,6 +24,7 @@
  */
 
 import { LIVE_POKEMAP, LivePokeMap } from '../src/tools/watch/client.mts';
+import { publishUrl } from '../src/tools/watch/ntfy.mts';
 import { blindSpots, parseQuery, type Query } from '../src/tools/watch/query.mts';
 import { messageOf, watch } from '../src/tools/watch/watcher.mts';
 import { existsSync, readFileSync } from 'node:fs';
@@ -72,6 +73,20 @@ if (!username || !password) {
   fail(`${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} not set\n${USAGE}`);
 }
 
+// No topic is console only: each match is printed rather than sent.
+const ntfy = topic
+  ? { server: process.env.NTFY_SERVER || 'https://ntfy.sh', topic, token: process.env.NTFY_TOKEN || undefined }
+  : undefined;
+
+// Checked here rather than left to the first publish, which would fail the same way for every match of every poll.
+if (ntfy) {
+  try {
+    publishUrl(ntfy.server);
+  } catch {
+    fail(`NTFY_SERVER is not a URL: ${ntfy.server}`);
+  }
+}
+
 const queries: Query[] = positionals.map((path) => {
   try {
     // Named by the path as typed rather than its base name, so that `a/shiny.json` and `b/shiny.json` stay two.
@@ -107,10 +122,7 @@ const client = new LivePokeMap(
 try {
   await watch({
     client,
-    // No topic is console only: each match is printed rather than sent.
-    ntfy: topic
-      ? { server: process.env.NTFY_SERVER || 'https://ntfy.sh', topic, token: process.env.NTFY_TOKEN || undefined }
-      : undefined,
+    ntfy,
     queries,
     signal: controller.signal,
     log,
