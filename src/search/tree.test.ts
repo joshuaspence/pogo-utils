@@ -292,6 +292,19 @@ test('a group cannot be moved inside itself', () => {
   expect(shape(move(tree, [], [0]))).toEqual(shape(tree));
 });
 
+test('a move to somewhere that is not a group leaves the pill where it was', () => {
+  /*
+   * The issue's own example: `shiny` picked up, then the click that puts it down lands on a group's `✕`, so the move
+   * arrives aimed at a group that has just gone. Taking the pill out first and then appending to nothing lost it.
+   */
+  const tree = update(all(yes('shiny'), yes('lucky'), any(yes('fire'))), [2], () => null);
+
+  expect(shape(move(tree, [0], [2]))).toEqual({ all: ['shiny', 'lucky'] });
+
+  // A pill is not somewhere a pill can go either.
+  expect(shape(move(tree, [0], [1]))).toEqual({ all: ['shiny', 'lucky'] });
+});
+
 test('a group moves with everything in it', () => {
   const tree = all(any(yes('fire'), yes('water')), all(yes('shiny')));
 
