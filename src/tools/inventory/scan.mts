@@ -130,6 +130,11 @@ export interface Steps<R extends { key: string | null }> {
  * A run that starts where the walk did has nothing before it known to read differently — the first Pokémon in storage,
  * or one `from` skipped to that may have twins behind it — so there the walk stops and says so rather than guess:
  * guessing twin at the end of storage would visit the last Pokémon again.
+ *
+ * Nor is a screen that could not be read known to read differently, so the swipe back goes past any that sit just
+ * before the run, to the last one that was read. Landing there again, on what it read then, is the end of storage —
+ * unless a screen it swiped back past is a twin of that one, so the walk stops and says so there too. Landing on the
+ * run's key, or on a third, is the earliest of the unread screens, so a twin.
  */
 export async function walk<R extends { key: string | null }>(
   { read, next, back }: Steps<R>,
@@ -140,7 +145,10 @@ export async function walk<R extends { key: string | null }>(
 ) {
   let pending = first;
   let previous: string | null = null;
+  let lastRead = from - 1;
   let since = from;
+  let before: string | null = null;
+  let anchor = from - 1;
   let misses = 0;
 
   for (let index = from; index < from + max; index++) {
@@ -154,21 +162,35 @@ export async function walk<R extends { key: string | null }>(
       }
     } else if (reading.key !== previous) {
       misses = 0;
+      before = previous;
+      anchor = lastRead;
       previous = reading.key;
-      since = index;
-    } else if (since === from) {
+      lastRead = since = index;
+    } else if (anchor < from) {
       console.error(`  every Pokémon this pass has read is ${reading.key}, so its end cannot be told; stopping it`);
       break;
     } else {
       misses = 0;
-      const run = index - since;
+      lastRead = index;
+      const run = index - anchor - 1;
 
       for (let i = 0; i < run; i++) {
         await back();
       }
 
-      if ((await read()).key !== reading.key) {
-        break;
+      const landed = (await read()).key;
+
+      if (landed !== reading.key) {
+        if (anchor + 1 === since) {
+          break;
+        }
+
+        if (landed === null || landed === before) {
+          console.error(
+            `  the screen before ${reading.key} could not be read, so its end cannot be told; stopping this pass`,
+          );
+          break;
+        }
       }
 
       for (let i = 0; i < run; i++) {

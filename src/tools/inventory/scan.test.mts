@@ -161,15 +161,17 @@ test('the clear is longer than every search the scan sends', () => {
 
 /**
  * Walks a storage of `keys` the way a phone would: a swipe past either end goes nowhere. Answers the position each
- * Pokémon was visited at, so a walk that visits the right keys from the wrong place is caught as well.
+ * Pokémon was visited at, so a walk that visits the right keys from the wrong place is caught as well. The first read
+ * of each position in `missed` comes back unread, as a screen OCR misses once does.
  */
-async function walked(keys: readonly string[], max = Infinity, from = 0) {
+async function walked(keys: readonly string[], max = Infinity, from = 0, missed: readonly number[] = []) {
   let at = from;
+  const unread = new Set(missed);
   const visited: [string | null, number][] = [];
 
   await walk(
     {
-      read: async () => ({ key: keys[at] ?? null }),
+      read: async () => ({ key: unread.delete(at) ? null : (keys[at] ?? null) }),
       next: async () => void (at = Math.min(at + 1, keys.length - 1)),
       back: async () => void (at = Math.max(at - 1, 0)),
     },
@@ -215,4 +217,35 @@ test.for([
   expect(await walked(keys, Infinity, from)).toEqual([[keys[from], from]]);
   expect(error).toHaveBeenCalledWith(expect.stringContaining('its end cannot be told'));
   error.mockRestore();
+});
+
+test('a miss just before a run that ends storage does not visit the last Pokémon twice', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect(await walked(['x', 'a', 'a'], Infinity, 0, [1])).toEqual([
+    ['x', 0],
+    [null, 1],
+    ['a', 2],
+  ]);
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('its end cannot be told'));
+  error.mockRestore();
+});
+
+test('a miss on a twin of the Pokémon before a run stops the walk, saying why', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect(await walked(['x', 'x', 'a', 'a'], Infinity, 0, [1])).toEqual([
+    ['x', 0],
+    [null, 1],
+    ['a', 2],
+  ]);
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('its end cannot be told'));
+  error.mockRestore();
+});
+
+test.for([
+  ['a twin', ['x', 'a', 'a', 'a', 'b']],
+  ['another Pokémon', ['x', 'y', 'a', 'a', 'b']],
+] as const)('a miss just before a run of twins still visits every Pokémon once, given %s', async ([, keys]) => {
+  expect((await walked(keys, Infinity, 0, [1])).map(([, at]) => at)).toEqual(keys.map((_, i) => i));
 });
