@@ -121,9 +121,9 @@ export const RECURRING = new Set(RECURRING_TYPES);
  * who saved a filter before then still holds, and what a backup taken then still carries. Every pairing the feed and
  * `data/events.json` had shown at the time, one-to-one in both directions, plus Choose Your Path from `DEFAULT_HIDDEN`.
  *
- * Translated on every read rather than rewritten once, so an old backup imported later lands the same way, and the
- * next click writes the slugs back. A member not listed here is kept as it is: a slug already, or a heading no feed
- * here ever paired with one, which matches nothing either way.
+ * Rewritten in storage by `carrySlugs` on every load rather than once, so an old backup imported later lands the same
+ * way. A member not listed here is kept as it is: a slug already, or a heading no feed here ever paired with one, which
+ * matches nothing either way.
  */
 const HEADING_SLUGS: ReadonlyMap<string, string> = new Map([
   ['Choose Your Path', 'choose-your-path'],
@@ -144,11 +144,6 @@ const HEADING_SLUGS: ReadonlyMap<string, string> = new Map([
   ['Twitch Drops', 'twitch-drops'],
   ['Wild Area', 'wild-area'],
 ]);
-
-/** A stored type set with any `heading` it still carries translated to its slug — see `HEADING_SLUGS`. */
-function asSlugs(types: Set<string> | null): Set<string> | null {
-  return types === null ? null : new Set([...types].map((type) => HEADING_SLUGS.get(type) ?? type));
-}
 
 /** One stored value as it stands, or null where the key has never been written or storage cannot be read at all. */
 function readRaw(key: string): string | null {
@@ -227,7 +222,7 @@ function readSetsByView(key: string): Record<string, Set<string>> {
     const strings = stringsOf(members);
 
     if (strings !== null) {
-      sets[name] = new Set(strings.map((type) => HEADING_SLUGS.get(type) ?? type));
+      sets[name] = new Set(strings);
     }
   }
 
@@ -235,13 +230,15 @@ function readSetsByView(key: string): Record<string, Set<string>> {
 }
 
 /**
- * Carry a reader's choices onto the names this version reads, from either older shape still out there. Each hop
- * catches for itself and fills only a name nothing has filled yet, so a prefixed value already in place outlives both.
- * The unqualified keys go first, being the later of the two older shapes.
+ * Carry a reader's choices onto the names and values this version reads, from any older shape still out there. Each hop
+ * catches for itself, and the two renames fill only a name nothing has filled yet, so a prefixed value already in place
+ * outlives both. The unqualified keys go first, being the later of the two older shapes, and the slugs last, since
+ * either rename can arrive carrying headings.
  */
 function migrateLegacy() {
   carryUnprefixedKeys();
   carryLegacyObject();
+  carrySlugs();
 }
 
 /**
@@ -309,6 +306,51 @@ function carryLegacyObject() {
   }
 }
 
+/** A type set with every `heading` swapped for its slug, and anything that is not an array left as it is. */
+function slugsIn(types: unknown): unknown {
+  return Array.isArray(types)
+    ? types.map((type: unknown) => (typeof type === 'string' ? (HEADING_SLUGS.get(type) ?? type) : type))
+    : types;
+}
+
+/** A stored object with `change` applied to each of its values, and anything that is not an object left as it is. */
+function eachValue(stored: unknown, change: (value: unknown, name: string) => unknown): unknown {
+  return stored === null || typeof stored !== 'object' || Array.isArray(stored)
+    ? stored
+    : Object.fromEntries(Object.entries(stored).map(([name, value]) => [name, change(value, name)]));
+}
+
+/**
+ * Every type set still holding a `heading` rewritten to hold slugs, wherever a read can reach one: under the key
+ * `keyFor` resolves rather than the prefixed one, so a value a full store kept under its unqualified name is fixed
+ * where it is read, and in the legacy object where `carryLegacyObject` could not drop it. Written only where something
+ * changed, so a store already in slugs is never written at all.
+ *
+ * No sentinel and no end date, unlike `UNPREFIXED_UNTIL`: an old backup can be imported on any day, and the rewrite is
+ * idempotent. Nor does a refused write need a read to cover for it — every heading in `HEADING_SLUGS` is as long as its
+ * slug in UTF-16 units, so the rewrite never asks the origin for space a full one could refuse.
+ */
+function carrySlugs() {
+  const rewrites: [string, (stored: unknown) => unknown][] = [
+    [keyFor('hiddenTypes'), slugsIn],
+    [keyFor('hiddenByView'), (views) => eachValue(views, slugsIn)],
+    [LEGACY_OBJECT_KEY, (object) => eachValue(object, (set, name) => (name === 'hiddenTypes' ? slugsIn(set) : set))],
+  ];
+
+  for (const [key, rewrite] of rewrites) {
+    const stored = readJSON(key);
+    const rewritten = JSON.stringify(rewrite(stored));
+
+    if (stored !== null && rewritten !== JSON.stringify(stored)) {
+      try {
+        localStorage.setItem(key, rewritten);
+      } catch {
+        /* Storage is unavailable; the reader filters on what is there. */
+      }
+    }
+  }
+}
+
 /**
  * Which name to read one preference from: its own, or the unqualified name it used to have where the value is still
  * sitting there. `carryUnprefixedKeys` normally moves it, but `localStorage` quota is per origin and this app shares
@@ -347,7 +389,7 @@ export function loadPrefs(): Prefs {
   migrateLegacy();
 
   return {
-    hiddenTypes: asSlugs(readSet(keyFor('hiddenTypes')) ?? legacySet('hiddenTypes')) ?? new Set(DEFAULT_HIDDEN),
+    hiddenTypes: readSet(keyFor('hiddenTypes')) ?? legacySet('hiddenTypes') ?? new Set(DEFAULT_HIDDEN),
     hiddenByView: readSetsByView(keyFor('hiddenByView')),
 
     // Anything but 'view' is global, so an unwritten or unreadable value lands on the default rather than on a scope

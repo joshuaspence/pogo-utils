@@ -124,6 +124,44 @@ test('a type set saved as headings reads back as slugs', () => {
   expect(prefs.dismissed).toEqual(new Set(['Season']));
 });
 
+/**
+ * The slugs are written back rather than translated on each read, so storage itself holds them after one load — under
+ * whichever name a read reaches, which on a store that refused the rename is still the unqualified one. A key already
+ * in slugs is not written at all.
+ */
+test('a load rewrites stored headings as slugs wherever a read reaches them', () => {
+  store('hiddenTypes', ['Raid Hour', 'Some Future Type']);
+  storage.setItem('events:hidden-by-view', '{"cards":["GO Pass"],"calendar":[]}');
+  storage.refusesWritesTo.add(KEYS.hiddenByView);
+  store('dismissed', ['Season']);
+
+  loadPrefs();
+
+  expect(storage.snapshot()).toEqual({
+    [KEYS.hiddenTypes]: '["raid-hour","Some Future Type"]',
+    'events:hidden-by-view': '{"cards":["go-pass"],"calendar":[]}',
+    [KEYS.dismissed]: '["Season"]',
+  });
+
+  // The one write left is the rename retrying the key it was refused, which it does on every load.
+  const setItem = vi.spyOn(storage, 'setItem');
+  loadPrefs();
+
+  expect(setItem.mock.calls.map(([key]) => key)).toEqual([KEYS.hiddenByView]);
+});
+
+/** The legacy object is the one other place a read reaches, so one a store could not drop has its headings fixed. */
+test('a legacy object kept by a refused removal has its headings rewritten', () => {
+  storage.setItem('pgo-events:prefs', JSON.stringify({ hiddenTypes: ['Raid Hour'], dismissed: ['Season'] }));
+  storage.refusesWritesTo.add(KEYS.hiddenTypes);
+
+  expect(loadPrefs().hiddenTypes).toEqual(new Set(['raid-hour']));
+  expect(JSON.parse(storage.getItem('pgo-events:prefs') ?? 'null')).toEqual({
+    hiddenTypes: ['raid-hour'],
+    dismissed: ['Season'],
+  });
+});
+
 /** Every default is a slug the Tracks view or the feed knows, rather than a heading that would match nothing. */
 test('the default hidden set is all slugs', () => {
   expect(DEFAULT_HIDDEN.every((type) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(type))).toBe(true);
@@ -240,8 +278,8 @@ test('an unparseable legacy object is left alone', () => {
  * legacy object's hop deliberately skips and a case covering four would not say that this hop does not.
  */
 test('the unprefixed keys are carried across and removed', () => {
-  storage.setItem('events:hidden-types', '["Raid Hour"]');
-  storage.setItem('events:hidden-by-view', '{"cards":["Community Day"]}');
+  storage.setItem('events:hidden-types', '["raid-hour"]');
+  storage.setItem('events:hidden-by-view', '{"cards":["community-day"]}');
   storage.setItem('events:filter-scope', '"view"');
   storage.setItem('events:dismissed', '["event-a"]');
   storage.setItem('events:seen', '["event-b"]');
@@ -255,8 +293,8 @@ test('the unprefixed keys are carried across and removed', () => {
   expect(prefs.seen).toEqual({ through: null, ids: new Set(['event-b']) });
 
   expect(storage.snapshot()).toEqual({
-    [KEYS.hiddenTypes]: '["Raid Hour"]',
-    [KEYS.hiddenByView]: '{"cards":["Community Day"]}',
+    [KEYS.hiddenTypes]: '["raid-hour"]',
+    [KEYS.hiddenByView]: '{"cards":["community-day"]}',
     [KEYS.filterScope]: '"view"',
     [KEYS.dismissed]: '["event-a"]',
     [KEYS.seen]: '["event-b"]',
@@ -348,19 +386,19 @@ test('a store that cannot be written is still read, under the unprefixed name', 
 test('past the migration window an unprefixed key is left where it stands', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2027-06-01T00:00:00Z'));
-  storage.setItem('events:hidden-types', '["Raid Hour"]');
+  storage.setItem('events:hidden-types', '["raid-hour"]');
 
   expect(loadPrefs().hiddenTypes).toEqual(new Set(DEFAULT_HIDDEN));
-  expect(storage.snapshot()).toEqual({ 'events:hidden-types': '["Raid Hour"]' });
+  expect(storage.snapshot()).toEqual({ 'events:hidden-types': '["raid-hour"]' });
 });
 
 test('inside the migration window that same key is carried', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-10T00:00:00Z'));
-  storage.setItem('events:hidden-types', '["Raid Hour"]');
+  storage.setItem('events:hidden-types', '["raid-hour"]');
 
   expect(loadPrefs().hiddenTypes).toEqual(new Set(['raid-hour']));
-  expect(storage.snapshot()).toEqual({ [KEYS.hiddenTypes]: '["Raid Hour"]' });
+  expect(storage.snapshot()).toEqual({ [KEYS.hiddenTypes]: '["raid-hour"]' });
 });
 
 /**
@@ -374,7 +412,7 @@ test('inside the migration window that same key is carried', () => {
  * CI log, since the date will arrive long after anyone is thinking about this file.
  */
 test('the migration window is still open — when this fails, delete the migration', () => {
-  storage.setItem('events:hidden-types', '["Raid Hour"]');
+  storage.setItem('events:hidden-types', '["raid-hour"]');
 
   expect(loadPrefs().hiddenTypes).toEqual(new Set(['raid-hour']));
 });
@@ -453,7 +491,7 @@ test('the superseded unprefixed name is vacated, not left sitting there', () => 
  * `try` around the loop, `filterScope`, `dismissed` and `seen` would never be attempted at all.
  */
 test('a write refused on one key does not abandon the keys after it', () => {
-  storage.setItem('events:hidden-by-view', '{"cards":["Community Day"]}');
+  storage.setItem('events:hidden-by-view', '{"cards":["community-day"]}');
   storage.setItem('events:filter-scope', '"view"');
   storage.setItem('events:dismissed', '["event-a"]');
   storage.refusesWritesTo.add(KEYS.hiddenByView);
@@ -462,7 +500,7 @@ test('a write refused on one key does not abandon the keys after it', () => {
 
   expect(storage.getItem(KEYS.filterScope)).toBe('"view"');
   expect(storage.getItem(KEYS.dismissed)).toBe('["event-a"]');
-  expect(storage.getItem('events:hidden-by-view')).toBe('{"cards":["Community Day"]}');
+  expect(storage.getItem('events:hidden-by-view')).toBe('{"cards":["community-day"]}');
 });
 
 /**
