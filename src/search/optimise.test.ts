@@ -104,11 +104,14 @@ test('a ruled-out name reaching several species keeps its fragment rather than a
 });
 
 test('a family keeps its name, there being no family data here to turn it into numbers', () => {
-  // `+charmander` is the Charmander family, and which species share one is not something this repository holds.
-  const { query, lossy } = told(all(named('+charmander')));
-
-  expect(query.startsWith('+')).toBe(true);
-  expect(lossy).toEqual(EXACT);
+  // `+charmander` is the Charmander family, and which species share one is not something this repository holds. A
+  // family is the families of everything the name reaches, nicknames included, so the shorter fragment widens it as it
+  // would a bare name.
+  expect(told(all(named('+charmander')))).toEqual({
+    query: '+charma',
+    rewrites: [['+charmander', '+charma']],
+    lossy: { narrowed: false, widened: true },
+  });
 });
 
 test('a name the game cannot spell is left alone', () => {

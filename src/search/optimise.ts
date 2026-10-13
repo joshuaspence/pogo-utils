@@ -207,9 +207,7 @@ function shortName(token: string, negated: boolean): { text: string; spans: Span
     }
   }
 
-  // A family is the union of the families of whatever the name reaches, so a shorter way to the same species is the
-  // same search. Which species share a family is the thing not known here, so the numbers are not on offer and a `+`
-  // keeps a name.
+  // Which species share a family is the thing not known here, so the numbers are not on offer and a `+` keeps a name.
   if (family) {
     return { text: `+${shortest}`, spans: null, numbered: false };
   }
@@ -442,8 +440,7 @@ function short(node: Node, told: Told): Node {
 
     if (shortened.numbered) {
       told.lossy.narrowed = true;
-    } else if (shortened.text !== name.text && !name.text.startsWith('+')) {
-      // A family is left out: it is the families of the species the name reaches, which the fragment keeps the same.
+    } else if (shortened.text !== name.text) {
       told.lossy.widened = true;
     }
 
