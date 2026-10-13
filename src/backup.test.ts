@@ -55,6 +55,23 @@ test('a cleared browser restores to the preferences it was exported from', () =>
   expect(loadPrefs()).toEqual(was);
 });
 
+/**
+ * A file exported before the type sets were keyed by slug carries headings, and can be imported on any day. The load
+ * after a restore is what rewrites them, so storage holds slugs from then on and not only what `loadPrefs` answers.
+ */
+test('a backup holding headings is stored as slugs once loaded', () => {
+  restore(
+    JSON.stringify({ version: 1, [KEYS.hiddenTypes]: ['Raid Hour'], [KEYS.hiddenByView]: { cards: ['GO Pass'] } }),
+  );
+
+  const prefs = loadPrefs();
+
+  expect(prefs.hiddenTypes).toEqual(new Set(['raid-hour']));
+  expect(prefs.hiddenByView).toEqual({ cards: new Set(['go-pass']) });
+  expect(storage.getItem(KEYS.hiddenTypes)).toBe('["raid-hour"]');
+  expect(storage.getItem(KEYS.hiddenByView)).toBe('{"cards":["go-pass"]}');
+});
+
 const EMPTY_SEEN = () => ({ through: null, ids: new Set<string>() });
 const SOME_SEEN = () => ({ through: 1_000, ids: new Set(['e']) });
 
