@@ -14,6 +14,7 @@
 
 import { expect, test } from 'vitest';
 
+import POKEMON from '../pokemon/pokedex.js';
 import { compose, emptyState, type State } from './query.js';
 import { optimise } from './optimise.js';
 import { GROUPS, RANGES, TERMS_BY_ID, type Group as Category } from './terms.js';
@@ -80,6 +81,26 @@ test('a name shortened to a fragment says it now matches more nicknames', () => 
     rewrites: [['eevee', 'eev']],
     lossy: { narrowed: false, widened: true },
   });
+});
+
+test('a ruled-out name reaching several species keeps its fragment rather than a comma', () => {
+  // `nidoran` is both Nidoran, which the dex cannot run together, and `nidor` would reach Nidorina and Nidorino too.
+  expect([Number(POKEMON.NIDORAN_F), Number(POKEMON.NIDORAN_M)]).toEqual([29, 32]);
+  expect(short(all(named('nidoran')))).toBe('29,32');
+
+  // Ruled out, `!29,32` would be not 29 *or* 32, which is every Pokémon — a reader excluding both Nidoran would have
+  // excluded nothing, from a string a mass transfer is run from.
+  const ruled: Leaf = { kind: 'name', text: 'nidoran', negated: true };
+
+  expect(told(all(ruled))).toEqual({
+    query: '!nidora',
+    rewrites: [['nidoran', 'nidora']],
+    lossy: { narrowed: false, widened: true },
+  });
+  expect(short(any(ruled, yes('shiny')))).toBe('!nidora,shiny');
+
+  // A single span has no comma to lose the `!` across, so a ruled-out name reaching one species still becomes it.
+  expect(short(all({ kind: 'name', text: 'charmander', negated: true }))).toBe('!4');
 });
 
 test('a family keeps its name, there being no family data here to turn it into numbers', () => {
