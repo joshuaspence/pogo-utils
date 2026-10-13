@@ -34,8 +34,10 @@
  *
  * `snap` and `parse` are the tools for fixing a misread. Every tap position, swipe and delay is in `DEFAULTS` and can
  * be overridden from a JSON file passed as `--config`, with positions as fractions of the screen so one file suits any
- * phone of the same shape. `--verbose` adds the lines OCR found with their boxes, which is what separates a field left
- * empty because no text was read there from one left empty because a reader anchored on the wrong line.
+ * phone of the same shape. Each prints its answer — species, form, CP, HP, level, IVs and moves, once each, coloured by
+ * whether it was read off the screen or worked out from what was — with the notes that qualify it. `--verbose` adds the
+ * lines OCR found with their boxes, which is what separates a field left empty because no text was read there from one
+ * left empty because a reader anchored on the wrong line, and what each reader made of them.
  *
  * Automating input breaks Niantic's terms of service. This only reads, and moves at a person's pace, but the risk to
  * the account is the user's to weigh.
@@ -56,13 +58,22 @@ import { fold, ocr, useEngine, type Line } from '../src/tools/inventory/ocr.mts'
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import { showProgress } from '../src/tools/inventory/progress.mts';
-import { artworkIn, NO_BOX, NO_OVERLAY, printable, readScreen, refusals } from '../src/tools/inventory/report.mts';
+import {
+  answer,
+  artworkIn,
+  NO_BOX,
+  NO_OVERLAY,
+  printable,
+  readScreen,
+  refusals,
+  type Source,
+} from '../src/tools/inventory/report.mts';
 import { offsetBetween, stitch, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
 import { storage, unsearchable } from '../src/tools/inventory/storage.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { parseArgs } from 'node:util';
+import { parseArgs, styleText } from 'node:util';
 
 /**
  * The band a screen is watched for movement in, and how much of it may still differ for it to count as still. The
@@ -226,13 +237,50 @@ useEngine(tesseractCli);
 
 const config = loadConfig(options.config);
 
+/** The colour each source is printed in, so that a value read off the screen and one worked out never look alike. */
+const SOURCE_STYLE = { 'read': 'cyan', 'worked out': 'magenta' } as const satisfies Record<Source, string>;
+
+/** Styled where stdout takes colour, which `styleText` decides: not for a pipe, nor under `NO_COLOR`. */
+const paint = (style: Parameters<typeof styleText>[0], text: string) =>
+  styleText(style, text, { stream: process.stdout });
+
+/** Whether the key to those colours has been printed, which a run wants once however many screens it reports. */
+let keyed = false;
+
+/** The key to those colours, once, and only where they are shown: without them it would describe nothing on the page. */
+function key() {
+  if (!keyed && paint('cyan', 'read') !== 'read') {
+    console.log(`${paint('cyan', 'read off the screen')}, ${paint('magenta', 'worked out from what was read')}`);
+  }
+
+  keyed = true;
+}
+
 /**
  * Everything each reader makes of one screenshot, for tuning: `readScreen` does the reading, which the Inventory page
- * shares, and this prints it.
+ * shares, and this prints it. The answer first, each field once and coloured by where it came from; then, for
+ * `--verbose`, the lines OCR found and the `Detail`, `Overlay` and `Identity` the answer was drawn from.
  */
 async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Signature>) {
   const read = await readScreen(image, data, icons, config.overlay);
+  key();
 
+  const { facts, notes } = answer(read);
+  const width = Math.max(...facts.map((f) => f.label.length));
+
+  for (const { label, value, source } of facts) {
+    console.log(
+      `${label.padEnd(width)}  ${source === null ? paint('dim', value) : paint(SOURCE_STYLE[source], value)}`,
+    );
+  }
+
+  for (const note of notes) {
+    console.log(`note: ${note}`);
+  }
+
+  // What every reader was handed and what each made of it, below the answer rather than ahead of it: a person tuning a
+  // reader wants these, and the same names meaning different things in each — `cp`, `levels`, `form` — is why they are
+  // not the answer.
   if (options.verbose) {
     const dump = (found: readonly Line[]) => {
       for (const l of found) {
@@ -250,13 +298,13 @@ async function report(image: Image, data: GameData, icons: ReadonlyMap<Form, Sig
       console.log('  --- the whole stitch, which the moves were read off');
       dump(read.whole);
     }
-  }
 
-  console.log('detail:', read.detail);
-  console.log('moves:', read.moves);
-  console.log('overlay box:', read.box ?? NO_BOX);
-  console.log('overlay:', read.overlay ?? NO_OVERLAY);
-  console.log('identity:', printable(read.identity));
+    console.log('detail:', read.detail);
+    console.log('moves:', read.moves);
+    console.log('overlay box:', read.box ?? NO_BOX);
+    console.log('overlay:', read.overlay ?? NO_OVERLAY);
+    console.log('identity:', printable(read.identity));
+  }
 
   // Handed back rather than only printed, so that `snap` can refuse a screen on what was already read instead of
   // parsing it a second time; a Tesseract run is the slowest thing here.
@@ -1154,6 +1202,9 @@ if (command === 'scan') {
 } else if (command === 'parse' && rest.length > 0) {
   const data = await loadGameData(CACHE, options.refresh);
   const icons = await iconsFor(CACHE, data, options.refresh);
+
+  // Ahead of the first header rather than under it, being about every screen below.
+  key();
 
   for (const path of rest) {
     console.log(`\n=== ${basename(path)}`);

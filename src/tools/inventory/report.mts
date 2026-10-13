@@ -116,3 +116,48 @@ export const printable = (identity: Identity) => {
     unseparated: identity.unseparated.map(named),
   };
 };
+
+/**
+ * Where a value in the answer came from: read straight off the screen, or worked out from other readings — the
+ * species, the level and the CP being the arithmetic's, not OCR's. Null for a value there is none of.
+ */
+export type Source = 'read' | 'worked out';
+
+/** One line of the answer: what it is, what it came to, and where that came from. */
+export interface Fact {
+  label: string;
+  value: string;
+  source: Source | null;
+}
+
+/**
+ * What a reading comes to, each field once, which is what `parse` leads with. The raw `Detail`, `Overlay` and
+ * `Identity` say the same things several times over and under the same names — `detail.cp` is the CP read beside its
+ * label and `identity.cp` the one worked out, `overlay.levels` every level the digits could be saying and
+ * `identity.levels` the ones the HP and the CP leave — so this picks, for each field, the value a scan would write.
+ *
+ * The CP is the worked-out one where there is one, being the one that agrees with everything else; the one read is
+ * only the fallback, and a disagreement between the two is already a note. `detail.cps` is never shown, being
+ * documented as not to be trusted. What `alternatives` and `unseparated` hold reaches the notes as sentences already.
+ */
+export function answer({ detail, moves, overlay, identity }: Reading): { facts: Fact[]; notes: string[] } {
+  const { form } = identity;
+  const fact = (label: string, value: string | number | null | undefined, source: Source): Fact =>
+    value === null || value === undefined || value === ''
+      ? { label, value: 'unknown', source: null }
+      : { label, value: String(value), source };
+
+  const facts = [
+    fact('species', form?.species, 'worked out'),
+    ...(form?.form ? [fact('form', form.form, 'worked out')] : []),
+    ...(identity.nickname ? [fact('nickname', identity.nickname, 'read')] : []),
+    identity.cp === null ? fact('cp', detail.cp, 'read') : fact('cp', identity.cp, 'worked out'),
+    fact('hp', detail.hp, 'read'),
+    fact('level', identity.levels.join(' or '), 'worked out'),
+    fact('ivs', overlay && `${overlay.iv.attack}/${overlay.iv.defense}/${overlay.iv.stamina}`, 'read'),
+    fact('fast move', moves.fast, 'read'),
+    fact('charged', moves.charged.join(', '), 'read'),
+  ];
+
+  return { facts, notes: identity.notes };
+}

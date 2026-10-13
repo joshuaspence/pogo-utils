@@ -342,12 +342,13 @@ test.for([
 });
 
 /**
- * The dump of what OCR read is printed only for `--verbose`, and the rest of the report is the same either way.
+ * The dump of what OCR read, and the raw readings beneath the answer, are printed only for `--verbose`; the answer is
+ * the same either way.
  *
- * Asserted as the whole output rather than the dump alone, the claim being that the flag adds lines and changes
- * nothing: a gate that reordered or dropped one of the fields below would satisfy any count of dump rows.
+ * Asserted as the whole output rather than the dump alone, the claim being that the flag adds lines after the answer
+ * and changes nothing in it: a gate that reordered or dropped one of the fields would satisfy any count of dump rows.
  */
-test('the OCR dump is printed only with `--verbose`', async () => {
+test('the OCR dump and the raw readings are printed only with `--verbose`', async () => {
   const cwd = reads();
 
   try {
@@ -356,12 +357,16 @@ test('the OCR dump is printed only with `--verbose`', async () => {
       run(process.execPath, [SCRIPT, 'parse', '--verbose', CAPTURE], { cwd }),
     ]);
 
+    expect(quiet.stdout, 'the answer was not printed').toMatch(/^species {2,}/m);
     expect(dumpRows(quiet.stdout), 'the dump was printed without the flag asking for it').toStrictEqual([]);
+    expect(quiet.stdout, 'the raw readings were printed without the flag asking for them').not.toMatch(
+      /^(detail|identity):/m,
+    );
     expect(dumpRows(loud.stdout).length, '`--verbose` printed no dump at all').toBeGreaterThan(0);
-    expect(
-      loud.stdout.split('\n').filter((line) => !DUMP.test(line)),
-      '`--verbose` changed the report rather than only adding the dump',
-    ).toStrictEqual(quiet.stdout.split('\n'));
+    expect(loud.stdout, '`--verbose` printed no raw readings').toMatch(/^identity:/m);
+    expect(loud.stdout.startsWith(quiet.stdout), '`--verbose` changed the answer rather than only adding to it').toBe(
+      true,
+    );
     // Nothing was downloaded, which is what says the seeded cache was read rather than merely present. Both runs carry
     // that claim, `Downloading` being outside the `--verbose` gate: a missing file would name itself either way.
     expect(quiet.stderr).toBe('');
