@@ -2,7 +2,6 @@ import { expect, test } from 'vitest';
 
 import {
   addDays,
-  DAY_MS,
   mergeEvents,
   overlaps,
   packLanes,
@@ -55,7 +54,8 @@ const parsed = (over: Partial<ParsedEvent>): ParsedEvent => ({
  * local-time constructors — so a fixture built the same way is the one that reads the same in every zone. Nothing here
  * asserts an absolute instant for that reason; what it asserts is a length, a boundary or an order.
  */
-const at = (year: number, month: number, day: number, hour = 0) => new Date(year, month - 1, day, hour);
+const at = (year: number, month: number, day: number, hour = 0, minute = 0) =>
+  new Date(year, month - 1, day, hour, minute);
 
 test('parseDate answers null for a missing or unusable date', () => {
   expect(parseDate(null)).toBeNull();
@@ -161,7 +161,7 @@ test.for([
     throw new Error('expected a window');
   }
 
-  expect(win[1] - win[0]).toBe(DAY_MS);
+  expect(win[1]).toBe(addDays(new Date(win[0]), 1).getTime());
   expect(new Date(win[0]).getHours()).toBe(0);
   expect(new Date(win[0]).getDate()).toBe(20);
   expect(win[0]).toBeLessThanOrEqual(at(2026, 9, 20, 18).getTime());
@@ -203,6 +203,29 @@ test.for([
   { span: 'from inside the week past it', from: at(2026, 1, 9), to: at(2026, 2, 1), columns: [5, 6] },
 ])('a window spanning $span covers columns $columns', ({ from, to, columns }) => {
   expect(weekColumns([from.getTime(), to.getTime()], WEEK_START)).toEqual(columns);
+});
+
+/**
+ * A cell is one calendar day from midnight to midnight, not 86,400,000ms from midnight. Each case sits at an edge a
+ * fixed span gets wrong on a day a clock change makes 25 hours long, which ends a span early so a late event lands on
+ * no column, or 23 hours long, which runs a span into the next day so an early event and a one-day marker cover two.
+ *
+ * Walking a year through `testEveryZone` is what reaches those days, as with `addDays`: in January, or in a zone that
+ * never changes its clocks, the two readings cannot be told apart.
+ */
+testEveryZone('every day of a year is one column, at either edge of the day', () => {
+  const origin = at(2026, 1, 4);
+
+  for (let i = 0; i < 364; i += 1) {
+    const weekStart = addDays(origin, i - (i % 7));
+    const day = addDays(origin, i);
+    const [y, m, d] = [day.getFullYear(), day.getMonth() + 1, day.getDate()];
+    const col = i % 7;
+
+    expect(weekColumns([at(y, m, d, 23, 15).getTime(), at(y, m, d, 23, 45).getTime()], weekStart)).toEqual([col, col]);
+    expect(weekColumns([at(y, m, d, 0, 15).getTime(), at(y, m, d, 0, 45).getTime()], weekStart)).toEqual([col, col]);
+    expect(weekColumns(windowOf(parsed({ start: at(y, m, d, 18) })), weekStart)).toEqual([col, col]);
+  }
 });
 
 test('a window that misses the week entirely covers no columns', () => {

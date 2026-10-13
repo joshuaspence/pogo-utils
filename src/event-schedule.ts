@@ -134,8 +134,7 @@ export function windowOf(ev: ParsedEvent): Span | null {
     return null;
   }
 
-  const dayStart = startOfDay(day).getTime();
-  return [dayStart, dayStart + DAY_MS];
+  return [startOfDay(day).getTime(), addDays(day, 1).getTime()];
 }
 
 export function overlaps(win: Span | null, from: number, to: number) {
@@ -151,9 +150,7 @@ export function weekColumns(win: Span | null, weekStart: Date): readonly [number
   let last = -1;
 
   for (let col = 0; col < 7; col += 1) {
-    const dayStart = addDays(weekStart, col).getTime();
-
-    if (overlaps(win, dayStart, dayStart + DAY_MS)) {
+    if (overlaps(win, addDays(weekStart, col).getTime(), addDays(weekStart, col + 1).getTime())) {
       first = first === -1 ? col : first;
       last = col;
     }
