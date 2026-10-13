@@ -20,7 +20,7 @@ const EXIT_MARK = 'pogo-utils-exit:';
 /**
  * Where `needle` last occurs in `bytes`, or -1: a byte search, the output it is run over being binary as often as not.
  */
-export function lastIndexOf(bytes: Uint8Array, needle: Uint8Array): number {
+function lastIndexOf(bytes: Uint8Array, needle: Uint8Array): number {
   for (let at = bytes.length - needle.length; at >= 0; at--) {
     if (needle.every((byte, i) => bytes[at + i] === byte)) {
       return at;
