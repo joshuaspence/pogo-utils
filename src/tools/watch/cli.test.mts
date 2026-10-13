@@ -608,6 +608,53 @@ test('spawns without a dex number are said each time they start arriving', async
 });
 
 /**
+ * The span tier is the only check there is that `WORLD` is wide enough, so an answer without one is said as any other
+ * tier short of `perfect` is: on the first poll that carries it, and again only when it comes back.
+ */
+test('an answer without a span tier is said, from the first poll on', async () => {
+  let viewports = 0;
+
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'POST /api/auth/login':
+        return json(response, 200, { token: 't' });
+      case 'POST /api/map/viewport':
+        viewports += 1;
+
+        // Every poll but the third without the field at all, as a server that stopped sending it would answer: the JSON
+        // leaves out a member that is `undefined`.
+        return json(response, 200, viewports === 3 ? viewport() : { ...viewport(), span_tier: undefined });
+      default:
+        return json(response, 200, {});
+    }
+  });
+
+  const controller = new AbortController();
+  const lines: string[] = [];
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => lines.push(line),
+      sleep: async () => {
+        if (viewports === 4) {
+          controller.abort();
+        }
+      },
+    });
+  } finally {
+    await map.close();
+  }
+
+  expect(lines.filter((line) => line.includes('span tier'))).toStrictEqual([
+    'The server answered no span tier, where the world view expects "perfect"',
+    'The server answered no span tier, where the world view expects "perfect"',
+  ]);
+});
+
+/**
  * The line a failed notification prints is the whole of what a watcher left running overnight leaves behind, and
  * `fetch` calls everything below HTTP `fetch failed` — so unless the cause reaches the log the failure names nothing to
  * act on. Port 9 is one `fetch` refuses itself, which makes the cause here `bad port` rather than the network's to

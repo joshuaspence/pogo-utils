@@ -84,11 +84,16 @@ export async function watch(options: WatchOptions): Promise<void> {
 
       backoff.succeeded();
 
-      if (answer.span_tier !== tier) {
+      // Said on the first answer whatever it carries: `tier` starts as the same `undefined` an answer without the field
+      // reads as, and this line is the only check there is that `WORLD` is wide enough.
+      if (first || answer.span_tier !== tier) {
         tier = answer.span_tier;
 
         if (tier !== 'perfect') {
-          log(`The server answered span tier ${JSON.stringify(tier)}, where the world view expects "perfect"`);
+          log(
+            `The server answered ${tier === undefined ? 'no span tier' : `span tier ${JSON.stringify(tier)}`}, ` +
+              'where the world view expects "perfect"',
+          );
         }
       }
 
