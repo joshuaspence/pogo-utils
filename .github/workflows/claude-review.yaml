@@ -68,7 +68,6 @@ jobs:
             --allowedTools
               'Bash(gh issue list:*)'
               'Bash(gh issue view:*)'
-              'Bash(gh pr comment:*)'
               'Bash(gh pr diff:*)'
               'Bash(gh pr list:*)'
               'Bash(gh pr view:*)'
@@ -93,7 +92,12 @@ jobs:
             Overriding it takes on what it was crudely doing, which is keeping a finding from being raised twice.
             Read what you have already published with `mcp__github__get_pull_request_review_comments` and leave a
             finding alone where it is already anchored to a line that has not changed since. Say which ones you
-            skipped and why, so a reader of this run can tell a deliberate silence from an oversight.
+            skipped and why in the review submitted after this, so a reader can tell a deliberate silence from an
+            oversight.
+
+            Post no summary comment, though the command says to post one when it finds nothing. The step after
+            this one submits your verdict as a review, and the review's body is the summary, so a comment as well
+            says everything twice. Findings still go out as inline comments.
 
             If `gh pr view` exits 1 naming `repository.pullRequest.projectCards`, that is `gh`'s own default query
             asking for Projects (classic), which GitHub now refuses outright — it is not a fault in this pull
