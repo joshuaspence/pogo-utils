@@ -348,6 +348,12 @@ export default function MapPage({ query: fragment }: { query: string }) {
         }),
       );
 
+      // Leaving the page while the files were in flight has removed the map, and a layer added to it then throws. The
+      // loop below has no `await` for the page to be left during, so this one check covers it.
+      if (!live) {
+        return;
+      }
+
       const routes: RouteEntry[] = [];
       const cities: CityEntry[] = [];
       const missing: Failure[] = [];
