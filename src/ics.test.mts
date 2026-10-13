@@ -99,6 +99,17 @@ test('URL and CATEGORIES are left out when the event has no link or heading', ()
   expect(lines.some((line) => line.startsWith('URL:') || line.startsWith('CATEGORIES:'))).toBe(false);
 });
 
+test.for(['javascript:alert(1)', 'data:text/html,<script>alert(1)</script>'])(
+  'a link %s is published neither as the URL nor in the description',
+  (link) => {
+    // The calendar leaves this site for whoever subscribed, so a link `webLink` would keep off a page is kept off it too.
+    const lines = vevent(event({ link }), {});
+
+    expect(lines.some((line) => line.startsWith('URL:'))).toBe(false);
+    expect(props(event({ link })).DESCRIPTION).toBe('Event');
+  },
+);
+
 test('a TEXT value escapes its separators and every spelling of a line break', () => {
   expect(escape('a\\b;c,d')).toBe('a\\\\b\\;c\\,d');
   expect(escape('a\r\nb\nc\rd')).toBe('a\\nb\\nc\\nd');

@@ -10,7 +10,7 @@
 
 import { expect, test } from 'vitest';
 
-import { ended, HAS_ZONE, prunable, routeSummary, stamp, stampsOf, vendable } from './event-feed.js';
+import { ended, HAS_ZONE, prunable, routeSummary, stamp, stampsOf, vendable, webLink } from './event-feed.js';
 import { testEveryZone } from './testing/zones.js';
 
 import type { FeedEvent } from './types.js';
@@ -256,4 +256,31 @@ test('stampsOf leaves out an entry with no stamp', () => {
   expect(stampsOf([{ eventID: 'a' }, { eventID: 'b', added: '2026-01-01T00:00:00.000Z' }])).toEqual(
     new Map([['b', '2026-01-01T00:00:00.000Z']]),
   );
+});
+
+/**
+ * The feed's `link` becomes an `href`, so only a web URL survives. The rest are what a strayed feed might carry: a
+ * scheme that runs or embeds something, a relative path that would resolve against this site, and a value that is not
+ * a string at all.
+ */
+test.for(['https://leekduck.com/events/a/', 'http://leekduck.com/events/a/', 'HTTPS://leekduck.com/events/a/'])(
+  'a web link %s is kept',
+  (link) => {
+    expect(webLink(link)).toBe(link);
+  },
+);
+
+test.for([
+  'javascript:alert(1)',
+  ' javascript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  'https:leekduck.com',
+  '//leekduck.com/events/a/',
+  '/events/a/',
+  '',
+  null,
+  undefined,
+  42,
+])('a link %s is dropped', (link) => {
+  expect(webLink(link)).toBeUndefined();
 });

@@ -5,7 +5,7 @@
  * decision to a case.
  */
 
-import { byCodeUnit, HAS_ZONE, routeSummary } from './event-feed.ts';
+import { byCodeUnit, HAS_ZONE, routeSummary, webLink } from './event-feed.ts';
 import { DIST, EVENTS_FEED } from './generated.ts';
 import RECURRING_TYPES from './recurring-types.ts';
 import type { FeedEvent, RouteIndex } from './types.js';
@@ -143,19 +143,20 @@ export function vevent(ev: FeedEvent, index: RouteIndex): string[] {
 
   const description = [ev.heading];
   const here = index[ev.eventID];
+  const link = webLink(ev.link);
 
   if (here) {
     description.push(`${routeSummary(here)} here: ${SITE}/#/map?event=${encodeURIComponent(ev.eventID)}`);
   }
 
-  if (ev.link) {
-    description.push(ev.link);
+  if (link) {
+    description.push(link);
   }
 
   lines.push(`DESCRIPTION:${escape(description.filter(Boolean).join('\n'))}`);
 
-  if (ev.link) {
-    lines.push(`URL:${ev.link}`);
+  if (link) {
+    lines.push(`URL:${link}`);
   }
 
   if (ev.heading) {

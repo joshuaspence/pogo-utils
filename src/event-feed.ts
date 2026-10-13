@@ -33,6 +33,22 @@ export const LOCAL_EVENTS = 'data/events.json';
  */
 export const HAS_ZONE = /[zZ]|[+-]\d{2}:?\d{2}$/;
 
+/** An absolute `http:` or `https:` URL, matched case-insensitively as a browser parses a scheme. */
+const WEB_URL = /^https?:\/\//i;
+
+/**
+ * The feed's `link` if it is a web URL, otherwise undefined. It becomes an `href` on this site — the card's overlay and
+ * both views' bars — and a `URL:` in the published calendar, which a subscriber's client draws as a link where nothing
+ * here can withdraw it. The feed is refetched from a third party without review, so a `javascript:` or `data:` URL, by
+ * misconfiguration or compromise, is dropped rather than published: the event goes out without a link. The reasoning
+ * `releaseFromApk` gives for its APK URL, and checked the same way, on the string as given, since that is what a
+ * browser or a calendar will follow. Matched on the string rather than through a `URL` for the same reason too: this
+ * project declares neither the browser's globals nor Node's.
+ */
+export function webLink(link: unknown): string | undefined {
+  return typeof link === 'string' && WEB_URL.test(link) ? link : undefined;
+}
+
 /**
  * Whether an event is over everywhere by `now`. A naive end has passed everywhere only once it has passed at UTC−12,
  * the last zone to reach it, which is what reading it *as* `-12:00` says. An event with no announced end has not ended.

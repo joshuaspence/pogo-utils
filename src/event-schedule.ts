@@ -4,7 +4,7 @@
  * one — `src/pages/events.tsx` is a page component and so unreachable outside a browser.
  */
 
-import { HAS_ZONE, type StampedEvent } from './event-feed.js';
+import { HAS_ZONE, type StampedEvent, webLink } from './event-feed.js';
 
 /**
  * A feed entry with its dates parsed — the only shape the page itself works in. Not `Event`, which would shadow the
@@ -188,21 +188,6 @@ export function packLanes(items: readonly TrackItem[]) {
   }
 
   return laneEnds.length;
-}
-
-/** An absolute `http:` or `https:` URL, matched case-insensitively as a browser parses a scheme. */
-const WEB_URL = /^https?:\/\//i;
-
-/**
- * The feed's `link` if it is a web URL, otherwise undefined. It becomes an `href` on this site — the card's overlay and
- * both views' bars — and the feed is refetched from a third party every ten minutes without review, so a `javascript:`
- * or `data:` URL, by misconfiguration or compromise, is dropped rather than published: the event is drawn without a
- * link. The reasoning `releaseFromApk` gives for its APK URL, and checked the same way, on the string as given, since
- * that is what a browser will follow. Matched on the string rather than through a `URL` for the same reason too: the
- * shared project declares neither the browser's globals nor Node's.
- */
-export function webLink(link: unknown): string | undefined {
-  return typeof link === 'string' && WEB_URL.test(link) ? link : undefined;
 }
 
 function normalise(raw: readonly StampedEvent[]): ParsedEvent[] {
