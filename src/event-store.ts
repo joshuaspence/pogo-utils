@@ -291,10 +291,20 @@ export class EventStore {
    * Record these events as seen, in one write. Asked only for events `isNew` admitted — which it cannot do before
    * `settleSeen` has filled the set, a null one being the first of its three conditions. So the optional call is that
    * null being unreachable rather than tolerated.
+   *
+   * Asked for none, it writes nothing. **Clear all** clears every source of notices, so it asks for none whenever the
+   * others' were all there was, and the set can be null then: before the first whole load, or for as long as loads keep
+   * missing a file. Written, that null would read as a stored `seen` and stop `keyFor` reading the unprefixed one.
    */
   acknowledge(events: Iterable<Pick<ParsedEvent, 'eventID'>>) {
-    for (const ev of events) {
-      this.prefs.seen?.ids.add(ev.eventID);
+    const ids = Array.from(events, (ev) => ev.eventID);
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    for (const id of ids) {
+      this.prefs.seen?.ids.add(id);
     }
 
     // Folded straight away where it can be, so **Mark all as seen** stores an instant rather than the list it cleared.

@@ -254,6 +254,22 @@ test('the Events page search narrows the list while it is open, and closing the 
   expect(ids(store)).toEqual(['b', 'c']);
 });
 
+/**
+ * **Clear all** asks for no events whenever the other notices were all there was, which can be before any load has
+ * settled the seen record. Nothing to record is nothing to write: a stored null would stop the read-through of the
+ * record's unprefixed name.
+ */
+test('acknowledging no events writes nothing and tells nobody', () => {
+  const { store } = storeOver([feedEvent('a')]);
+  const listener = vi.fn();
+  store.subscribe(listener);
+
+  store.acknowledge([]);
+
+  expect(storage.snapshot()).toEqual({});
+  expect(listener).not.toHaveBeenCalled();
+});
+
 test('acknowledging clears the notification through the one seen set, and tells every reader', async () => {
   const { store, source } = storeOver([feedEvent('a')]);
 
