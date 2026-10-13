@@ -19,6 +19,7 @@ import {
   cycle,
   emptyTree,
   group,
+  groupAt,
   isGroup,
   leafLabel,
   leafText,
@@ -145,6 +146,28 @@ test('a path names the node it leads to, and nothing where it leads nowhere', ()
   // A link can carry a path the tree does not have, and a drag can finish over a group that has just been removed.
   expect(nodeAt(tree, [9])).toBeNull();
   expect(nodeAt(tree, [0, 0])).toBeNull();
+});
+
+test('a path held across a removal still names a group a chip can fill', () => {
+  const tree = all(yes('shiny'), any(yes('fire'), all(yes('water'))));
+
+  expect(groupAt(tree, [1, 1])).toEqual([1, 1]);
+
+  // The group the path named is gone, and so is the one above it: what is left is the root.
+  const removed = update(tree, [1], () => null);
+
+  expect(groupAt(removed, [1, 1])).toEqual([]);
+  expect(chipState(removed, groupAt(removed, [1, 1]), 'shiny')).toBe('in');
+
+  // A pill taken out ahead of a group shifts it along, leaving its old path on whatever came after it.
+  const shifted = update(all(yes('lucky'), any(yes('fire')), yes('shiny')), [0], () => null);
+
+  expect(nodeAt(shifted, [1])).toEqual(yes('shiny'));
+  expect(groupAt(shifted, [1])).toEqual([]);
+  expect(groupAt(shifted, [1, 0])).toEqual([]);
+  expect(shape(cycle(shifted, groupAt(shifted, [1]), yes('lucky')))).toEqual({
+    all: [{ any: ['fire'] }, 'shiny', 'lucky'],
+  });
 });
 
 test('an edit rebuilds only the spine down to what it changed', () => {
