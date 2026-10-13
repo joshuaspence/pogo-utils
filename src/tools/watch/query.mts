@@ -208,12 +208,14 @@ export function blindSpots(filter: FilterConfig): string[] {
     return missing;
   }
 
-  if (filter.showAll) {
+  // `showAll` widens the filter only where its band is the whole range, as `shows` reads it for a spawn of unknown IV.
+  // Within a narrower band it draws what the band draws, so the band is what is missing.
+  if (filter.showAll && filter.minIV === 0 && filter.maxIV === 100) {
     missing.push('every spawn ("Show All")');
   } else if (filter.minIV < 100 && filter.maxIV >= filter.minIV) {
     const sizes = [filter.filterXXL && 'XXL', filter.filterXXS && 'XXS'].filter(Boolean).join(' and ');
 
-    missing.push(`${sizes ? `${sizes} ` : ''}spawns from ${filter.minIV}% to 99% IV`);
+    missing.push(`${sizes ? `${sizes} ` : ''}spawns from ${filter.minIV}% to ${Math.min(filter.maxIV, 99)}% IV`);
   }
 
   if (filter.alwaysShowZero) {
