@@ -120,11 +120,11 @@ test('`build:sprites` names every species whose icon the dex number cannot deriv
   expect(icons).toHaveProperty('327', 'pm327.f00.icon.png');
 
   /*
-   * The four species that declare their forms across more than one `addForms` call, which is where the game's order
-   * and a reading of the declaration can come apart: a second call exists to scope a trailing `isRegional()` and says
-   * nothing about display order, so the leading group has to be the one the game shows. These are the cases that make
-   * that a property of `pokedex.ts` rather than an accident of it, and pinning the wrong form here is what held the
-   * bug in place last round.
+   * Four of the species the report above names as splitting their forms, pinned because each led with the group the
+   * game does not show until that was corrected. In all four an `isRegional()` sits between the two `addForms` calls,
+   * and the second call exists so that the marker stops at the forms declared before it: it says nothing about display
+   * order, so the leading group has to be the one the game shows. Pinning the wrong form here is what held the bug in
+   * place last round.
    */
   expect(icons).toMatchObject({
     669: 'pm669.fRED.icon.png',
