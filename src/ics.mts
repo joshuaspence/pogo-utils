@@ -6,7 +6,7 @@
  */
 
 import { byCodeUnit, HAS_ZONE, routeSummary } from './event-feed.ts';
-import { EVENTS_FEED } from './generated.ts';
+import { DIST, EVENTS_FEED } from './generated.ts';
 import RECURRING_TYPES from './recurring-types.ts';
 import type { FeedEvent, RouteIndex } from './types.js';
 import { join } from 'node:path';
@@ -16,13 +16,6 @@ import { join } from 'node:path';
  * inside one have to be absolute — this is the only place that spelling is kept.
  */
 export const SITE = 'https://joshuaspence.github.io/pogo-utils';
-
-/**
- * The artifact this writes into, which `scripts/assemble.mts` spells for itself. Made by `scripts/build-ics.mts` rather
- * than taken for granted: the only thing that creates `dist/` is esbuild in `scripts/bundle.mts`, which left
- * `pnpm build:ics` on its own failing on an `ENOENT` for a directory the step before it happened to make.
- */
-export const DIST = 'dist';
 
 // A UID has to be unique across every calendar its reader subscribes to, so the stable `eventID` is qualified by us.
 const UID_DOMAIN = 'pogo-utils.joshuaspence.github.io';

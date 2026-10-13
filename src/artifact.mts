@@ -11,8 +11,6 @@ import { dirname, extname, join, relative } from 'node:path';
 import { GAME_MASTER, TESSERACT_VENDOR } from './generated.ts';
 import { SERVED_TYPES } from '../scripts/served-types.mts';
 
-export const DIST = 'dist';
-
 /**
  * What the site serves that the compiler does not write, relative to the repository root. An entry ending `*.ext` takes
  * every matching file in that one directory; anything else is copied as it stands, recursively where it is a directory.

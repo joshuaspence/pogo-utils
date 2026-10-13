@@ -13,12 +13,11 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DIST } from '../src/generated.ts';
 import { HOME, PAGES, toHash } from '../src/page-table.ts';
 
 /** Everything in the manifest that is not a page, which is also what `scripts/build-icons.mts` renders from. */
 const SOURCE = 'manifest.json';
-
-const DIST = 'dist';
 
 /** The members written here. One in the source as well would be a hand copy again, so it is refused rather than merged. */
 const GENERATED = ['start_url', 'shortcuts'];

@@ -7,9 +7,11 @@
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { build } from 'esbuild';
+import { DIST } from '../src/generated.ts';
 
-const OUT = 'dist/src';
+const OUT = join(DIST, 'src');
 
 /**
  * The entry points, taken from the markup rather than transcribed, a `<script type="module">` being what makes a module
