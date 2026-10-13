@@ -10,7 +10,7 @@
  * The search box, type filters and dismissals apply to all three.
  */
 
-import { Fragment } from 'preact';
+import { Fragment, type ComponentChildren, type HTMLAttributes } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { routeSummary } from '../event-feed.js';
@@ -180,6 +180,27 @@ function timeRange(ev: ParsedEvent) {
   }
 
   return 'Date unknown';
+}
+
+/**
+ * An event's bar in the calendar or on the tracks: a link to its source page, or a `<span>` for an event whose link
+ * `webLink` dropped — the reason the cards view leaves its overlay out. An `<a>` with no `href` would still be drawn as
+ * a bar to click, yet take no focus and open nothing.
+ */
+function eventBar(
+  ev: ParsedEvent,
+  bar: Pick<HTMLAttributes<HTMLElement>, 'class' | 'style' | 'title'>,
+  children: ComponentChildren,
+) {
+  return ev.link === undefined ? (
+    <span key={ev.eventID} {...bar}>
+      {children}
+    </span>
+  ) : (
+    <a key={ev.eventID} {...bar} href={ev.link} target="_blank" rel="noopener">
+      {children}
+    </a>
+  );
 }
 
 /**
@@ -630,18 +651,14 @@ export default function EventsPage({ query: fragment }: { query: string }) {
       classes.push('new');
     }
 
-    return (
-      <a
-        key={ev.eventID}
-        class={classes.join(' ') + typeClass(ev.eventType)}
-        style={{ gridColumn: `${first + 1} / span ${last - first + 1}` }}
-        href={ev.link}
-        target="_blank"
-        rel="noopener"
-        title={`${ev.name} — ${timeRange(ev)}`}
-      >
-        <span class="cal-bar-name">{ev.name}</span>
-      </a>
+    return eventBar(
+      ev,
+      {
+        class: classes.join(' ') + typeClass(ev.eventType),
+        style: { gridColumn: `${first + 1} / span ${last - first + 1}` },
+        title: `${ev.name} — ${timeRange(ev)}`,
+      },
+      <span class="cal-bar-name">{ev.name}</span>,
     );
   }
 
@@ -907,23 +924,19 @@ export default function EventsPage({ query: fragment }: { query: string }) {
             const right = Math.min(item.endMs, rangeEndMs);
             const status = statusOf(item.ev, now).kind;
 
-            return (
-              <a
-                key={item.ev.eventID}
-                class={`bar ${status}${isNew(item.ev) ? ' new' : ''}${typeClass(item.ev.eventType)}`}
-                href={item.ev.link}
-                target="_blank"
-                rel="noopener"
-                title={`${item.ev.name} — ${timeRange(item.ev)}`}
-                style={{
+            return eventBar(
+              item.ev,
+              {
+                class: `bar ${status}${isNew(item.ev) ? ' new' : ''}${typeClass(item.ev.eventType)}`,
+                title: `${item.ev.name} — ${timeRange(item.ev)}`,
+                style: {
                   left: `${((left - rangeStartMs) / DAY_MS) * TRACK_DAY_PX}px`,
                   width: `${Math.max(TRACK_DAY_PX / 2, ((right - left) / DAY_MS) * TRACK_DAY_PX)}px`,
                   top: `${TRACK_LANE_GAP + item.lane * (TRACK_BAR_H + TRACK_LANE_GAP)}px`,
                   height: `${TRACK_BAR_H}px`,
-                }}
-              >
-                {item.ev.name}
-              </a>
+                },
+              },
+              item.ev.name,
             );
           })}
         </div>,
