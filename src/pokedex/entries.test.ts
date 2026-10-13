@@ -7,6 +7,7 @@
 import { expect, test } from 'vitest';
 
 import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, generationOf, numbered, type Entry } from './entries.js';
+import PGSHARP_FILTERS from '../pgsharp/filters.js';
 import { GENERATIONS } from '../pokemon/generations.js';
 import { fold } from '../pokemon/names.js';
 
@@ -135,6 +136,24 @@ test('a hunt is watched where any member it wants is, not where every one of the
   );
 
   expect(dead).toEqual([]);
+});
+
+test('a hunt is watched for exactly the species the PGSharp feed built from its list carries', () => {
+  // The page's `watched` and the feed are two readings of one narrowing, and checking `watched` against itself cannot
+  // see them drift: a filter added to `WILD_SPAWN_FILTERS` would change the feed and leave the page's counts describing
+  // the old one. So each hunt is checked against the feed it stands for, compared by dex number since that is all the
+  // feed keeps. The Hisuian and Regional shiny feeds are narrower cuts of the shiny list and are left out.
+  const feeds: Record<string, string> = { shiny: 'Shiny Hunting', xxl: 'XXL', xxs: 'XXS', perfect: '100%' };
+  const dexes = (pokemon: Iterable<unknown>) => [...new Set([...pokemon].map(Number))].sort((one, two) => one - two);
+
+  expect(Object.keys(feeds)).toEqual(HUNTS.map(({ id }) => id));
+
+  for (const { id, members, watched } of HUNTS) {
+    const feed = PGSHARP_FILTERS.find(({ name }) => name === feeds[id]);
+
+    expect(feed, id).toBeDefined();
+    expect(dexes([...members].filter(watched)), id).toEqual(dexes(feed?.pokemons ?? []));
+  }
 });
 
 test('a form of a regional variant is named by both, so it is not read as a form of the species', () => {

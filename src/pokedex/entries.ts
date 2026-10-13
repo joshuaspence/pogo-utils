@@ -9,7 +9,7 @@
 
 import { fold, formNameOf, nameOf } from '../pokemon/names.js';
 import POKEMON from '../pokemon/pokedex.js';
-import type { Predicate } from '../filters/narrow.js';
+import { SHINY_HUNTING_FILTERS, WILD_SPAWN_FILTERS, type Predicate } from '../filters/narrow.js';
 import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 import XXL_POKEMON from '../filters/xxl.js';
@@ -49,10 +49,15 @@ export interface Entry {
 }
 
 /**
- * What a scanner can ever report: a wild spawn of something in the game, as `filters/narrow.js` narrows to. Said again
- * here as a conjunction rather than imported as that module's predicate list, which is a duplicate worth collapsing.
+ * The predicate a feed narrows a hunt list with, read off the very filter list `filters/narrow.js` hands that feed —
+ * so a filter added there changes what the page calls watched with no edit here.
  */
-const feedable: Predicate = (pokemon) => pokemon.released && pokemon.spawns;
+const allOf =
+  (filters: readonly Predicate[]): Predicate =>
+  (pokemon) =>
+    filters.every((predicate) => predicate(pokemon));
+
+const feedable = allOf(WILD_SPAWN_FILTERS);
 
 /**
  * The hunt lists, in the order the page shows them. A list names a species or one of its forms, so an entry is on a
@@ -67,7 +72,7 @@ export const HUNTS: readonly Hunt[] = [
     id: 'shiny',
     label: 'Shiny hunt',
     members: SHINY_POKEMON,
-    watched: (pokemon) => feedable(pokemon) && pokemon.shinyEligible,
+    watched: allOf(SHINY_HUNTING_FILTERS),
   },
   { id: 'xxl', label: 'XXL wanted', members: XXL_POKEMON, watched: feedable },
   { id: 'xxs', label: 'XXS wanted', members: XXS_POKEMON, watched: feedable },
