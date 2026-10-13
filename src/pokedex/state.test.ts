@@ -46,7 +46,7 @@ test('a state survives being written to a fragment and read back', () => {
   });
 
   expect(toFragment(original)).toBe('q=pika&g=9&a=out&f=shiny.legendary.hunt-xxs&n=150');
-  expect(fromFragment(`#${toFragment(original)}`)).toEqual(original);
+  expect(fromFragment(toFragment(original))).toEqual(original);
 });
 
 /**
@@ -58,12 +58,6 @@ test('a query carrying the fragment’s own punctuation round-trips', () => {
 
   expect(toFragment(original)).toBe('q=mr.+mime%26a%3Din');
   expect(fromFragment(toFragment(original))).toEqual(original);
-});
-
-/** The leading `#` a `location.hash` carries is not part of the first parameter's name. */
-test('a fragment reads the same with or without its hash', () => {
-  expect(fromFragment('#q=pika')).toEqual(fromFragment('q=pika'));
-  expect(fromFragment('#q=pika').q).toBe('pika');
 });
 
 /**

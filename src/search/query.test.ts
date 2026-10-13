@@ -22,8 +22,8 @@ const any = (...parts: Node[]) => group('any', parts);
 /** A state as the page would have it, with only the part a test is about spelled out. */
 const state = (tree: Node, optimise = false): State => ({ ...emptyState(), tree, optimise });
 
-/** The round trip as the page makes it: write the link, then read it back the way the browser hands it over. */
-const roundTrip = (chosen: State) => fromFragment(`#${toFragment(chosen)}`);
+/** The round trip as the page makes it: write the link, then read it back the way the router hands it over. */
+const roundTrip = (chosen: State) => fromFragment(toFragment(chosen));
 
 /** A tree said in the shape a failure can be read in. */
 const shape = (node: Node): unknown =>
@@ -119,7 +119,7 @@ test("the Pokédex's link into this page arrives as the one name it asked for", 
    * is that link followed.
    */
   for (const text of ['charmander', '+charmander', "farfetch'd", 'mr. mime']) {
-    const arrived = fromFragment(`#${nameFragment(text)}`);
+    const arrived = fromFragment(nameFragment(text));
 
     expect({ text, shape: shape(arrived.tree), query: compose(arrived).query }).toEqual({
       text,
@@ -158,13 +158,6 @@ test('an arrangement survives the round trip', () => {
   // on by accident.
   expect(fromFragment('s=1').optimise).toBe(true);
   expect(fromFragment('s=true').optimise).toBe(false);
-});
-
-test('a link arrives with its hash, which is not part of the first key', () => {
-  // `location.hash` carries the `#`, so a reader following a link hands this the whole of it.
-  expect(shape(fromFragment('#q=A1_Tshiny').tree)).toEqual({ all: ['shiny'] });
-  expect(shape(fromFragment('q=A1_Tshiny').tree)).toEqual({ all: ['shiny'] });
-  expect(new URLSearchParams('#q=A1_Tshiny').get('q')).toBe(null);
 });
 
 test('a name carries the characters the token stream uses for itself', () => {

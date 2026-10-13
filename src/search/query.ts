@@ -244,7 +244,7 @@ function decodeName(body: string) {
  */
 export function fromFragment(fragment: string) {
   const state = emptyState();
-  const params = new URLSearchParams(fragment.replace(/^#/, ''));
+  const params = new URLSearchParams(fragment);
 
   state.optimise = params.get('s') === '1';
 
