@@ -512,7 +512,7 @@ export type RangeId = (typeof RANGE_TABLE)[number]['id'];
  * for, which is the courtesy `parse.js` already pays `cp3000-0`; composing one back would hand that reader a string
  * that is itself a shortcut, where the span spelled out is the one spelling nothing can swallow.
  */
-export const SHORTCUTS: readonly { phrase: string; range: string; from: number; greedy: boolean }[] = [
+export const SHORTCUTS: readonly { phrase: string; range: RangeId; from: number; greedy: boolean }[] = [
   { phrase: 'mega', range: 'megalevel', from: 0, greedy: false },
   { phrase: 'count', range: 'count', from: 2, greedy: true },
   { phrase: 'dynamax', range: 'dynamaxmoves', from: 1, greedy: true },
