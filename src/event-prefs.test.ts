@@ -56,8 +56,8 @@ test('every key is namespaced to this app, and names a page under it', () => {
 
 /**
  * A first visit, which is the case the whole absent-versus-empty distinction exists for: no key has been written, so
- * the hidden types are the default rather than nothing, and `seen` is null rather than an empty set — null being what
- * tells a first visit from a reader who has acknowledged everything.
+ * the hidden types are the default rather than nothing, and `seen` is null rather than an empty record — null being
+ * what tells a first visit from a reader who has acknowledged nothing.
  */
 test('a first visit gets the defaults, and a null seen set', () => {
   const prefs = loadPrefs();

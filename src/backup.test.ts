@@ -293,7 +293,7 @@ test.for([
  * The refused key is the *second* of the two written, which is what makes this a rollback rather than a write that
  * never started: the first key has already been set when the throw arrives and has to be walked back. Its earlier
  * value and an absent one are both checked, an absent key put back as empty being a value the file never carried —
- * and for `seen` the difference between the two is a first visit against a reader who has acknowledged everything.
+ * and for `seen` the difference between the two is a first visit against a reader who has acknowledged nothing.
  */
 test('a write that fails partway puts back what it found', () => {
   persist({ ...emptyPrefs(), hiddenTypes: new Set(['community-day']) }, 'hiddenTypes');

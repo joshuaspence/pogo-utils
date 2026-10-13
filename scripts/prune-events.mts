@@ -13,13 +13,12 @@
  * Unlike the vend this reads the clock, so it is no step of `pnpm build`, which would then depend on when it ran.
  */
 
-import { LOCAL_EVENTS, prunable, VENDED_EVENTS } from '../src/event-feed.ts';
+import { LOCAL_EVENTS, prunable, VENDED_EVENTS, type StampedEvent } from '../src/event-feed.ts';
 import { cutElements, eventRefs, gpxSources, parseGpx } from '../src/gpx-source.mts';
-import type { FeedEvent } from '../src/types.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const events: FeedEvent[] = JSON.parse(readFileSync(LOCAL_EVENTS, 'utf8'));
-const vended: FeedEvent[] = JSON.parse(readFileSync(VENDED_EVENTS, 'utf8'));
+const events: StampedEvent[] = JSON.parse(readFileSync(LOCAL_EVENTS, 'utf8'));
+const vended: StampedEvent[] = JSON.parse(readFileSync(VENDED_EVENTS, 'utf8'));
 
 const gone = prunable(events, vended, new Date());
 

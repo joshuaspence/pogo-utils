@@ -306,7 +306,9 @@ export class EventStore {
 
   /**
    * Re-read the preferences an import has just written and settle them against the feed, as one change: `settleSeen`
-   * reads an absent `seen` as a first visit, and a file that left it out must not mark every event new.
+   * reads an absent `seen` as a first visit, and a file that left it out must not mark every event new. Where the last
+   * load missed a file the settle waits for the next whole one, as `settle` says; meanwhile an absent `seen` marks
+   * nothing and a written one marks what it says, so nothing is wrong before then, only not yet folded.
    */
   restored() {
     this.reloadPrefs();
