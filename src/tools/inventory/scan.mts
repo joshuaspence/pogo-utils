@@ -1,6 +1,6 @@
 /**
- * The decisions `pnpm inventory scan` makes that need no phone: which arguments it takes, how a row is written and
- * whether two passes saw the same Pokémon. Here rather than in `scripts/inventory.mts` so the suite can import them,
+ * The decisions `pnpm inventory scan` makes that need no phone: which arguments it takes, how a row is written,
+ * whether two passes saw the same Pokémon and where storage ends. Here rather than in `scripts/inventory.mts` so the suite can import them,
  * that script parsing `process.argv` and driving a phone at its top level.
  */
 
@@ -107,4 +107,76 @@ export class Marks {
 
 function bump(map: Map<string, number>, key: string, by: number) {
   map.set(key, (map.get(key) ?? 0) + by);
+}
+
+/** What `walk` needs of the phone: a read of the Pokémon open, and a swipe to the next one or back to the one before. */
+export interface Steps<R extends { key: string | null }> {
+  read: () => Promise<R>;
+  next: () => Promise<void>;
+  back: () => Promise<void>;
+}
+
+/**
+ * Hands `visit` each Pokémon from the one open at `from`, `first` being that one's reading where it has already been
+ * made, and stops after `max` of them or at the end of storage.
+ *
+ * The end is a swipe that goes nowhere, so the Pokémon read again is the last one again — but a key carries nothing
+ * positional, and the next Pokémon can be a genuine twin of the last: storage sorts a species' duplicates together,
+ * and HP, weight and height are read at the precision the game prints them. So a key read twice is settled by position
+ * instead. Swiping back over every Pokémon in the run of that key lands on the run's first where this is a twin, and
+ * on the one before the run where the last swipe went nowhere — one that read differently, or the run would have
+ * started there.
+ *
+ * A run that starts where the walk did has nothing before it known to read differently — the first Pokémon in storage,
+ * or one `from` skipped to that may have twins behind it — so there the walk stops and says so rather than guess:
+ * guessing twin at the end of storage would visit the last Pokémon again.
+ */
+export async function walk<R extends { key: string | null }>(
+  { read, next, back }: Steps<R>,
+  visit: (reading: R, index: number) => Promise<void>,
+  max: number,
+  from: number,
+  first?: R,
+) {
+  let pending = first;
+  let previous: string | null = null;
+  let since = from;
+  let misses = 0;
+
+  for (let index = from; index < from + max; index++) {
+    const reading = pending ?? (await read());
+    pending = undefined;
+
+    if (reading.key === null) {
+      if (++misses >= 3) {
+        console.error('  three unreadable screens in a row; stopping this pass');
+        break;
+      }
+    } else if (reading.key !== previous) {
+      misses = 0;
+      previous = reading.key;
+      since = index;
+    } else if (since === from) {
+      console.error(`  every Pokémon this pass has read is ${reading.key}, so its end cannot be told; stopping it`);
+      break;
+    } else {
+      misses = 0;
+      const run = index - since;
+
+      for (let i = 0; i < run; i++) {
+        await back();
+      }
+
+      if ((await read()).key !== reading.key) {
+        break;
+      }
+
+      for (let i = 0; i < run; i++) {
+        await next();
+      }
+    }
+
+    await visit(reading, index);
+    await next();
+  }
 }
