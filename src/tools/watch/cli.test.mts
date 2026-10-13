@@ -9,10 +9,10 @@
  * driven in-process below instead, where the wait can be recorded rather than sat through.
  */
 
-import { LivePokeMap } from './client.mts';
+import { LivePokeMap, LoginRefused } from './client.mts';
 import { parseQuery } from './query.mts';
 import { watch } from './watcher.mts';
-import type { ViewportResponse, WireSpawn } from './wire.mts';
+import { ApiError, type ViewportResponse, type WireSpawn } from './wire.mts';
 import { spawn as run } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
@@ -317,6 +317,32 @@ test('a login the server refuses is not retried', async () => {
   }
 
   expect(map.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+});
+
+/**
+ * A login answered 200 without a token it can use is no refusal: nothing says the credentials are wrong, so it is an
+ * `ApiError` carrying the 200 rather than a `LoginRefused`, and the watcher waits it out instead of stopping for good.
+ * Three shapes, being three different ways upstream could change under it.
+ */
+test.each([
+  ['no token at all', { user: { username: 'u' } }],
+  ['a token that is not a string', { token: 42 }],
+  ['an empty token', { token: '' }],
+])('a login answered with %s is an error to wait out, not a refusal', async (_, answer) => {
+  const map = await standIn((_request, response) => json(response, 200, answer));
+  const client = new LivePokeMap(map.url, { username: 'u', password: 'p' });
+  let error: unknown;
+
+  try {
+    await client.login().catch((thrown: unknown) => (error = thrown));
+  } finally {
+    await map.close();
+  }
+
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).not.toBeInstanceOf(LoginRefused);
+  expect(error).toMatchObject({ status: 200, message: 'the login answered no token' });
+  expect(client.loggedIn).toBe(false);
 });
 
 /**
