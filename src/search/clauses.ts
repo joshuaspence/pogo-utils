@@ -224,7 +224,7 @@ function factored(node: Node): Node {
 }
 
 /**
- * How many clauses the tree would spread to, which is the same arithmetic `spread` performs and none of the
+ * How many clauses `spread` builds at most, which is the same arithmetic it performs and none of the
  * allocation: a pill is one, an `all` is the sum of its parts and an `any` is their product.
  *
  * Counted rather than measured as it is built, so the cap is a precondition `written` can check before anything is
@@ -232,10 +232,12 @@ function factored(node: Node): Node {
  * the cap, so nothing here can overflow however deep or wide the tree: past that point the exact figure is of no
  * interest to anyone, only that it is over.
  *
- * A pill with nothing to write is nought clauses, which falls out of both sums: it drops out of an `all` that holds it
- * and zeroes the `any` that does, and nought clauses is the search for everything. An empty group is the same thing by
- * the same arithmetic — the sum of no parts is nought, and the product of none is one, so an empty `any` would be a
- * clause of nothing at all, which is why it is read as the unfinished group it is.
+ * A pill with nothing to write is nought clauses, and drops out of an `all` that holds it. It zeroes the `any` that does
+ * too, but only once `spread` reaches it, every part before it having been multiplied out by then — so in a product it
+ * counts as one. Counted as nought it would wave through `Rcp..` beside twenty OR'd triples, 3^20 clauses built only to
+ * be thrown away. An empty group is nought by the same arithmetic: the sum of no parts is nought, and the product of
+ * none is one, so an empty `any` would be a clause of nothing at all, which is why it is read as the unfinished group
+ * it is.
  */
 export function size(node: Node): number {
   if (!isGroup(node)) {
@@ -249,7 +251,7 @@ export function size(node: Node): number {
   const sum = node.junction === 'all';
 
   return node.parts.reduce(
-    (total, part) => Math.min(sum ? total + size(part) : total * size(part), CLAUSES + 1),
+    (total, part) => Math.min(sum ? total + size(part) : total * Math.max(size(part), 1), CLAUSES + 1),
     sum ? 0 : 1,
   );
 }
