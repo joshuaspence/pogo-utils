@@ -170,6 +170,12 @@ async function walkNews() {
     const url = `${NEWS_URL}?nr=${page * PAGE_SIZE}`;
     const fresh = parseNewsPage(await fetchText(url), url).filter((article) => !seen.has(article.slug));
 
+    // An empty first page passes both of `parseNewsPage`'s shape checks, and would otherwise read as an archive with
+    // nothing in it to miss.
+    if (fresh.length === 0 && page === 0) {
+      fail(`${url}: no articles listed on the first page — the page layout has changed`);
+    }
+
     if (fresh.length === 0) {
       return articles;
     }
