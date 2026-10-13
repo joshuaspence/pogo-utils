@@ -35,6 +35,7 @@ import {
   chipState,
   cycle,
   group,
+  groupAt,
   isGroup,
   leafLabel,
   leafText,
@@ -432,6 +433,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
 
+  /** The group a press fills: `focus`, or the nearest group above it once an edit has moved or removed it. */
+  const filling = groupAt(state.tree, focus);
+
   /**
    * The fragment this state would be linked as, which is both what goes in the address bar and when to put it there.
    */
@@ -565,7 +569,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * One press of a catalogue chip: the three-state toggle the chips have always been, read against the group being
    * filled. Dragging is the other way in, and the one that can put a second copy of the same entry somewhere else.
    */
-  const pressChip = (leaf: Leaf) => edit((tree) => cycle(tree, focus, leaf));
+  const pressChip = (leaf: Leaf) => edit((tree) => cycle(tree, filling, leaf));
 
   /**
    * Back to the blank page, which is every box on it rather than the canvas alone: a typed query left behind would sit
@@ -718,7 +722,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     // and `Enter` is easy to press twice without meaning anything by it. `append` is for a drop, where the reader has
     // said where the pill goes.
     for (const name of names(text)) {
-      edit((tree) => cycle(tree, focus, { kind: 'name', text: name, negated: false }));
+      edit((tree) => cycle(tree, filling, { kind: 'name', text: name, negated: false }));
     }
 
     setTyping('');
@@ -736,7 +740,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     const parts = marked(mark, text);
 
     for (const part of parts) {
-      edit((tree) => cycle(tree, focus, { kind: 'name', text: part, negated: false }));
+      edit((tree) => cycle(tree, filling, { kind: 'name', text: part, negated: false }));
     }
 
     return parts.length > 0;
@@ -920,7 +924,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
     const root = path.length === 0;
     const target = drag?.moved === true && drag.over !== null && same(drag.over, path);
-    const classes = ['group-node', root ? 'root' : '', target ? 'target' : '', same(focus, path) ? 'current' : ''];
+    const classes = ['group-node', root ? 'root' : '', target ? 'target' : '', same(filling, path) ? 'current' : ''];
 
     return (
       <section
@@ -965,7 +969,13 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               type="button"
               class="drop"
               aria-label="Remove this group and everything in it"
-              onClick={() => edit((tree) => update(tree, path, () => null))}
+              onClick={(event) => {
+                // Kept from the group's own click, which would otherwise focus the path just emptied, or put a held
+                // pill down in it.
+                event.stopPropagation();
+                edit((tree) => update(tree, path, () => null));
+                setFocus(path.slice(0, -1));
+              }}
             >
               ✕
             </button>
@@ -1371,7 +1381,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 <h2 class="label">{category.label}</h2>
                 <div class="chips">
                   {category.terms.map((term) => {
-                    const chip = chipState(state.tree, focus, term.id);
+                    const chip = chipState(state.tree, filling, term.id);
 
                     return (
                       <button
@@ -1403,7 +1413,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </h2>
             <div class="chips">
               {RANGES.map((range) => {
-                const chip = chipState(state.tree, focus, range.id);
+                const chip = chipState(state.tree, filling, range.id);
 
                 return (
                   <button

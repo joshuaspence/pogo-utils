@@ -194,6 +194,24 @@ export function nodeAt(root: Node, path: Path): Node | null {
 }
 
 /**
+ * The deepest group along a path, which is the root where nothing below it is one.
+ *
+ * A path held across edits can come to name a pill, or nothing, once something before it is taken out. Read through
+ * this, it still names a group that can be filled rather than one that silently refuses every press.
+ */
+export function groupAt(root: Node, path: Path): Path {
+  for (let depth = path.length; depth > 0; depth--) {
+    const node = nodeAt(root, path.slice(0, depth));
+
+    if (node !== null && isGroup(node)) {
+      return path.slice(0, depth);
+    }
+  }
+
+  return [];
+}
+
+/**
  * The tree with one node changed, or taken out where `change` answers null. The spine down to it is rebuilt and
  * everything else is the node it already was, which is what lets a render decide what to redraw by identity.
  *
