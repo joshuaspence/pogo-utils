@@ -16,8 +16,8 @@ import { unzlibSync, zlibSync } from 'fflate';
  * An image as four bytes a pixel, red, green, blue and alpha, row after row.
  *
  * `text` is whatever `tEXt` chunks the file carried, and is absent on an image built here rather than read — `crop` and
- * `scale` answer a new image whose own size is the truth about it. `encodePng` writes it back out, so a chunk survives
- * a decode and a re-encode.
+ * `scale` answer a new image whose own size is the truth about it. `encodePng` writes it back out, and `decodePng`
+ * keeps only a chunk it could, so whatever a decode answers survives a re-encode.
  *
  * It carries a null prototype, so `Object.hasOwn(image.text ?? {}, 'Viewport')` is the question to ask about it: `in`
  * answers true for `constructor`, `toString` and every other name `Object.prototype` would have lent it.
@@ -145,12 +145,15 @@ export function decodePng(bytes: Uint8Array): Image {
       ended = true;
     } else if (type === 'tEXt') {
       // Keyword, a zero byte, then the value, both Latin-1. A chunk with no separator is malformed rather than empty,
-      // and is skipped: `tEXt` is ancillary — the lower-case `t` says a decoder may ignore it — so nothing a reader
-      // needs rests on it, and refusing the whole screenshot over a damaged comment would cost more than it saved.
+      // and is skipped, as is one `encodePng` would refuse to write back out: `tEXt` is ancillary — the lower-case `t`
+      // says a decoder may ignore it — so nothing a reader needs rests on it, and refusing the whole screenshot over a
+      // damaged comment would cost more than it saved.
       const split = body.indexOf(0);
+      const keyword = latin1(body.subarray(0, split));
+      const value = latin1(body.subarray(split + 1));
 
-      if (split > 0) {
-        text[latin1(body.subarray(0, split))] = latin1(body.subarray(split + 1));
+      if (split > 0 && unwritable(keyword, value) === undefined) {
+        text[keyword] = value;
       }
     }
   }
@@ -266,17 +269,24 @@ const isLatin1 = (value: string): boolean =>
     return code > 0 && code <= 0xff;
   });
 
-const text = (keyword: string, value: string): Uint8Array => {
+/** Why `encodePng` would refuse a chunk, or `undefined` when it would write it — and `decodePng` keeps only those. */
+const unwritable = (keyword: string, value: string): string | undefined => {
   if (!KEYWORD.test(keyword)) {
-    throw new Error(`a tEXt keyword is 1 to 79 characters of printable Latin-1, not ${JSON.stringify(keyword)}`);
+    return `a tEXt keyword is 1 to 79 characters of printable Latin-1, not ${JSON.stringify(keyword)}`;
+  } else if (keyword.trim() !== keyword || keyword.includes('  ')) {
+    return `a tEXt keyword carries no leading, trailing or doubled space, unlike ${JSON.stringify(keyword)}`;
+  } else if (!isLatin1(value)) {
+    return `a tEXt value is Latin-1 with no NUL in it, unlike ${JSON.stringify(value)}`;
   }
 
-  if (keyword.trim() !== keyword || keyword.includes('  ')) {
-    throw new Error(`a tEXt keyword carries no leading, trailing or doubled space, unlike ${JSON.stringify(keyword)}`);
-  }
+  return undefined;
+};
 
-  if (!isLatin1(value)) {
-    throw new Error(`a tEXt value is Latin-1 with no NUL in it, unlike ${JSON.stringify(value)}`);
+const text = (keyword: string, value: string): Uint8Array => {
+  const refusal = unwritable(keyword, value);
+
+  if (refusal !== undefined) {
+    throw new Error(refusal);
   }
 
   return chunk('tEXt', fromLatin1(`${keyword}\0${value}`));
