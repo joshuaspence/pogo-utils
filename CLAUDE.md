@@ -20,10 +20,13 @@
   answer.
 - **Show the change in screenshots.** A pull request that changes anything a page draws carries screenshots of it, taken
   from a real build (`pnpm build && pnpm serve`) rather than described, so a reviewer can judge it without checking the
-  branch out. Show each state the change adds, in light and dark, and at phone width where the layout differs there.
-  GitHub takes an image upload only through its web editor, so commit the images to the branch, embed them in the PR
-  body by that commit's SHA (`…/blob/<sha>/<path>?raw=true`), and remove them in the next commit: the pinned links keep
-  working, and the squash merge carries neither commit into `master`. The body rather than a comment, because the body
-  is what a reviewer reads first and the one place that can always show the current state: when a later push changes
-  what the page draws, take the screenshots again and replace them there, rather than leaving the old set in place or
-  posting a new set in a comment.
+  branch out. Show each state the change adds, and at phone width where the layout differs there. A bug fix shows the
+  page before and after, the broken state from `master` beside the fixed one from the branch, so a reviewer sees both
+  what was wrong and that it no longer is. Light alone is enough unless dark draws the change meaningfully differently;
+  a change that only follows the theme's colours gains nothing from a second set. GitHub takes an image upload only
+  through its web editor, so commit the images to the branch, embed them in the PR body by that commit's SHA
+  (`…/blob/<sha>/<path>?raw=true`), and remove them in the next commit: the pinned links keep working, and the squash
+  merge carries neither commit into `master`. The body rather than a comment, because the body is what a reviewer reads
+  first and the one place that can always show the current state: when a later push changes what the page draws, take
+  the screenshots again and replace them there, rather than leaving the old set in place or posting a new set in a
+  comment.
