@@ -17,6 +17,16 @@ import Pokemon from '../pokemon/pokemon.js';
 export type Predicate = (pokemon: Pokemon) => boolean;
 
 /**
+ * A filter list as the one predicate it amounts to: every one of them has to hold. `species` keeps an entry by this,
+ * and the Pokédex asks it of a single Pokémon to say whether the feed built from a list watches for it — one
+ * conjunction, so the two cannot come to read a list differently.
+ */
+export const allOf =
+  (filters: readonly Predicate[]): Predicate =>
+  (pokemon) =>
+    filters.every((predicate) => predicate(pokemon));
+
+/**
  * A filter's species list, checked, narrowed and collapsed to one entry per species. A form or region the species does
  * not have has already thrown, so what is left to catch is a name `pokemon.js` does not define at all, which reads as
  * undefined and would reach the caller as a null. The constant's name is gone by then, so the error gives the position
@@ -37,7 +47,7 @@ export function species(entries: ReadonlySet<Pokemon>, ...keep: Predicate[]) {
     throw new Error(`species #${at + 1} is not a POKEMON constant — check it against pokedex.js`);
   }
 
-  const kept = list.filter((entry) => keep.every((predicate) => predicate(entry)));
+  const kept = list.filter(allOf(keep));
 
   return [...new Map(kept.map((entry) => [Number(entry), entry])).values()];
 }

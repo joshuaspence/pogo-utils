@@ -9,7 +9,7 @@
 
 import { fold, formNameOf, nameOf } from '../pokemon/names.js';
 import POKEMON from '../pokemon/pokedex.js';
-import { SHINY_HUNTING_FILTERS, WILD_SPAWN_FILTERS, type Predicate } from '../filters/narrow.js';
+import { allOf, SHINY_HUNTING_FILTERS, WILD_SPAWN_FILTERS, type Predicate } from '../filters/narrow.js';
 import PERFECT_IV_POKEMON from '../filters/perfect-ivs.js';
 import SHINY_POKEMON from '../filters/shiny.js';
 import XXL_POKEMON from '../filters/xxl.js';
@@ -49,14 +49,9 @@ export interface Entry {
 }
 
 /**
- * The predicate a feed narrows a hunt list with, read off the very filter list `filters/narrow.js` hands that feed —
- * so a filter added there changes what the page calls watched with no edit here.
+ * What a scanner can ever report, read off the very filter list `filters/narrow.js` hands the feeds — so a filter added
+ * there changes what the page calls watched with no edit here.
  */
-const allOf =
-  (filters: readonly Predicate[]): Predicate =>
-  (pokemon) =>
-    filters.every((predicate) => predicate(pokemon));
-
 const feedable = allOf(WILD_SPAWN_FILTERS);
 
 /**
