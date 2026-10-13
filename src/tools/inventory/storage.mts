@@ -49,7 +49,7 @@ export function unsearchable(term: string): string | null {
 }
 
 /** Whether a screen is the storage grid, by the tab and the box only it has. */
-export function isStorage(lines: readonly Line[]): boolean {
+function isStorage(lines: readonly Line[]): boolean {
   return findLine(lines, /\beggs?\b/) !== undefined || findLine(lines, /^search\b/) !== undefined;
 }
 
