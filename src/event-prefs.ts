@@ -338,21 +338,15 @@ function carrySlugs() {
   ];
 
   for (const [key, rewrite] of rewrites) {
-    try {
-      const stored = localStorage.getItem(key);
+    const stored = readJSON(key);
+    const rewritten = JSON.stringify(rewrite(stored));
 
-      if (stored === null) {
-        continue;
-      }
-
-      const parsed: unknown = JSON.parse(stored);
-      const rewritten = JSON.stringify(rewrite(parsed));
-
-      if (rewritten !== JSON.stringify(parsed)) {
+    if (stored !== null && rewritten !== JSON.stringify(stored)) {
+      try {
         localStorage.setItem(key, rewritten);
+      } catch {
+        /* Storage is unavailable; the reader filters on what is there. */
       }
-    } catch {
-      /* Unparseable, or storage is unavailable; the reader filters on what is there. */
     }
   }
 }
