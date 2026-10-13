@@ -229,6 +229,14 @@ test('a notification names the species, form, reason, IV, CP, level, place and t
   });
 });
 
+test('a notification for a spawn with no despawn time says so rather than giving minutes left', () => {
+  const larvitar = spawn({ dex_id: 246, iv_percent: 100, lat: 1.283, lon: 103.86, despawn_ms: undefined });
+
+  expect(notificationFor(larvitar, reasonsFor(larvitar, false), DATA, NOW, 'UTC').message).toBe(
+    'IV 100%\nDespawn time unknown\n1.283000,103.860000',
+  );
+});
+
 test('the ordinary form is left unnamed', () => {
   expect(namesOf(spawn({ dex_id: 19, form: 45 }), DATA)).toStrictEqual({ species: 'Rattata', form: null });
   expect(namesOf(spawn({ dex_id: 19, form: 0 }), DATA)).toStrictEqual({ species: 'Rattata', form: null });

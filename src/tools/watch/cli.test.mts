@@ -503,6 +503,65 @@ test('without ntfy each match is printed once, in full, and nothing is sent', as
 });
 
 /**
+ * A spawn the server gives no despawn time is remembered for an hour, longer than any spawn lasts: forgotten sooner, a
+ * spawn still there is said again; never forgotten, one met again later is not said at all.
+ */
+test('a spawn with no despawn time is said once, and again only once an hour has passed', async () => {
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'POST /api/auth/login':
+        return json(response, 200, { token: 't' });
+      case 'POST /api/map/viewport':
+        // `LARVITAR` carries no `despawn_ms`, and nothing here adds one.
+        return json(response, 200, { span_tier: 'perfect', pokemon: [LARVITAR] });
+      default:
+        return json(response, 200, {});
+    }
+  });
+
+  const controller = new AbortController();
+  const said: string[] = [];
+  const start = Date.now();
+  let time = start;
+
+  // The clock at the second poll and the third: a millisecond short of the hour, then the hour.
+  const clock = [start + 60 * 60_000 - 1, start + 60 * 60_000];
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => said.push(line),
+      now: () => time,
+      sleep: async () => {
+        said.push('(slept)');
+
+        const next = clock.shift();
+
+        if (next === undefined) {
+          controller.abort();
+        } else {
+          time = next;
+        }
+      },
+    });
+  } finally {
+    await map.close();
+  }
+
+  expect(said.filter((line) => line.startsWith('Found ') || line === '(slept)')).toStrictEqual([
+    'Found 100% Larvitar (shiny-hunt.json)',
+    '(slept)',
+    '(slept)',
+    'Found 100% Larvitar (shiny-hunt.json)',
+    '(slept)',
+  ]);
+
+  expect(said).toContain('  Despawn time unknown');
+});
+
+/**
  * A spawn without a dex number is the feed changing shape, and a watcher that only dropped it would read as one with
  * nothing to find. Said when it starts, and again when it starts over, rather than on every poll it lasts.
  */
