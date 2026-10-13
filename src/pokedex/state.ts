@@ -54,7 +54,7 @@ export function emptyState(): State {
 }
 
 export function fromFragment(fragment: string) {
-  const params = new URLSearchParams(fragment.replace(/^#/, ''));
+  const params = new URLSearchParams(fragment);
   const state = emptyState();
   const generation = Number(params.get('g'));
   const open = Number(params.get('n'));
