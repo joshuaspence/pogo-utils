@@ -7,7 +7,7 @@
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, extname, join, relative } from 'node:path';
+import { dirname, extname, join, relative, sep } from 'node:path';
 import { GAME_MASTER, TESSERACT_VENDOR } from './generated.ts';
 import { SERVED_TYPES } from '../scripts/served-types.mts';
 
@@ -107,16 +107,29 @@ export function unservedFiles(dist: string, served: readonly string[] = Object.k
  * Relative paths resolve against the directory of the file that named them rather than against the artifact root,
  * which is what lets one function serve both a page and a manifest — the two resolve against different bases in the
  * specification and only share one while everything sits at the root.
+ *
+ * A path that leaves the artifact throws rather than resolving, `join` normalising both such forms into one that does
+ * not: a leading `/` would be read as relative, and a climb out of `dist/` stat'd against the repository.
  */
 export function localTarget(from: string, ref: string): string | null {
   if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(ref)) {
     return null;
   }
 
+  // The origin's root, where Pages serves this site from a directory beneath it (`/pogo-utils/`).
+  if (ref.startsWith('/')) {
+    throw new Error(`${from} names ${ref}, which leaves the Pages subdirectory`);
+  }
+
   // As written in an `href`, so percent-encoded: `Melbourne%20Zoo.gpx` names a file with a space in it.
   const path = decodeURIComponent(ref.split(/[?#]/)[0] ?? '');
+  const at = join(dirname(from), path);
 
-  return join(dirname(from), path);
+  if (at === '..' || at.startsWith(`..${sep}`)) {
+    throw new Error(`${from} names ${ref}, which leaves the artifact`);
+  }
+
+  return at;
 }
 
 /**
