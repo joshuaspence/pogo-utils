@@ -116,6 +116,39 @@ export function vendable(raw: unknown): FeedEvent[] {
   return events.sort((a, b) => byCodeUnit(a.eventID, b.eventID));
 }
 
+/**
+ * A feed entry as this repository keeps it: the eight upstream fields, and the instant it was first vended.
+ *
+ * `added` is what lets a browser record "seen everything up to here" as one instant rather than as one ID per event —
+ * the feed carries no published date of its own. Optional because `data/events.json` is written by hand and an entry
+ * arrives there without one, until the Vend workflow's next run stamps it; a reader treats an unstamped event the way
+ * it treated every event before there were stamps, by its ID.
+ */
+export type StampedEvent = FeedEvent & { added?: string };
+
+/** The `added` each stamped entry carries, by `eventID`. */
+export function stampsOf(events: readonly Pick<StampedEvent, 'eventID' | 'added'>[]) {
+  return new Map(events.flatMap((ev) => (ev.added ? [[ev.eventID, ev.added] as const] : [])));
+}
+
+/**
+ * Each event with its `added`: the one it already carries, else the one `known` holds for its ID, else `now`.
+ *
+ * Carrying forward is what keeps a committed file quiet — only an ID this repository has never vended reads the clock,
+ * so an unchanged feed is still an unchanged file. And `now` is the run's rather than the author's, which is why a
+ * hand-written entry is left for the vend to stamp: a stamp written when a change was drafted can predate one already
+ * deployed by the time that change lands, and a browser that has seen up to the later instant would never mark it.
+ */
+export function stamp<T extends Pick<StampedEvent, 'eventID' | 'added'>>(
+  events: readonly T[],
+  known: ReadonlyMap<string, string>,
+  now: Date,
+) {
+  const at = now.toISOString();
+
+  return events.map((ev): T & { added: string } => ({ ...ev, added: ev.added ?? known.get(ev.eventID) ?? at }));
+}
+
 /** "2 routes · 1 waypoint" — each kind the event has, pluralised, a kind it has none of left out rather than zeroed. */
 export function routeSummary({ routes, waypoints }: RouteCounts) {
   const parts = [];

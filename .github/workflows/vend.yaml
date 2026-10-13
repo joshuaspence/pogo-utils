@@ -6,6 +6,7 @@ on:
     branches: ['master']
     paths:
       - '.github/workflows/vend.yaml'
+      - 'data/events.json'
       - 'scripts/vend-feed.mts'
       - 'scripts/vend-pgsharp.mts'
       - 'src/event-feed.ts'
@@ -67,7 +68,7 @@ jobs:
         with:
           commit_author: '${{ steps.committer.outputs.author }}'
           commit_message: 'Update the Leek Duck feed'
-          file_pattern: 'data/events-feed.json'
+          file_pattern: 'data/events-feed.json data/events.json'
 
   # The PGSharp release the Integrations page names on its download button. After `events` rather than beside it,
   # since both push to `master` without pulling and the second would be rejected; and run whether or not `events`

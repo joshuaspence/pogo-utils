@@ -56,8 +56,8 @@ test('every key is namespaced to this app, and names a page under it', () => {
 
 /**
  * A first visit, which is the case the whole absent-versus-empty distinction exists for: no key has been written, so
- * the hidden types are the default rather than nothing, and `seen` is null rather than an empty set — null being what
- * tells a first visit from a reader who has acknowledged everything.
+ * the hidden types are the default rather than nothing, and `seen` is null rather than an empty record — null being
+ * what tells a first visit from a reader who has acknowledged nothing.
  */
 test('a first visit gets the defaults, and a null seen set', () => {
   const prefs = loadPrefs();
@@ -252,7 +252,7 @@ test('the unprefixed keys are carried across and removed', () => {
   expect(prefs.hiddenByView).toEqual({ cards: new Set(['community-day']) });
   expect(prefs.filterScope).toBe('view');
   expect(prefs.dismissed).toEqual(new Set(['event-a']));
-  expect(prefs.seen).toEqual(new Set(['event-b']));
+  expect(prefs.seen).toEqual({ through: null, ids: new Set(['event-b']) });
 
   expect(storage.snapshot()).toEqual({
     [KEYS.hiddenTypes]: '["Raid Hour"]',
@@ -528,14 +528,33 @@ test('persist tolerates storage it cannot write to', () => {
   expect(() => persist(prefsFor({}), 'hiddenTypes')).not.toThrow();
 });
 
-/** A null `seen` round-trips as a null, not as an empty set, which is what keeps a first visit a first visit. */
-test('a written seen set round-trips, and a null one stays absent', () => {
+/** A null `seen` round-trips as a null, not as an empty record, which is what keeps a first visit a first visit. */
+test('a written seen record round-trips, and a null one stays absent', () => {
   persist(prefsFor({ seen: null }), 'seen');
   expect(storage.getItem(KEYS.seen)).toBe('null');
   expect(loadPrefs().seen).toBeNull();
 
-  persist(prefsFor({ seen: new Set() }), 'seen');
-  expect(loadPrefs().seen).toEqual(new Set());
+  persist(prefsFor({ seen: { through: null, ids: new Set() } }), 'seen');
+  expect(loadPrefs().seen).toEqual({ through: null, ids: new Set() });
+
+  persist(prefsFor({ seen: { through: 1_000, ids: new Set(['e']) } }), 'seen');
+  expect(storage.getItem(KEYS.seen)).toBe('{"through":1000,"ids":["e"]}');
+  expect(loadPrefs().seen).toEqual({ through: 1_000, ids: new Set(['e']) });
+});
+
+/**
+ * The list this key held before `through` reads as those IDs with nothing yet covered, so a reader keeps every mark
+ * they cleared across the change and the first settle folds them. A value of neither shape is no record at all — read
+ * as an empty one, it would mark every event new.
+ */
+test.for([
+  { stored: '["a","b"]', reads: { through: null, ids: new Set(['a', 'b']) } },
+  { stored: '{"through":"soon","ids":["a"]}', reads: { through: null, ids: new Set(['a']) } },
+  { stored: '{"through":1000}', reads: null },
+  { stored: '"everything"', reads: null },
+])('a stored seen value of $stored reads as the record it says', ({ stored, reads }) => {
+  storage.setItem(KEYS.seen, stored);
+  expect(loadPrefs().seen).toEqual(reads);
 });
 
 test('hiddenFor answers the global set where the scope is global', () => {

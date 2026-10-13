@@ -10,7 +10,7 @@
 
 import { expect, test } from 'vitest';
 
-import { ended, HAS_ZONE, prunable, routeSummary, vendable } from './event-feed.js';
+import { ended, HAS_ZONE, prunable, routeSummary, stamp, stampsOf, vendable } from './event-feed.js';
 import { testEveryZone } from './testing/zones.js';
 
 import type { FeedEvent } from './types.js';
@@ -224,4 +224,36 @@ test('a feed entry that is not in the local list is nothing to prune', () => {
   // Only `data/events.json` is written, so an upstream event is never a candidate however long over it is — the vend
   // overwrites that file wholesale on the next scrape and would put it straight back.
   expect(prunable([], [{ eventID: 'upstream-2026' }], AFTER)).toEqual(new Set());
+});
+
+/**
+ * A stamp is carried forward rather than re-read off the clock, which is what keeps an unchanged feed an unchanged file
+ * — and what keeps an event's place among the stamps a browser has folded. Only an ID nothing has stamped reads `now`.
+ */
+test('stamp keeps an event its stamp, carries one it knows, and gives the rest the run', () => {
+  const now = new Date('2026-10-12T06:00:00.000Z');
+  const events = [{ eventID: 'own', added: '2026-01-01T00:00:00.000Z' }, { eventID: 'known' }, { eventID: 'fresh' }];
+
+  const stamped = stamp(
+    events,
+    new Map([
+      ['known', '2026-02-01T00:00:00.000Z'],
+      ['own', 'ignored'],
+    ]),
+    now,
+  );
+
+  expect(stamped.map((ev) => ev.added)).toEqual([
+    '2026-01-01T00:00:00.000Z',
+    '2026-02-01T00:00:00.000Z',
+    '2026-10-12T06:00:00.000Z',
+  ]);
+  expect(stampsOf(stamped)).toEqual(new Map(stamped.map((ev) => [ev.eventID, ev.added])));
+});
+
+/** An unstamped entry has nothing to carry, so `stampsOf` leaves it out rather than mapping its ID to nothing. */
+test('stampsOf leaves out an entry with no stamp', () => {
+  expect(stampsOf([{ eventID: 'a' }, { eventID: 'b', added: '2026-01-01T00:00:00.000Z' }])).toEqual(
+    new Map([['b', '2026-01-01T00:00:00.000Z']]),
+  );
 });

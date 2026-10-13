@@ -3,7 +3,7 @@
  * `Prefs` object, and the filters the Events page's cards view is drawing under.
  *
  * Shared because two things now read the same answer. The New mark on a card and the notification in the top bar are
- * one fact — an event this browser has not recorded seeing — and the seen set under `pogo-utils:events:seen` is the
+ * one fact — an event this browser has not recorded seeing — and the seen record under `pogo-utils:events:seen` is the
  * only record of it. With one `Prefs` object between them, clearing either is clearing both, and the count in the top
  * bar is `newlyVisible` over the same events and filters as the cards view's own header rather than a second reckoning
  * of it.
@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { LOCAL_EVENTS, VENDED_EVENTS } from './event-feed.js';
-import { hiddenFor, loadPrefs, persist, RECURRING, type KEYS, type Prefs } from './event-prefs.js';
+import { hiddenFor, loadPrefs, persist, RECURRING, type KEYS, type Prefs, type Seen } from './event-prefs.js';
 import { mergeEvents, statusOf, type ParsedEvent } from './event-schedule.js';
 import { said } from './errors.js';
 
@@ -49,10 +49,15 @@ export interface CardsFilter {
  * weekly Spotlight Hour arrives unrecognised every week and would mark itself for ever, reporting nothing. Hence
  * `settleSeen` storing none of them either.
  *
- * Nothing is new before the first feed has settled the seen set, so a slow fetch cannot flash badges over every card.
+ * Nothing is new before the first feed has settled the seen record, so a slow fetch cannot flash badges over every card.
  */
 export function isNew(prefs: Prefs, ev: ParsedEvent) {
-  return prefs.seen !== null && !RECURRING.has(ev.eventType) && !prefs.seen.has(ev.eventID);
+  return prefs.seen !== null && !RECURRING.has(ev.eventType) && !covers(prefs.seen, ev);
+}
+
+/** Whether the seen record says the reader has seen this event, by its stamp or by its ID. */
+function covers({ through, ids }: Seen, ev: Pick<ParsedEvent, 'eventID' | 'added'>) {
+  return ids.has(ev.eventID) || (through !== null && ev.added !== null && ev.added.getTime() <= through);
 }
 
 /**
@@ -105,27 +110,50 @@ export function newlyVisible(events: readonly ParsedEvent[], prefs: Prefs, filte
 }
 
 /**
- * Settle the seen set against the feed, once per fetch.
+ * Settle the seen record against the feed, once per fetch.
  *
  * A first visit seeds it with everything on offer rather than marking all of it new, the mark being the difference from
- * what you last looked at. IDs the feed has dropped are forgotten, which cannot resurrect a mark because every
- * occurrence carries its own dated ID.
+ * what you last looked at. Seeding is recording every event as seen and then folding, so a feed whose events all
+ * carry stamps leaves one instant and an empty list — the size of the fact, rather than of the feed.
  *
- * The recurring types are left out of both halves, `isNew` never marking one: they are a fifth of the feed, so storing
- * them would turn a fifth of the set over every week to answer a question nothing asks. Leaving them out of `ids` is
- * also what drops the ones already stored, the prune keeping only what `ids` holds.
+ * The fold moves `through` up to just short of the earliest stamped event still new, or to the latest stamp when none
+ * is, and drops from `ids` what it now covers. IDs the feed has dropped are forgotten too, which cannot resurrect a
+ * mark because every occurrence carries its own dated ID. So the list holds only events still on the page that the
+ * instant cannot speak for: unstamped ones, and ones seen past an event that is still new.
  *
- * Both halves are skipped when the feed gave us nothing: seeding from an empty feed would mark the whole of the next
- * good one new, and pruning against it would forget every ID the reader had acknowledged.
+ * The recurring types are left out of all of it, `isNew` never marking one: they are a fifth of the feed, so storing
+ * them would turn a fifth of the record over every week to answer a question nothing asks, and leaving them unseen
+ * would hold `through` back behind every Spotlight Hour. Leaving them out of `tracked` is also what drops the ones a
+ * record from before this stored, the prune keeping only what `tracked` holds.
+ *
+ * Skipped when the feed gave us nothing: seeding from an empty feed would mark the whole of the next good one new, and
+ * pruning against it would forget every ID the reader had acknowledged.
  */
 export function settleSeen(prefs: Prefs, settled: readonly ParsedEvent[]) {
   if (settled.length === 0) {
     return;
   }
 
-  const ids = new Set(settled.filter((ev) => !RECURRING.has(ev.eventType)).map((ev) => ev.eventID));
+  const tracked = settled.filter((ev) => !RECURRING.has(ev.eventType));
+  const seen = prefs.seen ?? { through: null, ids: new Set(tracked.map((ev) => ev.eventID)) };
 
-  prefs.seen = prefs.seen === null ? ids : new Set([...prefs.seen].filter((id) => ids.has(id)));
+  const stamps = tracked.flatMap((ev) =>
+    ev.added === null ? [] : [{ at: ev.added.getTime(), seen: covers(seen, ev) }],
+  );
+  const firstNew = Math.min(...stamps.filter((s) => !s.seen).map((s) => s.at));
+  const reached = stamps.filter((s) => s.at < firstNew).map((s) => s.at);
+
+  // Never moved back: an event the old instant covered is still seen, whether or not the feed still carries it.
+  const through = reached.length === 0 ? seen.through : Math.max(seen.through ?? -Infinity, ...reached);
+  const folded = { through, ids: new Set<string>() };
+
+  for (const ev of tracked) {
+    if (covers(seen, ev) && !covers(folded, ev)) {
+      folded.ids.add(ev.eventID);
+    }
+  }
+
+  prefs.seen = folded;
   persist(prefs, 'seen');
 }
 
@@ -184,10 +212,12 @@ export class EventStore {
   #prefs: Prefs | null = null;
   #filter: CardsFilter | null = null;
   #inflight: Promise<void> | null = null;
+
   /**
    * Whether `events` came from both files. A load that lost one still draws the other, but settles nothing against it:
-   * pruning against half the events would forget every ID the reader had acknowledged in the missing file, and seeding
-   * from them would mark the whole of that file new on the next good load.
+   * pruning against half the events would forget every ID the reader had acknowledged in the missing file, seeding
+   * from them would mark the whole of that file new on the next good load, and folding against them would let
+   * `through` climb past a new event the missing file carries.
    */
   #whole = false;
 
@@ -198,7 +228,7 @@ export class EventStore {
   /**
    * The one live `Prefs` object, read from storage the first time anything asks. One object rather than a copy per
    * reader, because the Events page and the top bar both write through it: two copies would each persist their own
-   * idea of the seen set over the other's.
+   * idea of the seen record over the other's.
    */
   get prefs(): Prefs {
     return (this.#prefs ??= loadPrefs());
@@ -264,15 +294,23 @@ export class EventStore {
    */
   acknowledge(events: Iterable<Pick<ParsedEvent, 'eventID'>>) {
     for (const ev of events) {
-      this.prefs.seen?.add(ev.eventID);
+      this.prefs.seen?.ids.add(ev.eventID);
     }
 
-    this.commit('seen');
+    // Folded straight away where it can be, so **Mark all as seen** stores an instant rather than the list it cleared.
+    // The settle is then the one write, and the list is non-empty there, an event having been new on it.
+    if (this.#whole) {
+      this.settle();
+    } else {
+      this.commit('seen');
+    }
   }
 
   /**
    * Re-read the preferences an import has just written and settle them against the feed, as one change: `settleSeen`
-   * reads an absent `seen` as a first visit, and a file that left it out must not mark every event new.
+   * reads an absent `seen` as a first visit, and a file that left it out must not mark every event new. Where the last
+   * load missed a file the settle waits for the next whole one, as `settle` says; meanwhile an absent `seen` marks
+   * nothing and a written one marks what it says, so nothing is wrong before then, only not yet folded.
    */
   restored() {
     this.reloadPrefs();
@@ -281,8 +319,8 @@ export class EventStore {
   }
 
   /**
-   * Settle the seen set against the events already loaded, for a Reset or an import that has just emptied it — unless
-   * they came from one file alone, for the reason `#whole` gives.
+   * Settle the seen record against the events already loaded: for a Reset or an import that has just emptied it, and
+   * to fold an acknowledgement. Not against a list missing one of its files, for the reason `#whole` gives.
    */
   settle() {
     if (this.#whole) {

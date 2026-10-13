@@ -168,8 +168,8 @@ export function applyBackup(owned: readonly [string, unknown][]): string[] {
 
 /**
  * Put the keys a failed write touched back to what they held, an absent one included — restoring it as empty would
- * invent a value, and for `seen` an empty set is a reader who has acknowledged everything rather than one who has not
- * been here.
+ * invent a value, and for `seen` an empty record is a reader who has acknowledged nothing, every event marked new,
+ * rather than one who has not been here.
  *
  * Each key catches for itself. The write that failed is commonly a full store, where putting a shorter value back
  * succeeds for some keys and not others, and the keys that can be recovered are worth recovering even so. Nothing is
