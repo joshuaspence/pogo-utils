@@ -18,63 +18,7 @@
  * asked without a token, which is what `unwrap` below takes apart.
  */
 
-/** The display filter as the page holds it, with every field it defaults (`M` beside `lpm_display_filters`). */
-export interface FilterConfig {
-  showAll: boolean;
-  minIV: number;
-  maxIV: number;
-  alwaysShowPerfect: boolean;
-  alwaysShowZero: boolean;
-  alwaysShowRare: boolean;
-  alwaysShowSize: boolean;
-  filterXXS: boolean;
-  filterXXL: boolean;
-  minLevel: number;
-  maxLevel: number;
-  speciesFilterMode: 'off' | 'blocklist' | 'allowlist';
-  speciesFilterList: number[];
-  showPvpGreatLeague: boolean;
-  showPvpUltraLeague: boolean;
-  showPvpLittleLeague: boolean;
-  pvpMaxRank: number;
-  showMyShinies: boolean;
-  shinyOnly: boolean;
-}
-
-/**
- * Transcribed from the page:
- *
- * ```js
- * M={showAll:!1,minIV:0,maxIV:100,alwaysShowPerfect:!0,alwaysShowZero:!0,alwaysShowRare:!0,alwaysShowSize:!0,
- *    filterXXS:!1,filterXXL:!1,minLevel:0,maxLevel:50,speciesFilterMode:"off",speciesFilterList:[],
- *    showPvpGreatLeague:!1,showPvpUltraLeague:!1,showPvpLittleLeague:!1,pvpMaxRank:10,showMyShinies:!1,
- *    shinyOnly:!1,activePreset:null}
- * ```
- *
- * An imported filter is spread over these rather than over anything the reader had, which is why a query file is
- * read the same way: a field it leaves out is this value, exactly as it would be on the map.
- */
-export const FILTER_DEFAULTS: Readonly<FilterConfig> = Object.freeze({
-  showAll: false,
-  minIV: 0,
-  maxIV: 100,
-  alwaysShowPerfect: true,
-  alwaysShowZero: true,
-  alwaysShowRare: true,
-  alwaysShowSize: true,
-  filterXXS: false,
-  filterXXL: false,
-  minLevel: 0,
-  maxLevel: 50,
-  speciesFilterMode: 'off',
-  speciesFilterList: [],
-  showPvpGreatLeague: false,
-  showPvpUltraLeague: false,
-  showPvpLittleLeague: false,
-  pvpMaxRank: 10,
-  showMyShinies: false,
-  shinyOnly: false,
-});
+import type { FilterConfig } from '../../livepokemap/filter-format.js';
 
 /**
  * The filter as the viewport request carries it, in the page's own order:

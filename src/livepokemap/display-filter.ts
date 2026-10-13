@@ -16,12 +16,7 @@
 
 import { species, SHINY_HUNTING_FILTERS } from '../filters/narrow.js';
 import SHINY_POKEMON from '../filters/shiny.js';
-
-/**
- * `true` exactly: the importer compares it with `===`, so a truthy stand-in is rejected along with the whole file.
- * There is no `_version` here — unlike the settings format, this one is validated by the sentinel and nothing else.
- */
-const SENTINEL = true;
+import { SENTINEL, type FilterConfig } from './filter-format.js';
 
 export interface DisplayFilter {
   _lpm_display_filter: typeof SENTINEL;
@@ -35,15 +30,8 @@ export interface DisplayFilter {
    * `shinyOnly` is deliberately absent, which is safe only because its default is `false` — `shinyOnly:!1` in the
    * defaults object of `chunks/0211aa2db0c7372e.js`. It shows only spawns already known to be shiny, which a scanner
    * cannot know of a wild encounter before something checks it, so a `true` here would hide the species being hunted.
-   *
-   * `speciesFilterMode` takes `off`, `blocklist` or `allowlist`: the mode switch in `chunks/f024cc8ca4c101c1.js`
-   * renders its three buttons from `["off","blocklist","allowlist"].map(…)`. `speciesFilterList` is read as numbers —
-   * the same chunk hands it to the picker grid as `selectedDexIds`, which builds it with `n.add(entry.dex)`.
    */
-  config: {
-    speciesFilterMode: 'allowlist';
-    speciesFilterList: number[];
-  };
+  config: Pick<FilterConfig, 'speciesFilterMode' | 'speciesFilterList'> & { speciesFilterMode: 'allowlist' };
 
   exported_at: string;
 }

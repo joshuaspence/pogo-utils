@@ -7,6 +7,7 @@
  * cut. Its `despawn_ms` are 0 and are set relative to the clock by whatever reads it.
  */
 
+import { FILTER_DEFAULTS } from '../../livepokemap/filter-format.ts';
 import { Backoff } from './backoff.mts';
 import { LoginRefused } from './client.mts';
 import { namesOf, notificationFor, reasonsFor } from './message.mts';
@@ -16,7 +17,6 @@ import { Seen } from './seen.mts';
 import { firstAnswer, match, messageOf } from './watcher.mts';
 import {
   ApiError,
-  FILTER_DEFAULTS,
   refreshInterval,
   toSpawn,
   unwrap,

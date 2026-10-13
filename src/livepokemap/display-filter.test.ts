@@ -3,46 +3,17 @@ import { expect, test } from 'vitest';
 import SHINY_POKEMON from '../filters/shiny.js';
 import { HUNTS } from '../pokedex/entries.js';
 import { displayFilterText, shinyHuntFilter } from './display-filter.js';
+import { FILTER_DEFAULTS, readDisplayFilter } from './filter-format.js';
 
-/**
- * Live PokeMap's own validation, transcribed from the function that reads this format in
- * `play.livepokemap.com/_next/static/chunks/0211aa2db0c7372e.js`:
- *
- * ```js
- * let a = JSON.parse(e);
- * if (!a || !0 !== a._lpm_display_filter || !a.config) return !1;
- * ```
- *
- * Said here rather than in the module, because what it guards is this repository's output matching a third party's
- * reader — a question only a test asks.
- */
-function accepted(text: string) {
-  let parsed;
+test("the shiny hunt reads back, through the watcher's own reader, as the filter it was written to be", () => {
+  /*
+   * `readDisplayFilter` is what `parseQuery` runs on a query file, so this is the writer fed to the reader. A field the
+   * writer names that the reader does not know is dropped on the way in, as Live PokeMap drops it, and so fails here
+   * rather than leaving the watcher on a default while both suites pass.
+   */
+  const written = shinyHuntFilter();
 
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return false;
-  }
-
-  return Boolean(parsed) && parsed._lpm_display_filter === true && Boolean(parsed.config);
-}
-
-test('the transcribed reader turns away what Live PokeMap turns away', () => {
-  // Otherwise every assertion below passes for the wrong reason: a reader that accepts anything cannot report a file
-  // this builds wrong.
-  expect(accepted('not json at all')).toBe(false);
-  expect(accepted('null')).toBe(false);
-  expect(accepted(JSON.stringify({ config: {} }))).toBe(false);
-
-  // Truthy is not enough — the sentinel is compared with `===`, so a 1 in its place fails the whole file.
-  expect(accepted(JSON.stringify({ _lpm_display_filter: 1, config: {} }))).toBe(false);
-  expect(accepted(JSON.stringify({ _lpm_display_filter: true }))).toBe(false);
-  expect(accepted(JSON.stringify({ _lpm_display_filter: true, config: {} }))).toBe(true);
-});
-
-test('the shiny hunt is written as text Live PokeMap will read', () => {
-  expect(accepted(displayFilterText(shinyHuntFilter()))).toBe(true);
+  expect(readDisplayFilter(displayFilterText(written))).toStrictEqual({ ...FILTER_DEFAULTS, ...written.config });
 });
 
 test('the allowlist is the shiny hunt narrowed to what the wild turns up', () => {

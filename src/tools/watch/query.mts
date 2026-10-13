@@ -17,7 +17,8 @@
  * and `blindSpots` says so at start-up rather than leaving the query to wait silently.
  */
 
-import { FILTER_DEFAULTS, XXL, XXS, type FilterConfig, type Spawn } from './wire.mts';
+import { readDisplayFilter, type FilterConfig } from '../../livepokemap/filter-format.ts';
+import { XXL, XXS, type Spawn } from './wire.mts';
 
 export interface Query {
   /** The file it was read from, for messages. */
@@ -25,63 +26,14 @@ export interface Query {
   config: FilterConfig;
 }
 
-/**
- * A display filter's text as a query, validated the way Live PokeMap validates it on import —
- *
- * ```js
- * let a = JSON.parse(e);
- * if (!a || !0 !== a._lpm_display_filter || !a.config) return !1;
- * ```
- *
- * — and spread over the defaults, as the importer spreads it. Each field is also checked to be of the type the
- * defaults give it, which the importer does not do: there, a wrong type is a filter that draws oddly, and here it
- * would be a watcher that never fires.
- */
+/** A display filter's text as a query, read as Live PokeMap imports one, its file named in whatever is wrong with it. */
 export function parseQuery(name: string, text: string): Query {
-  let parsed: unknown;
-
   try {
-    parsed = JSON.parse(text);
+    return { name, config: readDisplayFilter(text) };
   } catch (error) {
-    throw new Error(`${name}: not JSON (${(error as Error).message})`, { cause: error });
+    throw new Error(`${name}: ${(error as Error).message}`, { cause: error });
   }
-
-  const file = parsed as { _lpm_display_filter?: unknown; config?: unknown } | null;
-
-  if (!file || file._lpm_display_filter !== true || !file.config || typeof file.config !== 'object') {
-    throw new Error(`${name}: not a Live PokeMap display filter (no "_lpm_display_filter": true and "config")`);
-  }
-
-  const config: FilterConfig = { ...FILTER_DEFAULTS, speciesFilterList: [] };
-  const given = file.config as Record<string, unknown>;
-
-  for (const [key, fallback] of Object.entries(FILTER_DEFAULTS) as [keyof FilterConfig, unknown][]) {
-    if (!Object.hasOwn(given, key)) {
-      continue;
-    }
-
-    const value = given[key];
-    const fits = Array.isArray(fallback)
-      ? Array.isArray(value) && value.every((dex) => Number.isInteger(dex))
-      : typeof value === typeof fallback;
-
-    if (!fits) {
-      throw new Error(
-        `${name}: config.${key} is ${JSON.stringify(value)}, where Live PokeMap expects a ${kind(fallback)}`,
-      );
-    }
-
-    (config as unknown as Record<string, unknown>)[key] = value;
-  }
-
-  if (!['off', 'blocklist', 'allowlist'].includes(config.speciesFilterMode)) {
-    throw new Error(`${name}: config.speciesFilterMode is ${JSON.stringify(config.speciesFilterMode)}`);
-  }
-
-  return { name, config };
 }
-
-const kind = (value: unknown) => (Array.isArray(value) ? 'list of dex numbers' : typeof value);
 
 /**
  * Whether the map draws `spawn` under `filter`, transcribed from the page with `isRare` left out:
