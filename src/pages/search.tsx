@@ -965,7 +965,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               type="button"
               class="drop"
               aria-label="Remove this group and everything in it"
-              onClick={() => edit((tree) => update(tree, path, () => null))}
+              // Kept from the group's own click, which would otherwise put a held pill down in the group just removed.
+              onClick={(event) => {
+                event.stopPropagation();
+                edit((tree) => update(tree, path, () => null));
+              }}
             >
               ✕
             </button>

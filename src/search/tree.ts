@@ -288,12 +288,15 @@ const within = (inside: Path, outside: Path) =>
  *
  * Taking the node out shifts every sibling after it along, so a destination below the same parent is corrected for
  * that here rather than by whoever called: a path is an index into the tree as it was, and this is the one operation
- * that invalidates one. A move into the node's own subtree is refused, there being no tree that would describe it.
+ * that invalidates one. A move into the node's own subtree is refused, there being no tree that would describe it, and
+ * so is a move to anything but a group: `append` leaves a tree alone when its path names nothing, which here would
+ * come after the node had already been taken out, and lose it.
  */
 export function move(root: Node, from: Path, to: Path): Node {
   const node = nodeAt(root, from);
+  const into = nodeAt(root, to);
 
-  if (node === null || from.length === 0 || within(to, from)) {
+  if (node === null || into === null || !isGroup(into) || from.length === 0 || within(to, from)) {
     return root;
   }
 
