@@ -6,7 +6,11 @@
 
 import { fold, ocrLine, type Line } from './ocr.mts';
 import { chroma, crop, isolate, luminance, rgb, scale, type Image } from './png.mts';
-export type Gender = 'male' | 'female';
+/**
+ * What the symbol beside the HP says, in the game's own search terms: `genderunknown` is what the game calls a species
+ * with no gender, so each value is the search that finds the Pokémon it describes.
+ */
+export type Gender = 'male' | 'female' | 'genderunknown';
 
 /** The four bands the game records, each of which `src/search/terms.ts` has a search for. */
 export type Size = 'XXL' | 'XL' | 'XS' | 'XXS';
@@ -154,8 +158,8 @@ export function isFavourite(image: Image): boolean {
 }
 
 /**
- * Male, female, or null for a species that has no gender. The symbol is the only ink in that corner of the panel, so
- * it is found by where the HP is rather than by a fraction of the screen.
+ * Male, female, or `genderunknown` for a species that has no gender. The symbol is the only ink in that corner of the
+ * panel, so it is found by where the HP is rather than by a fraction of the screen.
  *
  * Colour cannot tell the two apart, both being the same pale blue-grey, so the shape does it: a female's stem makes
  * her ink taller than it is wide where a male's is square. Measured on two phones, 1.51 against 0.99 and 1.51 against
@@ -166,7 +170,7 @@ export function isFavourite(image: Image): boolean {
  * level written down does not hold: at 235 the panel is itself ink, which makes the answer the shape of the crop — and
  * the crop is sized from `hp.height`, which Tesseract reports as anything from 20 to 37 for the same text.
  */
-export function genderOf(image: Image, hp: Line): Gender | null {
+export function genderOf(image: Image, hp: Line): Gender {
   const region = crop(image, image.width * 0.78, hp.top - hp.height * 4, image.width * 0.15, hp.height * 6);
   const histogram = new Map<number, number>();
 
@@ -184,7 +188,7 @@ export function genderOf(image: Image, hp: Line): Gender | null {
   );
 
   if (symbol.fraction < GENDER_INK_MIN) {
-    return null;
+    return 'genderunknown';
   }
 
   return symbol.height / Math.max(1, symbol.width) >= GENDER_TALL ? 'female' : 'male';
