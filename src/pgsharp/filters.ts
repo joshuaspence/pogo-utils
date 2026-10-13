@@ -45,7 +45,7 @@ const baseShinyHuntingFilter = {
   onlyShiny: true,
 };
 
-export default [
+const filters = [
   {
     ...baseShinyHuntingFilter,
     name: 'Shiny Hunting',
@@ -85,3 +85,8 @@ export default [
     pokemons: species(XXS_POKEMON, ...WILD_SPAWN_FILTERS),
   },
 ];
+
+// A filter whose every species has been caught or narrowed away is left out rather than written: a feed watching for
+// nothing loads cleanly and never alerts, which reads on the device as a feed still waiting. Dropping it here means the
+// hunt lists can shrink to nothing — the Hisuian one does as its last species are caught — without anything to unpick.
+export default filters.filter((filter) => filter.pokemons.length > 0);
