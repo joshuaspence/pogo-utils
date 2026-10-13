@@ -181,7 +181,7 @@ function dexOf(fragment: string): number[] | null {
  *
  * `spans` is the dex numbers the text stands for, or null where it stands for a name the arithmetic cannot join.
  */
-function shortName(token: string): { text: string; spans: Span[] | null; numbered: boolean } {
+function shortName(token: string, negated: boolean): { text: string; spans: Span[] | null; numbered: boolean } {
   const span = spanOf(token);
 
   if (span) {
@@ -217,9 +217,13 @@ function shortName(token: string): { text: string; spans: Span[] | null; numbere
   const spans = merged(dex.map((number) => [number, number] as Span));
   const numbers = spansText(spans);
 
-  return numbers.length < shortest.length
-    ? { text: numbers, spans, numbered: true }
-    : { text: shortest, spans: null, numbered: false };
+  // A comma is the game's OR within a clause, so a ruled-out `nidoran` written as `29,32` would compose `!29,32` — not
+  // 29, *or* 32, which is every Pokémon. Ruling out each span is `!29&!32`, an `all` that an enclosing `any` spreads
+  // into a clause per span with every neighbour copied into each, a length nothing here measures. So a ruled-out name
+  // reaching several spans keeps its fragment.
+  const numbered = numbers.length < shortest.length && (spans.length === 1 || !negated);
+
+  return numbered ? { text: numbers, spans, numbered: true } : { text: shortest, spans: null, numbered: false };
 }
 
 /** Every category a term belongs to, by term id, so a junction's parts can be sorted into the ones they came from. */
@@ -423,7 +427,7 @@ function short(node: Node, told: Told): Node {
       return node;
     }
 
-    const shortened = shortName(name.text);
+    const shortened = shortName(name.text, name.negated);
 
     if (shortened.text !== name.text) {
       told.rewrites.push([name.text, shortened.text]);
