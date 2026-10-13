@@ -212,6 +212,17 @@ test('what a query cannot see from the world is said, and nothing is said of one
   expect(blindSpots({ ...FILTER_DEFAULTS, shinyOnly: true, showMyShinies: true })).toStrictEqual([]);
 });
 
+test('the IV band said is the one the query asked for', () => {
+  const band = { ...FILTER_DEFAULTS, alwaysShowZero: false, alwaysShowSize: false, alwaysShowRare: false };
+
+  expect(blindSpots({ ...band, maxIV: 50 })).toStrictEqual(['spawns from 0% to 50% IV']);
+  expect(blindSpots({ ...band, showAll: true })).toStrictEqual(['every spawn ("Show All")']);
+
+  // Show All within a narrower band draws only that band.
+  expect(blindSpots({ ...band, showAll: true, maxIV: 50 })).toStrictEqual(['spawns from 0% to 50% IV']);
+  expect(blindSpots({ ...band, showAll: true, minIV: 50 })).toStrictEqual(['spawns from 50% to 99% IV']);
+});
+
 test('the first poll says whether the account has shiny access', () => {
   expect(firstAnswer(viewport())).toBe('First poll: 3 spawns and 2 shinies, with shiny access');
   expect(firstAnswer({ pokemon: [], shiny_access: false })).toMatch(/no shiny access .*Premium/);
