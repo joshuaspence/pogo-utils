@@ -292,6 +292,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
      */
     hiddenFor(prefs, view).delete(match.eventType);
     setSearch(match.name);
+
+    // Arriving on the event is reading it, as opening its card is. A notification's link relies on this to take itself
+    // off the list, and a shared link would otherwise leave the card marking an event the reader is looking at as new.
+    if (isNew(match)) {
+      store.acknowledge([match]);
+    }
   }
 
   /**
