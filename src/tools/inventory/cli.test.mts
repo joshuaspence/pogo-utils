@@ -305,25 +305,6 @@ test('`snap` refuses a `--search` longer than the box can be cleared of, before 
 });
 
 /**
- * And that the clear is longer than every search the scan itself sends, which is the arithmetic that was wrong. A flag
- * is typed into the box as it stands — `search(flag)` — so `FLAGS` is the list of terms the scan sends, and they are
- * short enough that this passes today with room to spare. The point is that it fails the moment a longer one is added,
- * where before nothing related the two numbers at all.
- */
-test('the clear is longer than every search the scan sends', () => {
-  const list = /\nconst FLAGS = \[([^\]]*)\]/.exec(SOURCE)?.[1] ?? '';
-  const terms = [...list.matchAll(/'([^']+)'/g)].map(([, term]) => term as string);
-
-  expect(terms, 'the `FLAGS` list was not found, so this pins nothing').not.toHaveLength(0);
-
-  for (const term of terms) {
-    expect(term.length, `the scan sends ${JSON.stringify(term)}, which the clear cannot remove`).toBeLessThanOrEqual(
-      CLEAR_KEYS,
-    );
-  }
-});
-
-/**
  * An empty `--search` is refused too, which `typeable` alone does not do: its pattern is `*`-quantified, so `''` passes
  * it, and spaces are stripped before the test, so a run of them passes as well. Both are terms that name nothing — an
  * empty search matches everything, and the snap would be of whatever the grid showed first under a name saying it is

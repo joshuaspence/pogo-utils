@@ -47,14 +47,14 @@ import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device } from '../src/tools/inventory/adb.mts';
 import { type Signature } from '../src/tools/inventory/artwork.mts';
 import { bestOf, faultsOf } from '../src/tools/inventory/attempts.mts';
-import { DEFAULTS, type Config, type Point } from '../src/tools/inventory/config.mts';
+import { configWith, DEFAULTS, type Point } from '../src/tools/inventory/config.mts';
 import { parseDetail, readLines, type Detail } from '../src/tools/inventory/detail.mts';
 import { CACHE, iconsFor, loadGameData } from '../src/tools/inventory/download.mts';
 import { closest, type Form, type GameData } from '../src/tools/inventory/game-master.mts';
 import { clearable, identify, type Identity } from '../src/tools/inventory/identify.mts';
 import { parseMoves, type Moves } from '../src/tools/inventory/moves.mts';
 import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
-import { fold, ocr, useEngine, type Line } from '../src/tools/inventory/ocr.mts';
+import { ocr, useEngine, type Line } from '../src/tools/inventory/ocr.mts';
 import { findOverlay, readOverlay, widen, type Overlay, type OverlayBox } from '../src/tools/inventory/overlay.mts';
 import { decodePng, difference, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import { showProgress } from '../src/tools/inventory/progress.mts';
@@ -68,7 +68,8 @@ import {
   refusals,
   type Source,
 } from '../src/tools/inventory/report.mts';
-import { offsetBetween, stitch, SCROLL_STEP, type Band } from '../src/tools/inventory/stitch.mts';
+import { count, csv, keyOf, Marks, parseFlags, type Flag } from '../src/tools/inventory/scan.mts';
+import { offsetBetween, stitch, SCROLL_STEP } from '../src/tools/inventory/stitch.mts';
 import { storage, unsearchable } from '../src/tools/inventory/storage.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -101,11 +102,6 @@ const SCROLL_DRAG_MS = 1000;
  * something. So this is where a drag stops being one, and what it leaves is under a line of the panel's own text.
  */
 const SCROLL_BACK_FLOOR = 0.012;
-
-/** The searches that answer the yes-or-no columns, each column named for the game's own search term. */
-const FLAGS = ['shiny', 'lucky', 'costume', 'shadow', 'purified'] as const;
-
-type Flag = (typeof FLAGS)[number];
 
 /**
  * Size is not among these: the detail screen wears a gold badge saying `XXL` or `XXS`, so it is read off the screen the
@@ -235,7 +231,8 @@ showProgress(options.verbose);
 // The CLI reads with the Tesseract on `PATH`; the Inventory page installs the WebAssembly build in its place.
 useEngine(tesseractCli);
 
-const config = loadConfig(options.config);
+// Read here rather than in `configWith`, `config.mts` being shared with the browser, which has no file to read.
+const config = options.config === undefined ? DEFAULTS : configWith(JSON.parse(readFileSync(options.config, 'utf8')));
 
 /** The colour each source is printed in, so that a value read off the screen and one worked out never look alike. */
 const SOURCE_STYLE = { 'read': 'cyan', 'worked out': 'magenta' } as const satisfies Record<Source, string>;
@@ -733,120 +730,6 @@ async function scan() {
 }
 
 /**
- * The Pokémon a flag search found, held as a multiset of keys so that each one marks exactly one row of the full pass.
- * A looser key without the name is kept beside it, since a name is the field OCR is likeliest to read two ways.
- */
-class Marks {
-  readonly #exact = new Map<string, number>();
-  readonly #loose = new Map<string, number>();
-  size = 0;
-
-  add(detail: Detail, overlay: Overlay | null) {
-    const key = keyOf(detail, overlay);
-
-    if (key) {
-      bump(this.#exact, key, 1);
-      bump(this.#loose, looseKeyOf(detail, overlay), 1);
-      this.size++;
-    }
-  }
-
-  /** Whether this Pokémon was in the search, using up the match so a twin is not marked by the same entry. */
-  take(detail: Detail, overlay: Overlay | null): boolean {
-    const key = keyOf(detail, overlay);
-    const loose = looseKeyOf(detail, overlay);
-
-    if (key && (this.#exact.get(key) ?? 0) > 0) {
-      bump(this.#exact, key, -1);
-      bump(this.#loose, loose, -1);
-      return true;
-    }
-
-    if (key && (this.#loose.get(loose) ?? 0) > 0) {
-      bump(this.#loose, loose, -1);
-      return true;
-    }
-
-    return false;
-  }
-}
-
-function bump(map: Map<string, number>, key: string, by: number) {
-  map.set(key, (map.get(key) ?? 0) + by);
-}
-
-/**
- * What identifies one Pokémon across two passes. CP is not part of it: it is white over the artwork and the reading
- * OCR misses most, so requiring it would make screens unreadable and stop a walk after three. The overlay's IVs
- * discriminate better — HP, weight, height and 15/15/15 together are shared by almost nothing — and HP alone is what a
- * key needs to exist at all.
- */
-function keyOf(detail: Detail, overlay: Overlay | null): string | null {
-  if (detail.hp === null) {
-    return null;
-  }
-
-  return `${fold(detail.name ?? '')}|${looseKeyOf(detail, overlay)}`;
-}
-
-/** The same without the name, so a nickname read differently in two passes still matches. */
-function looseKeyOf(detail: Detail, overlay: Overlay | null): string {
-  const iv = overlay ? `${overlay.iv.attack}/${overlay.iv.defense}/${overlay.iv.stamina}` : '';
-
-  return [detail.hp, detail.weight, detail.height, iv].join('|');
-}
-
-function csv(value: string | number | null): string {
-  const text = value === null ? '' : String(value);
-
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function parseFlags(list: string): Flag[] {
-  const names = list.split(',').filter(Boolean);
-  const unknown = names.filter((n) => !(FLAGS as readonly string[]).includes(n));
-
-  if (unknown.length > 0) {
-    throw new Error(`unknown flag ${unknown.join(', ')}; the choices are ${FLAGS.join(', ')}`);
-  }
-
-  return names as Flag[];
-}
-
-/** A count option, checked here rather than left to turn into a `NaN` that quietly writes nothing after a long run. */
-function count(option: string, value: string | undefined, fallback: number): number {
-  if (value === undefined) {
-    return fallback;
-  }
-
-  const n = Number(value);
-
-  if (!Number.isInteger(n) || n < 0) {
-    throw new Error(`--${option} takes a whole number, not ${value}`);
-  }
-
-  return n;
-}
-
-/** `DEFAULTS` with a JSON file laid over it one level deep, so a file can change one tap and restate nothing else. */
-function loadConfig(path: string | undefined): Config {
-  if (path === undefined) {
-    return DEFAULTS;
-  }
-
-  const overrides = JSON.parse(readFileSync(path, 'utf8')) as Partial<Record<keyof Config, object | string>>;
-
-  return {
-    package: typeof overrides.package === 'string' ? overrides.package : DEFAULTS.package,
-    taps: { ...DEFAULTS.taps, ...(overrides.taps as Partial<Config['taps']>) },
-    swipes: { ...DEFAULTS.swipes, ...(overrides.swipes as Partial<Config['swipes']>) },
-    waits: { ...DEFAULTS.waits, ...(overrides.waits as Partial<Config['waits']>) },
-    overlay: (overrides.overlay as OverlayBox | undefined) ?? DEFAULTS.overlay,
-    scrollBand: { ...DEFAULTS.scrollBand, ...(overrides.scrollBand as Partial<Band>) },
-  };
-}
-
-/**
  * A screenshot of a screen that has stopped moving, which is what a fixed wait after a swipe can only guess at. The
  * cost is one extra screenshot where the screen was already still, and the gain is that a scan slowed down by anything
  * — a phone thinking, an animation that ran long — waits for it rather than reading through it.
@@ -1194,7 +1077,7 @@ async function snap() {
   }
 }
 
-// Last, so that everything above — the `Marks` class in particular — is initialised before anything runs.
+// Last, so that everything above is initialised before anything runs.
 if (command === 'scan') {
   await scan();
 } else if (command === 'snap') {

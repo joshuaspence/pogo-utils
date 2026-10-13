@@ -81,3 +81,15 @@ export const DEFAULTS: Config = {
   waits: { launch: 30000, tap: 900, swipe: 1100, scroll: 800, menu: 800, search: 1500 },
   scrollBand: SCREEN_BAND,
 };
+
+/** `DEFAULTS` with a JSON file laid over it one level deep, so a file can change one tap and restate nothing else. */
+export function configWith(overrides: Partial<Record<keyof Config, object | string>>): Config {
+  return {
+    package: typeof overrides.package === 'string' ? overrides.package : DEFAULTS.package,
+    taps: { ...DEFAULTS.taps, ...(overrides.taps as Partial<Config['taps']>) },
+    swipes: { ...DEFAULTS.swipes, ...(overrides.swipes as Partial<Config['swipes']>) },
+    waits: { ...DEFAULTS.waits, ...(overrides.waits as Partial<Config['waits']>) },
+    overlay: (overrides.overlay as OverlayBox | undefined) ?? DEFAULTS.overlay,
+    scrollBand: { ...DEFAULTS.scrollBand, ...(overrides.scrollBand as Partial<Band>) },
+  };
+}
