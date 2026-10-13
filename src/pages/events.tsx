@@ -39,7 +39,7 @@ import {
   useEventStore,
   type Reveals,
 } from '../event-store.js';
-import { ENTRIES_BY_EVENT } from '../generated.js';
+import { ENTRIES_BY_EVENT, EVENTS_FEED } from '../generated.js';
 import { toHash } from '../router.js';
 
 import type { RouteIndex } from '../types.js';
@@ -1130,7 +1130,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           timezone.
         </p>
         <p>
-          <a href="events.ics">Subscribe in your own calendar</a>, without the weekly Spotlight and Raid Hours. In
+          <a href={EVENTS_FEED}>Subscribe in your own calendar</a>, without the weekly Spotlight and Raid Hours. In
           Google Calendar, copy the link into <em>Other calendars → From URL</em>.
         </p>
         <p>This site is unofficial. Click an event to open its source page.</p>
