@@ -13,7 +13,7 @@ description: >-
 The Events page merges two sources, and this skill audits the gap between them and Niantic's own announcements.
 
 - **The ScrapedDuck feed** mirrors Leek Duck and covers the game's scheduled content thoroughly. It is the bulk of the
-  page and needs no help. The page reads it from `data/events-feed.json`, an hourly copy, where `compare_sources.py`
+  page and needs no help. The page reads it from `data/events-feed.json`, an hourly copy, where `compare-sources.mts`
   below reads the live mirror — which is the right source for an audit, the copy being at most an hour behind it.
 - **`data/events.json`** is the repository's own list, for events the feed does not carry. Every entry in it is a
   `regional-event` — a type ScrapedDuck never emits, registered locally in `src/pages/events.tsx` — because what Leek
@@ -29,7 +29,7 @@ the net past regional events fills the report with noise the maintainer has to r
 ## Read the sources before deciding anything
 
 ```sh
-python3 .claude/skills/find-missing-events/scripts/compare_sources.py
+node .claude/skills/find-missing-events/scripts/compare-sources.mts
 ```
 
 Run it from the checkout root; it takes about half a minute. It walks the **whole** news archive — 223 articles back to
@@ -94,7 +94,7 @@ Neither list is one-article-one-event, so resolve both by reading rather than by
 ## Read the articles you are unsure about
 
 ```sh
-python3 .claude/skills/find-missing-events/scripts/read_article.py <slug>
+node .claude/skills/find-missing-events/scripts/read-article.mts <slug>
 ```
 
 This prints the article's `headline`, `link` and `image` — the last taken from its structured data, which is where

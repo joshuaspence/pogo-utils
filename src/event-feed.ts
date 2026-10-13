@@ -1,13 +1,17 @@
 /**
- * The event feed, shared by the five parts that read it: `scripts/vend-feed.mts` copies upstream into `VENDED_EVENTS`,
+ * The event feed, shared by the six parts that read it: `scripts/vend-feed.mts` copies upstream into `VENDED_EVENTS`,
  * `src/pages/events.tsx` and `scripts/build-ics.mts` each merge that copy with this repository's own list,
- * `scripts/prune-events.mts` drops the entries `prunable` says are over, and `src/pages/map.tsx` reads that list for the
- * names of the events its routes belong to.
+ * `scripts/prune-events.mts` drops the entries `prunable` says are over, `src/pages/map.tsx` reads that list for the
+ * names of the events its routes belong to, and the `find-missing-events` skill audits upstream and that list against
+ * pokemongo.com's announcements.
  */
 
 import type { FeedEvent, RouteCounts } from './types.js';
 
-/** ScrapedDuck's JSON mirror of Leek Duck. Only `scripts/vend-feed.mts` fetches it; no browser reaches it. */
+/**
+ * ScrapedDuck's JSON mirror of Leek Duck. `scripts/vend-feed.mts` fetches it, and so does the `find-missing-events`
+ * skill, which audits the live mirror rather than the hourly copy; no browser reaches it.
+ */
 export const UPSTREAM_URL = 'https://raw.githubusercontent.com/bigfoott/ScrapedDuck/data/events.json';
 
 /**
