@@ -27,7 +27,9 @@ export type Predicate = (pokemon: Pokemon) => boolean;
  *
  * A form carries the dex number of the species it belongs to, that number being all either tool stores, so a list
  * naming several forms names it several times. The names say which forms the list is for; the repeats say nothing, so
- * the first of each number survives and the rest go.
+ * one entry per number survives: the last form listed, held where the number first appeared. That is `Map` replacing
+ * the value of a key it already holds while keeping the key's place. Neither tool can tell, as both store the number
+ * alone, but a caller reading the surviving form gets the last one.
  */
 export function species(entries: ReadonlySet<Pokemon>, ...keep: Predicate[]) {
   const list = [...entries];

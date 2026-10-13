@@ -29,6 +29,14 @@ test('a species listed twice survives once, as the dex number both forms carry',
   expect(species(new Set([first as Pokemon, second as Pokemon]))).toHaveLength(1);
 });
 
+test('the form that survives a shared dex number is the last listed, at the place of the first', () => {
+  // `Map` replaces a repeated key's value but keeps its place, so a caller reading the form gets the last one.
+  const [a, c] = POKEMON.UNOWN.forms('A', 'C') as [Pokemon, Pokemon];
+  const entries = new Set([a, POKEMON.PIKACHU, c]);
+
+  expect(species(entries)).toEqual([c, POKEMON.PIKACHU]);
+});
+
 test('each shared list applies the predicate it adds', () => {
   /*
    * The sample is read off the dex rather than named, so it straddles each predicate by construction: one species the
