@@ -107,9 +107,9 @@ test('the clock is the only thing that moves between two exports', () => {
 
 test('the allowlist is the very list the Pokédex badges as a watched shiny hunt', () => {
   /*
-   * `pokedex/entries.ts` writes the narrowing a third time, as `feedable(p) && p.shinyEligible` rather than as this
-   * module's predicate list. Until that duplicate is collapsed, this is what stops the two drifting: add a predicate to
-   * `SHINY_HUNTING_FILTERS` and the export would quietly drop species the page keeps badging as watched.
+   * Both read `SHINY_HUNTING_FILTERS`, so a predicate added there moves the two together. What this holds is the rest:
+   * the export and the page each choose that list for themselves, so either picking another — a region filter on the
+   * export, a plainer list on the page — would quietly drop species the page keeps badging as watched.
    */
   const hunt = HUNTS.find((entry) => entry.id === 'shiny');
   const watched = [...new Set([...(hunt?.members ?? [])].filter((pokemon) => hunt?.watched(pokemon)).map(Number))];
