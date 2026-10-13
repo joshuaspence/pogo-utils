@@ -1,5 +1,16 @@
 [
   {
+    "eventID": "chandelure-super-mega-raid-day-2026",
+    "name": "Chandelure Super Mega Raid Day",
+    "eventType": "raid-day",
+    "heading": "Raid Day",
+    "link": "https://leekduck.com/events/chandelure-super-mega-raid-day-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/chandelure-super-mega-raid-day-2026.jpg",
+    "start": "2026-10-31T14:00:00.000",
+    "end": "2026-10-31T17:00:00.000",
+    "added": "2026-10-13T23:24:36.725Z"
+  },
+  {
     "eventID": "dialga-in-5-star-raid-battles-october-2026",
     "name": "Dialga in 5-star Raid Battles",
     "eventType": "raid-battles",
@@ -536,17 +547,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
     "start": "2026-11-28T14:00:00.000",
     "end": "2026-11-28T17:00:00.000",
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
-    "eventID": "super-mega-raid-day-october-2026",
-    "name": "Super Mega Raid Day",
-    "eventType": "raid-day",
-    "heading": "Raid Day",
-    "link": "https://leekduck.com/events/super-mega-raid-day-october-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
-    "start": "2026-10-31T14:00:00.000",
-    "end": "2026-10-31T17:00:00.000",
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
