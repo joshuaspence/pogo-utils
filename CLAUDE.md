@@ -2,11 +2,13 @@
 
 - **Give every subtask its own worktree.** A subagent takes `isolation: "worktree"`; a session enters one with
   `EnterWorktree`. Two agents in one checkout collide — they edit the same file at the same time, and a `git add -A`
-  from either commits the other's half-finished work. Every worktree branches from `origin/master`, which is
-  `worktree.baseRef`'s default and why `.claude/settings.json` does not set it: work goes through pull requests, so a
-  branch wants the tip of what has already merged rather than whatever a local `master` happens to be at. Nothing to
-  fast-forward, and nothing carried in from a `master` somebody forgot to pull. The cost is that a worktree cannot build
-  on an unmerged branch, so stacked work waits for the branch beneath it to land.
+  from either commits the other's half-finished work. `/subtask` does not give one: its fork shares the session's
+  working directory, so one fork entering a worktree moves them all — start parallel work with `/implement`, which hands
+  each issue a worktree of its own. Every worktree branches from `origin/master`, which is `worktree.baseRef`'s default
+  and why `.claude/settings.json` does not set it: work goes through pull requests, so a branch wants the tip of what
+  has already merged rather than whatever a local `master` happens to be at. Nothing to fast-forward, and nothing
+  carried in from a `master` somebody forgot to pull. The cost is that a worktree cannot build on an unmerged branch, so
+  stacked work waits for the branch beneath it to land.
 - **Open a pull request; `master` is protected.** A direct push is rejected rather than queued, so branch, push the
   branch, and open the PR with `gh pr create`. What the protection requires is deliberately not restated here —
   transcribing it is how this drifted before, down to naming a required check that had since been renamed — so read it
