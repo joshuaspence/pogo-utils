@@ -81,6 +81,14 @@ test('a game not in front is launched first, and the launch said', async () => {
   expect(sent[1]).toStrictEqual(['monkey', '-p', DEFAULTS.package, '-c', 'android.intent.category.LAUNCHER', '1']);
 });
 
+test('a package that is not an Android package name never reaches the shell', async () => {
+  const { sent, device } = phone('NotificationShade');
+  const { search } = storage(device, { ...CONFIG, package: 'x; reboot' }, DATA, SCREEN, () => {});
+
+  await expect(search('shiny')).rejects.toThrow('only an Android package name');
+  expect(sent).toStrictEqual([['dumpsys', 'window', 'displays']]);
+});
+
 test('a term the phone cannot be sent is refused, naming each character once', () => {
   expect(unsearchable("farfetch'd&nidoran♀,nidoran♀")).toBe("has characters the phone cannot be sent: ' ♀");
 });
