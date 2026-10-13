@@ -16,6 +16,8 @@
   draft: a draft gets no review, and waits on someone to mark it ready before the approval it needs can come.
 - **An unresolved conversation blocks the merge.** Green checks are not enough while any review thread is open, so a
   pull request carrying one waits on its author: fix what the thread raises or reply with why not, then resolve it.
+- **A pull request is not done when it is opened.** It is reviewed automatically, and again on every push, so each fix
+  can draw new feedback. Watch it after submitting, and keep addressing the reviews and failing checks until it merges.
 - **Ask whether a pull request should merge itself.** `gh pr merge --auto --squash` hands it to GitHub, which merges the
   moment the checks pass and the review approves — with nobody looking at it again. That is the user's call rather than
   a default to assume either way, so when they have not said, ask before opening it, and leave auto-merge off until they
