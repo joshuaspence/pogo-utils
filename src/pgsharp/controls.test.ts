@@ -93,15 +93,9 @@ test('the feed list ticks on its own, having no on-screen position to ride along
   // `hlscan`: ticking it replaces whatever filters the profile already has, and that is a choice to make on its own.
   expect(Object.keys(CONTROL_RESETS.resetFeeds)).toEqual(['hlfeeds']);
 
-  // All six filters reach the device, in the order `filters.js` lists them, since this is the one string that carries
+  // Every filter reaches the device, in the order `filters.js` lists them, since this is the one string that carries
   // them. A filter dropped on the way out is a feed that never alerts, which looks exactly like a feed that is waiting.
-  expect(feeds.map((filter) => filter.name)).toEqual([
-    'Shiny Hunting',
-    'Shiny Hunting (Hisuian)',
-    'Regional Shiny Hunting',
-    '100%',
-    'XXL',
-    'XXS',
-  ]);
-  expect(feeds).toHaveLength(FEED_FILTERS.length);
+  // Which filters there are is `filters.js`'s to decide — one whose hunt list has emptied is left out there — so this
+  // reads the names off it rather than restating them.
+  expect(feeds.map((filter) => filter.name)).toEqual(FEED_FILTERS.map((filter) => filter.name));
 });
