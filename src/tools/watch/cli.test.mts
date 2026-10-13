@@ -19,6 +19,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { text } from 'node:stream/consumers';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 
@@ -45,15 +46,14 @@ interface Seen {
 async function standIn(answer: (request: Seen, response: ServerResponse) => void) {
   const requests: Seen[] = [];
   const server: Server = createServer((request, response) => {
-    let text = '';
-
-    request.on('data', (chunk) => (text += chunk));
-    request.on('end', () => {
+    // Decoded once, whole: a chunk decoded on its own splits any character straddling its edge, and a species name like
+    // `Nidoran♀` or `Flabébé` is the reason `ntfy.mts` sends JSON at all.
+    void text(request).then((body) => {
       const seen = {
         method: request.method ?? '',
         path: request.url ?? '',
         headers: request.headers,
-        body: text ? JSON.parse(text) : undefined,
+        body: body ? JSON.parse(body) : undefined,
         at: Date.now(),
       };
 
