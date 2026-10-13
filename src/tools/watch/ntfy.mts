@@ -4,7 +4,8 @@
  * it — `Nidoran♀`, `Flabébé`. The JSON form takes the same fields with none of that.
  *
  * The topic is as good as a password on the public server, anyone who knows it being able to read what is sent there,
- * so it is never printed: a failure says the server and the status and stops there.
+ * so it is never printed: a failure says the server and why — a status, or the connect error where it never got one —
+ * and stops there.
  */
 
 export interface Notification {

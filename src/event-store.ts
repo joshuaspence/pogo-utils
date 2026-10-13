@@ -214,8 +214,10 @@ export class EventStore {
   #inflight: Promise<void> | null = null;
 
   /**
-   * Whether `events` came from both files. The seen record is settled only against a whole list: one file missing
-   * would let `through` climb past a new event that file carries, and the prune would forget its acknowledged ones.
+   * Whether `events` came from both files. A load that lost one still draws the other, but settles nothing against it:
+   * pruning against half the events would forget every ID the reader had acknowledged in the missing file, seeding
+   * from them would mark the whole of that file new on the next good load, and folding against them would let
+   * `through` climb past a new event the missing file carries.
    */
   #whole = false;
 
@@ -318,7 +320,7 @@ export class EventStore {
 
   /**
    * Settle the seen record against the events already loaded: for a Reset or an import that has just emptied it, and
-   * to fold an acknowledgement. Not against a list missing one of its files — see `#whole`.
+   * to fold an acknowledgement. Not against a list missing one of its files, for the reason `#whole` gives.
    */
   settle() {
     if (this.#whole) {

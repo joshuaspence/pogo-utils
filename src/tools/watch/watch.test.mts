@@ -8,11 +8,12 @@
  */
 
 import { Backoff } from './backoff.mts';
+import { LoginRefused } from './client.mts';
 import { namesOf, notificationFor, reasonsFor } from './message.mts';
 import { publishUrl } from './ntfy.mts';
 import { admits, blindSpots, parseQuery, shows, wants, widest } from './query.mts';
 import { Seen } from './seen.mts';
-import { firstAnswer, match } from './watcher.mts';
+import { firstAnswer, match, messageOf } from './watcher.mts';
 import {
   ApiError,
   FILTER_DEFAULTS,
@@ -258,6 +259,47 @@ test('a spawn is remembered until its despawn and forgotten after', () => {
   expect(seen.has('a', NOW + 59_999)).toBe(true);
   expect(seen.has('a', NOW + 60_000)).toBe(false);
   expect(seen.size).toBe(0);
+});
+
+/**
+ * The shapes below are undici's own, measured rather than assumed: a connect failure is a `TypeError` over an
+ * `AggregateError` whose own message is empty and whose entries are one per address tried. A reporter reading
+ * `message` alone printed `fetch failed` for every failure below HTTP and named none of them.
+ */
+test('a failure is reported with its cause rather than as a bare wrapper', () => {
+  const connect = new TypeError('fetch failed', {
+    cause: new AggregateError([
+      new Error('connect ETIMEDOUT 159.203.148.75:443'),
+      new Error('connect ECONNREFUSED :::443'),
+    ]),
+  });
+
+  expect(messageOf(connect)).toBe('fetch failed: connect ETIMEDOUT 159.203.148.75:443, connect ECONNREFUSED :::443');
+
+  // A DNS failure hangs one ordinary error off `cause`, which says enough on its own.
+  expect(messageOf(new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND ntfy.sh') }))).toBe(
+    'fetch failed: getaddrinfo ENOTFOUND ntfy.sh',
+  );
+
+  // A cause the message above it already quotes is not said twice, which is how `LoginRefused` composes its own.
+  expect(messageOf(new LoginRefused(new ApiError('Invalid username or password', 401, 'INVALID_CREDENTIALS')))).toBe(
+    'Live PokeMap refused the login: Invalid username or password',
+  );
+
+  // A cause the message above it merely reads as a fragment of is its own reason, not a repeat of one.
+  expect(messageOf(new Error('Request failed: 503 reading /api/config', { cause: new Error('503') }))).toBe(
+    'Request failed: 503 reading /api/config: 503',
+  );
+
+  // `cause` is writable, so a cycle is reachable, and a walk that circled one would hang an overnight run silently.
+  const circular = new Error('outer');
+
+  circular.cause = new Error('inner', { cause: circular });
+
+  expect(messageOf(circular)).toBe('outer: inner');
+
+  expect(messageOf(new ApiError('Try later', 429, 'RATE_LIMITED'))).toBe('Try later');
+  expect(messageOf('not an error at all')).toBe('not an error at all');
 });
 
 test("a publish goes to the ntfy server's own root, a subpath and all", () => {
