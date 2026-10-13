@@ -14,6 +14,7 @@
 import { Resvg } from '@resvg/resvg-js';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { DIST } from '../src/generated.ts';
 import { decodePng, encodePng, pad, type Image } from '../src/tools/inventory/png.mts';
 
 /** The one icon this repository keeps. Everything written below is a rendering of it. */
@@ -21,9 +22,6 @@ const SOURCE = 'favicon.svg';
 
 /** Read for what to render, and published beside the pages that link it. */
 const MANIFEST = 'manifest.json';
-
-/** The artifact being assembled, which is where these belong: nothing but the published site reads an icon. */
-const DIST = 'dist';
 
 /**
  * How much of a maskable canvas the ball fills. A launcher crops an icon to its own shape and only promises to keep the

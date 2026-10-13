@@ -24,12 +24,7 @@ import { createServer, type ServerResponse } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import { extname, relative, resolve } from 'node:path';
 import { SERVED_TYPES } from './served-types.mts';
-
-/**
- * What `pnpm build` assembles, and the only servable tree there is: `index.html` names `src/main.css` and
- * `src/main.js`, and the build writes both rather than the checkout keeping them.
- */
-const DIST = 'dist';
+import { DIST } from '../src/generated.ts';
 
 /**
  * Where to start looking for a port, and what esbuild's server bound before this, so the URL the README prints still
@@ -42,6 +37,9 @@ const PORT = 8000;
 const PORT_TRIES = 10;
 
 /*
+ * `DIST` is the only servable tree there is: `index.html` names `src/main.css` and `src/main.js`, and the build writes
+ * both rather than the checkout keeping them.
+ *
  * A static server has no answer to a missing root but a 404 for every request, which reads as a site that loaded and
  * came up blank. Serving does not build — `pnpm build` is its own step — so an unbuilt or just-cleaned checkout is
  * exactly what this gets pointed at, and the whole of the difference is a sentence naming the command that fixes it.

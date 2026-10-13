@@ -11,9 +11,9 @@
  */
 
 import { LOCAL_EVENTS, VENDED_EVENTS, type StampedEvent } from '../src/event-feed.ts';
-import { ENTRIES_BY_EVENT } from '../src/generated.ts';
+import { DIST, ENTRIES_BY_EVENT } from '../src/generated.ts';
 import type { RouteIndex } from '../src/types.js';
-import { calendar, calendarEvents, DIST, FEED } from '../src/ics.mts';
+import { calendar, calendarEvents, FEED } from '../src/ics.mts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const feed: StampedEvent[] = JSON.parse(readFileSync(VENDED_EVENTS, 'utf8'));
@@ -21,6 +21,8 @@ const local: StampedEvent[] = JSON.parse(readFileSync(LOCAL_EVENTS, 'utf8'));
 const index: RouteIndex = JSON.parse(readFileSync(ENTRIES_BY_EVENT, 'utf8'));
 const events = calendarEvents(feed, local);
 
+// Made here rather than taken for granted: the only thing that creates `dist/` is esbuild in `scripts/bundle.mts`,
+// which left `pnpm build:ics` on its own failing on an `ENOENT` for a directory the step before it happened to make.
 mkdirSync(DIST, { recursive: true });
 writeFileSync(FEED.file, calendar(FEED, events, index));
 console.log(`${FEED.file}: ${events.length} events`);

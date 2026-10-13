@@ -10,7 +10,6 @@
 
 import {
   copyInto,
-  DIST,
   expandEntry,
   orphanedStylesheets,
   PUBLISHED,
@@ -18,6 +17,7 @@ import {
   unservedFiles,
   VENDORED,
 } from '../src/artifact.mts';
+import { DIST } from '../src/generated.ts';
 
 let copied = 0;
 
