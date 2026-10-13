@@ -477,6 +477,52 @@ test('without ntfy each match is printed once, in full, and nothing is sent', as
 });
 
 /**
+ * A spawn without a dex number is the feed changing shape, and a watcher that only dropped it would read as one with
+ * nothing to find. Said when it starts, and again when it starts over, rather than on every poll it lasts.
+ */
+test('spawns without a dex number are said each time they start arriving', async () => {
+  let viewports = 0;
+
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'POST /api/auth/login':
+        return json(response, 200, { token: 't' });
+      case 'POST /api/map/viewport':
+        viewports += 1;
+
+        // Every poll but the third carries Larvitar with no `dex_id` at all, as a renamed field would arrive.
+        return json(response, 200, viewport(viewports === 3 ? [] : [{ ...LARVITAR, dex_id: undefined }]));
+      default:
+        return json(response, 200, {});
+    }
+  });
+
+  const controller = new AbortController();
+  const lines: string[] = [];
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => lines.push(line),
+      sleep: async () => {
+        if (viewports === 4) {
+          controller.abort();
+        }
+      },
+    });
+  } finally {
+    await map.close();
+  }
+
+  expect(lines.filter((line) => line.includes('dex number'))).toStrictEqual([
+    'The server answered 1 spawn without a dex number, which no query can want',
+    'The server answered 1 spawn without a dex number, which no query can want',
+  ]);
+});
+
+/**
  * The line a failed notification prints is the whole of what a watcher left running overnight leaves behind, and
  * `fetch` calls everything below HTTP `fetch failed` — so unless the cause reaches the log the failure names nothing to
  * act on. Port 9 is one `fetch` refuses itself, which makes the cause here `bad port` rather than the network's to

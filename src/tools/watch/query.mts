@@ -185,10 +185,6 @@ export type List = 'pokemon' | 'my_shiny_pokemon';
 export function wants(query: Query, spawn: Spawn, list: List, shiny: boolean, shinyReady: boolean): boolean {
   const { config } = query;
 
-  if (spawn.dexId <= 0) {
-    return false;
-  }
-
   if (list === 'my_shiny_pokemon') {
     return admits(config, spawn.dexId);
   }
