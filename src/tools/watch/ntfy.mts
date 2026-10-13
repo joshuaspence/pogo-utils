@@ -33,6 +33,12 @@ export interface Ntfy {
  */
 export const publishUrl = (server: string): URL => new URL(server.replace(/\/*$/, '/'));
 
+/**
+ * The longest one publish may take, connect and answer both. Without it a connect that hangs costs undici's own 10s and
+ * a server that accepts and never answers costs minutes, each of them a poll the watcher is not making.
+ */
+export const PUBLISH_TIMEOUT = 5_000;
+
 export async function publish(ntfy: Ntfy, notification: Notification, signal?: AbortSignal): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
@@ -44,7 +50,7 @@ export async function publish(ntfy: Ntfy, notification: Notification, signal?: A
     method: 'POST',
     headers,
     body: JSON.stringify({ topic: ntfy.topic, ...notification }),
-    signal,
+    signal: AbortSignal.any([AbortSignal.timeout(PUBLISH_TIMEOUT), ...(signal ? [signal] : [])]),
   });
 
   // Drained either way, so the connection goes back to the pool rather than waiting on a body nobody reads.

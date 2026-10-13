@@ -12,7 +12,7 @@
 import { Backoff } from './backoff.mts';
 import { LoginRefused, type LivePokeMap } from './client.mts';
 import { notificationFor, reasonsFor, type Reason } from './message.mts';
-import { publish, type Ntfy } from './ntfy.mts';
+import { publish, type Notification, type Ntfy } from './ntfy.mts';
 import { wants, widest, type List, type Query } from './query.mts';
 import { Seen } from './seen.mts';
 import {
@@ -31,6 +31,12 @@ export const BACKOFF_CEILING = 15 * 60_000;
 
 /** How long a spawn with no despawn time is remembered, which is longer than any spawn lasts. */
 const UNKNOWN_DESPAWN = 60 * 60_000;
+
+/**
+ * How many polls a notification is tried on before its spawn is remembered unsent: enough to ride out a 429 or a blip,
+ * few enough that a topic the server refuses outright is not asked about for as long as the spawn lives.
+ */
+export const NOTIFY_ATTEMPTS = 3;
 
 export interface WatchOptions {
   client: LivePokeMap;
@@ -66,6 +72,7 @@ export async function watch(options: WatchOptions): Promise<void> {
   const [interval, data] = await startup(options);
   const backoff = new Backoff(interval, BACKOFF_CEILING, options.random);
   const seen = new Seen();
+  const attempts = new Map<string, number>();
   const body = { ...WORLD, display_filters: wireFilter(widest(queries)) };
   let tier: string | undefined;
   let numberless = 0;
@@ -81,8 +88,6 @@ export async function watch(options: WatchOptions): Promise<void> {
 
     try {
       const answer = await client.viewport(body, signal);
-
-      backoff.succeeded();
 
       // Said on the first answer whatever it carries: `tier` starts as the same `undefined` an answer without the field
       // reads as, and this line is the only check there is that `WORLD` is wide enough.
@@ -119,6 +124,8 @@ export async function watch(options: WatchOptions): Promise<void> {
           `${answer.my_shiny_pokemon?.length ?? 0} shinies, ${found.length} wanted`,
       );
 
+      const unsent: (Match & { notification: Notification })[] = [];
+
       for (const { spawn, reasons, by } of found) {
         if (seen.has(spawn.encounterId, now())) {
           continue;
@@ -139,17 +146,54 @@ export async function watch(options: WatchOptions): Promise<void> {
           continue;
         }
 
-        try {
-          await publish(ntfy, notification, signal);
-          seen.remember(spawn.encounterId, spawn.despawnMs ?? now() + UNKNOWN_DESPAWN);
-          log(`Notified ${notification.title} at ${spawn.lat},${spawn.lon} (${by.join(', ')})`);
-        } catch (error) {
-          if (signal.aborted) {
-            break;
+        unsent.push({ spawn, reasons, by, notification });
+      }
+
+      // A spawn that despawned before its notification went or was given up on is not asked about again.
+      for (const id of attempts.keys()) {
+        if (!unsent.some(({ spawn }) => spawn.encounterId === id)) {
+          attempts.delete(id);
+        }
+      }
+
+      // Sent together rather than one after another, so a poll waits on one publish's timeout however many are unsent.
+      const results = ntfy
+        ? await Promise.allSettled(unsent.map(({ notification }) => publish(ntfy, notification, signal)))
+        : [];
+
+      if (signal.aborted) {
+        break;
+      }
+
+      // A poll succeeds only once every notification it owed has gone, so an ntfy refusing them is backed off from as a
+      // refused viewport is, rather than asked again at the poll rate.
+      if (results.some((result) => result.status === 'rejected')) {
+        wait = backoff.failed();
+      } else {
+        backoff.succeeded();
+      }
+
+      for (const [index, { spawn, by, notification }] of unsent.entries()) {
+        const result = results[index];
+        const id = spawn.encounterId;
+
+        if (result?.status === 'rejected') {
+          const tried = (attempts.get(id) ?? 0) + 1;
+          const why = `Could not notify ${notification.title}: ${messageOf(result.reason)}`;
+
+          if (tried < NOTIFY_ATTEMPTS) {
+            attempts.set(id, tried);
+            log(`${why}; trying again in ${Math.round(wait / 1000)}s`);
+            continue;
           }
 
-          log(`Could not notify ${notification.title}: ${messageOf(error)}; trying again next poll`);
+          log(`${why}; giving up after ${tried} attempts`);
+        } else {
+          log(`Notified ${notification.title} at ${spawn.lat},${spawn.lon} (${by.join(', ')})`);
         }
+
+        attempts.delete(id);
+        seen.remember(id, spawn.despawnMs ?? now() + UNKNOWN_DESPAWN);
       }
     } catch (error) {
       if (signal.aborted) {
