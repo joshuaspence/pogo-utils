@@ -1,7 +1,6 @@
 /**
- * Where a species' picture comes from, shared by the three parts that need it: `scripts/build-sprites.mts` resolves
- * the names, `src/pages/pokedex.tsx` fetches them, and `src/tools/inventory/game-master.mts` matches a screenshot
- * against icons in the same directory.
+ * Where a species' picture comes from, and the name of the icon each species asks for. Everything that resolves,
+ * downloads or fetches an icon reads the directory from here, so none of them can disagree about where icons live.
  */
 
 /**
