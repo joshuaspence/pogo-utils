@@ -68,6 +68,7 @@ export async function watch(options: WatchOptions): Promise<void> {
   const seen = new Seen();
   const body = { ...WORLD, display_filters: wireFilter(widest(queries)) };
   let tier: string | undefined;
+  let numberless = 0;
   let first = true;
 
   log(
@@ -96,14 +97,24 @@ export async function watch(options: WatchOptions): Promise<void> {
         log(firstAnswer(answer));
       }
 
-      const matched = match(answer, queries, now());
+      const { found, numberless: unread } = match(answer, queries, now());
+
+      // Said when it starts rather than on every poll it lasts, as the span tier is.
+      if (unread > 0 && numberless === 0) {
+        log(
+          `The server answered ${unread} ${unread === 1 ? 'spawn' : 'spawns'} without a dex number, ` +
+            'which no query can want',
+        );
+      }
+
+      numberless = unread;
 
       debug(
         `${answer.pokemon?.length ?? 0} spawns, ` +
-          `${answer.my_shiny_pokemon?.length ?? 0} shinies, ${matched.length} wanted`,
+          `${answer.my_shiny_pokemon?.length ?? 0} shinies, ${found.length} wanted`,
       );
 
-      for (const { spawn, reasons, by } of matched) {
+      for (const { spawn, reasons, by } of found) {
         if (seen.has(spawn.encounterId, now())) {
           continue;
         }
@@ -253,8 +264,18 @@ interface Match {
   by: string[];
 }
 
+interface Matches {
+  found: Match[];
+  /**
+   * How many spawns came without a dex number, which `toSpawn` reads as 0. No species filter can look one up, so none
+   * is matched — but every spawn arriving that way is the feed changing shape rather than nothing to find, so they are
+   * counted for the watcher to say so instead of falling quiet.
+   */
+  numberless: number;
+}
+
 /** Every spawn in either list that a query wants and that has not despawned, once each however many lists hold it. */
-export function match(answer: ViewportResponse, queries: readonly Query[], now: number): Match[] {
+export function match(answer: ViewportResponse, queries: readonly Query[], now: number): Matches {
   const wild = (answer.pokemon ?? []).map(toSpawn);
   const mine = (answer.my_shiny_pokemon ?? []).map(toSpawn);
   const lists: [List, Spawn[]][] = [
@@ -267,10 +288,16 @@ export function match(answer: ViewportResponse, queries: readonly Query[], now: 
   ]);
   const shinyReady = answer.shiny_ready === true;
   const found = new Map<string, Match>();
+  const numberless = new Set<string>();
 
   for (const [list, spawns] of lists) {
     for (const spawn of spawns) {
       if (spawn.encounterId === '' || (spawn.despawnMs !== null && spawn.despawnMs <= now)) {
+        continue;
+      }
+
+      if (spawn.dexId <= 0) {
+        numberless.add(spawn.encounterId);
         continue;
       }
 
@@ -291,5 +318,5 @@ export function match(answer: ViewportResponse, queries: readonly Query[], now: 
     }
   }
 
-  return [...found.values()];
+  return { found: [...found.values()], numberless: numberless.size };
 }

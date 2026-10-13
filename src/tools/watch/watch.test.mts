@@ -132,7 +132,7 @@ test('`shinyOnly` holds back a non-shiny only where `showMyShinies` is on and sh
 });
 
 test('each spawn either list holds is matched once, with every query that wants it and every reason', () => {
-  const found = match(viewport(), [SHINY_HUNT, XXL_HUNT], NOW);
+  const { found } = match(viewport(), [SHINY_HUNT, XXL_HUNT], NOW);
   const by = Object.fromEntries(found.map((each) => [each.spawn.name, [each.reasons, each.by]]));
 
   expect(by).toStrictEqual({
@@ -148,7 +148,34 @@ test('each spawn either list holds is matched once, with every query that wants 
 });
 
 test('a spawn already gone is not matched', () => {
-  expect(match(viewport(), [SHINY_HUNT], NOW + 11 * 60_000)).toStrictEqual([]);
+  expect(match(viewport(), [SHINY_HUNT], NOW + 11 * 60_000)).toStrictEqual({ found: [], numberless: 0 });
+});
+
+/**
+ * Each of these is a 100% spawn, which a query with no species list draws (`alwaysShowPerfect`), and a shiny, which
+ * the same query admits — so every one would be wanted, and named by a number no species has, if it reached `wants`.
+ */
+test('a spawn without a dex number is counted rather than matched', () => {
+  const everything = parseQuery('all.json', '{"_lpm_display_filter": true, "config": {}}');
+  const perfect = (encounter: string, dex?: number): WireSpawn => ({
+    encounter_id: encounter,
+    dex_id: dex,
+    iv_percent: 100,
+    despawn_ms: NOW + 60_000,
+  });
+
+  const { found, numberless } = match(
+    {
+      pokemon: [perfect('zero', 0), perfect('negative', -1), perfect('missing'), perfect('bulbasaur', 1)],
+      // One spawn in both lists is one spawn without a number, not two.
+      my_shiny_pokemon: [perfect('zero', 0), perfect('shiny', -25)],
+    },
+    [everything],
+    NOW,
+  );
+
+  expect(found.map((each) => each.spawn.encounterId)).toStrictEqual(['bulbasaur']);
+  expect(numberless).toBe(4);
 });
 
 test('the filter sent is wide enough for every query', () => {
