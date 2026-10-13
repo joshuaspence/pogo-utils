@@ -11,7 +11,8 @@
 
 import { LivePokeMap, LoginRefused } from './client.mts';
 import { parseQuery } from './query.mts';
-import { watch } from './watcher.mts';
+import { PUBLISH_TIMEOUT } from './ntfy.mts';
+import { NOTIFY_ATTEMPTS, watch } from './watcher.mts';
 import { ApiError, type ViewportResponse, type WireSpawn } from './wire.mts';
 import { spawn as run } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -684,6 +685,7 @@ test('a notification that cannot be sent says why, cause and all', async () => {
       queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
       signal: controller.signal,
       log: (line) => lines.push(line),
+      random: () => 0.5,
       sleep: async () => controller.abort(),
     });
   } finally {
@@ -691,15 +693,125 @@ test('a notification that cannot be sent says why, cause and all', async () => {
   }
 
   expect(lines.filter((line) => line.startsWith('Could not notify'))).toStrictEqual([
-    'Could not notify 100% Dratini: fetch failed: bad port; trying again next poll',
-    'Could not notify 100% XXL Magikarp: fetch failed: bad port; trying again next poll',
-    'Could not notify Shiny 100% Rattata (Alola): fetch failed: bad port; trying again next poll',
-    'Could not notify Shiny Bulbasaur: fetch failed: bad port; trying again next poll',
+    'Could not notify 100% Dratini: fetch failed: bad port; trying again in 30s',
+    'Could not notify 100% XXL Magikarp: fetch failed: bad port; trying again in 30s',
+    'Could not notify Shiny 100% Rattata (Alola): fetch failed: bad port; trying again in 30s',
+    'Could not notify Shiny Bulbasaur: fetch failed: bad port; trying again in 30s',
   ]);
 
   // A publish carries the topic in its body and never in its URL, so no failure of one can print it.
   expect(lines.join('\n')).not.toContain('secret-topic-name');
 });
+
+/**
+ * An ntfy refusing every publish is backed off from as a refused viewport is, and each spawn is given up on after
+ * `NOTIFY_ATTEMPTS` polls rather than re-sent for as long as it lives — which at the poll rate is how a 429 becomes a
+ * ban.
+ */
+test('a refused notification backs the poll off, and is given up on after a bounded number of attempts', async () => {
+  const map = await standIn((request, response) => {
+    switch (`${request.method} ${request.path}`) {
+      case 'GET /api/game_data':
+        return json(response, 200, JSON.parse(fixture('game-data.json')));
+      case 'POST /api/auth/login':
+        return json(response, 200, { token: 't' });
+      case 'POST /api/map/viewport':
+        return json(response, 200, viewport());
+      default:
+        return json(response, 200, {});
+    }
+  });
+  const ntfy = await standIn((_request, response) => json(response, 429, { error: 'limit reached' }));
+
+  const controller = new AbortController();
+  const waits: number[] = [];
+  const lines: string[] = [];
+
+  try {
+    await watch({
+      client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+      ntfy: { server: ntfy.url, topic: 't' },
+      queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+      signal: controller.signal,
+      log: (line) => lines.push(line),
+      random: () => 0.5,
+      sleep: async (ms) => {
+        waits.push(ms);
+
+        if (waits.length === NOTIFY_ATTEMPTS + 2) {
+          controller.abort();
+        }
+      },
+    });
+  } finally {
+    await map.close();
+    await ntfy.close();
+  }
+
+  // Four spawns, each tried on three polls and then left alone, so the two polls after them send nothing and are back
+  // at the interval.
+  expect(ntfy.requests).toHaveLength(4 * NOTIFY_ATTEMPTS);
+  expect(waits).toStrictEqual([30_000, 60_000, 120_000, 15_000, 15_000]);
+  const refused = `ntfy at ${new URL(ntfy.url).host} answered 429 Too Many Requests`;
+
+  expect(lines.filter((line) => line.includes('giving up'))).toStrictEqual(
+    ['100% Dratini', '100% XXL Magikarp', 'Shiny 100% Rattata (Alola)', 'Shiny Bulbasaur'].map(
+      (title) => `Could not notify ${title}: ${refused}; giving up after 3 attempts`,
+    ),
+  );
+});
+
+/**
+ * An ntfy that takes a publish and never answers costs a poll one `PUBLISH_TIMEOUT` however many spawns are waiting on
+ * it, rather than holding the loop until the server gives up or, sent one at a time, a timeout per spawn.
+ */
+test(
+  "a notification that is never answered times out, all of a poll's at once",
+  async () => {
+    const map = await standIn((request, response) => {
+      switch (`${request.method} ${request.path}`) {
+        case 'GET /api/game_data':
+          return json(response, 200, JSON.parse(fixture('game-data.json')));
+        case 'POST /api/auth/login':
+          return json(response, 200, { token: 't' });
+        case 'POST /api/map/viewport':
+          return json(response, 200, viewport());
+        default:
+          return json(response, 200, {});
+      }
+    });
+    const hung: ServerResponse[] = [];
+    const ntfy = await standIn((_request, response) => void hung.push(response));
+
+    const controller = new AbortController();
+    const lines: string[] = [];
+    const started = Date.now();
+
+    try {
+      await watch({
+        client: new LivePokeMap(map.url, { username: 'u', password: 'p' }),
+        ntfy: { server: ntfy.url, topic: 't' },
+        queries: [parseQuery('shiny-hunt.json', fixture('shiny-hunt.json'))],
+        signal: controller.signal,
+        log: (line) => lines.push(line),
+        random: () => 0.5,
+        sleep: async () => controller.abort(),
+      });
+    } finally {
+      for (const response of hung) {
+        response.destroy();
+      }
+
+      await map.close();
+      await ntfy.close();
+    }
+
+    expect(Date.now() - started).toBeLessThan(2 * PUBLISH_TIMEOUT);
+    expect(lines.filter((line) => line.startsWith('Could not notify'))).toHaveLength(4);
+    expect(lines.filter((line) => line.includes('timeout'))).toHaveLength(4);
+  },
+  4 * PUBLISH_TIMEOUT,
+);
 
 test('the command refuses to start without its credentials, a query or an ntfy server it can parse', async () => {
   const start = (args: string[], env: Record<string, string>) =>
