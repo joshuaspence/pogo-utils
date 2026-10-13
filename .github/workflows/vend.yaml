@@ -6,8 +6,6 @@ on:
     branches: ['master']
     paths:
       - '.github/workflows/vend.yaml'
-      # So an entry added by hand is stamped minutes after it lands rather than at the next hourly run. The commit that
-      # stamps it touches this path too, and runs this once more to find nothing left to stamp.
       - 'data/events.json'
       - 'scripts/vend-feed.mts'
       - 'scripts/vend-pgsharp.mts'
