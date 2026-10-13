@@ -68,7 +68,7 @@ import {
   refusals,
   type Source,
 } from '../src/tools/inventory/report.mts';
-import { count, csv, keyOf, Marks, parseFlags, type Flag } from '../src/tools/inventory/scan.mts';
+import { count, csv, keyOf, Marks, parseFlags, walk as stepThrough, type Flag } from '../src/tools/inventory/scan.mts';
 import { offsetBetween, stitch, SCROLL_STEP } from '../src/tools/inventory/stitch.mts';
 import { storage, unsearchable } from '../src/tools/inventory/storage.mts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -521,30 +521,10 @@ async function scan() {
       await swipe(config.swipes.next, config.waits.swipe / 2);
     }
 
-    let pending = from === 0 ? first : undefined;
-    let previous: string | null = null;
-    let misses = 0;
-
-    for (let index = from; index < from + max; index++) {
-      const reading = pending ?? (await readDetail());
-      pending = undefined;
-
-      if (reading.key === null) {
-        if (++misses >= 3) {
-          console.error('  three unreadable screens in a row; stopping this pass');
-          break;
-        }
-      } else if (reading.key === previous) {
-        break;
-      } else {
-        misses = 0;
-      }
-
-      previous = reading.key ?? previous;
-      await visit(reading, index);
-      await swipe(config.swipes.next, config.waits.swipe);
-    }
-
+    const [grab, drop] = config.swipes.next;
+    const next = () => swipe([grab, drop], config.waits.swipe);
+    const back = () => swipe([drop, grab], config.waits.swipe);
+    await stepThrough({ read: readDetail, next, back }, visit, max, from, from === 0 ? first : undefined);
     await tap(at(config.taps.closeDetail));
   };
 

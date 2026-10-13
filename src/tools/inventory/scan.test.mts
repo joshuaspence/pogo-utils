@@ -6,9 +6,9 @@
 
 import { type Detail } from './detail.mts';
 import { type Overlay } from './overlay.mts';
-import { count, csv, FLAGS, keyOf, looseKeyOf, Marks, parseFlags } from './scan.mts';
+import { count, csv, FLAGS, keyOf, looseKeyOf, Marks, parseFlags, walk } from './scan.mts';
 import { CLEAR_KEYS } from './storage.mts';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 /** A detail screen read with a 50 HP Pikachu's measurements, and whatever else a test says. */
 function detail(fields: Partial<Detail> = {}): Detail {
@@ -157,4 +157,117 @@ test('the clear is longer than every search the scan sends', () => {
       CLEAR_KEYS,
     );
   }
+});
+
+/**
+ * Walks a storage of `keys` the way a phone would: a swipe past either end goes nowhere. Answers the position each
+ * Pokémon was visited at, so a walk that visits the right keys from the wrong place is caught as well. The first read
+ * of each position in `missed` comes back unread, as a screen OCR misses once does.
+ */
+async function walked(keys: readonly string[], max = Infinity, from = 0, missed: readonly number[] = []) {
+  let at = from;
+  const unread = new Set(missed);
+  const visited: [string | null, number][] = [];
+
+  await walk(
+    {
+      read: async () => ({ key: unread.delete(at) ? null : (keys[at] ?? null) }),
+      next: async () => void (at = Math.min(at + 1, keys.length - 1)),
+      back: async () => void (at = Math.max(at - 1, 0)),
+    },
+    async ({ key }) => void visited.push([key, at]),
+    max,
+    from,
+  );
+
+  return visited;
+}
+
+test.for([
+  ['a twin in the middle', ['a', 'b', 'b', 'c']],
+  ['a twin last', ['a', 'b', 'b']],
+  ['triplets last', ['a', 'b', 'b', 'b']],
+  ['no twin at all', ['a', 'b', 'c']],
+] as const)('the walk visits every Pokémon once, given %s', async ([, keys]) => {
+  expect(await walked(keys)).toEqual(keys.map((key, i) => [key, i]));
+});
+
+test('a walk skipped past the first Pokémon tells twins from the end by what it has read since', async () => {
+  expect(await walked(['a', 'b', 'c', 'c'], Infinity, 1)).toEqual([
+    ['b', 1],
+    ['c', 2],
+    ['c', 3],
+  ]);
+});
+
+test('a walk stops after the most it was asked for', async () => {
+  expect(await walked(['a', 'b', 'b', 'c'], 3)).toEqual([
+    ['a', 0],
+    ['b', 1],
+    ['b', 2],
+  ]);
+});
+
+test.for([
+  ['the first Pokémon in storage', ['a', 'a', 'b'], 0],
+  ['the one a walk skipped to', ['a', 'b', 'b', 'b'], 2],
+] as const)('twins from %s stop the walk, saying why', async ([, keys, from]) => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect(await walked(keys, Infinity, from)).toEqual([[keys[from], from]]);
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('its end cannot be told'));
+  error.mockRestore();
+});
+
+test('a miss just before a run that ends storage does not visit the last Pokémon twice', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect(await walked(['x', 'a', 'a'], Infinity, 0, [1])).toEqual([
+    ['x', 0],
+    [null, 1],
+    ['a', 2],
+  ]);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});
+
+test('a miss on the last Pokémon in storage ends the walk there', async () => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect(await walked(['o', 'p', 'q'], Infinity, 0, [2])).toEqual([
+    ['o', 0],
+    ['p', 1],
+    [null, 2],
+  ]);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});
+
+test('a miss on a twin of the Pokémon before a run is settled by the run going on', async () => {
+  expect(await walked(['x', 'x', 'a', 'a'], Infinity, 0, [1])).toEqual([
+    ['x', 0],
+    [null, 1],
+    ['a', 2],
+    ['a', 3],
+  ]);
+});
+
+// The two read the same at every place a swipe back can reach, so the walk writes the same rows for both and says the
+// last may be the unread one again, which it is in the second.
+test.for([
+  ['a twin of the first', ['x', 'x', 'a']],
+  ['the last', ['x', 'a']],
+] as const)('a miss on %s, just before the end, says the last row may repeat', async ([, keys]) => {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+  expect((await walked(keys, Infinity, 0, [1])).map(([key]) => key)).toEqual(['x', null, 'a']);
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('storage may have ended 1 Pokémon ago'));
+  error.mockRestore();
+});
+
+test.for([
+  ['a twin', ['x', 'a', 'a', 'a', 'b']],
+  ['another Pokémon', ['x', 'y', 'a', 'a', 'b']],
+] as const)('a miss just before a run of twins still visits every Pokémon once, given %s', async ([, keys]) => {
+  expect((await walked(keys, Infinity, 0, [1])).map(([, at]) => at)).toEqual(keys.map((_, i) => i));
 });
