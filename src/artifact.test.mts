@@ -69,6 +69,34 @@ test('localTarget resolves against the naming file, drops the query and decodes 
   expect(localTarget('icons/manifest.json', '192.png')).toBe('icons/192.png');
 });
 
+/*
+ * The two forms `join` would normalise into a path inside the artifact: `/src/main.js` into `src/main.js`, which 404s
+ * from the Pages subdirectory, and `../package.json` into the repository's own, which is there to be found.
+ */
+test('localTarget refuses a path that leaves the artifact rather than resolving it', () => {
+  expect(() => localTarget('index.html', '/src/main.js')).toThrow(
+    'index.html names /src/main.js, which leaves the Pages subdirectory',
+  );
+  expect(() => localTarget('index.html', '../package.json')).toThrow(
+    'index.html names ../package.json, which leaves the artifact',
+  );
+  expect(() => localTarget('icons/manifest.json', '../../package.json')).toThrow('which leaves the artifact');
+  expect(() => localTarget('index.html', '..')).toThrow('which leaves the artifact');
+
+  // A name that only begins with two dots stays inside.
+  expect(localTarget('index.html', '..x/y.js')).toBe('..x/y.js');
+});
+
+test('a scan over an artifact naming a file outside it fails, though the file is there to be found', () => {
+  const root = tree({
+    'dist/index.html': page('<script src="../outside.js"></script>'),
+    'dist/manifest.json': MANIFEST,
+    'outside.js': '',
+  });
+
+  expect(() => scanReferences(join(root, 'dist'))).toThrow('index.html names ../outside.js, which leaves the artifact');
+});
+
 test('every src and href is read, and a manifest link with its attributes in either order', () => {
   expect(markupRefs('<script src="a.js"></script><a href="b.html">b</a>')).toEqual(['a.js', 'b.html']);
   expect(manifestLinks('<link href="m.json" rel="manifest"><link rel="manifest" href="n.json">')).toEqual([
