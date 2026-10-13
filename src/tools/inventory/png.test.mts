@@ -133,6 +133,29 @@ test('a `tEXt` value outside Latin-1, or carrying a NUL, is refused', () => {
 });
 
 /**
+ * A chunk `encodePng` would refuse is dropped when it is read, so every decoded image can be written back out. Built by
+ * hand, because the encoder cannot write the chunks the claim is about.
+ */
+test('a `tEXt` chunk the encoder would refuse is dropped on decode, so the round trip holds', () => {
+  const chunks = [`${'k'.repeat(80)}\0x`, 'Odd \0x', 'Odd  key\0x', 'a\nb\0x', 'Name\0a\0b', 'Ok\0y'].map((raw) => {
+    const body = Buffer.from(raw, 'latin1');
+    const chunk = Buffer.alloc(12 + body.length);
+    chunk.writeUInt32BE(body.length, 0);
+    chunk.write('tEXt', 4, 'latin1');
+    body.copy(chunk, 8);
+    chunk.writeUInt32BE(crc32(chunk.subarray(4, 8 + body.length)), 8 + body.length);
+
+    return chunk;
+  });
+
+  const png = encodePng(ramp(1, 1));
+  const back = decodePng(Buffer.concat([png.subarray(0, 8 + 25), ...chunks, png.subarray(8 + 25)]));
+
+  expect({ ...back.text }, 'only the keyword the encoder could write survives').toStrictEqual({ Ok: 'y' });
+  expect({ ...decodePng(encodePng(back)).text }).toStrictEqual({ Ok: 'y' });
+});
+
+/**
  * That `text` carries a null prototype, so the name a caller asks about is the name the file carried and nothing else.
  * `in` would answer true for `constructor` and `toString` on every decoded image, and `__proto__` is the sharper half:
  * assigning that key on a plain object reaches the inherited setter, which is a silent no-op — so a file carrying it
