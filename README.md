@@ -138,6 +138,11 @@ reading each file the way the viewer does — every `<trk>` and `<wpt>` must car
 [`data/events.json`](data/events.json) actually has, and a `pgr` element with no matching field (that `<pgr:contry>`) is
 reported as the typo it is.
 
+`pnpm lint` reads [`.github/workflows/`](.github/workflows) too, every file the directory holds, and fails on a job with
+no `runs-on` that is not calling a reusable workflow. GitHub rejects such a file at startup, and a workflow that never
+starts produces no check run — so it cannot fail among a pull request's checks, which all read green beside it. The rule
+is GitHub's own requirement written out, not one read off the workflows it checks.
+
 One caveat: an editor that does not model foreign extensions drops the whole `<extensions>` block when it exports.
 gpx.studio is one, so a route re-exported from there comes back without its city, country and variant, and needs them
 added again.

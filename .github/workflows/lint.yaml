@@ -31,6 +31,7 @@ jobs:
           - 'js'
           - 'prettier'
           - 'types'
+          - 'workflows'
           - 'xml'
     steps:
       - uses: 'actions/checkout@v7'

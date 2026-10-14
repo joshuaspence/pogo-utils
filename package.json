@@ -25,6 +25,7 @@
     "lint:prettier": "prettier --check .",
     "lint:prettier:fix": "prettier --write .",
     "lint:types": "pnpm build",
+    "lint:workflows": "node scripts/validate-workflows.mts",
     "lint:xml": "node scripts/validate-gpx.mts",
     "prune:events": "node scripts/prune-events.mts",
     "serve": "node scripts/serve.mts",
@@ -67,7 +68,8 @@
     "typescript-eslint": "^8.71.1",
     "tz-lookup": "^6.1.25",
     "vitest": "5.0.3",
-    "xmllint-wasm": "5.3.0"
+    "xmllint-wasm": "5.3.0",
+    "yaml": "^2.9.1"
   },
   "packageManager": "pnpm@11.22.0",
   "devEngines": {
