@@ -39,6 +39,17 @@ export const publishUrl = (server: string): URL => new URL(server.replace(/\/*$/
  */
 export const PUBLISH_TIMEOUT = 5_000;
 
+/**
+ * The connect budget each address family gets when Node races IPv6 against IPv4, raised from its default of 250 ms.
+ * `ntfy.sh` is one IPv4 address whose handshake was measured at 312–584 ms, behind a resolver that answers `::` for its
+ * AAAA record: the IPv6 leg is refused at once, the IPv4 leg overruns 250 ms, and every publish fails as `fetch failed`
+ * over `ETIMEDOUT`. The watcher's script sets it once at start-up, with `net.setDefaultAutoSelectFamilyAttemptTimeout`,
+ * so it reaches Live PokeMap's requests too; the narrower undici `Agent` passed as a request's dispatcher would mean
+ * depending on undici for the one class the global `fetch` does not expose. It sits well inside
+ * {@link PUBLISH_TIMEOUT}, which still bounds the whole publish.
+ */
+export const CONNECT_ATTEMPT_TIMEOUT = 2_000;
+
 export async function publish(ntfy: Ntfy, notification: Notification, signal?: AbortSignal): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 

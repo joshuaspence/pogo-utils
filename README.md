@@ -579,8 +579,9 @@ It runs in the foreground until stopped. Leave `NTFY_TOPIC` unset to run it cons
 instead, with a Google Maps link, once per spawn as a notification would be. `NTFY_SERVER` points it at an ntfy server
 other than `ntfy.sh`, and `NTFY_TOKEN` gives it an access token for one that needs it. Subscribe to the same topic in
 the ntfy app on the phone. The topic is as good as a password on the public server, since anyone who knows it can read
-what is sent there, so pick one nobody would guess. None of these values, nor the token the login answers, is ever
-printed; `--verbose` adds each request as it is sent and a line per poll.
+what is sent there, so pick one nobody would guess. It gives each connect two seconds per address family rather than
+Node's 250 ms, which `ntfy.sh` overruns from a slow link, so no `NODE_OPTIONS` is needed for that. None of these values,
+nor the token the login answers, is ever printed; `--verbose` adds each request as it is sent and a line per poll.
 
 Any of these can go in a `.env` at the repository root instead of the command line, one `NAME=value` per line, which git
 ignores. One set on the command line still wins over the file.
