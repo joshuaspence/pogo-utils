@@ -224,6 +224,25 @@ test('the per-view sets are read sparsely', () => {
   expect(loadPrefs().hiddenByView).toEqual({ cards: new Set(['community-day']), calendar: new Set() });
 });
 
+/**
+ * A `__proto__` name, which `JSON.parse` answers as an own key, from an imported backup or a sibling on the shared
+ * origin. Written raw rather than through `store`, since `JSON.stringify` of a literal would never carry it: the literal
+ * form sets the prototype rather than naming a key.
+ */
+test('a __proto__ view name cannot poison the per-view record, and saving still works', () => {
+  storage.setItem(KEYS.hiddenByView, '{"__proto__":["raid-hour"],"cards":["community-day"]}');
+
+  const prefs = loadPrefs();
+
+  expect(prefs.hiddenByView instanceof Set).toBe(false);
+  expect(prefs.hiddenByView['cards']).toEqual(new Set(['community-day']));
+
+  prefs.hiddenByView['cards'] = new Set(['go-pass']);
+  persist(prefs, 'hiddenByView');
+
+  expect(JSON.parse(storage.getItem(KEYS.hiddenByView) ?? 'null')).toMatchObject({ cards: ['go-pass'] });
+});
+
 test('a per-view value that is not an object at all reads as no views', () => {
   storage.setItem(KEYS.hiddenByView, '["cards"]');
   expect(loadPrefs().hiddenByView).toEqual({});
