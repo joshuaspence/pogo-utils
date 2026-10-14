@@ -181,9 +181,9 @@ Once the proposal is approved:
 2. **Run `npx prettier --write data/events.json`.** `pnpm lint` checks this file's formatting and will fail on it
    otherwise.
 3. **Run `pnpm lint`** to confirm nothing else broke.
-4. **Commit `data/events.json` alone, straight to `master`.** An event entry is a data change — the entry is the whole
-   of it, `pnpm lint` says whether it is well-formed, and `pages.yaml` deploys from `master` — so it needs no branch and
-   no pull request. Stage that one path.
+4. **Commit `data/events.json` alone and land it through a pull request.** The entry is the whole of the change, so
+   stage that one path rather than the tree. `master` rejects a direct push, so branch and open the pull request the way
+   the repository's `CLAUDE.md` says every change lands, rather than from a copy of its rules here that would drift.
 
 **Do not run `pnpm vend:events`.** It rewrites `data/events-feed.json` from the live mirror, which the Vend workflow
 refreshes hourly anyway — so running it now sweeps unrelated feed drift into a commit that should carry one entry.
