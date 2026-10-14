@@ -213,9 +213,13 @@ function readSeen(key: string): Seen | null {
 /**
  * The per-view hidden sets, as far as storage carries them. Left sparse rather than filled out with an empty set per
  * view, because absent is what tells `hiddenFor` to seed a view from the global set.
+ *
+ * Built on no prototype, because the names are whatever storage holds and `JSON.parse` answers `__proto__` as an own
+ * key. Assigned onto a plain object, that name runs `Object.prototype`'s setter instead, and the record would inherit
+ * from a `Set` — which `persist`'s replacer then takes for one, throwing on every save after.
  */
 function readSetsByView(key: string): Record<string, Set<string>> {
-  const sets: Record<string, Set<string>> = {};
+  const sets: Record<string, Set<string>> = Object.create(null);
   const stored = readJSON(key);
 
   for (const [name, members] of Object.entries(stored === null || typeof stored !== 'object' ? {} : stored)) {
