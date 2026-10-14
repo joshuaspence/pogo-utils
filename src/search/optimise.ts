@@ -20,8 +20,8 @@
  * where a category's choices sit on one side.
  *
  * What is not here at all is folding `+charmander` into `4,5,6`, which needs to know which species share a family —
- * nothing in this repository holds that. So a `+` keeps its name and gets the name shortening alone, which is sound
- * because the same species reached a shorter way are the same families.
+ * nothing in this repository holds that. So a `+` keeps its name and gets the name shortening alone, which widens it as
+ * it does any name: a shorter fragment reaches more nicknames, and a family search takes their families too.
  */
 
 import POKEMON from '../pokemon/pokedex.js';
@@ -207,9 +207,7 @@ function shortName(token: string, negated: boolean): { text: string; spans: Span
     }
   }
 
-  // A family is the union of the families of whatever the name reaches, so a shorter way to the same species is the
-  // same search. Which species share a family is the thing not known here, so the numbers are not on offer and a `+`
-  // keeps a name.
+  // Which species share a family is the thing not known here, so the numbers are not on offer and a `+` keeps a name.
   if (family) {
     return { text: `+${shortest}`, spans: null, numbered: false };
   }
@@ -442,8 +440,7 @@ function short(node: Node, told: Told): Node {
 
     if (shortened.numbered) {
       told.lossy.narrowed = true;
-    } else if (shortened.text !== name.text && !name.text.startsWith('+')) {
-      // A family is left out: it is the families of the species the name reaches, which the fragment keeps the same.
+    } else if (shortened.text !== name.text) {
       told.lossy.widened = true;
     }
 
