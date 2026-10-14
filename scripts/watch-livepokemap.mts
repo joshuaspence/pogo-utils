@@ -24,10 +24,11 @@
  */
 
 import { LIVE_POKEMAP, LivePokeMap } from '../src/tools/watch/client.mts';
-import { publishUrl } from '../src/tools/watch/ntfy.mts';
+import { CONNECT_ATTEMPT_TIMEOUT, publishUrl } from '../src/tools/watch/ntfy.mts';
 import { blindSpots, parseQuery, type Query } from '../src/tools/watch/query.mts';
 import { messageOf, watch } from '../src/tools/watch/watcher.mts';
 import { existsSync, readFileSync } from 'node:fs';
+import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
 import { parseArgs } from 'node:util';
 
 const USAGE =
@@ -46,6 +47,10 @@ if (options.help || positionals[0] === 'help') {
   console.log(USAGE);
   process.exit(0);
 }
+
+// Node gives each address family 250 ms to connect, which a single-homed ntfy.sh overruns from a slow link; see
+// CONNECT_ATTEMPT_TIMEOUT for the measurement.
+setDefaultAutoSelectFamilyAttemptTimeout(CONNECT_ATTEMPT_TIMEOUT);
 
 const stamp = () => new Date().toISOString().replace(/\.\d+Z$/, 'Z');
 const log = (line: string) => console.error(`${stamp()} ${line}`);
