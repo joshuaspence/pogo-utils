@@ -176,15 +176,15 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
-    "eventID": "max-mondays-2026-10-12",
-    "name": "Dynamax Rookidee during Max Monday",
-    "eventType": "max-mondays",
-    "heading": "Max Mondays",
-    "link": "https://leekduck.com/events/max-mondays-2026-10-12/",
-    "image": "https://cdn.leekduck.com/assets/img/events/max-battles-kanto.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
+    "eventID": "into-the-wild-2026",
+    "name": "Into the Wild",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://leekduck.com/events/into-the-wild-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-11-09-into-the-wild-2026/into-the-wild-2026.jpg",
+    "start": "2026-11-09T10:00:00.000",
+    "end": "2026-11-13T20:00:00.000",
+    "added": "2026-10-14T22:33:58.294Z"
   },
   {
     "eventID": "max-mondays-2026-10-19",
@@ -215,8 +215,8 @@
     "heading": "Raid Battles",
     "link": "https://leekduck.com/events/mega-blastoise-in-mega-raids-october-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
-    "start": "2026-10-07T06:00:00.000",
-    "end": "2026-10-13T22:00:00.000",
+    "start": null,
+    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
@@ -567,8 +567,8 @@
     "heading": "Raid Battles",
     "link": "https://leekduck.com/events/yveltal-in-5-star-raid-battles-october-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/yveltal-2.jpg",
-    "start": "2026-10-07T06:00:00.000",
-    "end": "2026-10-13T22:00:00.000",
+    "start": null,
+    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   }
 ]
