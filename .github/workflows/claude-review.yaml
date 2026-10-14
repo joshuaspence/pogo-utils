@@ -59,7 +59,7 @@ jobs:
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
 
-        uses: 'anthropics/claude-code-action@v1.0.235'
+        uses: 'anthropics/claude-code-action@v1.0.248'
         with:
           additional_permissions: |
             actions: read
@@ -121,7 +121,7 @@ jobs:
         # Without `!cancelled()` this carries an implicit `success()`, which skips the step for a review that
         # fails after opening a session — the one case where there is a review to submit and no verdict.
         if: "!cancelled() && steps.review.outputs.session_id != ''"
-        uses: 'anthropics/claude-code-action@v1.0.235'
+        uses: 'anthropics/claude-code-action@v1.0.248'
         with:
           claude_args: |
             --allowedTools 'mcp__github__create_and_submit_pull_request_review'
