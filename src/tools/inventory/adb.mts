@@ -26,6 +26,13 @@ export interface Transport {
  */
 export const typeable = (text: string) => /^[\w&,!@#*+<>.-]*$/.test(text.replaceAll(' ', ''));
 
+/**
+ * Whether `launch` would start this rather than refuse it: an Android package name, dot-separated segments that each
+ * begin with a letter. Nothing in that grammar is read by the shell as anything but itself, so a name that fits needs
+ * no quoting, and one that does not — a `--config` file's `"package": "x; reboot"` — never reaches the phone.
+ */
+export const launchable = (pkg: string) => /^[A-Za-z]\w*(\.[A-Za-z]\w*)+$/.test(pkg);
+
 export class Device {
   readonly #transport: Transport;
 
@@ -68,6 +75,10 @@ export class Device {
   }
 
   async launch(pkg: string): Promise<void> {
+    if (!launchable(pkg)) {
+      throw new Error(`refusing to launch ${JSON.stringify(pkg)}: only an Android package name is passed to the shell`);
+    }
+
     await this.#shell('monkey', '-p', pkg, '-c', 'android.intent.category.LAUNCHER', '1');
   }
 

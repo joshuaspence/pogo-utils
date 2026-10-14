@@ -30,6 +30,10 @@ test('a package is taken only as a string', () => {
   expect(configWith({ package: { name: 'com.example.game' } }).package).toBe(DEFAULTS.package);
 });
 
+test('a package that is not an Android package name is refused', () => {
+  expect(() => configWith({ package: 'com.example.game; reboot' })).toThrow('not an Android package name');
+});
+
 test('an overlay box is taken whole, there being none by default', () => {
   const overlay = { x: 10, y: 200, width: 300, height: 40 };
 

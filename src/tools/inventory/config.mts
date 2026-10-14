@@ -3,6 +3,7 @@
  * `pnpm inventory`, which takes a `--config` file over `DEFAULTS`, and the Search page, which has no file to take.
  */
 
+import { launchable } from './adb.mts';
 import { type OverlayBox } from './overlay.mts';
 import { SCREEN_BAND, type Band } from './stitch.mts';
 
@@ -82,8 +83,15 @@ export const DEFAULTS: Config = {
   scrollBand: SCREEN_BAND,
 };
 
-/** `DEFAULTS` with a JSON file laid over it one level deep, so a file can change one tap and restate nothing else. */
+/**
+ * `DEFAULTS` with a JSON file laid over it one level deep, so a file can change one tap and restate nothing else. A
+ * package that is not a package name is refused here, before the phone is driven, rather than by `launch` partway in.
+ */
 export function configWith(overrides: Partial<Record<keyof Config, object | string>>): Config {
+  if (typeof overrides.package === 'string' && !launchable(overrides.package)) {
+    throw new Error(`refusing "package" ${JSON.stringify(overrides.package)}: it is not an Android package name`);
+  }
+
   return {
     package: typeof overrides.package === 'string' ? overrides.package : DEFAULTS.package,
     taps: { ...DEFAULTS.taps, ...(overrides.taps as Partial<Config['taps']>) },
