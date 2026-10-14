@@ -20,8 +20,8 @@
  * where a category's choices sit on one side.
  *
  * What is not here at all is folding `+charmander` into `4,5,6`, which needs to know which species share a family —
- * nothing in this repository holds that. So a `+` keeps its name and gets the name shortening alone, which is sound
- * because the same species reached a shorter way are the same families.
+ * nothing in this repository holds that. So a `+` keeps its name and gets the name shortening alone, which widens it as
+ * it does any name: a shorter fragment reaches more nicknames, and a family search takes their families too.
  */
 
 import POKEMON from '../pokemon/pokedex.js';
