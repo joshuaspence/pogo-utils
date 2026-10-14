@@ -58,7 +58,7 @@
     "leaflet": "^1.9.4",
     "npm-run-all2": "^9.0.3",
     "postcss": "8.5.29",
-    "preact": "^11.0.0",
+    "preact": "^11.0.1",
     "prettier": "3.9.10",
     "stylelint": "17.16.0",
     "stylelint-config-standard": "^40.0.0",
