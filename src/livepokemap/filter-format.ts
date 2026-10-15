@@ -31,19 +31,18 @@ export interface FilterConfig {
   minLevel: number;
   maxLevel: number;
   speciesFilterMode: (typeof SPECIES_FILTER_MODES)[number];
-
-  /**
-   * Read as numbers: the same chunk hands it to the picker grid as `selectedDexIds`, which builds it with
-   * `n.add(entry.dex)`.
-   */
-  speciesFilterList: number[];
-
   showPvpGreatLeague: boolean;
   showPvpUltraLeague: boolean;
   showPvpLittleLeague: boolean;
   pvpMaxRank: number;
   showMyShinies: boolean;
   shinyOnly: boolean;
+
+  /**
+   * Read as numbers: the same chunk hands it to the picker grid as `selectedDexIds`, which builds it with
+   * `n.add(entry.dex)`.
+   */
+  speciesFilterList: number[];
 }
 
 /**

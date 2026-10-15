@@ -10,11 +10,10 @@ import RECURRING_TYPES from './recurring-types.js';
 export interface Prefs {
   hiddenTypes: Set<string>;
   hiddenByView: Record<string, Set<string>>;
+  dismissed: Set<string>;
 
   /** Which set the chips edit: the global one, or the current view's own. */
   filterScope: 'global' | 'view';
-
-  dismissed: Set<string>;
 
   /** Null is a first visit, where an empty record is a reader who has acknowledged nothing — see `settleSeen`. */
   seen: Seen | null;
@@ -30,9 +29,10 @@ export interface Prefs {
  * one instant and nothing else.
  */
 export interface Seen {
+  ids: Set<string>;
+
   /** An instant in epoch milliseconds, or null before any stamped event has been seen. */
   through: number | null;
-  ids: Set<string>;
 }
 
 /**

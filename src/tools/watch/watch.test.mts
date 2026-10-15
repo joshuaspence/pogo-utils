@@ -141,8 +141,10 @@ test('each spawn either list holds is matched once, with every query that wants 
       ['100%', 'XXL'],
       ['shiny-hunt.json', 'xxl.json'],
     ],
+
     // Shiny by `my_shiny_encounters`, though its own `shiny` is unset.
     Rattata: [['Shiny', '100%'], ['shiny-hunt.json']],
+
     Bulbasaur: [['Shiny'], ['shiny-hunt.json']],
   });
 });
@@ -167,6 +169,7 @@ test('a spawn without a dex number is counted rather than matched', () => {
   const { found, numberless } = match(
     {
       pokemon: [perfect('zero', 0), perfect('negative', -1), perfect('missing'), perfect('bulbasaur', 1)],
+
       // One spawn in both lists is one spawn without a number, not two.
       my_shiny_pokemon: [perfect('zero', 0), perfect('shiny', -25)],
     },

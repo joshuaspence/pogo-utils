@@ -11,10 +11,13 @@
 export interface Notification {
   title: string;
   message: string;
+
   /** ntfy's tags, an emoji shortcode among them drawn ahead of the title. */
   tags: string[];
+
   /** Where tapping the notification goes. */
   click?: string;
+
   /** 1 to 5, ntfy's default being 3. */
   priority?: number;
 }
@@ -22,6 +25,7 @@ export interface Notification {
 export interface Ntfy {
   server: string;
   topic: string;
+
   /** An access token, for a server or topic that needs one. */
   token?: string;
 }

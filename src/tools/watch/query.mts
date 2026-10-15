@@ -21,9 +21,10 @@ import { readDisplayFilter, type FilterConfig } from '../../livepokemap/filter-f
 import { XXL, XXS, type Spawn } from './wire.mts';
 
 export interface Query {
+  config: FilterConfig;
+
   /** The file it was read from, for messages. */
   name: string;
-  config: FilterConfig;
 }
 
 /** A display filter's text as a query, read as Live PokeMap imports one, its file named in whatever is wrong with it. */
@@ -215,9 +216,11 @@ export function widest(queries: readonly Query[]): FilterConfig {
     alwaysShowZero: any((config) => config.alwaysShowZero),
     alwaysShowRare: any((config) => config.alwaysShowRare),
     alwaysShowSize: any((config) => config.alwaysShowSize),
+
     // Narrowing, so set only where every query narrows — and then to every size any of them keeps.
     filterXXS: every((config) => config.filterXXS || config.filterXXL) && any((config) => config.filterXXS),
     filterXXL: every((config) => config.filterXXS || config.filterXXL) && any((config) => config.filterXXL),
+
     minLevel: Math.min(...configs.map((config) => config.minLevel)),
     maxLevel: Math.max(...configs.map((config) => config.maxLevel)),
     speciesFilterMode: allowlistOnly ? 'allowlist' : 'off',
@@ -228,8 +231,10 @@ export function widest(queries: readonly Query[]): FilterConfig {
     showPvpUltraLeague: any((config) => config.showPvpUltraLeague),
     showPvpLittleLeague: any((config) => config.showPvpLittleLeague),
     pvpMaxRank: Math.max(...configs.map((config) => config.pvpMaxRank)),
+
     // On whatever the queries say: the shiny list is what a watcher is for, and the server may hold it back without.
     showMyShinies: true,
+
     shinyOnly: every((config) => config.shinyOnly && config.showMyShinies),
   };
 }

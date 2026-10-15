@@ -222,6 +222,7 @@ test('a flag its command does not act on is refused, not ignored', async () => {
 
     expect(failure).toMatchObject({ code: 1 });
     expect((failure as { stderr: string }).stderr).toContain('parse does not act on --out');
+
     // The usage goes with the complaint, since the list the flag was not on is what answers it.
     expect((failure as { stderr: string }).stderr).toContain('pnpm inventory parse');
   } finally {
@@ -348,6 +349,7 @@ test('the OCR dump and the raw readings are printed only with `--verbose`', asyn
     expect(loud.stdout.startsWith(quiet.stdout), '`--verbose` changed the answer rather than only adding to it').toBe(
       true,
     );
+
     // Nothing was downloaded, which is what says the seeded cache was read rather than merely present. Both runs carry
     // that claim, `Downloading` being outside the `--verbose` gate: a missing file would name itself either way.
     expect(quiet.stderr).toBe('');

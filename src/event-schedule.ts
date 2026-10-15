@@ -15,12 +15,12 @@ export interface ParsedEvent {
   name: string;
   heading: string;
   eventType: string;
-
-  /** The event's source page, or undefined where the feed's was not a web URL — see `webLink`. */
-  link: string | undefined;
   image: string;
   start: Date | null;
   end: Date | null;
+
+  /** The event's source page, or undefined where the feed's was not a web URL — see `webLink`. */
+  link: string | undefined;
 
   /** Whether the feed gave `start` a zone, so the label can say "your local time". */
   startHasZone: boolean;

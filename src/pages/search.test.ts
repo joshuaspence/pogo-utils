@@ -166,6 +166,7 @@ test('each part of a comma-separated paste is unmarked, not just the head of it'
 
     // *Any slot* drops each pasted slot, the dropdown owning it — the same rule as a single value, applied per part.
     '@ + "@3crunch,@3bite"': ['@crunch', '@bite'],
+
     '# + "keepers,dupes"': ['#keepers', '#dupes'],
     '@3 + "crunch,bite"': ['@3crunch', '@3bite'],
     '# + "#keepers"': ['#keepers'],
@@ -209,6 +210,7 @@ test('a mark the reader typed is dropped rather than doubled', () => {
     // A slot pasted where the dropdown says *Any slot* is dropped too, the dropdown being the one that owns it.
     '@ + @3crunch': '@crunch',
     '@ + crunch': '@crunch',
+
     '# + #keepers': '#keepers',
     '# + keepers': '#keepers',
 

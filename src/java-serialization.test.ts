@@ -341,6 +341,7 @@ test('a class reference citing a value is refused', () => {
       ['b', box('I', 2)],
     ]),
   );
+
   // Handle 3 is java.lang.Integer's descriptor here, where in the two-string stream the same number was a string —
   // which is the whole reason a reference carries no kind and the reader has to check.
   expect(positions(twoBoxes, [TC_REFERENCE, ...handle(3)])).toHaveLength(1);
@@ -438,8 +439,10 @@ test('a HashMap payload that does not end where it says is refused', () => {
 test.for([
   { shape: 'a short block', inserted: [TC_BLOCKDATA, 0x02, 0xaa, 0xbb] },
   { shape: 'a long block', inserted: [TC_BLOCKDATALONG, 0x00, 0x00, 0x00, 0x02, 0xaa, 0xbb] },
+
   // TC_NULL rather than a string, because a string claims a handle the writer did not and would shift every later one.
   { shape: 'a bare content item', inserted: [TC_NULL] },
+
   { shape: 'all three at once', inserted: [TC_BLOCKDATA, 0x01, 0xaa, TC_NULL, TC_BLOCKDATALONG, 0, 0, 0, 1, 0xbb] },
 ])('a classAnnotation holding $shape is read past', ({ inserted }) => {
   const bytes = dumps(box('Z', true));
@@ -516,6 +519,7 @@ test('a field declared at a width nothing reads is refused', () => {
 test('a value that is none of the four things a stream can hold is refused', () => {
   // @ts-expect-error -- a bare number is no `JavaValue`, which is the compile-time half of this check
   expect(() => dumps(42)).toThrow(/^cannot serialize number/);
+
   // @ts-expect-error -- nor is an array, which is the shape a caller reaching for a Java array would try
   expect(() => dumps([1, 2])).toThrow(/^cannot serialize object/);
 });

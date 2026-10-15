@@ -64,6 +64,7 @@ const result = await build({
   // Kept in step with `target` in `tsconfig.json` by hand: `tsc` emits declarations only, so its own `target` reaches
   // nothing but the default lib set.
   target: 'es2023',
+
   platform: 'browser',
 
   /*

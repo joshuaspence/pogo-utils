@@ -6,6 +6,7 @@
 
 import { fold, ocrLine, type Line } from './ocr.mts';
 import { chroma, crop, isolate, luminance, rgb, scale, type Image } from './png.mts';
+
 /**
  * What the symbol beside the HP says, in the game's own search terms: `genderunknown` is what the game calls a species
  * with no gender, so each value is the search that finds the Pokémon it describes.

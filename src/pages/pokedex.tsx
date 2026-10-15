@@ -460,6 +460,7 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
             step(1);
           }
         }}
+
         // A click on the backdrop lands on the dialog itself rather than on anything inside it, which is the one way to
         // tell the two apart without a wrapper element.
         onClick={(event) => {
@@ -467,6 +468,7 @@ export default function PokedexPage({ query: fragment }: { query: string }) {
             dialogRef.current?.close();
           }
         }}
+
         onClose={() => {
           const dex = state.open;
 

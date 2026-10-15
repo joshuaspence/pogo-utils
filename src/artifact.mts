@@ -172,6 +172,8 @@ export const manifestLinks = (markup: string): string[] =>
 /** What a scan of an artifact's references found. */
 export type References = {
   pages: string[];
+  checked: number;
+  missing: string[];
 
   /**
    * Deduplicated, because every page links the same manifest and its icons want reporting once rather than six
@@ -179,12 +181,8 @@ export type References = {
    */
   manifests: Set<string>;
 
-  checked: number;
-
   /** Every path in the artifact something named, which is the half the stylesheet check reads. */
   named: Set<string>;
-
-  missing: string[];
 };
 
 /**

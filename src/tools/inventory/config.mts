@@ -11,29 +11,36 @@ export type Point = [number, number];
 
 export interface Config {
   package: string;
+  swipes: {
+    /** From one Pokémon to the next. */
+    next: [Point, Point];
+
+    /** Down the detail screen to the moves, and back up. */
+    scrollDown: [Point, Point];
+    scrollUp: [Point, Point];
+  };
+
   /** Where to tap, as fractions of the screen's width and height. Used where OCR cannot find the control by name. */
   taps: {
     /** The Poké Ball on the map that opens the main menu. */
     mainMenu: Point;
+
     /**
      * The Pokémon button in that menu. Tapped blind rather than found by its label, because that label sits above the
      * icon rather than inside it and tapping it dismisses the menu.
      */
     pokemonButton: Point;
+
     /** The search box at the top of storage. */
     search: Point;
+
     /** The first Pokémon in the storage grid. */
     firstTile: Point;
+
     /** The close button at the foot of the detail screen. */
     closeDetail: Point;
   };
-  swipes: {
-    /** From one Pokémon to the next. */
-    next: [Point, Point];
-    /** Down the detail screen to the moves, and back up. */
-    scrollDown: [Point, Point];
-    scrollUp: [Point, Point];
-  };
+
   /** How long to let each animation settle before the next screenshot, in milliseconds. */
   waits: {
     launch: number;
@@ -43,11 +50,13 @@ export interface Config {
     menu: number;
     search: number;
   };
+
   /**
    * Where PGSharp's overlay sits, if it is known. Left out, the scanner finds it on the first Pokémon whose box it can
    * make out and uses that for the rest of the run, which is what lets one configuration suit any phone.
    */
   overlay?: OverlayBox;
+
   /**
    * The band of the screen that scrolls, which `--scroll` lines its frames up inside. Everything outside it is
    * furniture that stays put — the status bar, PGSharp's overlay, the game's floating buttons — and lining frames up

@@ -13,27 +13,32 @@ import { brighten, crop, isolate, scale, type Image } from './png.mts';
 import { genderOf, isFavourite, sizeOf, tagsOn, type Gender, type Size } from './badges.mts';
 import { OVERLAY_CHROMA, OVERLAY_LUMINANCE } from './overlay.mts';
 export interface Detail {
+  name: string | null;
+  hp: number | null;
+  weight: number | null;
+  height: number | null;
+  types: string[];
+  favourite: boolean;
+
   /** What OCR made of the CP, which is white over the artwork and read on about half the captures. */
   cp: number | null;
+
   /**
    * What the CP region reads where no line carrying the label was recognised at all. Not to be trusted, so never `cp`:
    * it is for narrowing a choice of forms, and only where the arithmetic reproduces one exactly. `cpsIn` is where the
    * figures for it live.
    */
   cps: number[];
-  name: string | null;
-  hp: number | null;
-  weight: number | null;
-  height: number | null;
-  types: string[];
+
   /**
    * Null where there was no HP line to find the symbol beside, so nothing looked — which is not `genderunknown`, the
    * answer where it looked and found no symbol.
    */
   gender: Gender | null;
-  favourite: boolean;
+
   /** Null for the two ordinary bands in the middle, which wear no badge at all. */
   size: Size | null;
+
   /**
    * The text of each tag chip under the HP, as read; matching them to the tags that exist is the caller's job. Empty
    * where no chip is drawn, and where the HP or the measurement row the chips sit between was not read.
@@ -158,9 +163,11 @@ export async function parseDetail(lines: readonly Line[], data: GameData, image:
   };
 
   const row = lines.find((l) => measurement(l.text));
+
   // The size badge sits over the height in particular, so that line is found on its own rather than taken from the row
   // the two share — which is the weight as often as not.
   const heightLine = lines.find((l) => HEIGHT.test(l.text));
+
   const weight = number(WEIGHT) ?? (row ? measured(image, row, 0) : null);
   const height = number(HEIGHT) ?? (row ? measured(image, row, 1 - MEASURE_WIDTH) : null);
 
@@ -224,6 +231,7 @@ async function cpsIn(image: Image): Promise<number[]> {
     image.width * CP_SWEEP.width,
     image.height * CP_SWEEP.height,
   );
+
   // Every treatment, since plain alone misses what the others read: `castform-rainy.png` answers `C 2` plain and
   // `P832` near-white, `castform-sunny.png` `P99` plain and `P979` brightened. All three are wanted here, so a read
   // that fails is this sweep's failure.

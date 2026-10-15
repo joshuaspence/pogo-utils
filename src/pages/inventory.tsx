@@ -29,8 +29,10 @@ import { NO_BOX, NO_OVERLAY, printable, refusals, type Reading } from '../tools/
 /** Where a screen came from, which names its download and says what the page is showing. */
 interface Capture {
   image: Image;
+
   /** The file it came from, or the name a grab would be saved under. */
   name: string;
+
   /** Whether it came off the phone, and so is worth offering back as a file. */
   grabbed: boolean;
 }

@@ -932,6 +932,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         class={classes.filter(Boolean).join(' ')}
         data-group={pathAttribute(path)}
         aria-label={root ? 'The query' : `${JUNCTION[node.junction].label} group`}
+
         // A click anywhere in a group that is not on a pill makes it the one a catalogue chip goes into, and is also
         // where a picked-up pill is put down. One gesture for both, so there is nothing extra to learn or to draw.
         onClick={(event) => {
@@ -1241,6 +1242,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                     id={`suggestion-${index}`}
                     role="option"
                     aria-selected={index === active}
+
                     // mousedown rather than click: a click arrives after the blur that closes the list, by which point
                     // there is no row left to have been clicked.
                     onMouseDown={(event) => {

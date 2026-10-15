@@ -37,13 +37,19 @@ export interface Artwork {
 
 export interface Identity {
   form: Form | null;
+  levels: number[];
+  nickname: string | null;
+  notes: string[];
+
   /**
    * The CP this form at these IVs shows at this level, worked out rather than read. Null where the level is still
    * ambiguous, since two levels are two CPs and guessing between them would be worse than saying nothing.
    */
   cp: number | null;
+
   /** Other forms the numbers fit equally well, which a better reading of the same screen could still separate. */
   alternatives: Form[];
+
   /**
    * Forms the screen cannot separate from the answer at all, sharing its dex, its types and all three base stats. The
    * artwork is the only reader that could, and it has either declined or had no icon for every member — so this is
@@ -51,9 +57,6 @@ export interface Identity {
    * cannot invent a field the game does not print.
    */
   unseparated: Form[];
-  levels: number[];
-  nickname: string | null;
-  notes: string[];
 }
 
 /**

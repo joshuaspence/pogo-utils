@@ -489,6 +489,7 @@ test('the CRC is the one Node computes, and what is deflated Node inflates', () 
 
   const image = ramp(5, 3);
   const png = encodePng(image);
+
   // The signature and IHDR, then IDAT's length and type ahead of its data, and its CRC and IEND after.
   const idat = png.subarray(8 + 25 + 8, png.length - 4 - 12);
 

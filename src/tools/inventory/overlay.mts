@@ -19,13 +19,15 @@ export interface OverlayBox {
 }
 
 export interface Overlay {
+  iv: IVs;
+
   /**
    * Every level the digits could be saying, rather than one. The small-caps `L` reads as an `L` on one phone and a `1`
    * on another, and the `IV` label after the level reads as another `1`, so `151` is `L15` plus a stray or a stray
    * plus `51` with nothing in the string saying which. `identify` intersects the shortlist with what the HP admits.
    */
   levels: number[];
-  iv: IVs;
+
   /**
    * What PGSharp appends in brackets after the IVs, as read — `L` for an Unown, nothing for most Pokémon. Matching it
    * to a form is `identify`'s job, only it knowing the species.
@@ -568,6 +570,7 @@ export async function readOverlay(image: Image, box: OverlayBox): Promise<Overla
     // Unioned per text rather than over the texts joined, so that `levelsIn`'s pair spanning two runs stays inside one
     // reading: a digit the first treatment ended on and a digit the third began with were never neighbours on a screen.
     levels: [...new Set(ahead.flatMap(levelsIn))],
+
     iv,
     form: numeric !== null && /^\d{2}$/.test(numeric) ? numeric : lettered,
   };
