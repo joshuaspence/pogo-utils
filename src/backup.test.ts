@@ -22,6 +22,12 @@ afterEach(() => {
  */
 const restore = (text: string) => applyBackup(parseBackup(text));
 
+/** A file as this page writes one, its values keyed by their names within the namespace. */
+const backupOf = (values: unknown) => JSON.stringify({ version: 2, namespace: 'pogo-utils', values });
+
+/** The names a written file carries, which is what it would write back. */
+const namesIn = (text: string) => Object.keys((JSON.parse(text) as { values: object }).values);
+
 /** A reader with every kind of value in play: two sets, the per-view object, the scalar, and a populated `seen`. */
 function storePrefs(): Prefs {
   const prefs: Prefs = {
@@ -107,20 +113,20 @@ const emptyPrefs = (): Prefs => ({
 /**
  * `localStorage` is keyed by origin and `joshuaspence.github.io` serves every repository published there, so the store
  * an export reads holds another site's keys too. They are not this app's to carry, and the assertion is that the file
- * says so in both directions: not exported, and not written back.
+ * says so in both directions: not exported, and a file naming another namespace refused rather than written back.
  */
 test('a key belonging to another site on this origin is neither carried nor written', () => {
   storage.setItem('other-project:token', '"secret"');
   persist({ ...emptyPrefs(), dismissed: new Set(['event-a']) }, 'dismissed');
 
-  const text = writeBackup();
-
-  expect(Object.keys(JSON.parse(text))).toEqual(['version', KEYS.dismissed]);
+  expect(namesIn(writeBackup())).toEqual(['events:dismissed']);
 
   storage = installFakeStorage();
   storage.setItem('other-project:token', '"mine"');
-  restore(JSON.stringify({ 'version': 1, 'other-project:token': 'theirs', [KEYS.dismissed]: ['event-a'] }));
 
+  expect(() =>
+    restore(JSON.stringify({ version: 2, namespace: 'other-project', values: { token: 'theirs' } })),
+  ).toThrow(/namespace "other-project"/);
   expect(storage.getItem('other-project:token')).toBe('"mine"');
 });
 
@@ -132,7 +138,7 @@ test('a key belonging to another site on this origin is neither carried nor writ
 test('a key the file omits is left as it was', () => {
   storePrefs();
 
-  restore(JSON.stringify({ version: 1, [KEYS.dismissed]: ['from-file'] }));
+  restore(backupOf({ 'events:dismissed': ['from-file'] }));
 
   const prefs = loadPrefs();
 
@@ -147,9 +153,44 @@ test('a key the file omits is left as it was', () => {
  * the thing a backup is for.
  */
 test('a key in the namespace with no reader yet is written through', () => {
-  restore(JSON.stringify({ 'version': 1, 'pogo-utils:map:selected': ['a-route'] }));
+  restore(backupOf({ 'map:selected': ['a-route'] }));
 
   expect(storage.getItem('pogo-utils:map:selected')).toBe('["a-route"]');
+});
+
+/**
+ * Version 1 files carry each key whole at the top level, and readers hold files exported that way. One still restores
+ * its keys in the namespace, and only those: with no `namespace` field to refuse, the prefix is what keeps another
+ * site's key or a stray field out of storage.
+ */
+test('a version 1 file restores its keys in the namespace and nothing else', () => {
+  storage.setItem('other-project:token', '"mine"');
+
+  const written = restore(
+    JSON.stringify({
+      'version': 1,
+      [KEYS.dismissed]: ['from-file'],
+      'pogo-utils:map:selected': ['a-route'],
+      'other-project:token': 'theirs',
+      'dismissed': ['unprefixed'],
+    }),
+  );
+
+  expect(written).toEqual([KEYS.dismissed, 'pogo-utils:map:selected']);
+  expect(loadPrefs().dismissed).toEqual(new Set(['from-file']));
+  expect(storage.getItem('pogo-utils:map:selected')).toBe('["a-route"]');
+  expect(storage.getItem('other-project:token')).toBe('"mine"');
+  expect(storage.getItem('dismissed')).toBeNull();
+});
+
+/** A version 1 file exported on a first visit holds nothing but its version, and reads back as nothing to write. */
+test('a version 1 file carrying no keys writes nothing and does not throw', () => {
+  storePrefs();
+
+  const before = storage.snapshot();
+
+  expect(restore('{"version":1}')).toEqual([]);
+  expect(storage.snapshot()).toEqual(before);
 });
 
 /** Enumerated rather than named, which is the same property from the other end: nothing lists the keys to carry. */
@@ -170,36 +211,47 @@ test('a stored value that is not JSON is left out, and the rest still travel', (
   storage.setItem(KEYS.hiddenTypes, '{oh no');
   persist({ ...emptyPrefs(), dismissed: new Set(['event-a']) }, 'dismissed');
 
-  expect(Object.keys(JSON.parse(writeBackup()))).toEqual(['version', KEYS.dismissed]);
+  expect(namesIn(writeBackup())).toEqual(['events:dismissed']);
 });
 
 /**
- * A version refusal is checked by the same file *becoming accepted* once its version alone is corrected, the rest of
- * the file left exactly as it was. That is the strong form, and the one worth having here: a version is read before
- * any key is, so a refusal that was really about the key beside it would look identical from the outside, and the
- * repaired file's own key coming back is what tells the two apart.
+ * A version or namespace refusal is checked by the same file *becoming accepted* once that one field is corrected, the
+ * rest of the file left exactly as it was. That is the strong form, and the one worth having here: both are read
+ * before any value is, so a refusal that was really about the value beside them would look identical from the outside,
+ * and the repaired file's own key coming back is what tells the two apart.
  */
 test.for([
-  { refusing: 'a version this page cannot read', bad: '{"version":2,"pogo-utils:x":1}', matching: /version 2/ },
-  { refusing: 'a version as a string', bad: '{"version":"1","pogo-utils:x":1}', matching: /version "1"/ },
-  { refusing: 'no version at all', bad: '{"pogo-utils:x":1}', matching: /version absent/ },
-])('$refusing is refused, where the same file with its version corrected is not', ({ bad, matching }) => {
-  expect(() => restore(bad)).toThrow(matching);
+  {
+    refusing: 'a version this page cannot read',
+    bad: { version: 3 },
+    matching: /version 3, and this page reads version 1 or 2/,
+  },
+  { refusing: 'a version as a string', bad: { version: '2' }, matching: /version "2"/ },
+  { refusing: 'no version at all', bad: { version: undefined }, matching: /version absent/ },
+  { refusing: "another site's namespace", bad: { namespace: 'other-project' }, matching: /namespace "other-project"/ },
+  { refusing: 'no namespace at all', bad: { namespace: undefined }, matching: /namespace absent/ },
+])('$refusing is refused, where the same file with that field corrected is not', ({ bad, matching }) => {
+  const good = { version: 2, namespace: 'pogo-utils', values: { x: 1 } };
 
-  expect(restore(JSON.stringify({ ...(JSON.parse(bad) as object), version: 1 }))).toEqual(['pogo-utils:x']);
+  expect(() => restore(JSON.stringify({ ...good, ...bad }))).toThrow(matching);
+
+  expect(restore(JSON.stringify(good))).toEqual(['pogo-utils:x']);
 });
 
 /**
- * A file that is not a JSON object at all, refused with the message that names which defect it has. The weaker claim
- * of the two, and said rather than dressed up: there is no "same file corrected" for `null` or `'{oh no'` — no version
- * to put right and no key to come back — so what rules out a reader that simply refuses everything is the table above,
- * plus every accepting case in this file. What these four add is that each defect is reported as itself.
+ * A file that is not a JSON object at all, or whose values are not one, refused with the message that names which
+ * defect it has. The weaker claim of the two, and said rather than dressed up: there is no "same file corrected" for
+ * `null` or `'{oh no'` — no version to put right and no key to come back — so what rules out a reader that simply
+ * refuses everything is the table above, plus every accepting case in this file. What these add is that each defect is
+ * reported as itself.
  */
 test.for([
   { refusing: 'text that is not JSON', bad: '{oh no', matching: /not readable JSON/ },
   { refusing: 'a JSON array', bad: '[]', matching: /a JSON object/ },
   { refusing: 'JSON null', bad: 'null', matching: /a JSON object/ },
   { refusing: 'a bare string', bad: '"a backup"', matching: /a JSON object/ },
+  { refusing: 'values that are an array', bad: backupOf([]), matching: /values are not a JSON object/ },
+  { refusing: 'no values at all', bad: backupOf(undefined), matching: /values are not a JSON object/ },
 ])('$refusing is refused as what it is', ({ bad, matching }) => {
   expect(() => restore(bad)).toThrow(matching);
 });
@@ -213,10 +265,8 @@ test('parsing a file writes nothing, acceptable or not', () => {
 
   const before = storage.snapshot();
 
-  expect(parseBackup(JSON.stringify({ version: 1, [KEYS.dismissed]: ['from-file'] }))).toEqual([
-    [KEYS.dismissed, ['from-file']],
-  ]);
-  expect(() => parseBackup('{"version":2}')).toThrow();
+  expect(parseBackup(backupOf({ 'events:dismissed': ['from-file'] }))).toEqual([[KEYS.dismissed, ['from-file']]]);
+  expect(() => parseBackup('{"version":3}')).toThrow();
 
   expect(storage.snapshot()).toEqual(before);
 });
@@ -227,26 +277,23 @@ test('a refused file leaves storage exactly as it was', () => {
 
   const before = storage.snapshot();
 
-  expect(() => restore(JSON.stringify({ version: 2, [KEYS.dismissed]: ['wrong'] }))).toThrow();
+  expect(() => restore(JSON.stringify({ version: 3, namespace: 'pogo-utils', values: { x: ['wrong'] } }))).toThrow();
   expect(() => restore('{oh no')).toThrow();
 
   expect(storage.snapshot()).toEqual(before);
 });
 
 /**
- * A reader who exported on a first visit has a file with nothing in it but the version, and reading it back writes
- * nothing rather than being turned away — the version is what says a file is ours, so a file naming no key of ours is
- * one with nothing to say rather than one to refuse. A file of someone else's keys lands here too, harmlessly.
+ * A reader who exported on a first visit has a file with no values in it, and reading it back writes nothing rather
+ * than being turned away — the namespace is what says a file is ours, so a file of ours naming no key is one with
+ * nothing to say rather than one to refuse.
  */
-test.for([
-  { carrying: 'nothing but a version', text: '{"version":1}' },
-  { carrying: "another site's keys only", text: '{"version":1,"other:x":1}' },
-])('a backup carrying $carrying writes nothing and does not throw', ({ text }) => {
+test('a backup carrying no values writes nothing and does not throw', () => {
   storePrefs();
 
   const before = storage.snapshot();
 
-  expect(restore(text)).toEqual([]);
+  expect(restore(backupOf({}))).toEqual([]);
   expect(storage.snapshot()).toEqual(before);
 });
 
@@ -259,7 +306,7 @@ test('storage that will not answer is reported rather than silently empty', () =
   storage.throws = true;
 
   expect(() => writeBackup()).toThrow();
-  expect(() => restore(JSON.stringify({ version: 1, [KEYS.dismissed]: [] }))).toThrow();
+  expect(() => restore(backupOf({ 'events:dismissed': [] }))).toThrow();
 });
 
 /**
@@ -269,7 +316,15 @@ test('storage that will not answer is reported rather than silently empty', () =
 test('the file is indented JSON a reader can open', () => {
   persist({ ...emptyPrefs(), dismissed: new Set(['event-a']) }, 'dismissed');
 
-  expect(writeBackup()).toBe(`{\n  "version": 1,\n  "${KEYS.dismissed}": [\n    "event-a"\n  ]\n}`);
+  expect(writeBackup()).toBe(`{
+  "version": 2,
+  "namespace": "pogo-utils",
+  "values": {
+    "events:dismissed": [
+      "event-a"
+    ]
+  }
+}`);
 });
 
 /**
@@ -321,9 +376,9 @@ test('a write that fails partway puts back what it found', () => {
 
   storage.refusesWritesTo.add(KEYS.seen);
 
-  expect(() =>
-    restore(JSON.stringify({ version: 1, [KEYS.hiddenTypes]: ['raid-hour'], [KEYS.seen]: ['event-a'] })),
-  ).toThrow(/quota/);
+  expect(() => restore(backupOf({ 'events:hidden-types': ['raid-hour'], 'events:seen': ['event-a'] }))).toThrow(
+    /quota/,
+  );
 
   expect(storage.snapshot()).toEqual(before);
 });

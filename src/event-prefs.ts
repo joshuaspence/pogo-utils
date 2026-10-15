@@ -39,11 +39,13 @@ export interface Seen {
  * The namespace every key this app owns sits under: the Pages path segment, since `localStorage` is keyed by origin and
  * `joshuaspence.github.io` serves every repository published there — an unqualified name is not this app's to claim.
  *
- * Exported because `src/backup.ts` sweeps the namespace rather than naming keys, and the two have to agree about where
- * it ends. One spelling is what rules out the disagreement that does harm: a transport sweeping a prefix shorter than
- * the keys carry would carry the neighbouring site's keys along with this app's.
+ * Exported because `src/backup.ts` sweeps the namespace rather than naming keys, and names it once in the file rather
+ * than in every key. One spelling is what rules out the disagreement that does harm: a transport sweeping a prefix
+ * shorter than the keys carry would carry the neighbouring site's keys along with this app's.
  */
-export const KEY_PREFIX = 'pogo-utils:';
+export const NAMESPACE = 'pogo-utils';
+
+export const KEY_PREFIX = `${NAMESPACE}:`;
 
 /**
  * Types are stored as the *hidden* set rather than the visible one, so a category the feed adds later shows up by

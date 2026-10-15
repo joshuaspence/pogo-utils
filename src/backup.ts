@@ -5,25 +5,30 @@
  * a right key name and a wrong value lands in storage and is dropped on the next read, which was handled and tested
  * before this module existed.
  *
- * The namespace is the allowlist. One list decides both what an export carries and which fields an import recognises,
- * rather than two that can come to disagree — and it is what keeps an export off the keys of the other site on this
- * origin, `localStorage` being keyed by origin and not by path. `KEY_PREFIX` comes from the module that builds the keys
- * out of it for the same reason: a sweep spelled here could be shortened to one the keys no longer agree with, and a
- * prefix short enough to reach the neighbouring site is exactly the way this goes wrong.
+ * The namespace is the allowlist. One list decides both what an export carries and what an import writes, rather than
+ * two that can come to disagree — and it is what keeps an export off the keys of the other site on this origin,
+ * `localStorage` being keyed by origin and not by path. The file names it once, in `namespace`, and keys each value by
+ * what follows it, so a value cannot be written outside the namespace however the file is edited. `KEY_PREFIX` comes
+ * from the module that builds the keys out of it for the same reason: a sweep spelled here could be shortened to one
+ * the keys no longer agree with, and a prefix short enough to reach the neighbouring site is exactly the way this goes
+ * wrong.
+ *
+ * Version 1 files are still read. They carry each key whole at the top level, beside `version`, and readers exported
+ * them for as long as that was the only layout: a backup exists to be read back long after it was taken, so a page that
+ * stopped reading them would strand the very files it asked people to keep. Only the namespace's own keys are taken
+ * from one, which keeps the allowlist holding for a layout that has no `namespace` field to check.
  */
 
 import { said } from './errors.js';
-import { KEY_PREFIX } from './event-prefs.js';
-
-/** The one field that is not a storage key, which is why it carries no prefix. */
-const VERSION_FIELD = 'version';
+import { KEY_PREFIX, NAMESPACE } from './event-prefs.js';
 
 /**
- * What a file this code writes says it is, and the only value it will read. Refused rather than read as best it can:
- * a version is the one signal that a key may have come to mean something different, which is the case a lenient
- * reader gets wrong. Adding a key does not bump it — the version says how to read a file, not what is in it.
+ * What a file this code writes says it is. `parseBackup` reads this and version 1, and refuses any other rather than
+ * read it as best it can: a version is the one signal that a key may have come to mean something different, which is
+ * the case a lenient reader gets wrong. Adding a key does not bump it — the version says how to read a file, not what
+ * is in it.
  */
-const VERSION = 1;
+const VERSION = 2;
 
 /**
  * A backup's date in its name, so successive exports do not land as `… (1).json` and stop saying which is which.
@@ -76,7 +81,7 @@ export function ownedKeys(): string[] {
  * same silence where it does real harm.
  */
 export function writeBackup(): string {
-  const fields: Record<string, unknown> = { [VERSION_FIELD]: VERSION };
+  const values: Record<string, unknown> = {};
 
   for (const key of ownedKeys()) {
     const stored = localStorage.getItem(key);
@@ -86,20 +91,30 @@ export function writeBackup(): string {
     }
 
     try {
-      fields[key] = JSON.parse(stored);
+      values[key.slice(KEY_PREFIX.length)] = JSON.parse(stored);
     } catch {
       /* Not JSON, so it cannot be a field of one; it reads as absent from either name. */
     }
   }
 
-  return JSON.stringify(fields, null, 2);
+  return JSON.stringify({ version: VERSION, namespace: NAMESPACE, values }, null, 2);
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
 /**
- * A backup file's fields, or a refusal naming which of the three it is. Three messages rather than one because they
- * ask different things of a reader: a readable file, a file from this site, or a newer page to read it with.
+ * The keys a backup file carries, or a refusal naming which defect it has. Separate from `applyBackup` so that nothing
+ * a caller does between the two can be undone by a refusal arriving after it: a file is judged whole before storage is
+ * touched at all, which is what lets the page take its own copy in between and not take one for a file it is about to
+ * turn away. Separate messages rather than one because they ask different things of a reader: a readable file, a file
+ * from this site, or a newer page to read it with.
+ *
+ * A file carrying no keys is an empty answer rather than a refusal. The version, and in version 2 the namespace, is
+ * what says a file is ours, so a reader who exported on a first visit has a legitimately empty backup — refusing that
+ * would turn the one export nobody can reconstruct into the one that cannot be read back.
  */
-function fieldsOf(text: string): Record<string, unknown> {
+export function parseBackup(text: string): [string, unknown][] {
   let parsed: unknown;
 
   try {
@@ -108,33 +123,34 @@ function fieldsOf(text: string): Record<string, unknown> {
     throw new Error(`that file is not readable JSON: ${said(e)}`, { cause: e });
   }
 
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+  if (!isObject(parsed)) {
     throw new Error('that file is not a backup: a backup is a JSON object');
   }
 
-  const fields = parsed as Record<string, unknown>;
+  switch (parsed.version) {
+    case 1:
+      return Object.entries(parsed).filter(([field]) => field.startsWith(KEY_PREFIX));
 
-  // Quoted through `JSON.stringify` rather than interpolated bare: this came out of a file, and a version reading
-  // `1` and one reading `"1"` are a refusal a reader has to be able to tell apart.
-  if (fields[VERSION_FIELD] !== VERSION) {
-    const found = JSON.stringify(fields[VERSION_FIELD]) ?? 'absent';
-    throw new Error(`that backup is version ${found}, and this page reads version ${VERSION}`);
+    case 2: {
+      if (parsed.namespace !== NAMESPACE) {
+        const found = JSON.stringify(parsed.namespace) ?? 'absent';
+        throw new Error(`that backup is of namespace ${found}, and this page reads ${JSON.stringify(NAMESPACE)}`);
+      }
+
+      if (!isObject(parsed.values)) {
+        throw new Error('that file is not a backup: its values are not a JSON object');
+      }
+
+      return Object.entries(parsed.values).map(([name, value]) => [`${KEY_PREFIX}${name}`, value]);
+    }
+
+    // Quoted through `JSON.stringify` rather than interpolated bare: this came out of a file, and a version reading `1`
+    // and one reading `"1"` are a refusal a reader has to be able to tell apart.
+    default: {
+      const found = JSON.stringify(parsed.version) ?? 'absent';
+      throw new Error(`that backup is version ${found}, and this page reads version 1 or 2`);
+    }
   }
-
-  return fields;
-}
-
-/**
- * The keys a backup file carries, or a refusal. Separate from `applyBackup` so that nothing a caller does between the
- * two can be undone by a refusal arriving after it: a file is judged whole before storage is touched at all, which is
- * what lets the page take its own copy in between and not take one for a file it is about to turn away.
- *
- * A file carrying no keys is an empty answer rather than a refusal. The version field is what says a file is ours, so
- * a reader who exported on a first visit has a legitimately empty backup — refusing that would turn the one export
- * nobody can reconstruct into the one that cannot be read back.
- */
-export function parseBackup(text: string): [string, unknown][] {
-  return Object.entries(fieldsOf(text)).filter(([field]) => field.startsWith(KEY_PREFIX));
 }
 
 /**
