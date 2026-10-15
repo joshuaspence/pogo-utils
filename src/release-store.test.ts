@@ -1,9 +1,11 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import { installFakeStorage, type FakeStorage } from '../testing/storage.js';
-import { ACKNOWLEDGED_KEY, ReleaseStore } from './release-store.js';
+import { ReleaseStore } from './release-store.js';
+import { installFakeStorage, type FakeStorage } from './testing/storage.js';
 
 import type { Release } from './release.js';
+
+const ACKNOWLEDGED_KEY = 'pogo-utils:test:acknowledged';
 
 let storage: FakeStorage;
 
@@ -18,7 +20,7 @@ const release = (version: string): Release => ({
 
 /** A store over a fresh document: the file as it stands at the time, read once, the way a page load reads it. */
 async function visit(current: Release | null) {
-  const store = new ReleaseStore(async () => current);
+  const store = new ReleaseStore(ACKNOWLEDGED_KEY, async () => current);
 
   await store.ensureLoaded();
 
@@ -66,7 +68,7 @@ test('a release that will not load neither notifies nor settles the baseline', a
 
 test('the file is read once, however many readers ask', async () => {
   const fetchRelease = vi.fn(async () => release('1.272.2'));
-  const store = new ReleaseStore(fetchRelease);
+  const store = new ReleaseStore(ACKNOWLEDGED_KEY, fetchRelease);
 
   await Promise.all([store.ensureLoaded(), store.ensureLoaded()]);
   await store.ensureLoaded();
@@ -88,4 +90,26 @@ test('storage that takes no writes reports nothing, since the reader could never
 
   expect((await visit(release('1.272.2'))).unacknowledged()).toBeNull();
   expect((await visit(release('1.273.0'))).unacknowledged()).toBeNull();
+});
+
+test('each store keeps its own acknowledgement, so clearing one app leaves the other', async () => {
+  const other = 'pogo-utils:other:acknowledged';
+
+  const visitBoth = async (version: string) => {
+    const one = new ReleaseStore(ACKNOWLEDGED_KEY, async () => release(version));
+    const two = new ReleaseStore(other, async () => release(version));
+
+    await Promise.all([one.ensureLoaded(), two.ensureLoaded()]);
+
+    return [one, two] as const;
+  };
+
+  await visitBoth('1.272.2');
+
+  const [one, two] = await visitBoth('1.273.0');
+
+  one.acknowledge();
+
+  expect(one.unacknowledged()).toBeNull();
+  expect(two.unacknowledged()?.version).toBe('1.273.0');
 });

@@ -5,7 +5,9 @@
  * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
  * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
  * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
- * why that is the only one of the four hunts worth sending.
+ * why that is the only one of the four hunts worth sending. The Coin Bag panel hands nothing over at all — it only
+ * links the app, versioned as the PGSharp download is — but this is the page for the third-party tools the game is
+ * played beside, and it is one.
  *
  * The Java codec is nearly all of this chunk and nothing else uses it, which is why the page is reached through
  * `import()`. The display filter rides along rather than taking a chunk of its own: it is a kilobyte or so of JSON
@@ -23,8 +25,12 @@ import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filte
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
-import { releaseStore, useReleaseStore } from '../pgsharp/release-store.js';
+import { coinBagReleaseStore } from '../coin-bag/release-store.js';
+import { APK_ASSET, assetUrl, IPA_ASSET, LATEST_URL, REPO_URL, WEB_APP_URL } from '../coin-bag/release.js';
+import { releaseStore } from '../pgsharp/release-store.js';
 import { DOWNLOAD_URL } from '../pgsharp/release.js';
+import { currentPlatform } from '../platform.js';
+import { useReleaseStore } from '../release-store.js';
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -112,16 +118,35 @@ interface Status {
 /** Said once because both panels have a status line, and a third would be a third copy of this expression. */
 const statusClass = (status: Status | null) => (status?.kind ? `status ${status.kind}` : 'status');
 
+/**
+ * Which of the Coin Bag's three ways in a platform is offered. iOS has no Web Bluetooth in any browser — every one of
+ * them is WebKit underneath — so an iPhone gets the IPA alone. Android gets the web app and the APK. Anywhere else gets
+ * all three, since a desktop is as likely to be fetching a build for a phone as running the web app itself.
+ */
+const COIN_BAG_BUILDS = {
+  ios: { web: false, apk: false, ipa: true },
+  android: { web: true, apk: true, ipa: false },
+  other: { web: true, apk: true, ipa: true },
+} as const;
+
+const PLATFORM_NAMES = { ios: 'iOS', android: 'Android' } as const;
+
 export default function IntegrationsPage() {
   const [ticked, setTicked] = useState<ReadonlySet<Control>>(() => new Set(CONTROLS));
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
-  // The top bar has usually asked for it already, in which case this is handed the same load.
-  const { release } = useReleaseStore();
+  // Read once: a device does not change platform while the page is open.
+  const [platform] = useState(currentPlatform);
+  const [allBuilds, setAllBuilds] = useState(false);
+  const builds = COIN_BAG_BUILDS[allBuilds ? 'other' : platform];
+  // The top bar has usually asked for both already, in which case this is handed the same loads.
+  const { release } = useReleaseStore(releaseStore);
+  const { release: coinBag } = useReleaseStore(coinBagReleaseStore);
 
   useEffect(() => {
     void releaseStore.ensureLoaded();
+    void coinBagReleaseStore.ensureLoaded();
   }, []);
 
   /**
@@ -277,6 +302,56 @@ export default function IntegrationsPage() {
           </button>
 
           <div class={statusClass(filterStatus)}>{filterStatus?.message ?? ''}</div>
+        </div>
+
+        {/*
+         * Last, being the one panel that hands this collection nothing. Without a vended release the two builds fall
+         * back to GitHub's latest release page, which lists both, rather than to a download URL guessed at. Only what
+         * installs on the reader's phone is offered, as `COIN_BAG_BUILDS` sets out.
+         */}
+        <div class="body">
+          <h2>Pokémon GO Coin Bag</h2>
+
+          <p>
+            The{' '}
+            <a href={REPO_URL} target="_blank" rel="noopener">
+              Coin Bag
+            </a>{' '}
+            stands in for a Nintendo Switch over Bluetooth, so Pokémon GO will pair with it and send it postcards — no
+            Switch needed. The web app runs in Chrome or Edge; the Android and iOS apps keep scanning and handle each
+            connection themselves.
+          </p>
+
+          {builds.ipa && <p class="note">The iOS build is unsigned: sideload it with AltStore or TrollStore.</p>}
+
+          <div class="actions">
+            {builds.web && (
+              <a class="run" href={WEB_APP_URL} target="_blank" rel="noopener">
+                Open the web app
+              </a>
+            )}
+            {builds.apk && (
+              <a class="run" href={coinBag ? assetUrl(coinBag, APK_ASSET) : LATEST_URL} target="_blank" rel="noopener">
+                {coinBag ? `Download APK ${coinBag.version}` : 'Download APK'}
+              </a>
+            )}
+            {builds.ipa && (
+              <a class="run" href={coinBag ? assetUrl(coinBag, IPA_ASSET) : LATEST_URL} target="_blank" rel="noopener">
+                {coinBag ? `Download IPA ${coinBag.version}` : 'Download IPA'}
+              </a>
+            )}
+          </div>
+
+          {/* The guess can be wrong, and a phone can be fetching a build for another one, so nothing is out of reach. */}
+          {platform !== 'other' && !allBuilds && (
+            <p class="note">
+              Showing what installs on {PLATFORM_NAMES[platform]}
+              {platform === 'ios' ? ' — no iOS browser has the Bluetooth the web app needs' : ''}.{' '}
+              <button type="button" class="more" onClick={() => setAllBuilds(true)}>
+                Show every build
+              </button>
+            </p>
+          )}
         </div>
       </main>
     </>

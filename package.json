@@ -32,6 +32,7 @@
     "test:corpus": "vitest run --project corpus",
     "test:coverage": "vitest run --coverage",
     "test:default": "vitest run --project default",
+    "vend:coin-bag": "node scripts/vend-coin-bag.mts",
     "vend:events": "node scripts/vend-feed.mts",
     "vend:game-master": "node scripts/vend-game-master.mts",
     "vend:pgsharp": "node scripts/vend-pgsharp.mts",

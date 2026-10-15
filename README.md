@@ -10,8 +10,9 @@ application and reached from a shared top tab bar:
   that box itself on a phone the Inventory page has connected.
 - **Pokédex** (`#/pokedex`) — every species and its forms: what is in the game, which have a shiny and which hunts still
   want it.
-- **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites, and a Live
-  PokeMap display filter built from the shiny hunt list.
+- **Integrations** (`#/integrations`) — a PGSharp backup builder that loads those routes in as favourites, a Live
+  PokeMap display filter built from the shiny hunt list, and links to the
+  [Pokémon GO Coin Bag](https://github.com/na-ji/pokemon-go-coin-bag)'s builds.
 - **Inventory** (`#/inventory`) — one Pokémon's detail screen read end to end, off a phone over WebUSB or from a saved
   screenshot: what [`pnpm inventory parse`](#pokémon-inventory) prints, without installing anything.
 
@@ -34,11 +35,15 @@ the saved event filters on whichever tab the reader opens, once per page load. T
 record of what has been seen, so clearing either clears both. [`src/event-store.ts`](src/event-store.ts) holds it, and
 [`src/notices.tsx`](src/notices.tsx) is where another kind of notice would join the list.
 
-The list's other kind is a new PGSharp release. The Vend workflow's hourly run saves the current APK to
+The list's second kind is a new PGSharp release. The Vend workflow's hourly run saves the current APK to
 `data/pgsharp-release.json`, committing only when it changes, and every tab reads that file too. It is compared with the
 last version this browser cleared, stored under `pogo-utils:pgsharp:acknowledged`. A first visit stores the current
 version as the baseline instead of reporting it, as `settleSeen` does for events.
 [`src/pgsharp/release-store.ts`](src/pgsharp/release-store.ts) holds it.
+
+A new [Coin Bag](https://github.com/na-ji/pokemon-go-coin-bag) release is the third, on the same terms: the same run
+saves the tag GitHub's latest release redirects to into `data/coin-bag-release.json`, acknowledged under
+`pogo-utils:coin-bag:acknowledged`. Both stores are a [`src/release-store.ts`](src/release-store.ts) each.
 
 Tracks (`<trk>`) and waypoints (`<wpt>`) are stored under [`data/`](data) as one `*.gpx` file per country,
 [`data/Australia.gpx`](data/Australia.gpx) and so on — the files themselves are the source of truth. The map page reads

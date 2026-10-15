@@ -7,8 +7,10 @@ on:
     paths:
       - '.github/workflows/vend.yaml'
       - 'data/events.json'
+      - 'scripts/vend-coin-bag.mts'
       - 'scripts/vend-feed.mts'
       - 'scripts/vend-pgsharp.mts'
+      - 'src/coin-bag/release.ts'
       - 'src/event-feed.ts'
       - 'src/pgsharp/release.ts'
 
@@ -114,3 +116,45 @@ jobs:
           commit_author: '${{ steps.committer.outputs.author }}'
           commit_message: 'Update the PGSharp release'
           file_pattern: 'data/pgsharp-release.json'
+
+  # The Coin Bag release the Integrations page names on its download buttons. After `pgsharp`, for the reason that job
+  # follows `events`, and run whether or not either failed.
+  coin-bag:
+    name: 'Coin Bag'
+    needs: 'pgsharp'
+    if: '${{ !cancelled() }}'
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: 'Mint an installation token'
+        id: 'token'
+        uses: 'actions/create-github-app-token@v3.2.0'
+        with:
+          app-id: '${{ vars.APP_ID }}'
+          private-key: '${{ secrets.APP_PRIVATE_KEY }}'
+
+      # `master` rather than `github.sha`, as in `pgsharp`: either job before this one may have just pushed.
+      - uses: 'actions/checkout@v7'
+        with:
+          ref: 'master'
+          token: '${{ steps.token.outputs.token }}'
+
+      - uses: 'pnpm/setup@v3'
+        with:
+          cache: true
+      - run: 'pnpm vend:coin-bag'
+
+      - name: 'Name the committer after the app'
+        id: 'committer'
+        env:
+          GH_TOKEN: '${{ steps.token.outputs.token }}'
+          SLUG: '${{ steps.token.outputs.app-slug }}'
+        run: |
+          id="$(gh api "/users/${SLUG}%5Bbot%5D" --jq '.id')"
+          echo "author=${SLUG}[bot] <${id}+${SLUG}[bot]@users.noreply.github.com>" >> "${GITHUB_OUTPUT}"
+
+      - name: 'Commit'
+        uses: 'stefanzweifel/git-auto-commit-action@v7'
+        with:
+          commit_author: '${{ steps.committer.outputs.author }}'
+          commit_message: 'Update the Coin Bag release'
+          file_pattern: 'data/coin-bag-release.json'
