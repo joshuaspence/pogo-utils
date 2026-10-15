@@ -206,6 +206,18 @@ body[data-page='integrations'] {
     gap: 8px;
   }
 
+  /* A button that reads as a link, for an aside that is not one of the panel's actions. */
+
+  .backup button.more {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--track);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
   /* A link in a panel's prose, coloured as the footer's are rather than left to the browser's blue and purple. */
 
   .backup p a {
