@@ -4,8 +4,8 @@
  *
  * A notice is anything the reader has not acknowledged yet. The list is not a history — clearing one is acknowledging
  * it, and an acknowledged notice is gone rather than greyed. Three kinds so far: new events, and a new release of
- * PGSharp or of the Coin Bag. Another joins by adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one
- * or all of them.
+ * PGSharp or of the Coin Bag. Another joins by adding a source to `SOURCES` that answers its own unacknowledged notices
+ * and knows how to clear one or all of them.
  */
 
 import { useEffect, useRef, useState } from 'preact/hooks';

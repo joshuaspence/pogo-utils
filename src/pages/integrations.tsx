@@ -5,9 +5,9 @@
  * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
  * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
  * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
- * why that is the only one of the four hunts worth sending. The Coin Bag panel hands nothing over at all — it only links
- * the app, versioned as the PGSharp download is — but this is the page for the third-party tools the game is played
- * beside, and it is one.
+ * why that is the only one of the four hunts worth sending. The Coin Bag panel hands nothing over at all — it only
+ * links the app, versioned as the PGSharp download is — but this is the page for the third-party tools the game is
+ * played beside, and it is one.
  *
  * The Java codec is nearly all of this chunk and nothing else uses it, which is why the page is reached through
  * `import()`. The display filter rides along rather than taking a chunk of its own: it is a kilobyte or so of JSON
