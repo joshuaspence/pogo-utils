@@ -3,16 +3,18 @@
  * them when opened.
  *
  * A notice is anything the reader has not acknowledged yet. The list is not a history — clearing one is acknowledging
- * it, and an acknowledged notice is gone rather than greyed. Two kinds so far, new events and a new PGSharp release;
- * another joins by adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one
+ * it, and an acknowledged notice is gone rather than greyed. Three kinds so far: new events, and a new release of
+ * PGSharp or of the Coin Bag. Another joins by adding a source to `SOURCES` that answers its own unacknowledged notices and knows how to clear one
  * or all of them.
  */
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 
+import { coinBagReleaseStore } from './coin-bag/release-store.js';
 import { eventStore, useEventStore } from './event-store.js';
-import { releaseStore, useReleaseStore } from './pgsharp/release-store.js';
+import { releaseStore } from './pgsharp/release-store.js';
 import { useDismiss } from './popover.js';
+import { useReleaseStore } from './release-store.js';
 import { toHash } from './router.js';
 
 /** One entry in the list, whatever kind of thing it reports. */
@@ -75,6 +77,27 @@ function releaseNotices(): Notice[] {
 }
 
 /**
+ * The Coin Bag release, on the same terms as PGSharp's. Choosing it opens the release's page rather than downloading
+ * either build, since the page is where a reader picks the APK or the IPA.
+ */
+function coinBagNotices(): Notice[] {
+  const release = coinBagReleaseStore.unacknowledged();
+
+  return release === null
+    ? []
+    : [
+        {
+          key: `coin-bag:${release.version}`,
+          title: `Coin Bag ${release.version}`,
+          detail: 'New version · see the release',
+          href: release.url,
+          external: true,
+          clear: () => coinBagReleaseStore.acknowledge(),
+        },
+      ];
+}
+
+/**
  * One kind of notice: what of it is waiting, and how to clear all of that at once. The second is its own rather than a
  * loop over each notice's `clear`, which for events would write the seen set and redraw every reader once per event.
  */
@@ -86,21 +109,24 @@ interface Source {
 /** Every kind of notice, in the order the list shows them. */
 const SOURCES: readonly Source[] = [
   { notices: releaseNotices, clearAll: () => releaseStore.acknowledge() },
+  { notices: coinBagNotices, clearAll: () => coinBagReleaseStore.acknowledge() },
   { notices: eventNotices, clearAll: () => eventStore.acknowledge(eventStore.newlyVisible()) },
 ];
 
 export function Notices() {
   // Each redraws this whenever its store changes; the stores themselves are read through `SOURCES`.
   useEventStore();
-  useReleaseStore();
+  useReleaseStore(releaseStore);
+  useReleaseStore(coinBagReleaseStore);
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
-  // Both files once per document, whichever tab it opens on. The Events and Integrations pages ask for the same loads
+  // Each file once per document, whichever tab it opens on. The Events and Integrations pages ask for the same loads
   // and are handed them.
   useEffect(() => {
     void eventStore.ensureLoaded();
     void releaseStore.ensureLoaded();
+    void coinBagReleaseStore.ensureLoaded();
   }, []);
 
   useDismiss(open, () => setOpen(false), root);

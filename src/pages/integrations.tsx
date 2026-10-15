@@ -5,7 +5,9 @@
  * `java.util.HashMap<String,Object>` whose two favourite keys hold JSON: `hlfavor` is Points, from `<wpt>`, and
  * `hlfavorRoute` is Routes, from `<trk>`. This synthesizes a partial backup from scratch, so importing it leaves the
  * rest of the profile be. The Live PokeMap panel writes a display filter off the shiny hunt list; `livepokemap/` says
- * why that is the only one of the four hunts worth sending.
+ * why that is the only one of the four hunts worth sending. The Coin Bag panel hands nothing over at all — it only links
+ * the app, versioned as the PGSharp download is — but this is the page for the third-party tools the game is played
+ * beside, and it is one.
  *
  * The Java codec is nearly all of this chunk and nothing else uses it, which is why the page is reached through
  * `import()`. The display filter rides along rather than taking a chunk of its own: it is a kilobyte or so of JSON
@@ -23,8 +25,11 @@ import { displayFilterText, shinyHuntFilter } from '../livepokemap/display-filte
 import { CONTROLS, CONTROL_LABELS, CONTROL_RESETS, type Control } from '../pgsharp/controls.js';
 import { gpxFavourites, type Point, type Route } from '../pgsharp/favourites.js';
 import { backupSummary, buildBackup } from '../pgsharp/pgsdata.js';
-import { releaseStore, useReleaseStore } from '../pgsharp/release-store.js';
+import { coinBagReleaseStore } from '../coin-bag/release-store.js';
+import { APK_ASSET, assetUrl, IPA_ASSET, LATEST_URL, REPO_URL, WEB_APP_URL } from '../coin-bag/release.js';
+import { releaseStore } from '../pgsharp/release-store.js';
 import { DOWNLOAD_URL } from '../pgsharp/release.js';
+import { useReleaseStore } from '../release-store.js';
 
 /**
  * Build the favourite lists by re-parsing every GPX file, so the result is decided by each file's own elements and
@@ -117,11 +122,13 @@ export default function IntegrationsPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
-  // The top bar has usually asked for it already, in which case this is handed the same load.
-  const { release } = useReleaseStore();
+  // The top bar has usually asked for both already, in which case this is handed the same loads.
+  const { release } = useReleaseStore(releaseStore);
+  const { release: coinBag } = useReleaseStore(coinBagReleaseStore);
 
   useEffect(() => {
     void releaseStore.ensureLoaded();
+    void coinBagReleaseStore.ensureLoaded();
   }, []);
 
   /**
@@ -277,6 +284,38 @@ export default function IntegrationsPage() {
           </button>
 
           <div class={statusClass(filterStatus)}>{filterStatus?.message ?? ''}</div>
+        </div>
+
+        {/*
+         * Last, being the one panel that hands this collection nothing. Without a vended release the two builds fall
+         * back to GitHub's latest release page, which lists both, rather than to a download URL guessed at.
+         */}
+        <div class="body">
+          <h2>Pokémon GO Coin Bag</h2>
+
+          <p>
+            The{' '}
+            <a href={REPO_URL} target="_blank" rel="noopener">
+              Coin Bag
+            </a>{' '}
+            stands in for a Nintendo Switch over Bluetooth, so Pokémon GO will pair with it and send it postcards — no
+            Switch needed. The web app runs in Chrome or Edge; the Android and iOS apps keep scanning and handle each
+            connection themselves.
+          </p>
+
+          <p class="note">The iOS build is unsigned: sideload it with AltStore or TrollStore.</p>
+
+          <div class="actions">
+            <a class="run" href={WEB_APP_URL} target="_blank" rel="noopener">
+              Open the web app
+            </a>
+            <a class="run" href={coinBag ? assetUrl(coinBag, APK_ASSET) : LATEST_URL} target="_blank" rel="noopener">
+              {coinBag ? `Download APK ${coinBag.version}` : 'Download APK'}
+            </a>
+            <a class="run" href={coinBag ? assetUrl(coinBag, IPA_ASSET) : LATEST_URL} target="_blank" rel="noopener">
+              {coinBag ? `Download IPA ${coinBag.version}` : 'Download IPA'}
+            </a>
+          </div>
         </div>
       </main>
     </>

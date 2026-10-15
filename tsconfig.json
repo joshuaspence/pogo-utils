@@ -96,6 +96,7 @@
     "src/tools/inventory/storage.mts"
   ],
   "exclude": [
+    "src/coin-bag/release.ts",
     "src/countries.ts",
     "src/event-feed.ts",
     "src/generated.ts",
@@ -106,6 +107,7 @@
     "src/pokedex/icons.ts",
     "src/pokemon/names.ts",
     "src/recurring-types.ts",
+    "src/release.ts",
     "src/types.d.ts"
   ],
 

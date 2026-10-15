@@ -9,7 +9,7 @@
  * released.
  */
 
-import type { VendedRelease } from '../src/pgsharp/release.js';
+import type { VendedRelease } from '../src/release.js';
 import { DOWNLOAD_URL, releaseFromApk, VENDED_RELEASE } from '../src/pgsharp/release.ts';
 import { readFileSync, writeFileSync } from 'node:fs';
 
