@@ -26,13 +26,14 @@ const MELBOURNE_ZOO =
   '<extensions><pgr:city>Melbourne</pgr:city><pgr:country>Australia</pgr:country></extensions></wpt>';
 
 test('a <wpt> becomes a flagged Point and a <trk> a Route of triples', () => {
+  // The `Cleared` track is gpx.studio's emptied <trk> for a cleared route, which is a skip rather than a nameless
+  // route.
   const { points, routes } = gpxFavourites(
     gpx(
       MELBOURNE_ZOO +
         '<trk><name>Tan Track</name><extensions><pgr:city>Melbourne</pgr:city>' +
         '<pgr:country>Australia</pgr:country><pgr:variant>long</pgr:variant></extensions>' +
         '<trkseg><trkpt lat="-37.8" lon="144.97"/><trkpt lat="-37.81" lon="144.98"/></trkseg></trk>' +
-        // gpx.studio's emptied <trk> for a cleared route, which is a skip rather than a nameless route.
         '<trk><name>Cleared</name><extensions><pgr:country>Australia</pgr:country></extensions></trk>',
     ),
   );

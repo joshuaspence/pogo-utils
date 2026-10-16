@@ -591,14 +591,12 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           <h2>{ev.name}</h2>
           <p class="when">{timeRange(ev)}</p>
 
+          {/*
+           * An event already over is never urgent however recently it ended, so only a pending edge takes the `soon`
+           * accent.
+           */}
           {status.at && (
-            <p
-              class={
-                // An event already over is never urgent however recently it ended, so only a pending edge takes the
-                // accent.
-                status.kind !== 'ended' && status.at.getTime() - now.getTime() < SOON_MS ? 'rel soon' : 'rel'
-              }
-            >
+            <p class={status.kind !== 'ended' && status.at.getTime() - now.getTime() < SOON_MS ? 'rel soon' : 'rel'}>
               {status.kind === 'upcoming' ? 'Starts' : status.kind === 'ended' ? 'Ended' : 'Ends'}{' '}
               {relative(status.at, now)}
             </p>
