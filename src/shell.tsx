@@ -111,12 +111,13 @@ export function Shell() {
   return (
     <>
       <Nav current={page} />
+
+      {/*
+       * `Component` is keyed by page, so switching tabs builds a new component rather than handing the next page the
+       * mounted state of the last one. Two pages that both open on a `<dialog>` or hold a Leaflet map are not
+       * interchangeable, however alike their trees look to the reconciler.
+       */}
       {failed === null ? (
-        /*
-         * Keyed by page, so switching tabs builds a new component rather than handing the next page the mounted state
-         * of the last one. Two pages that both open on a `<dialog>` or hold a Leaflet map are not interchangeable,
-         * however alike their trees look to the reconciler.
-         */
         Component && <Component key={page} query={query} />
       ) : (
         <p class="status err" role="alert">

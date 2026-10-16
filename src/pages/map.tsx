@@ -917,6 +917,10 @@ export default function MapPage({ query: fragment }: { query: string }) {
           {/*
            * Name every file that could not be read, and why, under a heading saying what kind of failure it was: the
            * two want opposite things from the reader, so a server that is down must not read as metadata to correct.
+           *
+           * The `<Fragment>` is keyed because this is a list, even though a two-row one whose order never changes: an
+           * anonymous fragment is matched by position, so the pair would be told apart by where they sit rather than by
+           * which they are.
            */}
           {(
             [
@@ -926,9 +930,6 @@ export default function MapPage({ query: fragment }: { query: string }) {
           ).map(
             ([kind, heading, failures]) =>
               failures.length > 0 && (
-                // Keyed because this is a list, even though a two-row one whose order never changes: an anonymous
-                // fragment is matched by position, so the pair would be told apart by where they sit rather than by
-                // which they are.
                 <Fragment key={kind}>
                   <b>{heading}</b>
                   <ul>
