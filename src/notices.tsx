@@ -69,7 +69,7 @@ function releaseNotices(): Notice[] {
         {
           key: `pgsharp:${release.version}`,
           title: `PGSharp ${release.version}`,
-          detail: 'New version · download the APK',
+          detail: `Seen ${dayFmt.format(new Date(release.firstSeen))} · download the APK`,
           href: release.url,
           external: true,
           clear: () => releaseStore.acknowledge(),
@@ -90,7 +90,7 @@ function coinBagNotices(): Notice[] {
         {
           key: `coin-bag:${release.version}`,
           title: `Coin Bag ${release.version}`,
-          detail: 'New version · see the release',
+          detail: `Seen ${dayFmt.format(new Date(release.firstSeen))} · see the release`,
           href: release.url,
           external: true,
           clear: () => coinBagReleaseStore.acknowledge(),
