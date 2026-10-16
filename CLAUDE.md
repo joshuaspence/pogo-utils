@@ -11,9 +11,9 @@
   branch, and open the PR with `gh pr create`. What the protection requires is deliberately not restated here —
   transcribing it is how this drifted before, down to naming a required check that had since been renamed — so read it
   from `gh api repos/{owner}/{repo}/branches/master/protection` and `gh api repos/{owner}/{repo}/rulesets`, either of
-  which may be the one in force. The approval comes from Claude, which `claude-review.yaml` runs on every pull request
-  that is neither a draft nor a bot's — nobody here can approve their own. So open it ready for review rather than as a
-  draft: a draft gets no review, and waits on someone to mark it ready before the approval it needs can come.
+  which may be the one in force. The approval comes from Claude, which `claude.yaml` runs on every pull request that is
+  neither a draft nor a bot's — nobody here can approve their own. So open it ready for review rather than as a draft: a
+  draft gets no review, and waits on someone to mark it ready before the approval it needs can come.
 - **An unresolved conversation can block the merge.** When the rulesets require review threads resolved, green checks
   are not enough, and clearing an open thread falls to the pull request's author: fix what it raises or reply with why
   not, then resolve it.
