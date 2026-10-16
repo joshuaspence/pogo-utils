@@ -26,17 +26,21 @@ export const MODEL_SHA256 = '7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a521
 export interface WasmOptions {
   /** A directory or URL holding `eng.traineddata`, uncompressed. */
   langPath: string;
+
   /** How many workers to run side by side, each holding its own copy of the model. */
   workers: number;
+
   /** The browser's worker script and the directory of cores, which default to a CDN where they are not given. */
   workerPath?: string;
   corePath?: string;
+
   /**
    * Whether to keep the model once fetched: in IndexedDB in a browser, so a second visit does not download it again,
    * and in the working directory under Node, which a test reading the CLI's own copy has no use for. A kept copy that
    * fails the check is fetched again once rather than refused for good.
    */
   cache: boolean;
+
   /** How far the model's download has got, from 0 to 1, for a page to show while the first read waits on it. */
   progress?: (fraction: number) => void;
 }
@@ -58,14 +62,18 @@ export interface WasmOptions {
  */
 export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Promise<void> } {
   const idle: Worker[] = [];
+
   /** Every worker started and not yet let go, idle or reading, which is what `terminate` has to stop. */
   const live = new Set<Worker>();
+
   let closed = false;
+
   /**
    * Reads queued for a worker, each able to be failed as well as handed one: a worker replaced after a trap is spawned
    * for whoever was waiting, and a spawn that fails has to reach that read rather than leave it waiting for good.
    */
   const waiting: { resolve: (worker: Worker) => void; reject: (error: unknown) => void }[] = [];
+
   let started = 0;
 
   const create = (cacheMethod: 'write' | 'refresh' | 'none') =>
@@ -227,6 +235,7 @@ export function tesseractWasm(options: WasmOptions): Engine & { terminate(): Pro
         throw new Error(`tesseract.js: ${String(error)}`, { cause: error });
       }
     },
+
     /**
      * Every worker, idle or part way through a read, and every read still waiting for one, which fails rather than
      * waiting on a pool that will never hand it a worker. A read already under way ends however its worker's stopping

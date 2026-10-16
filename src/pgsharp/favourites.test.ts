@@ -42,6 +42,7 @@ test('a <wpt> becomes a flagged Point and a <trk> a Route of triples', () => {
     {
       // The variant is suffixed in brackets, which is what tells one of a short/long pair from the other.
       name: '🇦🇺 Tan Track, Melbourne, Australia (long)',
+
       points: [
         [-37.8, 144.97, 65536],
         [-37.81, 144.98, 65536],

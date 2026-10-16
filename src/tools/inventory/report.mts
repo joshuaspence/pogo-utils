@@ -16,15 +16,17 @@ import { screenIn, type Image } from './png.mts';
 
 /** What every reader made of one screenshot, with the lines OCR handed them for anyone asking why. */
 export interface Reading {
-  /** The lines read off the screen, which every reader but the moves was given. */
-  lines: Line[];
-  /** The lines read off the whole stitch, which the moves were read off; the same array where there was no stitch. */
-  whole: Line[];
   detail: Detail;
   moves: Moves;
   box: OverlayBox | null;
   overlay: Overlay | null;
   identity: Identity;
+
+  /** The lines read off the screen, which every reader but the moves was given. */
+  lines: Line[];
+
+  /** The lines read off the whole stitch, which the moves were read off; the same array where there was no stitch. */
+  whole: Line[];
 }
 
 /**
@@ -59,8 +61,10 @@ export async function readScreen(
   configured?: OverlayBox,
 ): Promise<Reading> {
   const screen = screenIn(image);
+
   // Side by side where there are two, the reads being of different images and wanting nothing of each other.
   const [lines, stitched] = await Promise.all([readLines(screen), screen === image ? undefined : readLines(image)]);
+
   const whole = stitched ?? lines;
   const detail = await parseDetail(lines, data, screen);
   const found = configured

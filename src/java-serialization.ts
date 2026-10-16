@@ -66,6 +66,7 @@ export const JavaSer = (() => {
     F: { cls: 'java.lang.Float', uid: 0xdaedc9a2db3cf0ecn },
     Z: { cls: 'java.lang.Boolean', uid: 0xcd207280d59cfaeen },
   };
+
   /**
    * The same table the other way round, and an index signature rather than the four keys, because what indexes it is a
    * class name read out of the stream.
@@ -235,6 +236,7 @@ export const JavaSer = (() => {
       this.handles.push({ kind: 'class', desc });
       return desc;
     }
+
     /**
      * The JVM assigns an object's handle before its fields are read, so a self-referential object can cite itself;
      * reserve the slot, back-patch it.
@@ -243,12 +245,14 @@ export const JavaSer = (() => {
       this.handles.push({ kind: 'value', value: null });
       return this.handles.length - 1;
     }
+
     /**
      */
     resolveValueHandle(slot: number, value: JavaValue) {
       this.handles[slot] = { kind: 'value', value };
       return value;
     }
+
     /**
      * The entry a back-reference cites, with its index for the message. Reading the slot is the whole bounds check: a
      * handle below the table or past its end answers `undefined` either way, where a range test and then an index are
@@ -264,6 +268,7 @@ export const JavaSer = (() => {
 
       return { h, entry };
     }
+
     refValue() {
       const { h, entry } = this.refHandle();
 
@@ -325,6 +330,7 @@ export const JavaSer = (() => {
       desc.super = this.classDesc();
       return desc;
     }
+
     /**
      * A class or object annotation, discarded. This is the only place block data appears, so it is consumed here rather
      * than returned from `content`, which answers what a field or a map entry can hold — and a byte array is not one of
@@ -350,6 +356,7 @@ export const JavaSer = (() => {
         }
       }
     }
+
     readPrimitive(tcode: string) {
       switch (tcode) {
         case 'I':
@@ -406,6 +413,7 @@ export const JavaSer = (() => {
 
       throw err(`unsupported tag 0x${tag.toString(16)} at offset ${this.p - 1}`);
     }
+
     /**
      * One class's declared fields. Only HashMap's writeObject payload is needed downstream, so a value is read to
      * advance the stream rather than because anything looks at it — bar a box's `value`, which `object` takes from the
@@ -420,6 +428,7 @@ export const JavaSer = (() => {
 
       return values;
     }
+
     object() {
       const desc = this.classDesc();
 
@@ -601,6 +610,7 @@ export const JavaSer = (() => {
       this.push(b);
       this.strHandles.set(s, this.claim());
     }
+
     /**
      * One superclass parameter rather than a name and a uid, because the two are meaningless apart and nothing at the
      * type level could say that the second is present whenever the first is. `NUMBER` is already exactly this shape.
@@ -639,6 +649,7 @@ export const JavaSer = (() => {
         this.classDesc(superclass.name, superclass.uid, SC_SERIALIZABLE, []);
       }
     }
+
     box(b: Box) {
       const info = BOX[b.code];
       this.u1(TC_OBJECT);

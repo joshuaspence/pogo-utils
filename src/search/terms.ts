@@ -231,6 +231,7 @@ export const GROUPS: readonly Group[] = [
     id: 'origin',
     label: 'How you got it',
     hue: 200,
+
     /*
      * Three of these the game does not answer the way the label reads, per the community phrase list. They keep their
      * chips — the game takes all three terms — but the help says so, this page's output being what a mass transfer is
@@ -242,6 +243,7 @@ export const GROUPS: readonly Group[] = [
       'phrase list reports: `EX raid` returns nothing now, the raids being long past the dates it looks at; `Primal ' +
       'raid` is not working; and `From Team GO Rocket` misses shadows that came from a raid or from research, which ' +
       '`Shadow` or `Purified` will find.',
+
     terms: [
       { id: 'traded', term: 'traded', label: 'Traded' },
       { id: 'hatched', term: 'hatched', label: 'Hatched' },
@@ -334,6 +336,7 @@ export const GROUPS: readonly Group[] = [
       'A regional variant answers to its region. `kanto` is the odd one of the five: it is the Kanto region with the ' +
       'variants taken out, which is both what makes it the Kantonian form and what makes it narrower than the Gen 1 ' +
       'chip — `1-151` matches an Alolan Vulpix, where `kanto` does not.',
+
     terms: [
       { id: 'kanto', term: 'kanto', label: 'Kantonian' },
       { id: 'alola', term: 'alola', label: 'Alolan' },
@@ -384,6 +387,7 @@ export const GROUPS: readonly Group[] = [
      * a moveset can reach, are both answers out of the type chart, and nothing in this repository holds one.
      */
     exhaustive: true,
+
     help:
       'A move of this type, in any of the slots. `@` reads a type before it reads a move name, so `@psychic` is the ' +
       'type and the move of that name wants `@psychi`.',
@@ -394,6 +398,7 @@ export const GROUPS: readonly Group[] = [
     label: 'Generation',
     hue: 240,
     help: 'A generation is searched as the dex numbers it spans — the game has no `gen1`.',
+
     /**
      * A generation is not a search term — there is no `gen1` — so each chip is the dex span it covers, which is why
      * these are terms rather than one of the numeric ranges below. `pokemon/generations.js` owns the boundaries; this

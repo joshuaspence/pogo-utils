@@ -20,6 +20,7 @@ import { SENTINEL, type FilterConfig } from './filter-format.js';
 
 export interface DisplayFilter {
   _lpm_display_filter: typeof SENTINEL;
+  exported_at: string;
 
   /**
    * Only the two fields this repository has an opinion about. The importer spreads `config` over Live PokeMap's own
@@ -32,8 +33,6 @@ export interface DisplayFilter {
    * cannot know of a wild encounter before something checks it, so a `true` here would hide the species being hunted.
    */
   config: Pick<FilterConfig, 'speciesFilterMode' | 'speciesFilterList'> & { speciesFilterMode: 'allowlist' };
-
-  exported_at: string;
 }
 
 /**

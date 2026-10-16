@@ -136,10 +136,13 @@ export default function IntegrationsPage() {
   const [status, setStatus] = useState<Status | null>(null);
   const [running, setRunning] = useState(false);
   const [filterStatus, setFilterStatus] = useState<Status | null>(null);
+
   // Read once: a device does not change platform while the page is open.
   const [platform] = useState(currentPlatform);
+
   const [allBuilds, setAllBuilds] = useState(false);
   const builds = COIN_BAG_BUILDS[allBuilds ? 'other' : platform];
+
   // The top bar has usually asked for both already, in which case this is handed the same loads.
   const { release } = useReleaseStore(releaseStore);
   const { release: coinBag } = useReleaseStore(coinBagReleaseStore);

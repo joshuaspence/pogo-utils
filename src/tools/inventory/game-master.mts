@@ -18,13 +18,15 @@ import { fold } from './ocr.mts';
 export interface Form {
   dex: number;
   species: string;
-  /** `Alola`, `Paldea Aqua`, or null for the ordinary form, as the overlay spells it. */
-  form: string | null;
   costume: boolean;
   types: string[];
   attack: number;
   defense: number;
   stamina: number;
+
+  /** `Alola`, `Paldea Aqua`, or null for the ordinary form, as the overlay spells it. */
+  form: string | null;
+
   /**
    * The file `pogo_assets` holds this form's artwork under, or null where it holds none — the only thing that
    * separates forms whose stats and types are identical.
@@ -34,6 +36,7 @@ export interface Form {
    * have narrowed.
    */
   icon: string | null;
+
   /**
    * Every move this form can hold: the ordinary pools, the elite ones a legacy Pokémon may carry, Rayquaza's
    * untradeable Dragon Ascent, and the Frustration and Return a shadow or purified one has. Reading a move against
@@ -52,6 +55,7 @@ export interface GameData {
   moves: Move[];
   species: string[];
   types: string[];
+
   /** Every level from 1 to 51 in half steps, against its CP multiplier. */
   cpm: [number, number][];
 }

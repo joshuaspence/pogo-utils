@@ -93,32 +93,42 @@ const ICONS: ReadonlyMap<Form, Signature> = new Map(
  * reading confirmed.
  */
 interface Defects {
+  tags?: string[];
+  types?: string[];
+  nickname?: string;
+  cp?: number;
+  alternatives?: string[];
+
   /** Null where `findOverlay` finds no box on a screen that plainly carries an overlay. */
   box?: null;
+
   /** True where `isFavourite` reads gold in the star corner of a Pokémon whose star is a white outline. */
   favourite?: boolean;
+
   /** What the height reads as where the size pill drawn over it corrupts the digits. */
   height?: number;
+
   /**
    * What `readOverlay` makes of the triple where it is not what PGSharp drew: `null` where it reads nothing out of a
    * box `findOverlay` did find, and the triple itself where it reads one that is wrong.
    */
   iv?: IVs | null;
+
   /** The name under the artwork, which is the nickname where one is set and so carries no species to fall back on. */
   name?: string;
+
   /** The bracketed form `readOverlay` reads, where it is not the one PGSharp drew. */
   suffix?: string | null;
+
   /** What `sizeOf` makes of the badge, `null` where it finds none above a height that wears one. */
   size?: Size | null;
-  tags?: string[];
-  types?: string[];
+
   /** The whole label `identify` answers, where it is not this Pokémon's own. */
   label?: string;
-  nickname?: string;
+
   /** Every level `identify` still admits, where the row states the one the Pokémon is actually at. */
   levels?: number[];
-  cp?: number;
-  alternatives?: string[];
+
   /**
    * The forms `identify` answers as sharing every number this one does, which nothing the screen prints could have
    * separated. A defect in that the row states one Pokémon and the readers reach several, and one the artwork is the
@@ -126,6 +136,7 @@ interface Defects {
    * game draws none for.
    */
   unseparated?: string[];
+
   /**
    * Every note `identify` answers, in its order — including the two that are derived from `alternatives` and from
    * `unseparated` where this is absent, and which have to be written out where it is present.
@@ -148,43 +159,53 @@ interface Defects {
  * screen can state. The alternative is every field written out on every row, which nobody reads.
  */
 interface Fixture {
-  /** The scene behind the artwork, or absent for the game's own plain sky. Described, the game showing no label. */
-  background?: string;
-  /** What the artwork wears, or absent for nothing. Described rather than named, the game showing no label either. */
-  costume?: string;
-  /** The CP above the artwork, which OCR reads on only the captures the CP test below names. */
-  cp: number;
   defects?: Defects;
-  /** Whether the game draws the Dynamax treatment behind the artwork. */
-  dynamax?: boolean;
   favourite?: boolean;
   file: string;
-  /** Whether the game draws the Gigantamax treatment behind the artwork. */
-  gigantamax?: boolean;
-  /** The game master's own name for the form, `null` for a base form. */
-  form: string | null;
   gender: Gender;
   height: number;
   hp: number;
   lucky?: boolean;
+  purified?: boolean;
+  shadow?: boolean;
+  shiny?: boolean;
+  size?: Size;
+  types: string[];
+  weight: number;
+
+  /** The scene behind the artwork, or absent for the game's own plain sky. Described, the game showing no label. */
+  background?: string;
+
+  /** What the artwork wears, or absent for nothing. Described rather than named, the game showing no label either. */
+  costume?: string;
+
+  /** The CP above the artwork, which OCR reads on only the captures the CP test below names. */
+  cp: number;
+
+  /** Whether the game draws the Dynamax treatment behind the artwork. */
+  dynamax?: boolean;
+
+  /** Whether the game draws the Gigantamax treatment behind the artwork. */
+  gigantamax?: boolean;
+
+  /** The game master's own name for the form, `null` for a base form. */
+  form: string | null;
+
   /** The name the screen prints under the artwork, which defaults to the species and is a nickname where it differs. */
   name?: string;
+
   /**
    * PGSharp's overlay as it is drawn on this screen, or null where PGSharp drew none at all. One object rather than a
    * nullable level beside a nullable triple, so "this capture has no knowable level or IVs" is structural. `suffix` is
    * the bracketed form, which PGSharp appends for Unown and Spinda and nothing else.
    */
   overlay: { iv: IVs; level: number; suffix?: string } | null;
-  purified?: boolean;
-  shadow?: boolean;
-  shiny?: boolean;
-  size?: Size;
+
   /** The species as the game master names it, which a nicknamed screen does not print. */
   species: string;
+
   /** The chips under the HP, as names once resolved against `TAGS`. */
   tags?: string[];
-  types: string[];
-  weight: number;
 }
 
 /**
@@ -797,6 +818,7 @@ const read = async (file: string) => {
     box,
     overlay,
     artwork,
+
     // The end of the pipeline, memoised with the readings it is derived from. It is pure and cheap, but each of a
     // capture's eighteen attributes is a test of its own, and caching it says outright that the eighteen are asserting
     // one answer rather than eighteen separately-derived ones.

@@ -40,19 +40,21 @@ export const NOTIFY_ATTEMPTS = 3;
 
 export interface WatchOptions {
   client: LivePokeMap;
+  queries: readonly Query[];
+  signal: AbortSignal;
+  now?: () => number;
+  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  random?: () => number;
+
   /**
    * Where to send each match. Without it the watcher runs console only: a match is printed in full, through `log`, and
    * remembered as notified all the same, so it is printed once rather than on every poll that carries it.
    */
   ntfy?: Ntfy;
-  queries: readonly Query[];
-  signal: AbortSignal;
+
   /** Every line worth saying. `debug` is for what only `--verbose` asks to hear. */
   log: (line: string) => void;
   debug?: (line: string) => void;
-  now?: () => number;
-  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
-  random?: () => number;
 }
 
 const sleepFor = async (ms: number, signal: AbortSignal) => {
@@ -309,12 +311,14 @@ export function firstAnswer(answer: ViewportResponse): string {
 interface Match {
   spawn: Spawn;
   reasons: Reason[];
+
   /** The queries that want it, by name. */
   by: string[];
 }
 
 interface Matches {
   found: Match[];
+
   /**
    * How many spawns came without a dex number, which `toSpawn` reads as 0. No species filter can look one up, so none
    * is matched — but every spawn arriving that way is the feed changing shape rather than nothing to find, so they are

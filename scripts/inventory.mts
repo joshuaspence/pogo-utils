@@ -317,6 +317,7 @@ async function scan() {
   const data = await loadGameData(CACHE, options.refresh);
   const icons = await iconsFor(CACHE, data, options.refresh);
   const flags = options.flags === undefined ? DEFAULT_FLAGS : parseFlags(options.flags);
+
   // The chips under the HP say which tags a Pokémon carries, so this is a vocabulary rather than a list to search for:
   // the names are the user's own, and only something to match against can say that `Shiny SJ` is the `Shiny` chip with
   // its `✦` read as letters. Storage's own TAGS tab is where they come from.
@@ -324,10 +325,12 @@ async function scan() {
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean);
+
   const screens = options['keep-screens'];
   const shot = await device.screenshot();
   const { at, tap, swipe, search, tileLabel, firstTile } = storage(device, config, data, shot);
   let overlayBox: OverlayBox | null = config.overlay ?? null;
+
   // A phone with PGSharp's overlay switched off would otherwise sweep for it on every Pokémon, for ever.
   let searchesLeft = 5;
 
@@ -345,11 +348,14 @@ async function scan() {
   interface Reading {
     detail: Detail;
     overlay: Overlay | null;
+    key: string | null;
+
     /** Worked out while reading, since a reading is only accepted once something fits it; the row writer reuses it. */
     id: Identity;
-    key: string | null;
+
     /** The screenshot this reading was read from, which the `-detail` screen has to be to account for its row. */
     image: Image;
+
     /**
      * The last screenshot taken, which is `image` on every reading but one `bestOf` kept from an earlier attempt. The
      * scroll owes `scrollFrames` a frame still on the screen and measures its swipe against one, where an attempt back
@@ -359,6 +365,7 @@ async function scan() {
      * the stitch is the capture a fixture is promoted from and the row is what a reader would take its claims for.
      */
     latest: Image;
+
     /**
      * How much of this reading is in doubt, as a score to be got to zero. Recorded with the reading rather than worked
      * out again when two are compared: `overlayBox` is found part way through a pass, and a score that moved with it
@@ -660,9 +667,11 @@ async function scan() {
 
       const row: Record<(typeof COLUMNS)[number], string | number | null> = {
         index: index + 1,
+
         // A nickname says nothing of the species, so a Pokémon `identify` could not place is left blank rather than
         // filed under it.
         species: id.form?.species ?? (id.nickname === null ? detail.name : null),
+
         nickname: id.nickname,
         dex: id.form?.dex ?? null,
         form: id.form?.form ?? null,
@@ -733,8 +742,10 @@ async function settled(device: Device): Promise<Image> {
 /** What a scroll capture took, and what `stitch` and the way back up need from it. */
 interface Capture {
   frames: Image[];
+
   /** The shift between each consecutive pair, as `stitch` takes them, and what they sum to is the way back up. */
   offsets: number[];
+
   /** Whether it stopped on two frames that would not line up, rather than on reaching the end. */
   lost: boolean;
 }
@@ -1000,6 +1011,7 @@ async function snap() {
   const capture = await scrollFrames(device, image);
   const total = capture.offsets.reduce((a, b) => a + b, 0);
   const scrolled = `${capture.offsets.join(' + ') || 0} = ${total} pixels`;
+
   // `Viewport` is the one thing a stitch cannot say about itself: its own `IHDR` height is as many frames as the screen
   // took, so the height the phone drew is unrecoverable from the file, and the file is the only place that travels with
   // it. Written on the stitch alone, a screen's own height being that number already — which is why the plain

@@ -36,6 +36,7 @@ function lastIndexOf(bytes: Uint8Array, needle: Uint8Array): number {
  */
 export function statusCut(bytes: Uint8Array, command: readonly string[]): Uint8Array {
   const at = lastIndexOf(bytes, new TextEncoder().encode(`\n${EXIT_MARK}`));
+
   // Digits or nothing: a marker with the run cut off after it decodes to '', which `Number` would read as a clean 0.
   const digits = at < 0 ? '' : new TextDecoder().decode(bytes.subarray(at + EXIT_MARK.length + 1));
   const status = /^\d+$/.test(digits) ? Number(digits) : NaN;
@@ -90,6 +91,7 @@ export interface Phone {
   name: string;
   transport: Transport;
   close(): Promise<void>;
+
   /** Settles once the connection is over: resolving where it was closed, rejecting where the phone was unplugged. */
   disconnected: Promise<void>;
 }
@@ -204,6 +206,7 @@ export async function connect(): Promise<Phone | null> {
     transport: {
       // Authenticated is what `adb get-state` calls `device`; a phone that refused the key never gets this far.
       state: () => Promise.resolve('device'),
+
       shell: run,
       screencap: () => run(['screencap', '-p']),
     },

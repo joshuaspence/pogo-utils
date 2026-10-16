@@ -186,14 +186,17 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     const form: Form = {
       dex,
       species: strings.get(`pokemon_name_${match[1]}`) ?? titleise(settings.pokemonId),
+
       // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it.
       form: ORDINARY.test(suffix) ? null : titleise(suffix),
+
       costume: settings.form !== undefined && costumes.has(settings.form),
       icon: iconName(index, dex, suffix, settings.form),
       types: [settings.type, settings.type2].filter((t) => t !== undefined).map(typeName),
       attack: baseAttack,
       defense: baseDefense,
       stamina: baseStamina,
+
       // A handful of pool entries are bare numbers where every move template is named, so some do not resolve; the
       // reader falls back on the whole list when nothing in the pool fits, which is also what covers a move the game
       // has since dropped from the pool of a Pokémon still holding it.

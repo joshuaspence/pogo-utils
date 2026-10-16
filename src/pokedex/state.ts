@@ -30,6 +30,7 @@ export const FLAGS: readonly Toggle[] = [
   { id: 'shiny', label: '✨ Has a shiny', test: (entry) => entry.shiny },
   { id: 'wild', label: '🌿 Spawns in the wild', test: (entry) => entry.spawns },
   { id: 'forms', label: 'Has forms', test: (entry) => entry.variants.length > 0 },
+
   // The annotation above reaches the three literals written here and stops at the `map`, so the callback says what it
   // answers itself — as `HUNT_FLAGS` below has to for the same reason.
   ...CATEGORIES.map(({ id, label }): Toggle => ({ id, label, test: (entry) => entry.categories.includes(id) })),

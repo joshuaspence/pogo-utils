@@ -692,6 +692,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
     return {
       count: parts.join(' · '),
+
       /**
        * Keyed by the bucket, which an anonymous `<>` cannot be — and a bucket is what comes and goes here, only the
        * non-empty ones being drawn. Unkeyed, the four are matched by position, so a search term emptying "Happening

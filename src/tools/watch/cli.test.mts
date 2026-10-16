@@ -375,6 +375,7 @@ test('a 200 that is not JSON is retried at start rather than taken for an answer
       signal: controller.signal,
       log: (line) => lines.push(line),
       random: () => 0.5,
+
       // The first wait is the retry at start, the second the interval after a first poll that start reached.
       sleep: async () => {
         if (++waits === 2) {

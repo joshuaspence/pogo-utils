@@ -62,6 +62,7 @@ test('a model that is not the pinned one is refused before anything is read with
   const engine = tesseractWasm({ langPath: 'somewhere', workers: 1, cache: true });
 
   await expect(engine.tsv(image, 7)).rejects.toThrow(/somewhere is not tessdata_fast 4.1.0's/);
+
   // Kept and then fetched again once, `refresh` replacing whatever was kept, before it is refused.
   expect(createWorker.mock.calls.map((call) => (call[2] as { cacheMethod: string }).cacheMethod)).toStrictEqual([
     'write',

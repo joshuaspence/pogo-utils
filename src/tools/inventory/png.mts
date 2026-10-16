@@ -111,6 +111,7 @@ export function decodePng(bytes: Uint8Array): Image {
   let channels = 0;
   let ended = false;
   const idat: Uint8Array[] = [];
+
   // Null-prototype, so a file is free to carry `__proto__` as a keyword: assigning that name on a plain object reaches
   // the inherited setter and is a silent no-op, which would drop the keyword *beside* it from the same chunk.
   const text: Record<string, string> = Object.create(null);

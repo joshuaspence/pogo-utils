@@ -19,10 +19,11 @@ import { toHash } from './router.js';
 
 /** One entry in the list, whatever kind of thing it reports. */
 export interface Notice {
-  /** Unique across every kind, so a source prefixes its own IDs. */
-  key: string;
   title: string;
   detail: string;
+
+  /** Unique across every kind, so a source prefixes its own IDs. */
+  key: string;
 
   /** Where choosing it takes the reader. */
   href: string;
