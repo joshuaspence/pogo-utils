@@ -1,0 +1,40 @@
+---
+name: 'Claude'
+
+on:
+  issue_comment:
+    types:
+      - 'created'
+  issues:
+    types:
+      - 'opened'
+  pull_request:
+    types:
+      - 'opened'
+      - 'ready_for_review'
+      - 'reopened'
+      - 'synchronize'
+  pull_request_review:
+    types:
+      - 'submitted'
+  pull_request_review_comment:
+    types:
+      - 'created'
+
+# No permissions by default.
+permissions: {}
+
+jobs:
+  claude:
+    # A Dependabot pull request is passed no secrets, so its review would be refused a token and fail with a notice that
+    # it reached no verdict. `github.event.pull_request` is unset on `issue_comment` and `issues`, so a mention in a
+    # bot's pull request's conversation still runs.
+    if: "github.event.pull_request.user.type != 'Bot'"
+    uses: 'spence-com-au/claude-code-action/.github/workflows/claude.yaml@master'
+    permissions:
+      contents: 'write'
+      id-token: 'write'
+      issues: 'write'
+      pull-requests: 'write'
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: '${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}'
