@@ -1,9 +1,9 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 
-import { ReleaseStore } from './release-store.js';
+import { fetchVendedRelease, ReleaseStore } from './release-store.js';
 import { installFakeStorage, type FakeStorage } from './testing/storage.js';
 
-import type { Release } from './release.js';
+import type { VendedRelease } from './release.js';
 
 const ACKNOWLEDGED_KEY = 'pogo-utils:test:acknowledged';
 
@@ -13,13 +13,14 @@ beforeEach(() => {
   storage = installFakeStorage();
 });
 
-const release = (version: string): Release => ({
+const release = (version: string): VendedRelease => ({
   version,
   url: `https://dl.pgsharp.com/pgs${version}_0.431.0_XsfbL(arm64).apk`,
+  firstSeen: '2026-10-12T16:00:59.536Z',
 });
 
 /** A store over a fresh document: the file as it stands at the time, read once, the way a page load reads it. */
-async function visit(current: Release | null) {
+async function visit(current: VendedRelease | null) {
   const store = new ReleaseStore(ACKNOWLEDGED_KEY, async () => current);
 
   await store.ensureLoaded();
@@ -112,4 +113,30 @@ test('each store keeps its own acknowledgement, so clearing one app leaves the o
 
   expect(one.unacknowledged()).toBeNull();
   expect(two.unacknowledged()?.version).toBe('1.273.0');
+});
+
+/** `fetchVendedRelease` over a file holding `body`, checked by a `check` that takes any URL. */
+async function fetchFile(body: object) {
+  vi.stubGlobal('fetch', async () => Response.json(body));
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+
+  try {
+    return await fetchVendedRelease('data/test-release.json', (url) => ({ version: '1.273.0', url }));
+  } finally {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
+}
+
+test('the vended file carries the day the release was first seen, which the notification shows', async () => {
+  const { url, firstSeen } = release('1.273.0');
+
+  expect(await fetchFile({ url, firstSeen })).toEqual(release('1.273.0'));
+});
+
+test('a file without a date it can read is refused, rather than failing later when the date is drawn', async () => {
+  const { url } = release('1.273.0');
+
+  expect(await fetchFile({ url })).toBeNull();
+  expect(await fetchFile({ url, firstSeen: 'yesterday' })).toBeNull();
 });

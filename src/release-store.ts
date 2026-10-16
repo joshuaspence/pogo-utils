@@ -18,14 +18,14 @@
 import { useEffect, useState } from 'preact/hooks';
 
 import { said } from './errors.js';
-import type { Release } from './release.js';
+import type { Release, VendedRelease } from './release.js';
 
 /**
  * The release a vend script last wrote to `path`, its URL put back through the same `check` the vend did, so whatever
  * links to it links to where that app is served or to nothing read here. A miss of any kind is null rather than a
  * failure: the button falls back to the app's unversioned link, and the notifications report nothing.
  */
-export async function fetchVendedRelease(path: string, check: (url: string) => Release): Promise<Release | null> {
+export async function fetchVendedRelease(path: string, check: (url: string) => Release): Promise<VendedRelease | null> {
   try {
     const res = await fetch(path, { cache: 'default' });
 
@@ -33,13 +33,18 @@ export async function fetchVendedRelease(path: string, check: (url: string) => R
       throw new Error(`${res.status} ${res.statusText}`);
     }
 
-    const raw: Partial<Release> = await res.json();
+    const raw: Partial<VendedRelease> = await res.json();
 
     if (typeof raw.url !== 'string') {
       throw new Error('no url');
     }
 
-    return check(raw.url);
+    // Checked here rather than where it is formatted, which would throw on an invalid date mid-render.
+    if (typeof raw.firstSeen !== 'string' || Number.isNaN(Date.parse(raw.firstSeen))) {
+      throw new Error('no firstSeen');
+    }
+
+    return { ...check(raw.url), firstSeen: raw.firstSeen };
   } catch (e) {
     console.error(`${path}: ${said(e)} — no version to show`);
     return null;
@@ -52,7 +57,7 @@ export async function fetchVendedRelease(path: string, check: (url: string) => R
  */
 export class ReleaseStore {
   /** Null until a load lands, and after one that found nothing it could trust. */
-  release: Release | null = null;
+  release: VendedRelease | null = null;
 
   /**
    * Under `KEY_PREFIX`, so `src/backup.ts`'s sweep carries it. Stored as a JSON string rather than the bare version,
@@ -60,11 +65,11 @@ export class ReleaseStore {
    */
   readonly acknowledgedKey: string;
 
-  readonly #fetchRelease: () => Promise<Release | null>;
+  readonly #fetchRelease: () => Promise<VendedRelease | null>;
   readonly #listeners = new Set<() => void>();
   #loaded: Promise<void> | null = null;
 
-  constructor(acknowledgedKey: string, fetch: () => Promise<Release | null>) {
+  constructor(acknowledgedKey: string, fetch: () => Promise<VendedRelease | null>) {
     this.acknowledgedKey = acknowledgedKey;
     this.#fetchRelease = fetch;
   }
@@ -81,7 +86,7 @@ export class ReleaseStore {
    * Null too with no version stored at all, which after a load means storage that would not take the baseline. That
    * reader cannot clear a notice either, so showing one would show it on every visit for good.
    */
-  unacknowledged(): Release | null {
+  unacknowledged(): VendedRelease | null {
     const release = this.release;
     const acknowledged = this.#readAcknowledged();
 
