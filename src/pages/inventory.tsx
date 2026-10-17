@@ -1,7 +1,7 @@
 /**
  * The Inventory page: one Pokémon's detail screen read end to end in the browser, which is what `pnpm inventory snap`
- * and `parse` do from a terminal. A phone connected over WebUSB is asked for whatever it is showing, or a PNG already
- * saved is dropped in, and the page prints what every reader makes of it — the same four blocks `parse` prints, from
+ * and `parse` do from a terminal. A phone connected over WebUSB — from the settings menu, which every tab shares — is
+ * asked for whatever it is showing, or a PNG already saved is dropped in, and the page prints what every reader makes of it — the same four blocks `parse` prints, from
  * the same `readScreen`.
  *
  * A screen a scan could not have used is refused, with the reason, rather than answered with a page of nulls: the map,
@@ -18,9 +18,8 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 
 import { said } from '../errors.js';
-import { connect, unreachable } from '../inventory/webusb.js';
 import { read, unreadable } from '../inventory/reader.js';
-import { phoneStore, usePhone } from '../phone-store.js';
+import { usePhone } from '../phone-store.js';
 import { Device } from '../tools/inventory/adb.mts';
 import { type Line } from '../tools/inventory/ocr.mts';
 import { decodePng, encodePng, type Image } from '../tools/inventory/png.mts';
@@ -100,7 +99,6 @@ export default function InventoryPage() {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
-  const blocked = unreachable();
   const unread = unreadable();
 
   // The capture as a PNG, encoded once for the picture below and the download beside it.
@@ -137,26 +135,6 @@ export default function InventoryPage() {
       setPhase({ kind: 'done', reading, refused: refusals(reading) });
     } catch (e) {
       setPhase({ kind: 'failed', message: said(e) });
-    }
-  }
-
-  async function pickPhone() {
-    setPhase({ kind: 'busy', message: 'Pick the phone in the browser’s chooser, then allow USB debugging on it…' });
-
-    try {
-      const picked = await connect();
-
-      // The chooser dismissed, which keeps whatever phone is already connected rather than letting it go for nothing.
-      if (picked === null) {
-        setPhase(phone ? { kind: 'idle' } : { kind: 'failed', message: 'No phone was picked.' });
-
-        return;
-      }
-
-      await phoneStore.hold(picked);
-      setPhase({ kind: 'idle' });
-    } catch (e) {
-      setPhase({ kind: 'failed', message: `Could not connect: ${said(e)}` });
     }
   }
 
@@ -231,25 +209,15 @@ export default function InventoryPage() {
           <h2>From a phone</h2>
 
           <p>
-            Plug in an Android phone with USB debugging on, open a Pokémon in Pokémon GO with PGSharp’s IV display
-            showing, and take whatever it shows. Close any <code>adb</code> server first: a phone held by one cannot be
-            claimed here. Where the connection will not come up, <a href="https://webadb.com/">WebADB</a> is a shell
-            over the same WebUSB to find out why. The phone stays connected from tab to tab, which is what lets the
-            Search tab type its string into storage, until it is unplugged or the site is closed.
+            Connect an Android phone from Settings (⚙️ in the top bar), open a Pokémon in Pokémon GO with PGSharp’s IV
+            display showing, and take whatever it shows.
           </p>
 
-          {blocked ? (
-            <p class="note">{blocked}</p>
-          ) : (
-            <div class="actions">
-              <button class="run" type="button" disabled={busy} onClick={() => void pickPhone()}>
-                {phone ? 'Connect another phone' : 'Connect a phone'}
-              </button>
-              <button class="run" type="button" disabled={busy || phone === null} onClick={() => void grab()}>
-                {phone ? `Read ${phone.name}’s screen` : 'Read the screen'}
-              </button>
-            </div>
-          )}
+          <div class="actions">
+            <button class="run" type="button" disabled={busy || phone === null} onClick={() => void grab()}>
+              {phone ? `Read ${phone.name}’s screen` : 'Read the screen'}
+            </button>
+          </div>
         </div>
 
         <div class="panel">
