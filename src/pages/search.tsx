@@ -1,21 +1,21 @@
 /**
- * The search-string builder page: a catalogue of pills on one side and the query you arrange them into on the other.
+ * The search-string builder page: the query laid out as cards, and a sheet of everything that can go on one.
  *
- * The arrangement *is* the state: the canvas holds a tree and `query.js` composes whatever is in it, so a bracket is a
- * group and a group is a thing on screen you drop a pill into.
+ * Every card has to match and any one pill on a card will do, which is the game's own shape — `&` between clauses, `,`
+ * within one — so the cards *are* the clauses and the string above them says what they say. `cards.js` holds every
+ * tree to that shape, a link or a typed query with brackets in it arriving multiplied out.
  *
  * A query can be typed in as well, and that is an import rather than a second composer: `parse.js` reads the brackets
- * into a tree, the canvas draws it, and the one composer takes it from there. Which is the whole difference between
- * the Advanced pane and the text box that used to sit beside the chips composing clauses of its own.
+ * into a tree, the cards draw it, and the one composer takes it from there.
  *
  * **The two panes are two views of one state, which is why they are tabs and not pages.** Arranging and typing reach
  * the same tree, so the output card sits above both and stays put as they swap: the answer is the constant and the
  * pane is only how this reader is feeding it. Nothing about the pane is in the link, a link carrying the arrangement
  * and the arrangement drawing in either.
  *
- * A pill reaches a group two ways, both ending in the same `commit`. Dragging is the one a pointer wants, tracked
- * through pointer capture so touch behaves like a mouse, with a few pixels of slop before a press counts as a drag.
- * Picking a pill up and putting it down is the one a keyboard wants, both halves being ordinary buttons.
+ * The catalogue is a modal sheet rather than a column under the cards, because on a phone that column was most of the
+ * page and the cards scrolled away while it was in use. A sheet is opened for one card, so each press in it is one
+ * more alternative on that card, and nothing a press does needs a group picked out first.
  *
  * Nothing here knows how a clause is written. The page asks `compose` what the query says and draws what it answers.
  */
@@ -37,22 +37,16 @@ import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
 import { bounded, GROUPS, PRESETS, RANGES, RANGES_BY_ID, type Range } from '../search/terms.js';
+import { added, asCards, holds, pillsOf, toggled } from '../search/cards.js';
+import { clausesOf } from '../search/clauses.js';
 import {
-  append,
-  chipState,
-  cycle,
-  group,
-  groupAt,
+  emptyTree,
   isGroup,
   leafLabel,
   leafText,
-  move,
-  NESTING,
-  nodeAt,
   spanned,
   update,
-  type ChipState,
-  type Junction,
+  type Group,
   type Leaf,
   type Node,
   type Path,
@@ -79,27 +73,14 @@ const COPY_ICON = 'M8 8h12v12H8zM4 16V4h12';
 const DONE_ICON = 'M5 12l5 5L19 7';
 const SAVE_ICON = 'M6 3h12v18l-6-4-6 4z';
 
-/** How far a press has to travel before it is a drag rather than a tap on the pill it started on. */
-const SLOP = 6;
-
 /**
- * What a catalogue chip wears in each of its three states — the glyph, and the words a screen reader is given instead
- * of the colour. The state is the chip's standing in the group being filled, which for a query built in the root alone
- * is the whole query.
+ * What a chip in the sheet wears in each of its two states — the glyph, and the words a screen reader is given instead
+ * of the colour. The state is whether the card the sheet was opened for already holds it.
  */
-const CHIP: Record<ChipState, { glyph: string; said: string }> = {
-  off: { glyph: '+', said: 'not used' },
-  in: { glyph: '✓', said: 'required' },
-  out: { glyph: '!', said: 'ruled out' },
-};
-
-/**
- * What a junction's button says, and what it means — the words rather than `&` and `,`, which the string already has.
- */
-const JUNCTION: Record<Junction, { label: string; said: string }> = {
-  all: { label: 'All of', said: 'every pill in this group has to match' },
-  any: { label: 'Any of', said: 'one pill in this group matching is enough' },
-};
+const CHIP = {
+  off: { glyph: '+', said: 'not on this card' },
+  in: { glyph: '✓', said: 'on this card' },
+} as const;
 
 /** Which way of writing the query is on show. Both feed the one arrangement; neither is a second state. */
 type Pane = 'builder' | 'advanced';
@@ -162,8 +143,8 @@ export const unmarked = (mark: string, text: string) => text.replace(mark.starts
  *
  * **Split on the comma**, through the same `names` the name box uses. A pill is one alternative within a clause and a
  * comma inside one is the game's own *or*, so `crunch,bite` left whole composed `@3crunch,bite` out of a single pill:
- * the game reads two alternatives there, `parse.js` reads it back as an `any` of two, and the canvas goes on showing
- * one pill that asks neither.
+ * the game reads two alternatives there, `parse.js` reads it back as an `any` of two, and the cards go on showing one
+ * pill that asks neither.
  *
  * **Split first, unmark second**, which is the order and not an arrangement of it. Unmarking the string instead took
  * the mark off its head alone, so a pasted `#keepers,#dupes` came out `#keepers` and `##dupes` — the same silent miss
@@ -183,8 +164,7 @@ export const unmarked = (mark: string, text: string) => text.replace(mark.starts
 export const marked = (mark: string, text: string) => names(text).map((part) => `${mark}${unmarked(mark, part)}`);
 
 /** What a term chip's tooltip says: the word the game reads, then what pressing it does. */
-const chipTitle = (term: string) =>
-  `${term} — press to require, again to rule out, again to drop; or drag into a group`;
+const chipTitle = (term: string) => `${term} — press to add it to this card, again to take it off`;
 
 /**
  * What a range chip's tooltip says: the shape a span of it is written in, then what pressing the chip does.
@@ -199,14 +179,13 @@ const chipTitle = (term: string) =>
 export const rangeTitle = (range: Range) => {
   const shape = range.prefix === '' && range.suffix === undefined ? 'a dex span' : spanned(range, '{N}');
 
-  return `${shape} — press to add a span, again to rule it out, again to drop`;
+  return `${shape} — press to add a span to this card, again to take it off`;
 };
 
-/** A path as an attribute, and back. The root group is the empty string, which is still an attribute that is there. */
+/** A path as a key. */
 const pathAttribute = (path: Path) => path.join('.');
-const pathOf = (attribute: string): Path => (attribute === '' ? [] : attribute.split('.').map(Number));
 
-/** Whether two paths name the same node, which is how the canvas knows which group is the current one. */
+/** Whether two paths name the same node, which is how a span's box knows it is the one being typed in. */
 const same = (one: Path, two: Path) => one.length === two.length && one.every((index, at) => two[at] === index);
 
 /** The length of the string, said in words. A one-character query is what the shortening makes reachable. */
@@ -270,7 +249,7 @@ const EDGES: Record<Edge, string> = { from: 'lowest', to: 'highest' };
  * end open writes `buddy0-`, which the phrase list reads as values at or above nought; a `to` on the ceiling with the
  * lowest open writes `buddy-5`, values at or below five; and the two of them picked the other way round — lowest five,
  * highest nought — is inverted, which `leafText` swaps into `buddy0-5`. All three are the whole of storage, and on a
- * *Safe to transfer* canvas the negated form of one excludes every Pokémon the reader owns from the string.
+ * *Safe to transfer* search the negated form of one excludes every Pokémon the reader owns from the string.
  *
  * So the floor goes from the lowest end, the ceiling from the highest, and each end is held to the other's side of the
  * span. Nothing is lost by any of it: a span that starts on the floor asks for the same set as one with that end left
@@ -370,7 +349,7 @@ const EXACT: Lossy = { narrowed: false, widened: false };
  *
  * The optimiser is offered the state and its answer taken only where it is genuinely shorter, so the toggle can never
  * cost characters. Empty does not count as shorter: every star rating at once really does reduce to no clause at all,
- * but a blank output box beside a canvas full of pills reads as a page that has broken rather than as a search for
+ * but a blank output box beside cards full of pills reads as a page that has broken rather than as a search for
  * everything.
  */
 function current(state: State) {
@@ -399,26 +378,29 @@ interface Sent {
   message: string;
 }
 
-/** A pill on its way somewhere: what is moving, where it came from, and where the pointer has it now. */
-interface Drag {
-  node: Node;
-  from: Path | null;
-  x: number;
-  y: number;
-  over: Path | null;
-  moved: boolean;
+/**
+ * A tree as the cards the Builder draws. One spreading past what a search box takes has none: only a hand-made link
+ * can arrive like that, the Advanced pane refusing such a query before it reaches here.
+ */
+const cards = (tree: Node): Group => asCards(tree) ?? emptyTree();
+
+/** The state a link describes, laid out as cards. */
+function arrived(fragment: string): State {
+  const state = fromFragment(fragment);
+
+  return { ...state, tree: cards(state.tree) };
 }
 
 export default function SearchPage({ query: fragment }: { query: string }) {
-  const [state, setState] = useState<State>(() => fromFragment(fragment));
+  const [state, setState] = useState<State>(() => arrived(fragment));
 
-  /** The group a clicked pill goes into, and the one a picked-up pill is put down in. The root to begin with. */
-  const [focus, setFocus] = useState<Path>([]);
+  /**
+   * The card the sheet is open for, by its index among the cards: one past the last for *Add a filter*, which starts a
+   * card with its first press. Null while the sheet is shut.
+   */
+  const [adding, setAdding] = useState<number | null>(null);
 
-  /** The pill a pointer is carrying, and the pill a keyboard has picked up. Only ever one of the two at a time. */
-  const [drag, setDrag] = useState<Drag | null>(null);
-  const [held, setHeld] = useState<{ node: Node; from: Path } | null>(null);
-
+  /** What is typed into the sheet's box: a name to add, and what narrows the chips beneath it. */
   const [typing, setTyping] = useState('');
 
   /** The two operator searches being typed, and the slot the `@` one asks about. A slot sticks; the text does not. */
@@ -437,8 +419,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * The text the arrangement was last built from, which is what *Use it* is disabled over.
    *
    * Pressing it replaces the arrangement, and the text staying in the box means it can be pressed a second time with
-   * the canvas since edited — which would rebuild the typed query over that work, silently, from a pane where the
-   * canvas is not even on screen. Holding the text that was used closes it: the button says *this query is already
+   * the cards since edited — which would rebuild the typed query over that work, silently, from a pane where the cards
+   * are not even on screen. Holding the text that was used closes it: the button says *this query is already
    * applied* until the reader changes the query, which is the press they kept the text for.
    */
   const [used, setUsed] = useState<string | null>(null);
@@ -471,11 +453,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const listRef = useRef<HTMLUListElement>(null);
   const queryRef = useRef<HTMLElement>(null);
   const namingRef = useRef<HTMLDialogElement>(null);
+  const sheetRef = useRef<HTMLDialogElement>(null);
 
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
-
-  /** The group a press fills: `focus`, or the nearest group above it once an edit has moved or removed it. */
-  const filling = groupAt(state.tree, focus);
+  const root = cards(state.tree);
 
   /**
    * The fragment this state would be linked as, which is both what goes in the address bar and when to put it there.
@@ -491,12 +472,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
   /**
    * A link pasted into the address bar of a page already open changes the fragment without reloading, and the shell
-   * hands the new query down as a prop. Reading it again here is what stops the canvas describing the previous visit.
+   * hands the new query down as a prop. Reading it again here is what stops the cards describing the previous visit.
    */
   useEffect(() => {
-    setState(fromFragment(fragment));
-    setFocus([]);
-    setHeld(null);
+    setState(arrived(fragment));
     setTyping('');
     setMarking('');
     setTagging('');
@@ -508,7 +487,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }, [fragment]);
 
   /**
-   * Written whenever it changes, which is what keeps the link and the canvas from disagreeing about what has been
+   * Written whenever it changes, which is what keeps the link and the cards from disagreeing about what has been
    * arranged. Keyed on the fragment rather than running after every render, which matters on the way *in*: a link
    * arriving sets the state from an effect, so the render it arrives on still holds the previous visit's.
    */
@@ -526,13 +505,12 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * A whole arrangement put on the canvas in place of the one there, which is what a preset, a favourite and a typed
-   * query each are. The focus, a held pill and a span box being typed in all name paths in the tree being replaced.
+   * A whole arrangement put on the cards in place of the one there, which is what a preset, a favourite and a typed
+   * query each are, laid out as cards on the way in. A span box being typed in names a path in the tree being
+   * replaced.
    */
   function arrange(tree: Node) {
-    setState((was) => ({ ...was, tree }));
-    setFocus([]);
-    setHeld(null);
+    setState((was) => ({ ...was, tree: cards(tree) }));
     setTypedBound(null);
   }
 
@@ -549,87 +527,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     return stored;
   }
 
-  /** The tree with one edit made to it. Every change to the arrangement comes through here. */
-  const edit = (change: (tree: Node) => Node) => setState((was) => ({ ...was, tree: change(was.tree) }));
-
   /**
-   * A pill landing in a group, whichever way it got there. One function because a drop and a put-down are the same
-   * act: a pill from the catalogue is added, and a pill already on the canvas is moved — which is the one case that
-   * has to correct its destination for the hole it leaves behind, and `move` is where that is done.
+   * The cards with one edit made to them. Every change to the arrangement comes through here, and through `cards` on
+   * the way out, so a card a removal has left with one pill or none is tidied whichever edit it was.
    */
-  function commit(node: Node, from: Path | null, to: Path) {
-    edit((tree) => (from === null ? append(tree, to, node) : move(tree, from, to)));
-    setFocus(to);
-
-    // A path names a pill only until something moves, and a box whose pill has gone would hand its digits to whatever
-    // takes that path next. Pressing a pill's own face does not blur its boxes, the press preventing the default.
-    setTypedBound(null);
-  }
-
-  /** The group under a point, for a drag to light up and drop into. */
-  function groupUnder(x: number, y: number): Path | null {
-    const found = document.elementFromPoint(x, y)?.closest('[data-group]');
-    const attribute = found?.getAttribute('data-group');
-
-    return attribute == null ? null : pathOf(attribute);
-  }
-
-  /**
-   * A press on something draggable. The pointer is captured so the move and the release arrive here however far the
-   * pointer wanders, and the default is prevented so a drag does not select the label it started on — which is also
-   * why the tap below is handled on release rather than left to a `click` that will not come.
-   *
-   * The element is read out of the event *now* rather than inside the two listeners below. A native event clears its
-   * `currentTarget` the moment dispatch finishes, so a listener that reached for it later found null and every drag
-   * ended as a press that did nothing.
-   */
-  function onPointerDown(event: PointerEvent, node: Node, from: Path | null, tap: () => void) {
-    const pressed = event.currentTarget;
-
-    if (event.button !== 0 || !(pressed instanceof HTMLElement)) {
-      return;
-    }
-
-    event.preventDefault();
-    pressed.setPointerCapture(event.pointerId);
-
-    const started = { x: event.clientX, y: event.clientY };
-    const past = (now: PointerEvent) =>
-      Math.abs(now.clientX - started.x) > SLOP || Math.abs(now.clientY - started.y) > SLOP;
-
-    const onMove = (moving: PointerEvent) => {
-      if (past(moving)) {
-        setDrag({
-          node,
-          from,
-          x: moving.clientX,
-          y: moving.clientY,
-          over: groupUnder(moving.clientX, moving.clientY),
-          moved: true,
-        });
-      }
-    };
-
-    const onUp = (up: PointerEvent) => {
-      pressed.removeEventListener('pointermove', onMove);
-      pressed.removeEventListener('pointerup', onUp);
-      pressed.removeEventListener('pointercancel', onUp);
-
-      const over = past(up) ? groupUnder(up.clientX, up.clientY) : null;
-
-      setDrag(null);
-
-      if (!past(up)) {
-        tap();
-      } else if (over !== null) {
-        commit(node, from, over);
-      }
-    };
-
-    pressed.addEventListener('pointermove', onMove);
-    pressed.addEventListener('pointerup', onUp);
-    pressed.addEventListener('pointercancel', onUp);
-  }
+  const edit = (change: (tree: Group) => Node) => setState((was) => ({ ...was, tree: cards(change(cards(was.tree))) }));
 
   /** A term from the catalogue, as the pill it will become. */
   const termLeaf = (id: string): Leaf => ({ kind: 'term', id, negated: false });
@@ -638,23 +540,44 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const rangeLeaf = (id: string): Leaf => ({ kind: 'range', id, from: null, to: null, negated: false });
 
   /**
-   * One press of a catalogue chip: the three-state toggle the chips have always been, read against the group being
-   * filled. Dragging is the other way in, and the one that can put a second copy of the same entry somewhere else.
+   * The sheet opened for a card, or for a new one past the last. The box starts empty so the whole catalogue shows, and
+   * nothing in the sheet is given the focus: the dialog's own first button takes it, which keeps a phone's keyboard
+   * from covering the chips most readers came for.
    */
-  const pressChip = (leaf: Leaf) => edit((tree) => cycle(tree, filling, leaf));
+  function openSheet(at: number) {
+    setAdding(at);
+    setTyping('');
+    closeSuggestions();
+    sheetRef.current?.showModal();
+  }
+
+  /** One press of a chip in the sheet, which adds it to the card being filled or takes it back off. */
+  function pressChip(leaf: Leaf) {
+    if (adding !== null) {
+      edit((tree) => toggled(tree, adding, leaf));
+    }
+  }
+
+  /** What a chip in the sheet wears, read off the card being filled. */
+  const chipState = (leaf: Leaf) => (adding !== null && holds(root, adding, leaf) ? 'in' : 'off');
+
+  /** Whether a catalogue entry matches what is typed into the sheet's box, by its label or the word the game reads. */
+  const wanted = (label: string, term: string) => {
+    const typed = typing.trim().toLowerCase();
+
+    return typed === '' || label.toLowerCase().includes(typed) || term.toLowerCase().includes(typed);
+  };
 
   /**
-   * Back to the blank page, which is every box on it rather than the canvas alone: a typed query left behind would sit
+   * Back to the blank page, which is every box on it rather than the cards alone: a typed query left behind would sit
    * full above an output box saying nothing was arranged, and the three text boxes are emptied for the same reason.
    *
    * The move slot is not, and nor is the Shorten toggle above it. Both are settings for whatever the reader does next
    * rather than leftovers of what they did last, and both say on screen which way they are set — where a box holds
-   * text that has already gone into a pill, and so says nothing true once the canvas is empty.
+   * text that has already gone into a pill, and so says nothing true once the cards are gone.
    */
   function clear() {
     setState((was) => ({ ...emptyState(), optimise: was.optimise }));
-    setFocus([]);
-    setHeld(null);
     setTyping('');
     setMarking('');
     setTagging('');
@@ -686,7 +609,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     namingRef.current?.showModal();
   }
 
-  /** The canvas saved as a favourite under the name typed, the dialog staying open on a refusal to say so. */
+  /** The cards saved as a favourite under the name typed, the dialog staying open on a refusal to say so. */
   function saveFavourite(event: Event) {
     event.preventDefault();
 
@@ -773,14 +696,14 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * A typed query put on the canvas, replacing whatever was there. Replacing rather than merging, because a reader who
+   * A typed query put on the cards, replacing whatever was there. Replacing rather than merging, because a reader who
    * has written a whole search means that search — and it is destructive, which is what `used` above is for: the
    * arrangement it overwrites is gone, there being nothing to restore it from. `replaceQuery` is `replaceState`
    * (`router.js`), so the link in the address bar is the new arrangement and the browser's Back button leaves the page
    * rather than stepping back through arrangements.
    *
    * The text stays in the box afterwards, being what the reader typed: the query to correct a bracket in and press
-   * again, and the only record of what was asked for once the canvas is showing the clauses it came to rather than the
+   * again, and the only record of what was asked for once the cards are showing the clauses it came to rather than the
    * brackets it was written with. Nothing but this function reads the box, so the two of them holding a query is no
    * state the page has to keep in step — the arrangement is still its only state.
    *
@@ -789,24 +712,32 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    */
   function importTyped() {
     const { tree, error } = read(typed);
+    const laid = tree === null ? null : asCards(tree);
 
-    setTypedError(error);
+    // A tree that parsed but will not lay out is one spreading past what a search box takes, which the composer says.
+    setTypedError(tree === null ? error : laid === null ? clausesOf(tree).error : null);
 
-    if (tree === null) {
+    if (laid === null) {
       return;
     }
 
-    arrange(tree);
+    arrange(laid);
     setUsed(typed);
   }
 
-  /** One name finished with, which becomes a pill in the current group. A nickname works as well as a species. */
+  /**
+   * One name finished with, which becomes a pill on the card being filled. A nickname works as well as a species, and
+   * several pasted at once are that many alternatives on the one card — `pikachu, eevee` is either of the two, where
+   * the two required at once would match nothing.
+   *
+   * Through `added` rather than `toggled`: the same name twice is one pill's worth of search, and `Enter` is easy to
+   * press twice without meaning to take the name off again.
+   */
   function takeName(text: string) {
-    // Through `cycle` rather than `append`, which is what it was: the same name twice is one pill's worth of search,
-    // and `Enter` is easy to press twice without meaning anything by it. `append` is for a drop, where the reader has
-    // said where the pill goes.
     for (const name of names(text)) {
-      edit((tree) => cycle(tree, filling, { kind: 'name', text: name, negated: false }));
+      if (adding !== null) {
+        edit((tree) => added(tree, adding, { kind: 'name', text: name, negated: false }));
+      }
     }
 
     setTyping('');
@@ -814,17 +745,19 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * One operator search finished with, as pills in the group being filled. Answers whether it committed anything, so
+   * One operator search finished with, as pills on the card being filled. Answers whether it committed anything, so
    * the caller empties its own box and only then.
    *
-   * `marked` above is the whole of what the text becomes; this is the part that needs the canvas. Through `cycle` for
-   * the reason `takeName` is: the same text twice is one pill's worth of search.
+   * `marked` above is the whole of what the text becomes; this is the part that needs the cards. Through `added` for
+   * the reason `takeName` is.
    */
   function takeMarked(mark: string, text: string) {
-    const parts = marked(mark, text);
+    const parts = adding === null ? [] : marked(mark, text);
 
     for (const part of parts) {
-      edit((tree) => cycle(tree, filling, { kind: 'name', text: part, negated: false }));
+      if (adding !== null) {
+        edit((tree) => added(tree, adding, { kind: 'name', text: part, negated: false }));
+      }
     }
 
     return parts.length > 0;
@@ -881,7 +814,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
     /*
      * A range whose values the game names picks from them rather than taking digits: `buddy2` is a Good Buddy and a
-     * reader cannot be expected to know that, where a CP of 1500 says what it is. A pill the reader has just dropped
+     * reader cannot be expected to know that, where a CP of 1500 says what it is. A pill the reader has just added
      * has both ends on the blank option and so goes on asking nothing at all, which both ends picked by default would
      * have ended.
      *
@@ -896,7 +829,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         <select
           value={bound === null ? '' : String(bound)}
           aria-label={`${range.label}, ${EDGES[edge]}`}
-          onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => write(event.currentTarget.value)}
         >
           {pickable(range, edge, bound, other).map(({ level, name }) => (
@@ -919,7 +851,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         placeholder={edge === 'from' ? floor : ceiling}
         value={boxText(typedBound, path, edge, bound)}
         aria-label={`${range.label}, ${EDGES[edge]}`}
-        onPointerDown={(event) => event.stopPropagation()}
         onInput={(event) => {
           const { value } = event.currentTarget;
 
@@ -935,19 +866,17 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * One pill. A term and a name say themselves; a range carries its two boxes, because a span is the only pill whose
    * content the reader goes on editing after placing it.
    *
-   * Called rather than rendered as `<Pill />`, as is the group below it. A component declared inside this one is a new
-   * component *type* on every render, so Preact unmounts and remounts the whole canvas each time — which destroyed the
-   * element holding a pointer capture mid-drag, and a tap on a pill never saw its own `pointerup`. Called plainly, the
-   * vnodes it returns are this component's own and the elements keep their identity.
+   * Called rather than rendered as `<Pill />`, as is the card below it. A component declared inside this one is a new
+   * component *type* on every render, so Preact would unmount and remount every card each time, and a span box would
+   * lose the caret on every digit typed into it.
    */
   function renderPill(leaf: Leaf, path: Path) {
     const range = leaf.kind === 'range' ? RANGES_BY_ID.get(leaf.id) : undefined;
-    const carried = held !== null && same(held.from, path);
 
     return (
       <span
         key={pathAttribute(path)}
-        class={`pill ${leaf.negated ? 'out' : 'in'}${carried ? ' carried' : ''}`}
+        class={`pill ${leaf.negated ? 'out' : 'in'}`}
         data-kind={leaf.kind}
         title={leafText(leaf) ?? 'nothing yet'}
       >
@@ -955,10 +884,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           type="button"
           class="face"
           aria-label={`${leafLabel(leaf)} — ${leaf.negated ? 'ruled out' : 'required'}, press to turn it round`}
-          onPointerDown={(event) =>
-            onPointerDown(event, leaf, path, () =>
-              edit((tree) => update(tree, path, (node) => ({ ...(node as Leaf), negated: !leaf.negated }))),
-            )
+          onClick={() =>
+            edit((tree) => update(tree, path, (node) => (isGroup(node) ? node : { ...node, negated: !node.negated })))
           }
         >
           <span class="state" aria-hidden="true">
@@ -975,17 +902,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           </span>
         )}
 
-        {/* Pick up and put down, which is the drag said in two presses so that a keyboard can make it too. */}
-        <button
-          type="button"
-          class="lift"
-          aria-label={carried ? `Put ${leafLabel(leaf)} down` : `Pick ${leafLabel(leaf)} up to move it`}
-          aria-pressed={carried}
-          onClick={() => setHeld(carried ? null : { node: leaf, from: path })}
-        >
-          ⇅
-        </button>
-
         <button
           type="button"
           class="drop"
@@ -998,110 +914,53 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     );
   }
 
-  /** One group, and everything inside it. The canvas is this function applied to the root. */
-  function renderGroup(path: Path) {
-    const node = nodeAt(state.tree, path);
-
-    if (node === null || !isGroup(node)) {
-      return null;
-    }
-
-    const root = path.length === 0;
-    const target = drag?.moved === true && drag.over !== null && same(drag.over, path);
-    const classes = ['group-node', root ? 'root' : '', target ? 'target' : '', same(filling, path) ? 'current' : ''];
+  /**
+   * One card: its pills, any one of which will do, the press that adds another, and the one that takes the card off.
+   * A pill's path is the card's own where the card is that one pill, and a level deeper where it is an `any` of them.
+   */
+  function renderCard(card: Node, at: number) {
+    const pills = pillsOf(card);
 
     return (
-      <section
-        key={`g${pathAttribute(path)}`}
-        class={classes.filter(Boolean).join(' ')}
-        data-group={pathAttribute(path)}
-        aria-label={root ? 'The query' : `${JUNCTION[node.junction].label} group`}
-
-        // A click anywhere in a group that is not on a pill makes it the one a catalogue chip goes into, and is also
-        // where a picked-up pill is put down. One gesture for both, so there is nothing extra to learn or to draw.
-        onClick={(event) => {
-          if ((event.target as HTMLElement).closest('[data-group]') !== event.currentTarget) {
-            return;
-          }
-
-          if (held !== null) {
-            commit(held.node, held.from, path);
-            setHeld(null);
-          } else {
-            setFocus(path);
-          }
-        }}
-      >
-        <header class="group-head">
+      <li key={at} class="card">
+        <header class="card-head">
+          <span>{pills.length > 1 ? 'Any of' : 'Match'}</span>
           <button
             type="button"
-            class="junction"
-            title={JUNCTION[node.junction].said}
-            aria-label={`${JUNCTION[node.junction].label} — ${JUNCTION[node.junction].said}`}
-            onClick={() =>
-              edit((tree) =>
-                update(tree, path, (held_) =>
-                  isGroup(held_) ? { ...held_, junction: held_.junction === 'all' ? 'any' : 'all' } : held_,
-                ),
-              )
-            }
+            class="drop"
+            aria-label="Remove this card"
+            onClick={() => edit((tree) => update(tree, [at], () => null))}
           >
-            {JUNCTION[node.junction].label}
+            ✕
           </button>
-
-          {!root && (
-            <button
-              type="button"
-              class="drop"
-              aria-label="Remove this group and everything in it"
-              onClick={(event) => {
-                // Kept from the group's own click, which would otherwise focus the path just emptied, or put a held
-                // pill down in it.
-                event.stopPropagation();
-                edit((tree) => update(tree, path, () => null));
-                setFocus(path.slice(0, -1));
-              }}
-            >
-              ✕
-            </button>
-          )}
         </header>
 
         <div class="parts">
-          {node.parts.map((part, index) =>
-            isGroup(part) ? renderGroup([...path, index]) : renderPill(part, [...path, index]),
-          )}
+          {pills.map((leaf, index) => renderPill(leaf, isGroup(card) ? [at, index] : [at]))}
 
-          {node.parts.length === 0 && <p class="empty">Nothing in here yet — drop a pill in, or click to fill it.</p>}
-        </div>
-
-        {path.length < NESTING && (
-          <button
-            type="button"
-            class="add"
-            onClick={() => {
-              // A group a reader makes deliberately is nearly always *any of these*, the root already being the game's
-              // own conjunction. One press on its own button says otherwise.
-              edit((tree) => append(tree, path, group('any')));
-              setFocus([...path, node.parts.length]);
-            }}
-          >
-            + group
+          <button type="button" class="or" aria-label="Add an alternative to this card" onClick={() => openSheet(at)}>
+            + or
           </button>
-        )}
-      </section>
+        </div>
+      </li>
     );
   }
+
+  /** The catalogue as the sheet shows it: the entries matching what its box holds, in the categories with any. */
+  const shelves = GROUPS.map((category) => ({
+    ...category,
+    terms: category.terms.filter((term) => wanted(term.label, term.term)),
+  })).filter((category) => category.terms.length > 0);
+  const spans = RANGES.filter((range) => wanted(range.label, spanned(range, '')));
 
   return (
     <>
       <header class="page">
         <h1>Pokémon GO Search Strings</h1>
         <p class="sub">
-          Build a string for the game's own search box, either way round: arrange it from the catalogue in{' '}
-          <em>Builder</em>, where a chip once requires it, twice rules it out and three times drops it, or write it out
-          yourself in <em>Advanced</em>, brackets and all. Both fill the one query, and the string for the game is
-          always at the top.
+          Build a string for the game's own search box, either way round: lay it out as cards in <em>Builder</em>, where
+          every card has to match and any one pill on a card will do, or write it out yourself in <em>Advanced</em>,
+          brackets and all. Both fill the one query, and the string for the game is always at the top.
         </p>
       </header>
 
@@ -1244,23 +1103,34 @@ export default function SearchPage({ query: fragment }: { query: string }) {
         </div>
 
         {/*
-         * Hidden rather than unmounted, so the canvas a reader comes back to is the one they left — a pane switch is a
+         * Hidden rather than unmounted, so the cards a reader comes back to are the ones they left — a pane switch is a
          * change of view and should cost them no scroll position and no half-filled span box.
          */}
         <div class="pane" role="tabpanel" id="panel-builder" aria-labelledby="pane-builder" hidden={pane !== 'builder'}>
-          {/* The query itself, which is the pane's subject. Sticky output above it, catalogue below. */}
-          <section class="canvas" aria-labelledby="canvasLabel">
-            <h2 class="label" id="canvasLabel">
+          {/* The query itself, which is the pane's subject, under the sticky output that says what it comes to. */}
+          <section class="panel" aria-labelledby="cardsLabel">
+            <h2 class="label" id="cardsLabel">
               The query
             </h2>
 
-            {renderGroup([])}
+            {root.parts.length === 0 ? (
+              <p class="empty">Nothing here yet — add a filter to start.</p>
+            ) : (
+              <ol class="cards" aria-label="Cards, every one of which has to match">
+                {root.parts.map(renderCard)}
+              </ol>
+            )}
 
+            <button type="button" class="add-card" onClick={() => openSheet(root.parts.length)}>
+              + Add a filter
+            </button>
+
+            {/* Laid out by hand, for the reason the Advanced pane's help gives. */}
+            {/* prettier-ignore */}
             <p class="help">
-              A group asks for <em>all</em> of its pills or <em>any</em> of them, and its button turns it round. Press a
-              pill to swap <em>required</em> for <em>ruled out</em>, <kbd>⇅</kbd> to pick it up and then click a group
-              to put it down, and <kbd>✕</kbd> to take it off. The game has no brackets, so whatever ends up here is
-              written back out as clauses it does take — which is why an <em>any</em> can cost a good many characters.
+              Every card has to match, and any one pill on a card will do — which is how the game reads a search, so the
+              string above is these cards as they stand. Press a pill to swap <em>required</em> for{' '}
+              <em>ruled out</em>, <kbd>✕</kbd> to take it off, and <em>+ or</em> to give its card another alternative.
             </p>
           </section>
 
@@ -1304,19 +1174,168 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
             <p class="broken" role="alert" hidden={!unsaved}>
               This browser would not store that change to your favourites. The link in the address bar still carries the
-              query on the canvas, so bookmarking it keeps the search.
+              search on the cards, so bookmarking it keeps it.
             </p>
 
             <p class="help">
-              Save the query on the canvas with the button beside Copy to load it back here with a press; saving under a
+              Save the search on the cards with the button beside Copy to load it back here with a press; saving under a
               name already taken replaces that favourite. Yours are kept in this browser, and travel with a backup from
               Settings.
             </p>
           </section>
+        </div>
 
+        {/*
+         * The other way in: the search written out, with the brackets the game has none of. It fills the cards in the
+         * pane next door rather than composing a string of its own, so there is still one arrangement and one output —
+         * and the pills it leaves can be edited like any others, which is the whole difference between this and a
+         * second box that composed beside the first.
+         *
+         * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error, and
+         * cards that emptied themselves at each keystroke would be unusable.
+         *
+         * The panel is the card, where the Builder's is a column of them, and it carries no heading of its own: the
+         * field's label says what the box holds, and a tab panel is named by the tab that opened it.
+         */}
+        <div
+          class="pane panel"
+          role="tabpanel"
+          id="panel-advanced"
+          aria-labelledby="pane-advanced"
+          hidden={pane !== 'advanced'}
+        >
+          <form
+            class="import"
+            onSubmit={(event) => {
+              event.preventDefault();
+              importTyped();
+            }}
+          >
+            {/* Named for the string rather than for its brackets, which are one of the things it may hold. */}
+            <label class="side" for="typed">
+              Your query
+            </label>
+            <input
+              id="typed"
+              type="text"
+              value={typed}
+              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
+              autocomplete="off"
+              spellcheck={false}
+              aria-invalid={typedError !== null}
+              aria-describedby="importHelp"
+              onInput={(event) => {
+                setTyped(event.currentTarget.value);
+                setTypedError(null);
+              }}
+            />
+            {/*
+             * Disabled over the text the arrangement was built from, which also closes the Enter that would submit the
+             * form: a browser's implicit submission goes through the default button and does nothing where that button
+             * is disabled, so the one guard covers both ways of pressing it.
+             *
+             * Compared trimmed, as the emptiness test beside it is. A space on either end is not a change to the
+             * query — the tokeniser trims each term — so re-enabling over one would hand back the press that
+             * overwrites the cards while asking for nothing. Whitespace *inside* the query still counts as a change,
+             * which is a deliberate edit of its characters rather than a stray keystroke.
+             */}
+            <button type="submit" class="use" disabled={typed.trim() === '' || typed.trim() === used?.trim()}>
+              Use it
+            </button>
+          </form>
+
+          <p class="broken" hidden={typedError === null}>
+            {ticked(typedError ?? '')}
+          </p>
+
+          {/* Laid out by hand: Prettier leaves a trailing `{' '}` out of the width it fills to, and so set the first
+              line five characters past 120. */}
+          {/* prettier-ignore */}
+          <p class="help" id="importHelp">
+            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and{' '}
+            <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
+            <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
+            The game takes no brackets, so <em>Use it</em> multiplies them out into cards in the Builder, each one a
+            clause the game does take.
+          </p>
+        </div>
+      </main>
+
+      {/*
+       * The name to save the search under. A modal <dialog> brings the focus trap and Escape, as the Pokédex's does,
+       * and a click on the backdrop lands on the dialog itself, which is how it is told from a click inside.
+       */}
+      <dialog
+        ref={namingRef}
+        class="naming"
+        aria-labelledby="namingLabel"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            namingRef.current?.close();
+          }
+        }}
+      >
+        <form onSubmit={saveFavourite}>
+          <h2 id="namingLabel">Save this search</h2>
+          <input
+            class="field"
+            aria-label="Name"
+            placeholder="Name"
+            value={naming}
+            autocomplete="off"
+            autofocus
+            onInput={(event) => setNaming(event.currentTarget.value)}
+          />
+          <p class="help" hidden={!favourites.some(({ label }) => label === naming.trim())}>
+            This replaces the favourite already saved under that name.
+          </p>
+          <p class="broken" role="alert" hidden={!unsaved}>
+            This browser would not store it. The link in the address bar still carries the query, so bookmarking it
+            keeps the search.
+          </p>
+          <div class="buttons">
+            <button type="button" class="use" onClick={() => namingRef.current?.close()}>
+              Cancel
+            </button>
+            <button type="submit" class="confirm" disabled={naming.trim() === ''}>
+              Save
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      {/*
+       * The catalogue, opened for one card. A modal <dialog> as the naming one is, for the focus trap and Escape; on a
+       * phone it rises from the foot of the screen, where the thumb that opened it already is.
+       */}
+      <dialog
+        ref={sheetRef}
+        class="sheet"
+        aria-labelledby="sheetLabel"
+        onClose={() => {
+          setAdding(null);
+          setTyping('');
+          closeSuggestions();
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            sheetRef.current?.close();
+          }
+        }}
+      >
+        <header class="sheet-head">
+          <h2 id="sheetLabel">
+            {adding !== null && adding < root.parts.length ? 'Add an alternative' : 'Add a filter'}
+          </h2>
+          <button type="button" class="confirm" onClick={() => sheetRef.current?.close()}>
+            Done
+          </button>
+        </header>
+
+        <div class="sheet-body">
           <section class="panel" aria-labelledby="nameLabel">
             <h2 class="label" id="nameLabel">
-              Name or species
+              Find a filter, or type a name
             </h2>
 
             <div class="combobox">
@@ -1334,7 +1353,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 aria-controls="suggestions"
                 aria-autocomplete="list"
                 aria-activedescendant={offered[active] ? `suggestion-${active}` : undefined}
-                aria-label="Name or species"
+                aria-label="Find a filter, or type a name"
                 onInput={(event) => {
                   const parts = event.currentTarget.value.split(',');
                   const left = parts.pop() ?? '';
@@ -1384,10 +1403,84 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </div>
 
             <p class="help">
-              Partial names match, so <code>char</code> finds Charmander and Charizard. Two letters bring up the species
-              that match, and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one into the group you are filling. Each species
-              is followed by its family: taking <em>Charmander (family)</em> writes <code>+charmander</code>, the game's
-              shorthand for a species and the rest of its evolutionary line.
+              What you type narrows the chips below, and <kbd>Enter</kbd> adds it to this card as a name. Partial names
+              match, so <code>char</code> finds Charmander and Charizard. Two letters bring up the species that match,
+              and <kbd>↓</kbd> then <kbd>Enter</kbd> takes one. Each species is followed by its family: taking{' '}
+              <em>Charmander (family)</em> writes <code>+charmander</code>, the game's shorthand for a species and the
+              rest of its evolutionary line.
+            </p>
+          </section>
+
+          <div class="groups">
+            {shelves.map((category) => (
+              <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
+                <h2 class="label">{category.label}</h2>
+                <div class="chips">
+                  {category.terms.map((term) => {
+                    const chip = chipState(termLeaf(term.id));
+
+                    return (
+                      <button
+                        key={term.id}
+                        type="button"
+                        class="chip"
+                        data-state={chip}
+                        title={chipTitle(term.term)}
+                        aria-label={`${term.label} — ${CHIP[chip].said}`}
+                        aria-pressed={chip === 'in'}
+                        onClick={() => pressChip(termLeaf(term.id))}
+                      >
+                        <span class="state" aria-hidden="true">
+                          {CHIP[chip].glyph}
+                        </span>
+                        <span class="name">{term.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p class="help">{ticked(category.help)}</p>
+              </section>
+            ))}
+          </div>
+          <section class="panel" aria-labelledby="rangesLabel" hidden={spans.length === 0}>
+            <h2 class="label" id="rangesLabel">
+              Ranges
+            </h2>
+            <div class="chips">
+              {spans.map((range) => {
+                const chip = chipState(rangeLeaf(range.id));
+
+                return (
+                  <button
+                    key={range.id}
+                    type="button"
+                    class="chip"
+                    data-state={chip}
+                    title={rangeTitle(range)}
+                    aria-label={`${range.label} — ${CHIP[chip].said}`}
+                    aria-pressed={chip === 'in'}
+                    onClick={() => pressChip(rangeLeaf(range.id))}
+                  >
+                    <span class="state" aria-hidden="true">
+                      {CHIP[chip].glyph}
+                    </span>
+                    <span class="name">{range.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Laid out by hand, for the reason the Advanced pane's help gives. */}
+            {/* prettier-ignore */}
+            <p class="help">
+              A span pill carries its own two ends — boxes to type a number into, or named dropdowns where the game
+              names the values — and an end left empty, or on <em>Any level</em>, leaves that end of the span open,
+              unless opening it would ask for everything. Which is why a dropdown's own lowest and highest levels each
+              sit at one end: <em>never a buddy</em> is picked as the <em>highest</em> a span reaches,{' '}
+              <em>Best Buddy</em> as the <em>lowest</em>, the other way round asking for every Pokémon you own. Three
+              of the ranges are not the numbers they look like: an IV is the appraisal's own bucket, where{' '}
+              <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10, <code>3</code> is 11–14
+              and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one. The Max move levels
+              and the counts of unlocked Max moves start at 1, a Max species having its attack from the first.
             </p>
           </section>
 
@@ -1503,207 +1596,11 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </p>
           </section>
 
-          <div class="groups">
-            {GROUPS.map((category) => (
-              <section key={category.id} class="group" style={{ '--hue': String(category.hue) }}>
-                <h2 class="label">{category.label}</h2>
-                <div class="chips">
-                  {category.terms.map((term) => {
-                    const chip = chipState(state.tree, filling, term.id);
-
-                    return (
-                      <button
-                        key={term.id}
-                        type="button"
-                        class="chip"
-                        data-state={chip}
-                        title={chipTitle(term.term)}
-                        aria-label={`${term.label} — ${CHIP[chip].said} in the group you are filling`}
-                        onPointerDown={(event) =>
-                          onPointerDown(event, termLeaf(term.id), null, () => pressChip(termLeaf(term.id)))
-                        }
-                      >
-                        <span class="state" aria-hidden="true">
-                          {CHIP[chip].glyph}
-                        </span>
-                        <span class="name">{term.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p class="help">{ticked(category.help)}</p>
-              </section>
-            ))}
-          </div>
-          <section class="panel" aria-labelledby="rangesLabel">
-            <h2 class="label" id="rangesLabel">
-              Ranges
-            </h2>
-            <div class="chips">
-              {RANGES.map((range) => {
-                const chip = chipState(state.tree, filling, range.id);
-
-                return (
-                  <button
-                    key={range.id}
-                    type="button"
-                    class="chip"
-                    data-state={chip}
-                    title={rangeTitle(range)}
-                    aria-label={`${range.label} — ${CHIP[chip].said} in the group you are filling`}
-                    onPointerDown={(event) =>
-                      onPointerDown(event, rangeLeaf(range.id), null, () => pressChip(rangeLeaf(range.id)))
-                    }
-                  >
-                    <span class="state" aria-hidden="true">
-                      {CHIP[chip].glyph}
-                    </span>
-                    <span class="name">{range.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p class="help">
-              A span pill carries its own two ends — boxes to type a number into, or named dropdowns where the game
-              names the values — and an end left empty, or on <em>Any level</em>, leaves that end of the span open,
-              unless opening it would ask for everything. Which is why a dropdown's own lowest and highest levels each
-              sit at one end: <em>never a buddy</em> is picked as the <em>highest</em> a span reaches,{' '}
-              <em>Best Buddy</em> as the <em>lowest</em>, the other way round asking for every Pokémon you own. Two
-              spans of the same range in one group is a search you reach by dragging the second one in, a press reading
-              the one already there. Three of the ranges are not the numbers they look like: an IV is the appraisal's
-              own bucket, where <code>0</code> is an IV of 0, <code>1</code> is 1–5, <code>2</code> is 6–10,{' '}
-              <code>3</code> is 11–14 and <code>4</code> is 15 — so <code>4</code> to <code>4</code> is the perfect one.
-              The Max move levels and the counts of unlocked Max moves start at 1, a Max species having its attack from
-              the first.
-            </p>
-          </section>
-        </div>
-
-        {/*
-         * The other way in: the search written out, with the brackets the game has none of. It fills the canvas in the
-         * pane next door rather than composing a string of its own, so there is still one arrangement and one output —
-         * and the pills it leaves can be dragged about like any others, which is the whole difference between this and
-         * a second box that composed beside the first.
-         *
-         * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error, and
-         * a canvas that emptied itself at each keystroke would be unusable.
-         *
-         * The panel is the card, where the Builder's is a column of them, and it carries no heading of its own: the
-         * field's label says what the box holds, and a tab panel is named by the tab that opened it.
-         */}
-        <div
-          class="pane panel"
-          role="tabpanel"
-          id="panel-advanced"
-          aria-labelledby="pane-advanced"
-          hidden={pane !== 'advanced'}
-        >
-          <form
-            class="import"
-            onSubmit={(event) => {
-              event.preventDefault();
-              importTyped();
-            }}
-          >
-            {/* Named for the string rather than for its brackets, which are one of the things it may hold. */}
-            <label class="side" for="typed">
-              Your query
-            </label>
-            <input
-              id="typed"
-              type="text"
-              value={typed}
-              placeholder="(pikachu&shiny),(pumpkaboo&xxl)"
-              autocomplete="off"
-              spellcheck={false}
-              aria-invalid={typedError !== null}
-              aria-describedby="importHelp"
-              onInput={(event) => {
-                setTyped(event.currentTarget.value);
-                setTypedError(null);
-              }}
-            />
-            {/*
-             * Disabled over the text the arrangement was built from, which also closes the Enter that would submit the
-             * form: a browser's implicit submission goes through the default button and does nothing where that button
-             * is disabled, so the one guard covers both ways of pressing it.
-             *
-             * Compared trimmed, as the emptiness test beside it is. A space on either end is not a change to the
-             * query — the tokeniser trims each term — so re-enabling over one would hand back the press that
-             * overwrites the canvas while asking for nothing. Whitespace *inside* the query still counts as a change,
-             * which is a deliberate edit of its characters rather than a stray keystroke.
-             */}
-            <button type="submit" class="use" disabled={typed.trim() === '' || typed.trim() === used?.trim()}>
-              Use it
-            </button>
-          </form>
-
-          <p class="broken" hidden={typedError === null}>
-            {ticked(typedError ?? '')}
-          </p>
-
-          {/* Laid out by hand: Prettier leaves a trailing `{' '}` out of the width it fills to, and so set the first
-              line five characters past 120. */}
-          {/* prettier-ignore */}
-          <p class="help" id="importHelp">
-            <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and{' '}
-            <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
-            <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
-            The game takes no brackets, so <em>Use it</em> lays the query out as pills in the Builder and the box above
-            writes it back as clauses the game does take.
+          <p class="help" hidden={shelves.length > 0 || spans.length > 0}>
+            No filter is called that, so <kbd>Enter</kbd> adds it as a name.
           </p>
         </div>
-      </main>
-
-      {/*
-       * The name to save the search under. A modal <dialog> brings the focus trap and Escape, as the Pokédex's does,
-       * and a click on the backdrop lands on the dialog itself, which is how it is told from a click inside.
-       */}
-      <dialog
-        ref={namingRef}
-        class="naming"
-        aria-labelledby="namingLabel"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) {
-            namingRef.current?.close();
-          }
-        }}
-      >
-        <form onSubmit={saveFavourite}>
-          <h2 id="namingLabel">Save this search</h2>
-          <input
-            class="field"
-            aria-label="Name"
-            placeholder="Name"
-            value={naming}
-            autocomplete="off"
-            autofocus
-            onInput={(event) => setNaming(event.currentTarget.value)}
-          />
-          <p class="help" hidden={!favourites.some(({ label }) => label === naming.trim())}>
-            This replaces the favourite already saved under that name.
-          </p>
-          <p class="broken" role="alert" hidden={!unsaved}>
-            This browser would not store it. The link in the address bar still carries the query, so bookmarking it
-            keeps the search.
-          </p>
-          <div class="buttons">
-            <button type="button" class="use" onClick={() => namingRef.current?.close()}>
-              Cancel
-            </button>
-            <button type="submit" class="confirm" disabled={naming.trim() === ''}>
-              Save
-            </button>
-          </div>
-        </form>
       </dialog>
-
-      {/* The pill under the pointer, drawn outside the layout so it cannot push anything about as it moves. */}
-      {drag?.moved === true && (
-        <span class="dragging" style={{ left: `${drag.x}px`, top: `${drag.y}px` }} aria-hidden="true">
-          {isGroup(drag.node) ? JUNCTION[drag.node.junction].label : leafLabel(drag.node)}
-        </span>
-      )}
 
       <footer>
         <p>

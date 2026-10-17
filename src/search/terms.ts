@@ -135,9 +135,10 @@ export const GROUPS: readonly Group[] = [
     hue: 8,
     join: '&',
     help:
-      'What a Pokémon is, or what has been put into it, however it was caught. Picking several asks for all of them ' +
-      'at once — a lucky shiny. Two are narrower than they read: `candyxl` passes over a Best Buddy boosted past 40, ' +
-      'and `hypertraining` finds the ones still training rather than the ones that have finished.',
+      'What a Pokémon is, or what has been put into it, however it was caught. A lucky shiny is two cards, one ' +
+      'apiece: picked on one card, the two ask for either. Two are narrower than they read: `candyxl` passes over a ' +
+      'Best Buddy boosted past 40, and `hypertraining` finds the ones still training rather than the ones that have ' +
+      'finished.',
     terms: [
       { id: 'shiny', term: 'shiny', label: 'Shiny' },
       { id: 'lucky', term: 'lucky', label: 'Lucky' },
@@ -216,10 +217,10 @@ export const GROUPS: readonly Group[] = [
     hue: 120,
     join: '&',
     help:
-      'A move the Pokémon knows, or the weather right now. Picking several asks for all of them at once. The last of ' +
-      'them reads the second charged slot, which the game fills with a placeholder named `move_name_0000` where ' +
-      'nothing has been unlocked — so `@3move` is the ones with the slot still shut, and ruling it out is the ones ' +
-      'with a second move.',
+      'A move the Pokémon knows, or the weather right now. Picking several on one card asks for any of them. The ' +
+      'last of them reads the second charged slot, which the game fills with a placeholder named `move_name_0000` ' +
+      'where nothing has been unlocked — so `@3move` is the ones with the slot still shut, and ruling it out is the ' +
+      'ones with a second move.',
     terms: [
       { id: 'special', term: '@special', label: 'Exclusive move' },
       { id: 'adventureeffect', term: 'adventureeffect', label: 'Adventure Effect' },

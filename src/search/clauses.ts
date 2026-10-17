@@ -428,6 +428,26 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
 }
 
 /**
+ * The pills of each clause a query comes to, or null where it spreads past `CLAUSES`. Exported for `cards.js`, which
+ * lays a tree out as these when it is deeper than a card can draw: the cards are then the clauses the string is
+ * written from, and nothing the Builder shows is a rearrangement the string does not make.
+ */
+export function spreadOut(node: Node): readonly (readonly Leaf[])[] | null {
+  // Factored before it is measured, the point of factoring being to bring the measurement under the cap.
+  const tree = factored(node);
+
+  if (size(tree) > CLAUSES) {
+    return null;
+  }
+
+  return absorbed(
+    spread(tree)
+      .map(clause)
+      .filter((one) => one !== null),
+  );
+}
+
+/**
  * The clauses a query comes to, and whatever is worth saying about it. An empty canvas is a query for everything rather
  * than a broken one, that being the state the page spends most of its life in.
  *
@@ -443,22 +463,15 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
  * these notes are for.
  */
 export function clausesOf(node: Node): Written {
-  // Factored before it is measured, the point of factoring being to bring the measurement under the cap.
-  const tree = factored(node);
+  const kept = spreadOut(node);
 
-  if (size(tree) > CLAUSES) {
+  if (kept === null) {
     return {
       clauses: [],
       error: `That spreads past ${CLAUSES} clauses, which is longer than any search box will take`,
       mishandled: [],
     };
   }
-
-  const kept = absorbed(
-    spread(tree)
-      .map(clause)
-      .filter((one) => one !== null),
-  );
 
   return {
     clauses: kept.map((leaves) => leaves.map(written).join(',')),

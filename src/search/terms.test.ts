@@ -30,10 +30,10 @@ test('every help sentence closes the backticks it opens', () => {
 
 test('no range is named the same as a term, and no two terms the same as each other', () => {
   /*
-   * `chipState` and `cycle` in `tree.js` find a group's pill for a catalogue entry by its `id` and *not* by its kind,
-   * so a term and a range sharing one are two chips each reading the other's pill: pressing the range would turn the
-   * term's pill round. Which is a live trap rather than a hypothetical — `dynamax` is a chip and `dynamax{N}` a span,
-   * and the range is `dynamaxmoves` for this reason alone.
+   * An `id` is what a catalogue entry is known by, so a term and a range sharing one are one name for two entries —
+   * `holds` in `cards.js` keys a pill by its kind as well and tells them apart, but a reader going by the `id` alone
+   * would not. Which is a live trap rather than a hypothetical — `dynamax` is a chip and `dynamax{N}` a span, and the
+   * range is `dynamaxmoves` for this reason alone.
    *
    * Terms against each other is the same fault one table over, `TERMS_BY_ID` being flat across every group: the four
    * groups that read a type hold eighteen words apiece and only the `id` prefix keeps `fire` from meaning four things.
