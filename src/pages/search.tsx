@@ -27,6 +27,7 @@ import { usePhone } from '../phone-store.js';
 import { compose, emptyState, fromFragment, names, presetTree, toFragment, type State } from '../search/query.js';
 import { optimise, type Lossy } from '../search/optimise.js';
 import { read } from '../search/parse.js';
+import { forget, keep, readSaved, type Saved } from '../search/saved.js';
 import { replaceQuery } from '../router.js';
 import { suggestions, written as speciesTerm, type Offer } from '../search/species.js';
 import { bounded, GROUPS, PRESETS, RANGES, RANGES_BY_ID, type Range } from '../search/terms.js';
@@ -50,6 +51,27 @@ import {
   type Node,
   type Path,
 } from '../search/tree.js';
+
+/** An icon drawn in the text colour of the button it sits in, so it follows the theme and a button's states. */
+const icon = (path: string) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d={path} />
+  </svg>
+);
+
+const COPY_ICON = 'M8 8h12v12H8zM4 16V4h12';
+const DONE_ICON = 'M5 12l5 5L19 7';
+const SAVE_ICON = 'M6 3h12v18l-6-4-6 4z';
 
 /** How far a press has to travel before it is a drag rather than a tap on the pill it started on. */
 const SLOP = 6;
@@ -427,9 +449,15 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const phone = usePhone();
   const [sent, setSent] = useState<Sent | null>(null);
 
+  /** The searches kept under a name, the name being typed for the next, and why the last write to them failed. */
+  const [saved, setSaved] = useState<Saved[]>(readSaved);
+  const [naming, setNaming] = useState('');
+  const [saveError, setSaveError] = useState<string | null>(null);
+
   const textRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const queryRef = useRef<HTMLElement>(null);
+  const namingRef = useRef<HTMLDialogElement>(null);
 
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
 
@@ -605,6 +633,33 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       }
 
       setCopyLabel('Press ⌘C');
+    }
+  }
+
+  function openNaming() {
+    setNaming('');
+    setSaveError(null);
+    namingRef.current?.showModal();
+  }
+
+  /** The arrangement kept under the name typed, as the link it would be shared as — see `saved.ts`. */
+  function save(event: Event) {
+    event.preventDefault();
+
+    try {
+      setSaved(keep(saved, naming.trim(), mine));
+      namingRef.current?.close();
+    } catch (e) {
+      setSaveError(`Could not save it: ${said(e)}`);
+    }
+  }
+
+  function unsave(name: string) {
+    try {
+      setSaved(forget(saved, name));
+      setSaveError(null);
+    } catch (e) {
+      setSaveError(`Could not remove it: ${said(e)}`);
     }
   }
 
@@ -1030,13 +1085,30 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               {query || 'Nothing arranged yet'}
             </code>
             <span class="buttons">
+              {/*
+               * Icons rather than words, the label going to `aria-label` and `title` instead. The clipboard fallback
+               * keeps its words, being an instruction no icon gives.
+               */}
               <button
                 type="button"
                 class={copyLabel === 'Copy' ? 'copy' : 'copy done'}
+                aria-label={copyLabel}
+                title={copyLabel}
                 disabled={!query || error !== null}
                 onClick={copy}
               >
-                {copyLabel}
+                {copyLabel === 'Copy' ? icon(COPY_ICON) : copyLabel === 'Copied' ? icon(DONE_ICON) : copyLabel}
+              </button>
+
+              <button
+                type="button"
+                class="save"
+                aria-label="Save"
+                title="Save this search under a name"
+                disabled={!query || error !== null}
+                onClick={openNaming}
+              >
+                {icon(SAVE_ICON)}
               </button>
 
               {/* The same string sent the other way out, which only a phone held over WebUSB gives it. */}
@@ -1187,6 +1259,54 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               ))}
             </div>
           </section>
+
+          {saved.length > 0 && (
+            <section class="panel" aria-labelledby="savedLabel">
+              <h2 class="label" id="savedLabel">
+                <span class="ico" aria-hidden="true">
+                  🔖
+                </span>{' '}
+                Saved
+              </h2>
+              <div class="presets">
+                {saved.map((one) => {
+                  const shown = current(fromFragment(one.fragment)).query;
+
+                  return (
+                    <span key={one.name} class="kept">
+                      {/*
+                       * The whole link, Shorten and all, being what was saved — where a favourite sets the tree alone.
+                       */}
+                      <button
+                        type="button"
+                        title={shown}
+                        onClick={() => {
+                          setState(fromFragment(one.fragment));
+                          setFocus([]);
+                          setHeld(null);
+                        }}
+                      >
+                        <span>{one.name}</span>
+                        <code class="note">{shown}</code>
+                      </button>
+                      <button
+                        type="button"
+                        class="forget"
+                        aria-label={`Remove “${one.name}”`}
+                        title="Remove this saved search"
+                        onClick={() => unsave(one.name)}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+              <p class="broken" role="alert" hidden={saveError === null}>
+                {saveError}
+              </p>
+            </section>
+          )}
 
           <section class="panel" aria-labelledby="nameLabel">
             <h2 class="label" id="nameLabel">
@@ -1528,6 +1648,47 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           </p>
         </div>
       </main>
+
+      {/*
+       * The name to save the search under. A modal <dialog> brings the focus trap and Escape, as the Pokédex's does,
+       * and a click on the backdrop lands on the dialog itself, which is how it is told from a click inside.
+       */}
+      <dialog
+        ref={namingRef}
+        class="naming"
+        aria-labelledby="namingLabel"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            namingRef.current?.close();
+          }
+        }}
+      >
+        <form onSubmit={save}>
+          <h2 id="namingLabel">Save this search</h2>
+          <input
+            class="field"
+            aria-label="Name"
+            placeholder="Name"
+            value={naming}
+            autofocus
+            onInput={(event) => setNaming(event.currentTarget.value)}
+          />
+          <p class="help" hidden={!saved.some((one) => one.name === naming.trim())}>
+            This replaces the search already saved under that name.
+          </p>
+          <p class="broken" role="alert" hidden={saveError === null}>
+            {saveError}
+          </p>
+          <div class="buttons">
+            <button type="button" class="use" onClick={() => namingRef.current?.close()}>
+              Cancel
+            </button>
+            <button type="submit" class="confirm" disabled={naming.trim() === ''}>
+              Save
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       {/* The pill under the pointer, drawn outside the layout so it cannot push anything about as it moves. */}
       {drag?.moved === true && (

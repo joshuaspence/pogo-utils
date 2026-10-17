@@ -195,23 +195,19 @@ body[data-page='search'] {
    * and *Copy* ends it, so the outline reads as the step before the filled one rather than as a lesser action. It is
    * the same outline the Copy button takes when it has nothing to copy, for the reason given below it.
    *
-   * The width is held rather than left to the labels, which is what makes the rows a pair down their right edge as
-   * well as their left: two fields a couple of pixels apart read as a near miss rather than as an alignment. `5.75em`
-   * is 74.75px at the 13px below, and it is the *enabled* widths that have to fit, this pair being what a reader looks
-   * at with a query in the box — `Use it` wants 73.41px at the 600 below and `Copy` 70.5px, where disabled at 500 they
-   * are 71.23px and 68.36px and a narrower hold would have looked right in that state alone.
-   *
-   * The Copy button still grows for its own transient labels, `Copied` at 82.06px and the clipboard fallback's
-   * `Press ⌘C` at 99.42px. Holding those would set the resting width a third wider than its word for a moment that
-   * lasts 1.4 seconds.
+   * The width is held rather than left to the label, so *Use it* does not shift between its enabled and disabled
+   * weights: `5.75em` is 74.75px at the 13px below, which it wants 73.41px of at the 600 and 71.23px of at the 500.
    *
    * *Search*, beside Copy while a phone is held, takes the same geometry and the outline: Copy stays the filled one,
-   * being the way out the string has whether or not there is a phone.
+   * being the way out the string has whether or not there is a phone. Copy and Save draw icons rather than words, and
+   * take a square of their own below. The naming dialog's two buttons are the same pair again, Save the filled one.
    */
 
   button.use,
   .output button.copy,
-  .output button.send {
+  .output button.send,
+  .output button.save,
+  .naming button.confirm {
     min-width: 5.75em;
     padding: 0 18px;
     border: 1px solid var(--accent);
@@ -224,19 +220,23 @@ body[data-page='search'] {
   }
 
   button.use,
-  .output button.send {
+  .output button.send,
+  .output button.save {
     background: transparent;
     color: var(--accent);
   }
 
   button.use:hover:not(:disabled),
   .output button.copy:hover:not(:disabled),
-  .output button.send:hover:not(:disabled) {
+  .output button.send:hover:not(:disabled),
+  .output button.save:hover:not(:disabled),
+  .naming button.confirm:hover:not(:disabled) {
     filter: brightness(1.05);
   }
 
   button.use:disabled,
-  .output button.send:disabled {
+  .output button.send:disabled,
+  .output button.save:disabled {
     border-color: var(--border);
     color: var(--muted);
     font-weight: 500;
@@ -244,7 +244,9 @@ body[data-page='search'] {
   }
 
   button.use:focus-visible,
-  .output button.send:focus-visible {
+  .output button.send:focus-visible,
+  .output button.save:focus-visible,
+  .naming button.confirm:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -254,7 +256,8 @@ body[data-page='search'] {
    * broken button, where an outline reads as one waiting for something to do.
    */
 
-  .output button.copy:disabled {
+  .output button.copy:disabled,
+  .naming button.confirm:disabled {
     border-color: var(--border);
     background: transparent;
     color: var(--muted);
@@ -277,6 +280,17 @@ body[data-page='search'] {
   .output .buttons {
     display: flex;
     gap: 10px;
+  }
+
+  /* A square for an icon, where the hold above is for a word. The clipboard fallback's words still widen Copy. */
+
+  .output button.copy,
+  .output button.save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    padding: 0 10px;
   }
 
   /* Where a string sent to the phone has got to, said as quietly as the count above it; a failure is `.broken`. */
@@ -707,6 +721,73 @@ body[data-page='search'] {
 
   .presets button:hover .note {
     color: inherit;
+  }
+
+  /* A saved search and the button that removes it, joined into one card so the cross reads as belonging to it. */
+
+  .presets .kept {
+    display: flex;
+  }
+
+  .presets .kept > button:first-child {
+    min-width: 0;
+    border-right: 0;
+    border-radius: 8px 0 0 8px;
+  }
+
+  /* One line of the string, which can run to hundreds of characters; the whole of it is the button's title. */
+
+  .presets .kept .note {
+    max-width: 36ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .presets .kept button.forget {
+    justify-content: center;
+    padding: 8px 10px;
+    border-radius: 0 8px 8px 0;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .presets .kept button.forget:hover {
+    color: var(--accent);
+  }
+
+  .naming {
+    width: min(360px, calc(100vw - 32px));
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .naming::backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+
+  .naming h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+  }
+
+  .naming .field {
+    width: 100%;
+  }
+
+  .naming .buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .naming .buttons button {
+    padding: 9px 18px;
   }
 
   /**
@@ -1153,7 +1234,8 @@ body[data-page='search'] {
 
     button.use,
     .output button.copy,
-    .output button.send {
+    .output button.send,
+    .output button.save {
       padding: 9px 18px;
     }
 
