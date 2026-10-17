@@ -69,7 +69,7 @@ function releaseNotices(): Notice[] {
         {
           key: `pgsharp:${release.version}`,
           title: `PGSharp ${release.version}`,
-          detail: `Seen ${dayFmt.format(new Date(release.firstSeen))} · download the APK`,
+          detail: `Seen ${dayFmt.format(new Date(release.firstSeen))} · Download the APK`,
           href: release.url,
           external: true,
           clear: () => releaseStore.acknowledge(),
