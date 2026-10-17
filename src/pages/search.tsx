@@ -25,6 +25,13 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { said } from '../errors.js';
 import { usePhone } from '../phone-store.js';
 import { compose, emptyState, fromFragment, names, presetTree, toFragment, type State } from '../search/query.js';
+import {
+  loadFavourites,
+  storeFavourites,
+  withFavourite,
+  withoutFavourite,
+  type Favourite,
+} from '../search/favourites.js';
 import { optimise, type Lossy } from '../search/optimise.js';
 import { read } from '../search/parse.js';
 import { replaceQuery } from '../router.js';
@@ -421,6 +428,18 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * being the one that needs no syntax known in advance.
    */
   const [pane, setPane] = useState<Pane>('builder');
+
+  /**
+   * The name being typed for the next favourite, and whether the last write of the list was refused. The list itself is
+   * not state: it is read from storage on every render and every write, as `release-store.ts` reads its version, so an
+   * import from Settings is what the next save builds on rather than something a copy held here would overwrite.
+   * `redraw` is for a removal, which changes nothing else a render reads.
+   */
+  const [naming, setNaming] = useState('');
+  const [unsaved, setUnsaved] = useState(false);
+  const [, redraw] = useState(0);
+  const favourites = loadFavourites();
+
   const [offered, setOffered] = useState<readonly Offer[]>([]);
   const [active, setActive] = useState(-1);
   const [copyLabel, setCopyLabel] = useState('Copy');
@@ -440,6 +459,13 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * The fragment this state would be linked as, which is both what goes in the address bar and when to put it there.
    */
   const mine = toFragment(state);
+
+  /**
+   * The arrangement as a favourite carries it, which is the link without the Shorten toggle: that is how this reader
+   * likes their strings rather than part of what they searched for, so loading a favourite leaves it as it is, the way
+   * a preset does.
+   */
+  const keeping = toFragment({ ...state, optimise: false });
 
   /**
    * A link pasted into the address bar of a page already open changes the fragment without reloading, and the shell
@@ -475,6 +501,23 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   function closeSuggestions() {
     setOffered([]);
     setActive(-1);
+  }
+
+  /**
+   * A whole arrangement put on the canvas in place of the one there, which is what a preset, a favourite and a typed
+   * query each are. The focus, a held pill and a span box being typed in all name paths in the tree being replaced.
+   */
+  function arrange(tree: Node) {
+    setState((was) => ({ ...was, tree }));
+    setFocus([]);
+    setHeld(null);
+    setTypedBound(null);
+  }
+
+  /** The favourites written back with one change made, and the reader told if this browser would not keep it. */
+  function changeFavourites(change: (list: readonly Favourite[]) => Favourite[]) {
+    setUnsaved(!storeFavourites(change(loadFavourites())));
+    redraw((count) => count + 1);
   }
 
   /** The tree with one edit made to it. Every change to the arrangement comes through here. */
@@ -586,6 +629,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTyping('');
     setMarking('');
     setTagging('');
+    setNaming('');
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
@@ -709,10 +753,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       return;
     }
 
-    setState((was) => ({ ...was, tree }));
-    setFocus([]);
-    setHeld(null);
-    setTypedBound(null);
+    arrange(tree);
     setUsed(typed);
   }
 
@@ -1172,20 +1213,66 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             </h2>
             <div class="presets">
               {PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    setState((was) => ({ ...was, tree: presetTree(preset) }));
-                    setFocus([]);
-                    setHeld(null);
-                  }}
-                >
+                <button key={preset.id} type="button" onClick={() => arrange(presetTree(preset))}>
                   <span>{preset.label}</span>
                   <span class="note">{preset.note}</span>
                 </button>
               ))}
+
+              {/* A saved search notes the string it composes, which is the one thing about it a name cannot say. */}
+              {favourites.map(({ label, fragment }) => {
+                const { tree } = fromFragment(fragment);
+
+                return (
+                  <span key={label} class="saved">
+                    <button type="button" onClick={() => arrange(tree)}>
+                      <span>{label}</span>
+                      <code class="note">{compose({ tree, optimise: false }).query}</code>
+                    </button>
+                    <button
+                      type="button"
+                      class="drop"
+                      aria-label={`Remove ${label} from favourites`}
+                      onClick={() => changeFavourites((list) => withoutFavourite(list, label))}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                );
+              })}
             </div>
+
+            <form
+              class="marked save"
+              onSubmit={(event) => {
+                event.preventDefault();
+                changeFavourites((list) => withFavourite(list, { label: naming.trim(), fragment: keeping }));
+                setNaming('');
+              }}
+            >
+              <input
+                class="field"
+                type="text"
+                value={naming}
+                placeholder="Name this search"
+                autocomplete="off"
+                aria-label="A name for the query on the canvas"
+                onInput={(event) => setNaming(event.currentTarget.value)}
+              />
+              <button type="submit" disabled={naming.trim() === '' || keeping === ''}>
+                Save
+              </button>
+            </form>
+
+            <p class="broken" role="alert" hidden={!unsaved}>
+              This browser would not store that change to your favourites. The link in the address bar still carries the
+              query on the canvas, so bookmarking it keeps the search.
+            </p>
+
+            <p class="help">
+              Save the query on the canvas under a name to load it back with a press; saving under a name already taken
+              replaces that favourite. Yours are kept in this browser, and travel with a backup from Settings.
+            </p>
           </section>
 
           <section class="panel" aria-labelledby="nameLabel">

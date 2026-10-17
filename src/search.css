@@ -709,6 +709,61 @@ body[data-page='search'] {
     color: inherit;
   }
 
+  /* A composed string has no spaces to break at, and one long favourite should not push the card past the screen. */
+
+  .presets .saved code {
+    overflow-wrap: anywhere;
+  }
+
+  /**
+   * A saved favourite: the button that loads it and the one that removes it, drawn as one card so the remove button
+   * reads as part of the favourite it removes rather than as a neighbour of its own. The card carries the border and
+   * the hover, and the two buttons inside it carry neither, so nothing divides them.
+   */
+
+  .presets .saved {
+    display: flex;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+  }
+
+  .presets .saved:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .presets .saved button {
+    min-width: 0;
+    border: 0;
+    background: none;
+  }
+
+  .presets .saved .drop {
+    justify-content: center;
+    padding: 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .presets .saved .drop:hover {
+    color: var(--accent);
+  }
+
+  .save {
+    margin-top: 10px;
+  }
+
+  .marked button:disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+
+  .marked button:disabled:hover {
+    border-color: var(--border);
+  }
+
   /**
    * Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
    * empty and makes the reader scroll past sixty chips to reach the ranges.
