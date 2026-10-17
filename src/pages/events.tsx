@@ -430,6 +430,14 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     commit(prefs.filterScope === 'view' ? 'hiddenByView' : 'hiddenTypes');
   }
 
+  function toggleGroup(kind: StatusKind) {
+    if (!prefs.collapsed.delete(kind)) {
+      prefs.collapsed.add(kind);
+    }
+
+    commit('collapsed');
+  }
+
   function reset() {
     prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
 
@@ -438,6 +446,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     prefs.hiddenByView = {};
     prefs.filterScope = 'global';
     prefs.dismissed.clear();
+    prefs.collapsed.clear();
 
     // Back to not knowing, which `settleSeen` reads as a first visit and seeds from the feed. Clearing it to empty
     // instead would mark every event on the page new, where a Reset is a return to the defaults.
@@ -699,12 +708,28 @@ export default function EventsPage({ query: fragment }: { query: string }) {
        */
       body: GROUPS.filter(({ kind }) => buckets[kind].length > 0).map(({ kind, label }) => (
         <Fragment key={kind}>
-          {/* The kind rides along on the heading so the stylesheet can pick out the running events. */}
+          {/*
+           * The kind rides along on the heading so the stylesheet can pick out the running events. The button sits
+           * inside the `<h2>` rather than replacing it, so the bucket stays a heading to navigate by as well as a
+           * control that folds it.
+           */}
           <h2 class={`group group-${kind}`}>
-            {label}
-            <span class="gcount">{buckets[kind].length}</span>
+            <button
+              type="button"
+              aria-controls={`group-${kind}`}
+              aria-expanded={!prefs.collapsed.has(kind)}
+              onClick={() => toggleGroup(kind)}
+            >
+              {label}
+              <span class="gcount">{buckets[kind].length}</span>
+            </button>
           </h2>
-          <div key={`g-${kind}-${generation}`} class="grid enter">
+          <div
+            key={`g-${kind}-${generation}`}
+            id={`group-${kind}`}
+            class="grid enter"
+            hidden={prefs.collapsed.has(kind)}
+          >
             {buckets[kind].map(renderCard)}
           </div>
         </Fragment>
@@ -1036,7 +1061,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           class="ghost"
           title={
             "Default every view's type filters, hide ended and undated events, " +
-            'restore dismissals and clear new marks'
+            'restore dismissals, unfold every section and clear new marks'
           }
           onClick={reset}
         >

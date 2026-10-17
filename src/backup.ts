@@ -158,8 +158,8 @@ export function parseBackup(text: string): [string, unknown][] {
  *
  * Keys the file leaves out are left as they stand rather than cleared, so a restore is faithful into cleared storage —
  * which is the loss this exists for. Clearing the browser's site data is what gets there; the Events page's `Reset`
- * removes the five keys that page owns, which is the same thing only until an import has written a key from a later
- * version, `reset()` naming its five where this writes through anything in the namespace. Leaving an omitted key alone
+ * removes the keys that page owns, which is the same thing only until an import has written a key from a later
+ * version, `reset()` naming its own where this writes through anything in the namespace. Leaving an omitted key alone
  * is also what stops a file someone has trimmed by hand from clearing whatever they trimmed.
  *
  * All of it or none of it. A `setItem` that raises partway — a store near the origin's quota is the way to see it —

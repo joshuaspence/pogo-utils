@@ -36,6 +36,7 @@ function storePrefs(): Prefs {
     filterScope: 'view',
     dismissed: new Set(['event-a']),
     seen: { through: Date.parse('2026-10-01T00:00:00.000Z'), ids: new Set(['event-b', 'event-c']) },
+    collapsed: new Set(['ended']),
   };
 
   for (const name of Object.keys(KEYS) as (keyof typeof KEYS)[]) {
@@ -108,6 +109,7 @@ const emptyPrefs = (): Prefs => ({
   filterScope: 'global',
   dismissed: new Set(),
   seen: null,
+  collapsed: new Set(),
 });
 
 /**

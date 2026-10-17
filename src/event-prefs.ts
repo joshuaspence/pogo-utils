@@ -17,6 +17,9 @@ export interface Prefs {
 
   /** Null is a first visit, where an empty record is a reader who has acknowledged nothing — see `settleSeen`. */
   seen: Seen | null;
+
+  /** The cards view's status buckets folded under their headings, by `StatusKind`. */
+  collapsed: Set<string>;
 }
 
 /**
@@ -61,6 +64,7 @@ export const KEYS = {
   filterScope: `${KEY_PREFIX}events:filter-scope`,
   dismissed: `${KEY_PREFIX}events:dismissed`,
   seen: `${KEY_PREFIX}events:seen`,
+  collapsed: `${KEY_PREFIX}events:collapsed`,
 };
 
 /**
@@ -407,6 +411,8 @@ export function loadPrefs(): Prefs {
     // Null until the first feed settles it, which is what tells a first visit from a reader who has seen nothing new.
     // No legacy fallback, and `legacySet` will not take `seen` to give it one — see `LEGACY_SETS`.
     seen: readSeen(keyFor('seen')),
+
+    collapsed: readSet(keyFor('collapsed')) ?? new Set(),
   };
 }
 
@@ -437,7 +443,7 @@ const asArrays = (_key: string, value: unknown) => (value instanceof Set ? [...v
 
 /**
  * Write one preference back, named rather than keyed so a call site cannot pair a key with the wrong value, and one at
- * a time so toggling a type filter does not rewrite the dismissals beside it. `KEYS` and `Prefs` carry the same five
+ * a time so toggling a type filter does not rewrite the dismissals beside it. `KEYS` and `Prefs` carry the same
  * names, which makes a name neither of them knows a `TS2345` here rather than an `undefined` key written to storage.
  */
 export function persist(prefs: Prefs, name: keyof typeof KEYS) {

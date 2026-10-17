@@ -37,6 +37,7 @@ test('the keys are the names readers hold', () => {
     filterScope: 'pogo-utils:events:filter-scope',
     dismissed: 'pogo-utils:events:dismissed',
     seen: 'pogo-utils:events:seen',
+    collapsed: 'pogo-utils:events:collapsed',
   });
 });
 
@@ -67,6 +68,7 @@ test('a first visit gets the defaults, and a null seen set', () => {
   expect(prefs.filterScope).toBe('global');
   expect(prefs.dismissed).toEqual(new Set());
   expect(prefs.seen).toBeNull();
+  expect(prefs.collapsed).toEqual(new Set());
 });
 
 /**
@@ -456,6 +458,7 @@ test('clearing leaves a first visit, whatever older names were holding', () => {
     filterScope: 'global',
     dismissed: new Set(),
     seen: null,
+    collapsed: new Set(),
   });
 });
 
@@ -551,6 +554,7 @@ const prefsFor = (over: Partial<Prefs>): Prefs => ({
   filterScope: 'global',
   dismissed: new Set(),
   seen: null,
+  collapsed: new Set(),
   ...over,
 });
 
