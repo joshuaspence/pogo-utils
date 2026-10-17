@@ -1119,10 +1119,15 @@ export default function EventsPage({ query: fragment }: { query: string }) {
          * A `group` rather than a labelled `section`, being nested inside one: two regions one wrapping the other is a
          * landmark a reader has to step past to reach the chips.
          *
-         * Painted from the hidden set in force rather than their own appearance, which matters because under a
-         * per-view scope that set changes with the view — a row showing the last view's would be a stale legend.
+         * The type chips are painted from the hidden set in force rather than their own appearance, which matters
+         * because under a per-view scope that set changes with the view — a row showing the last view's would be a
+         * stale legend.
+         *
+         * The reveals are the same chip, and buttons for the same reason: `aria-pressed` is what carries on or off to a
+         * reader who cannot see the dimming. Last in the row and so last in the tab order, the type chips being the
+         * legend for all three views where these only widen a window.
          */}
-        <div class="type-filters" role="group" aria-label="Filter by event type">
+        <div class="type-filters" role="group" aria-label="Filter events">
           {types.map(([eventType, label]) => (
             <button
               key={eventType}
@@ -1134,14 +1139,6 @@ export default function EventsPage({ query: fragment }: { query: string }) {
               {label}
             </button>
           ))}
-        </div>
-
-        {/*
-         * The same chip as a type filter, and buttons for the same reason: `aria-pressed` is what carries on or off to
-         * a reader who cannot see the dimming. Last in the panel and so last in the tab order, the chips above being
-         * the legend for all three views where these only widen a window.
-         */}
-        <div class="toggles">
           {REVEALS.map(({ name, label, cardsOnly }) => (
             <button
               key={name}
