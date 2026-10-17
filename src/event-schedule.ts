@@ -29,15 +29,13 @@ export interface ParsedEvent {
   added: Date | null;
 }
 
-export type StatusKind = 'active' | 'upcoming' | 'tbd' | 'ended';
+export type StatusKind = 'active' | 'upcoming' | 'ended';
 
 /**
- * Where an event sits relative to now. A discriminated union rather than one shape with an optional `at`, because the
- * edge a card counts down to is exactly what a dateless event lacks. `tbd` still carries the field as an explicit
- * null, so `status.at` is readable without first ruling that kind out.
+ * Where an event sits relative to now. A discriminated union rather than one shape with an optional `at`, because only
+ * an event running with no announced end lacks the edge a card counts down to.
  */
-export type Status =
-  { kind: 'tbd'; at: null } | { kind: 'upcoming' | 'ended'; at: Date } | { kind: 'active'; at: Date | null };
+export type Status = { kind: 'upcoming' | 'ended'; at: Date } | { kind: 'active'; at: Date | null };
 
 /**
  * The half-open instant interval an event occupies, `[startMs, endMs]`. A tuple rather than a `number[]` so neither
@@ -94,19 +92,10 @@ export function relativeUnit(target: Date, now: Date) {
 }
 
 /**
- * Where an event sits relative to now. `active` covers both a running window and one started with no end.
- *
- * `tbd` is rarely the announced-but-unscheduled event it sounds like. ScrapedDuck reads an event's identity off Leek
- * Duck's list but joins its dates in from a feed that drops them days earlier, so everything under the list's
- * "Recently ended" divider reaches us dateless — on 2026-09-24 the feed's five dateless events were exactly that
- * divider's five. So `tbd` mostly means an event already over, which is why `renderCards` keeps the bucket behind a
- * toggle.
+ * Where an event sits relative to now. `active` covers both a running window and one started with no end. Only a dated
+ * event is asked about, `mergeEvents` having dropped the rest.
  */
 export function statusOf(ev: ParsedEvent, now: Date): Status {
-  if (!ev.start && !ev.end) {
-    return { kind: 'tbd', at: null };
-  }
-
   if (ev.start && now < ev.start) {
     return { kind: 'upcoming', at: ev.start };
   }
@@ -205,7 +194,12 @@ function normalise(raw: readonly StampedEvent[]): ParsedEvent[] {
 /**
  * The two feeds as one list, sorted by start, with this repository's own entries last so one overrides a feed event of
  * the same `eventID` rather than duplicating it. Either side may be empty, which is what lets the page tolerate a dead
- * feed or a missing local file. A dateless event sorts to the end on `Infinity`, where the cards view wants it.
+ * feed or a missing local file. An event with an end but no start sorts to the end on `Infinity`.
+ *
+ * An event with no date at all is dropped, after the override so that a local entry can date one. It is rarely the
+ * announced-but-unscheduled event it sounds like: ScrapedDuck reads an event's identity off Leek Duck's list but joins
+ * its dates in from a feed that drops them days earlier, so everything under the list's "Recently ended" divider
+ * reaches us dateless — on 2026-09-24 the feed's five dateless events were exactly that divider's five.
  *
  * The Map is annotated because a bare `new Map()` is a `Map<any, any>` that `set` does not refine, so `normalise`
  * would check nothing at all about what it was handed.
@@ -219,7 +213,7 @@ export function mergeEvents(feed: readonly StampedEvent[], local: readonly Stamp
     byEventId.set(e.eventID, { ...e, added: e.added ?? byEventId.get(e.eventID)?.added });
   }
 
-  return normalise([...byEventId.values()]).sort(
-    (a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity),
-  );
+  return normalise([...byEventId.values()])
+    .filter((ev) => ev.start || ev.end)
+    .sort((a, b) => (a.start?.getTime() ?? Infinity) - (b.start?.getTime() ?? Infinity));
 }

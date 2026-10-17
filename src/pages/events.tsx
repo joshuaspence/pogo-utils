@@ -91,12 +91,11 @@ function relative(target: Date, now: Date) {
 /**
  * The cards view's status buckets, in the order they are drawn. An array rather than an object keyed by kind, the
  * order being the point and an object saying it only by insertion — and `Object.entries` answers a `string` key
- * whatever the object's own keys are, where a row carrying its own kind narrows to one of the four.
+ * whatever the object's own keys are, where a row carrying its own kind narrows to one of the three.
  */
 const GROUPS: readonly { kind: StatusKind; label: string }[] = [
   { kind: 'active', label: 'Happening now' },
   { kind: 'upcoming', label: 'Upcoming' },
-  { kind: 'tbd', label: 'Date unknown' },
   { kind: 'ended', label: 'Recently ended' },
 ];
 
@@ -122,13 +121,11 @@ const TRACKS = [
 ];
 
 /**
- * The three reveals at the foot of the filter panel, each with its label and whether it is only offered to the cards
- * view. Both bucket reveals only mean anything there: the calendar and tracks views show a fixed window regardless,
- * and neither can draw a dateless event at all, `windowOf` giving it no window to place.
+ * The two reveals at the foot of the filter panel, each with its label and whether it is only offered to the cards
+ * view. Show ended only means anything there, the calendar and tracks views showing a fixed window regardless.
  */
 const REVEALS = [
   { name: 'showPast', label: 'Show ended', cardsOnly: true },
-  { name: 'showUndated', label: 'Show undated', cardsOnly: true },
   { name: 'showHidden', label: 'Show hidden', cardsOnly: false },
 ] as const satisfies readonly { name: keyof Reveals; label: string; cardsOnly: boolean }[];
 
@@ -671,7 +668,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /** The cards view: a bucket per status, each a grid of cards. */
   function cards() {
-    const buckets: Record<StatusKind, ParsedEvent[]> = { active: [], upcoming: [], tbd: [], ended: [] };
+    const buckets: Record<StatusKind, ParsedEvent[]> = { active: [], upcoming: [], ended: [] };
     let shown = 0;
 
     for (const ev of events) {
@@ -702,7 +699,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
       /**
        * Keyed by the bucket, which an anonymous `<>` cannot be — and a bucket is what comes and goes here, only the
-       * non-empty ones being drawn. Unkeyed, the four are matched by position, so a search term emptying "Happening
+       * non-empty ones being drawn. Unkeyed, the three are matched by position, so a search term emptying "Happening
        * now" slides "Upcoming" into slot nought and the reconciler rebuilds its grid: measured at 0 of 62 cards reused
        * on one keystroke, each taking its thumbnail with it.
        */
@@ -1060,8 +1057,8 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           type="button"
           class="ghost"
           title={
-            "Default every view's type filters, hide ended and undated events, " +
-            'restore dismissals, unfold every section and clear new marks'
+            "Default every view's type filters, hide ended events, restore dismissals, unfold every section and " +
+            'clear new marks'
           }
           onClick={reset}
         >

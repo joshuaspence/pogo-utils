@@ -193,16 +193,15 @@ test("only what the cards view's type filters and reveals let through is new", a
     feedEvent('hidden', { heading: 'GO Pass', eventType: 'go-pass' }),
     feedEvent('dismissed'),
     feedEvent('over', { start: '2000-01-01T10:00:00.000', end: '2000-01-02T10:00:00.000' }),
-    feedEvent('undated', { start: null, end: null }),
   ];
   await store.load();
   store.prefs.dismissed.add('dismissed');
 
   expect(ids(store)).toEqual([]);
 
-  store.publish({ reveals: { showPast: true, showUndated: true, showHidden: true }, search: '', now: new Date() });
+  store.publish({ reveals: { showPast: true, showHidden: true }, search: '', now: new Date() });
 
-  expect(ids(store).sort()).toEqual(['dismissed', 'over', 'undated']);
+  expect(ids(store).sort()).toEqual(['dismissed', 'over']);
 });
 
 test("the cards view's own type filters are the ones counted, whichever view is open", async () => {

@@ -293,11 +293,11 @@ body[data-page='events'] {
 
   /**
    * The `display: inline-flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
-   * `[hidden] {display: none}`, so the `hidden` setView() puts on two of the reveals outside the cards view would lay
-   * them out regardless — leaving Show ended and Show undated on screen in the calendar and tracks views, where neither
-   * reveals anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any
-   * later `display` a media query gives `.chip`, and `!important` because the keying alone only outranks a bare class:
-   * a second one ties it and wins on order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
+   * `[hidden] {display: none}`, so the `hidden` setView() puts on Show ended outside the cards view would lay it out
+   * regardless — leaving it on screen in the calendar and tracks views, where it reveals nothing. Keyed on `[hidden]`
+   * rather than folded into a `:not([hidden])` above so that it also outranks any later `display` a media query gives
+   * `.chip`, and `!important` because the keying alone only outranks a bare class: a second one ties it and wins on
+   * order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
    */
 
   .chip[hidden] {

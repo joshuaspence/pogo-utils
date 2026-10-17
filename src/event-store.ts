@@ -21,14 +21,13 @@ import { said } from './errors.js';
 
 import type { FeedEvent } from './types.js';
 
-/** The three reveals at the foot of the Events page's filter panel, which are a session's rather than saved. */
+/** The two reveals at the foot of the Events page's filter panel, which are a session's rather than saved. */
 export interface Reveals {
   showPast: boolean;
-  showUndated: boolean;
   showHidden: boolean;
 }
 
-export const NOTHING_REVEALED: Readonly<Reveals> = { showPast: false, showUndated: false, showHidden: false };
+export const NOTHING_REVEALED: Readonly<Reveals> = { showPast: false, showHidden: false };
 
 /**
  * What the cards view is drawing under beyond the saved type filters: the reveals, the search term and the minute it
@@ -63,7 +62,7 @@ function covers({ through, ids }: Seen, ev: Pick<ParsedEvent, 'eventID' | 'added
 /**
  * Whether an event survives the type-filter, dismissal and search-term filters — the ones meaning "I do not want to
  * see this", so every view honours them. "Show hidden" reveals a dismissal the way "Show ended" reveals a past event: a
- * temporary reveal rather than a change to what was saved. The status reveals are `isRevealed`'s.
+ * temporary reveal rather than a change to what was saved. The status reveal is `isRevealed`'s.
  */
 export function admits(
   ev: ParsedEvent,
@@ -85,16 +84,14 @@ export function admits(
 }
 
 /**
- * Whether the reader has revealed the status bucket this event falls in. The two opt-in buckets are an event that is
- * over and one the feed gave no date for, neither being something to plan around.
+ * Whether the reader has revealed the status bucket this event falls in, the one opt-in bucket being an event that is
+ * over.
  *
  * Shared with `newlyVisible` so the new count can only be a subset of the total beside it: a header reporting more new
  * events than events contradicts itself, as does any count at all above "No events to show".
  */
 export function isRevealed(ev: ParsedEvent, { reveals, now }: Pick<CardsFilter, 'reveals' | 'now'>) {
-  const kind = statusOf(ev, now).kind;
-
-  return (kind !== 'ended' || reveals.showPast) && (kind !== 'tbd' || reveals.showUndated);
+  return reveals.showPast || statusOf(ev, now).kind !== 'ended';
 }
 
 /**

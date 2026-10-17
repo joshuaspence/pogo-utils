@@ -21,7 +21,8 @@ import type { FeedEvent } from './types.js';
 
 /**
  * A feed entry, defaulting every field the case does not care about. The dates are the point of almost all of these, so
- * they are what each case names.
+ * they are what each case names; the default end is only there so that a case naming neither is not dropped as
+ * dateless.
  */
 const feedEvent = (over: Partial<FeedEvent>): FeedEvent => ({
   eventID: 'id',
@@ -31,7 +32,7 @@ const feedEvent = (over: Partial<FeedEvent>): FeedEvent => ({
   link: 'https://example.invalid/',
   image: 'https://example.invalid/i.png',
   start: null,
-  end: null,
+  end: '2026-09-30T00:00:00.000Z',
   ...over,
 });
 
@@ -106,12 +107,10 @@ testEveryZone('addDays keeps the wall clock across every day of a year', () => {
 const NOW = at(2026, 9, 21, 12);
 
 /**
- * The four buckets. `active` covers a running window *and* one that has started with no announced end, which is the
- * case that carries a null `at` — the only kind that does, since `tbd` carries an explicit null and the other two
- * guarantee a `Date`.
+ * The three buckets. `active` covers a running window *and* one that has started with no announced end, which is the
+ * case that carries a null `at` — the only kind that does, the other two guaranteeing a `Date`.
  */
 test.for([
-  { when: 'no dates at all', ev: {}, kind: 'tbd', at: null },
   { when: 'a start in the future', ev: { start: at(2026, 9, 22) }, kind: 'upcoming', at: at(2026, 9, 22) },
   {
     when: 'an end in the past',
@@ -346,22 +345,41 @@ test.for([
 });
 
 /**
- * Sorted by start, with a dateless event last rather than first — `Infinity` for a missing start, so the comparison is
- * between two numbers however many of them are missing. Every date here carries a zone, so the order is the same in
- * every timezone.
+ * Sorted by start, with an event that has no start last rather than first — `Infinity` for a missing start, so the
+ * comparison is between two numbers however many of them are missing. Every date here carries a zone, so the order is
+ * the same in every timezone.
  */
-test('a merge sorts by start and puts the dateless events last', () => {
+test('a merge sorts by start and puts the startless events last', () => {
   const merged = mergeEvents(
     [
       feedEvent({ eventID: 'late', start: '2026-09-23T00:00:00.000Z' }),
-      feedEvent({ eventID: 'undated', start: null }),
       feedEvent({ eventID: 'early', start: '2026-09-21T00:00:00.000Z' }),
       feedEvent({ eventID: 'ends-only', start: null, end: '2026-09-22T00:00:00.000Z' }),
     ],
     [],
   );
 
-  expect(merged.map((ev) => ev.eventID)).toEqual(['early', 'late', 'undated', 'ends-only']);
+  expect(merged.map((ev) => ev.eventID)).toEqual(['early', 'late', 'ends-only']);
+});
+
+/**
+ * An event with no date at all is dropped, and only once the override has been applied: a local entry dating a
+ * dateless feed event keeps it, and one blanking a dated feed event's dates drops it.
+ */
+test('a merge drops an event with no date after applying the override', () => {
+  const merged = mergeEvents(
+    [
+      feedEvent({ eventID: 'undated', start: null, end: null }),
+      feedEvent({ eventID: 'dated-here', start: null, end: null }),
+      feedEvent({ eventID: 'blanked-here', start: '2026-09-21T00:00:00.000Z' }),
+    ],
+    [
+      feedEvent({ eventID: 'dated-here', start: '2026-09-21T00:00:00.000Z' }),
+      feedEvent({ eventID: 'blanked-here', start: null, end: null }),
+    ],
+  );
+
+  expect(merged.map((ev) => ev.eventID)).toEqual(['dated-here']);
 });
 
 /**
@@ -381,13 +399,16 @@ test.for([
   expect(ev?.startHasZone).toBe(zoned);
 });
 
-/** An unusable date is a dateless event rather than an Invalid Date travelling into the renderers. */
+/**
+ * An unusable date is a missing one rather than an Invalid Date travelling into the renderers, so an event left with
+ * none at all is dropped with the other dateless ones.
+ */
 test('a merge drops a date it cannot parse', () => {
-  const [ev] = mergeEvents([feedEvent({ start: 'soon', end: 'later' })], []);
+  const [ev] = mergeEvents([feedEvent({ start: 'soon', end: '2026-09-22T00:00:00.000Z' })], []);
 
   expect(ev?.start).toBeNull();
-  expect(ev?.end).toBeNull();
-  expect(statusOf(parsed({ ...ev }), NOW).kind).toBe('tbd');
+  expect(ev?.end).toEqual(new Date('2026-09-22T00:00:00.000Z'));
+  expect(mergeEvents([feedEvent({ start: 'soon', end: 'later' })], [])).toEqual([]);
 });
 
 test('a merge drops a link that is not a web URL and keeps the event', () => {
