@@ -716,27 +716,39 @@ body[data-page='search'] {
   }
 
   /**
-   * A saved favourite: the button that loads it and the one that removes it, drawn as one card split down the side so
-   * the remove button reads as part of the favourite it removes rather than as a neighbour of its own.
+   * A saved favourite: the button that loads it and the one that removes it, drawn as one card so the remove button
+   * reads as part of the favourite it removes rather than as a neighbour of its own. The card carries the border and
+   * the hover, and the two buttons inside it carry neither, so nothing divides them.
    */
 
   .presets .saved {
     display: flex;
     min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
   }
 
-  .presets .saved button:first-child {
+  .presets .saved:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .presets .saved button {
     min-width: 0;
-    border-radius: 8px 0 0 8px;
+    border: 0;
+    background: none;
   }
 
   .presets .saved .drop {
     justify-content: center;
     padding: 0 8px;
-    border-left: 0;
-    border-radius: 0 8px 8px 0;
     color: var(--muted);
     font-size: 11px;
+  }
+
+  .presets .saved .drop:hover {
+    color: var(--accent);
   }
 
   .save {
