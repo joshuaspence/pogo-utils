@@ -58,6 +58,27 @@ import {
   type Path,
 } from '../search/tree.js';
 
+/** An icon drawn in the text colour of the button it sits in, so it follows the theme and a button's states. */
+const icon = (path: string) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d={path} />
+  </svg>
+);
+
+const COPY_ICON = 'M8 8h12v12H8zM4 16V4h12';
+const DONE_ICON = 'M5 12l5 5L19 7';
+const SAVE_ICON = 'M6 3h12v18l-6-4-6 4z';
+
 /** How far a press has to travel before it is a drag rather than a tap on the pill it started on. */
 const SLOP = 6;
 
@@ -449,6 +470,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const textRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const queryRef = useRef<HTMLElement>(null);
+  const namingRef = useRef<HTMLDialogElement>(null);
 
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
 
@@ -514,10 +536,17 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
   }
 
-  /** The favourites written back with one change made, and the reader told if this browser would not keep it. */
+  /**
+   * The favourites written back with one change made, and the reader told if this browser would not keep it. Answers
+   * whether it did, which is what the naming dialog closes on.
+   */
   function changeFavourites(change: (list: readonly Favourite[]) => Favourite[]) {
-    setUnsaved(!storeFavourites(change(loadFavourites())));
+    const stored = storeFavourites(change(loadFavourites()));
+
+    setUnsaved(!stored);
     redraw((count) => count + 1);
+
+    return stored;
   }
 
   /** The tree with one edit made to it. Every change to the arrangement comes through here. */
@@ -629,7 +658,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTyping('');
     setMarking('');
     setTagging('');
-    setNaming('');
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
@@ -649,6 +677,21 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       }
 
       setCopyLabel('Press ⌘C');
+    }
+  }
+
+  function openNaming() {
+    setNaming('');
+    setUnsaved(false);
+    namingRef.current?.showModal();
+  }
+
+  /** The canvas saved as a favourite under the name typed, the dialog staying open on a refusal to say so. */
+  function saveFavourite(event: Event) {
+    event.preventDefault();
+
+    if (changeFavourites((list) => withFavourite(list, { label: naming.trim(), fragment: keeping }))) {
+      namingRef.current?.close();
     }
   }
 
@@ -1071,13 +1114,30 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               {query || 'Nothing arranged yet'}
             </code>
             <span class="buttons">
+              {/*
+               * Icons rather than words, the label going to `aria-label` and `title` instead. The clipboard fallback
+               * keeps its words, being an instruction no icon gives.
+               */}
               <button
                 type="button"
                 class={copyLabel === 'Copy' ? 'copy' : 'copy done'}
+                aria-label={copyLabel}
+                title={copyLabel}
                 disabled={!query || error !== null}
                 onClick={copy}
               >
-                {copyLabel}
+                {copyLabel === 'Copy' ? icon(COPY_ICON) : copyLabel === 'Copied' ? icon(DONE_ICON) : copyLabel}
+              </button>
+
+              <button
+                type="button"
+                class="save"
+                aria-label="Save"
+                title="Save this search as a favourite"
+                disabled={keeping === ''}
+                onClick={openNaming}
+              >
+                {icon(SAVE_ICON)}
               </button>
 
               {/* The same string sent the other way out, which only a phone held over WebUSB gives it. */}
@@ -1242,36 +1302,15 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               })}
             </div>
 
-            <form
-              class="marked save"
-              onSubmit={(event) => {
-                event.preventDefault();
-                changeFavourites((list) => withFavourite(list, { label: naming.trim(), fragment: keeping }));
-                setNaming('');
-              }}
-            >
-              <input
-                class="field"
-                type="text"
-                value={naming}
-                placeholder="Name this search"
-                autocomplete="off"
-                aria-label="A name for the query on the canvas"
-                onInput={(event) => setNaming(event.currentTarget.value)}
-              />
-              <button type="submit" disabled={naming.trim() === '' || keeping === ''}>
-                Save
-              </button>
-            </form>
-
             <p class="broken" role="alert" hidden={!unsaved}>
               This browser would not store that change to your favourites. The link in the address bar still carries the
               query on the canvas, so bookmarking it keeps the search.
             </p>
 
             <p class="help">
-              Save the query on the canvas under a name to load it back with a press; saving under a name already taken
-              replaces that favourite. Yours are kept in this browser, and travel with a backup from Settings.
+              Save the query on the canvas with the button beside Copy to load it back here with a press; saving under a
+              name already taken replaces that favourite. Yours are kept in this browser, and travel with a backup from
+              Settings.
             </p>
           </section>
 
@@ -1615,6 +1654,49 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           </p>
         </div>
       </main>
+
+      {/*
+       * The name to save the search under. A modal <dialog> brings the focus trap and Escape, as the Pokédex's does,
+       * and a click on the backdrop lands on the dialog itself, which is how it is told from a click inside.
+       */}
+      <dialog
+        ref={namingRef}
+        class="naming"
+        aria-labelledby="namingLabel"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) {
+            namingRef.current?.close();
+          }
+        }}
+      >
+        <form onSubmit={saveFavourite}>
+          <h2 id="namingLabel">Save this search</h2>
+          <input
+            class="field"
+            aria-label="Name"
+            placeholder="Name"
+            value={naming}
+            autocomplete="off"
+            autofocus
+            onInput={(event) => setNaming(event.currentTarget.value)}
+          />
+          <p class="help" hidden={!favourites.some(({ label }) => label === naming.trim())}>
+            This replaces the favourite already saved under that name.
+          </p>
+          <p class="broken" role="alert" hidden={!unsaved}>
+            This browser would not store it. The link in the address bar still carries the query, so bookmarking it
+            keeps the search.
+          </p>
+          <div class="buttons">
+            <button type="button" class="use" onClick={() => namingRef.current?.close()}>
+              Cancel
+            </button>
+            <button type="submit" class="confirm" disabled={naming.trim() === ''}>
+              Save
+            </button>
+          </div>
+        </form>
+      </dialog>
 
       {/* The pill under the pointer, drawn outside the layout so it cannot push anything about as it moves. */}
       {drag?.moved === true && (
