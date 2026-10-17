@@ -198,17 +198,6 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
-    "eventID": "mega-blastoise-in-mega-raids-october-2026",
-    "name": "Mega Blastoise in Mega Raids",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/mega-blastoise-in-mega-raids-october-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
     "eventID": "mega-charizard-x-mega-charizard-y-in-mega-raids-october-2026",
     "name": "Mega Charizard X and Mega Charizard Y in Mega Raids",
     "eventType": "raid-battles",
@@ -446,8 +435,8 @@
     "heading": "Pokémon Spotlight Hour",
     "link": "https://leekduck.com/events/pokemonspotlighthour2026-10-15/",
     "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
-    "start": "2026-10-15T18:00:00.000",
-    "end": "2026-10-15T19:00:00.000",
+    "start": null,
+    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
@@ -470,17 +459,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
     "start": "2026-10-29T18:00:00.000",
     "end": "2026-10-29T19:00:00.000",
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
-    "eventID": "raidhour20261014",
-    "name": "Dialga Raid Hour",
-    "eventType": "raid-hour",
-    "heading": "Raid Hour",
-    "link": "https://leekduck.com/events/raidhour20261014/",
-    "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
-    "start": null,
-    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
@@ -547,17 +525,6 @@
     "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
     "start": "2026-11-28T14:00:00.000",
     "end": "2026-11-28T17:00:00.000",
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
-    "eventID": "yveltal-in-5-star-raid-battles-october-2026",
-    "name": "Yveltal in 5-star Raid Battles",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/yveltal-in-5-star-raid-battles-october-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/yveltal-2.jpg",
-    "start": null,
-    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   }
 ]
