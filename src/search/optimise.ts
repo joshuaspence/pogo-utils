@@ -399,7 +399,7 @@ function shortSpans(junction: Group['junction'], parts: readonly Node[]): Node[]
     return junction === 'all' ? parts.filter((part) => !taken.includes(part)) : [];
   }
 
-  // One span is a dex pill, the most legible thing to leave on the canvas. Several are alternatives, so in an `any`
+  // One span is a dex pill, the most legible thing to leave on a card. Several are alternatives, so in an `any`
   // they go in as themselves and in an `all` they want a group of their own to be alternatives within.
   const written = settled.map((span): Leaf => ({ kind: 'name', text: spansText([span]), negated: false }));
   const replacement: readonly Node[] =
@@ -488,7 +488,7 @@ function short(node: Node, told: Told): Node {
 /**
  * The tree the same arrangement composes to in fewer characters, and what was done to get there.
  *
- * The tree handed back is for composing and nothing else: the canvas and the link go on carrying what the reader
+ * The tree handed back is for composing and nothing else: the cards and the link go on carrying what the reader
  * arranged, so turning the optimiser off puts the original string back rather than having to undo a rewrite.
  *
  * `rewrites` is the pairs worth showing, a reader who cannot see why `charmander` became `4` having been handed a

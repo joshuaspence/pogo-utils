@@ -44,7 +44,7 @@ test('a pill writes the term the table gives it, and a name writes itself', () =
 });
 
 test('a pill with nothing to write yet writes nothing', () => {
-  // Each of these is a pill a reader can see on the canvas, and none of them is something to tell the game about.
+  // Each of these is a pill a reader can see on a card, and none of them is something to tell the game about.
   expect(leafText({ kind: 'range', id: 'cp', from: null, to: null, negated: false })).toBeNull();
   expect(leafText({ kind: 'name', text: '   ', negated: false })).toBeNull();
 

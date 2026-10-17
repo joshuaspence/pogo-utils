@@ -5,12 +5,12 @@
  * separated by `,`, `:` or `;`, each alternative a term or a term behind a `!` — which is all Niantic's own list
  * documents, mentioning no grouping of any kind.
  *
- * That shape is conjunctive normal form, and every boolean expression has one. So the canvas can let a reader arrange
- * the search they actually mean and this writes it back out as something the box will take: two pills in an `any`
+ * That shape is conjunctive normal form, and every boolean expression has one. So the Advanced pane can let a reader
+ * write the search they actually mean and this writes it back out as something the box will take: two pills in an `any`
  * inside an `all` beside two more comes out as four clauses, not one of which anybody would have thought to write.
  *
  * **The precedence is the one assumption under all of this, and it is documented.** A clause list joined with `&`
- * only means what the canvas said if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a
+ * only means what the cards say if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a
  * shiny that is Fire or Water. The community phrase list — `https://leidwesen.github.io/SearchPhrases/`, the same
  * reference the two negation bugs below are read off — says so in its storage table: "Ambiguity is resolved by always
  * considering `,`s nested inside `&`s", with `meowth,alola&vulpix,galar` as the example. Niantic's own list never
@@ -448,7 +448,7 @@ export function spreadOut(node: Node): readonly (readonly Leaf[])[] | null {
 }
 
 /**
- * The clauses a query comes to, and whatever is worth saying about it. An empty canvas is a query for everything rather
+ * The clauses a query comes to, and whatever is worth saying about it. No cards at all is a query for everything rather
  * than a broken one, that being the state the page spends most of its life in.
  *
  * The clauses follow the order the pills were arranged in, nothing here being sorted: the arrangement is the reader's
