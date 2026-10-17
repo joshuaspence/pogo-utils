@@ -237,7 +237,8 @@ follows it.
 The **Search** page ([`src/pages/search.tsx`](src/pages/search.tsx)) builds a string for the search box on the game's
 Pokémon storage screen. A catalogue of chips sits below the query; you drag one into a group to make a pill of it, and
 the arrangement of those pills _is_ the search. The string is written live, with a link that carries the whole
-arrangement so one can be shared or bookmarked.
+arrangement so one can be shared or bookmarked. An arrangement saved as a favourite is that same link, stored under
+`pogo-utils:search:favourites` by [`src/search/favourites.ts`](src/search/favourites.ts).
 
 A group asks for **all** of its pills or **any** of them, holds other groups as well as pills, and turns round with one
 press. A pill is required or ruled out, which is one press on its face. That pair is complete over every search the game

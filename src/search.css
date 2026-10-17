@@ -723,36 +723,45 @@ body[data-page='search'] {
     color: inherit;
   }
 
-  /* A saved search and the button that removes it, joined into one card so the cross reads as belonging to it. */
+  /* A composed string has no spaces to break at, and one long favourite should not push the card past the screen. */
 
-  .presets .kept {
+  .presets .saved code {
+    overflow-wrap: anywhere;
+  }
+
+  /**
+   * A saved favourite: the button that loads it and the one that removes it, drawn as one card so the remove button
+   * reads as part of the favourite it removes rather than as a neighbour of its own. The card carries the border and
+   * the hover, and the two buttons inside it carry neither, so nothing divides them.
+   */
+
+  .presets .saved {
     display: flex;
-  }
-
-  .presets .kept > button:first-child {
     min-width: 0;
-    border-right: 0;
-    border-radius: 8px 0 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
   }
 
-  /* One line of the string, which can run to hundreds of characters; the whole of it is the button's title. */
-
-  .presets .kept .note {
-    max-width: 36ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .presets .saved:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
 
-  .presets .kept button.forget {
+  .presets .saved button {
+    min-width: 0;
+    border: 0;
+    background: none;
+  }
+
+  .presets .saved .drop {
     justify-content: center;
-    padding: 8px 10px;
-    border-radius: 0 8px 8px 0;
+    padding: 0 8px;
     color: var(--muted);
-    font-weight: 400;
+    font-size: 11px;
   }
 
-  .presets .kept button.forget:hover {
+  .presets .saved .drop:hover {
     color: var(--accent);
   }
 
