@@ -1,10 +1,8 @@
 /**
- * The query the canvas holds: pills in nested groups, each group asking for all of its parts or any of them.
+ * A query as a tree: pills in nested groups, each group asking for all of its parts or any of them.
  *
- * This is the page's whole state, where the earlier builder had a fixed shape — a name box, then one clause per
- * category, then one per numeric range, all AND'd. That shape is a tree too, just one the reader could not edit, and
- * the three things it could not say are the three worth having: an *either* spanning two categories, a category
- * appearing twice, and a bracket inside a bracket.
+ * This is the page's whole state. The Builder draws it as cards, which is a tree two levels deep (`cards.js`), but a
+ * typed query and a link can both arrive deeper, and every reader of a tree here takes any depth.
  *
  * **Negation is on the pill and nowhere else, and that is enough.** A group is `all` or `any` with no third state,
  * because De Morgan says a negated group is the other junction with its parts negated: `!(a&b)` is `!a,!b` and
@@ -17,22 +15,20 @@
  * same thing it does with a clause true of everything — so an unfinished pill drops out of an `all` and takes its
  * whole `any` with it, each of which is what the arithmetic says and what a reader would expect to see.
  *
- * Paths rather than ids are how the canvas names a node: `[2, 0]` is the first part of the third part of the root.
- * They are what a render already knows and what a drop target already is, so nothing has to mint an identity or keep
- * one in step with the tree it describes. The cost is that an edit has to rebuild the spine down to the node it
- * changes, which is `update` below, and that a path goes stale the moment something before it moves — hence `move`
- * adjusting its destination rather than callers being trusted to.
+ * Paths rather than ids are how the page names a node: `[2, 0]` is the first part of the third part of the root. They
+ * are what a render already knows, so nothing has to mint an identity or keep one in step with the tree it describes.
+ * The cost is that an edit has to rebuild the spine down to the node it changes, which is `update` below, and that a
+ * path goes stale the moment something before it is taken out.
  */
 
 import { RANGES_BY_ID, TERMS_BY_ID, type Range } from './terms.js';
 
 /**
- * How deep a tree may be, which is one number because three readers build one: a fragment a stranger wrote, a typed
- * query, and the canvas's own *add a group* button. Each recurses as it descends, and the descent is what a
- * pathological input exhausts — a link claiming ten thousand groups would blow the stack before anything could refuse
- * it — so this is checked on the way down rather than measured afterwards.
+ * How deep a tree may be, which is one number because two readers build one: a fragment a stranger wrote and a typed
+ * query. Each recurses as it descends, and the descent is what a pathological input exhausts — a link claiming ten
+ * thousand groups would blow the stack before anything could refuse it — so this is checked on the way down rather
+ * than measured afterwards.
  *
- * A reader cannot realistically reach it by hand: sixty clicks of *add a group*, each into the group the last one made.
  * Two copies of the figure would let the fragment reader accept what the typed-query reader refuses, which reads as the
  * parser being broken rather than as the two disagreeing.
  */
@@ -62,7 +58,7 @@ export type Node = Leaf | Group;
 /** Where a node is: the index to take at each level, from the root down. The root itself is the empty path. */
 export type Path = readonly number[];
 
-/** Whether a node holds others, which is the one question the canvas and the path edits below both keep asking. */
+/** Whether a node holds others, which is the one question the cards and the path edits below both keep asking. */
 export const isGroup = (node: Node): node is Group => node.kind === 'group';
 
 /**
@@ -178,7 +174,7 @@ export function leafLabel(leaf: Leaf): string {
   return RANGES_BY_ID.get(leaf.id)?.label ?? leaf.id;
 }
 
-/** The node a path names, or null where the path leads nowhere — a link's doing rather than the canvas's. */
+/** The node a path names, or null where the path leads nowhere. */
 export function nodeAt(root: Node, path: Path): Node | null {
   let node: Node | null = root;
 
@@ -194,29 +190,11 @@ export function nodeAt(root: Node, path: Path): Node | null {
 }
 
 /**
- * The deepest group along a path, which is the root where nothing below it is one.
- *
- * A path held across edits can come to name a pill, or nothing, once something before it is taken out. Read through
- * this, it still names a group that can be filled rather than one that silently refuses every press.
- */
-export function groupAt(root: Node, path: Path): Path {
-  for (let depth = path.length; depth > 0; depth--) {
-    const node = nodeAt(root, path.slice(0, depth));
-
-    if (node !== null && isGroup(node)) {
-      return path.slice(0, depth);
-    }
-  }
-
-  return [];
-}
-
-/**
  * The tree with one node changed, or taken out where `change` answers null. The spine down to it is rebuilt and
  * everything else is the node it already was, which is what lets a render decide what to redraw by identity.
  *
- * Changing the root is `update(root, [], …)`, and taking the root out is refused: the canvas has to have something to
- * draw, and an empty root group is how a query says nothing.
+ * Changing the root is `update(root, [], …)`, and taking the root out is refused: the cards have to have something to
+ * be the parts of, and an empty root group is how a query says nothing.
  */
 export function update(root: Node, path: Path, change: (node: Node) => Node | null): Node {
   if (path.length === 0) {
@@ -233,101 +211,4 @@ export function update(root: Node, path: Path, change: (node: Node) => Node | nu
   const parts = changed === null ? root.parts.toSpliced(index, 1) : root.parts.with(index, changed);
 
   return { ...root, parts };
-}
-
-/** The tree with a node added to the end of the group at `path`. A path naming anything else leaves it alone. */
-export const append = (root: Node, path: Path, node: Node): Node =>
-  update(root, path, (into) => (isGroup(into) ? { ...into, parts: [...into.parts, node] } : into));
-
-/** Which of three states a group puts a catalogue chip in: not in it, required, or ruled out. */
-export type ChipState = 'off' | 'in' | 'out';
-
-/**
- * The first pill in this group naming the same catalogue entry, with the index it sits at. A name is never one of
- * these: two names are two different searches, where a term or a range is the same entry however many times it is
- * pressed, which is the whole of what makes the cycle below possible.
- */
-function entryAt(into: Group, id: string) {
-  const at = into.parts.findIndex((part) => !isGroup(part) && part.kind !== 'name' && part.id === id);
-  const found = at < 0 ? null : into.parts[at];
-
-  return found === undefined || found === null || isGroup(found) || found.kind === 'name' ? null : { at, pill: found };
-}
-
-/** What the group at `path` says about a catalogue entry, which is what that entry's chip wears. */
-export function chipState(root: Node, path: Path, id: string): ChipState {
-  const into = nodeAt(root, path);
-  const found = into !== null && isGroup(into) ? entryAt(into, id) : null;
-
-  return found === null ? 'off' : found.pill.negated ? 'out' : 'in';
-}
-
-/**
- * One press of a catalogue chip, on the group being filled: absent becomes required, required becomes ruled out, and
- * ruled out goes. Three presses leave the group as they found it.
- *
- * The chips were a three-state toggle before the canvas and they are one again. What changed is the scope: a press
- * reads the group it is filling rather than the whole query, which for a query built in the root alone — the state a
- * reader spends most of their time in — is the behaviour the fixed builder had. The same term in *two* groups is a
- * search worth having and is still reachable, by dragging a second copy somewhere else.
- *
- * The third press taking a span pill's bounds with it is deliberate rather than overlooked. A chip pressed three times
- * is three deliberate presses with the pill in sight the whole way, and `✕` is the same loss in one.
- */
-export function cycle(root: Node, path: Path, leaf: Leaf): Node {
-  const into = nodeAt(root, path);
-
-  if (into === null || !isGroup(into)) {
-    return root;
-  }
-
-  // A name has no chip and no cycle; what it has is a box, and the same name twice is one pill's worth of search.
-  if (leaf.kind === 'name') {
-    const already = into.parts.some((part) => !isGroup(part) && part.kind === 'name' && part.text === leaf.text);
-
-    return already ? root : append(root, path, leaf);
-  }
-
-  const found = entryAt(into, leaf.id);
-
-  if (found === null) {
-    return append(root, path, leaf);
-  }
-
-  return update(root, [...path, found.at], () => (found.pill.negated ? null : { ...found.pill, negated: true }));
-}
-
-/** Whether `inside` is `outside` or sits within it, which is the move a drop onto a group's own pill would ask for. */
-const within = (inside: Path, outside: Path) =>
-  inside.length >= outside.length && outside.every((index, at) => inside[at] === index);
-
-/**
- * The tree with the node at `from` moved to the end of the group at `to`.
- *
- * Taking the node out shifts every sibling after it along, so a destination below the same parent is corrected for
- * that here rather than by whoever called: a path is an index into the tree as it was, and this is the one operation
- * that invalidates one. A move into the node's own subtree is refused, there being no tree that would describe it, and
- * so is a move to anything but a group: `append` leaves a tree alone when its path names nothing, which here would
- * come after the node had already been taken out, and lose it.
- */
-export function move(root: Node, from: Path, to: Path): Node {
-  const node = nodeAt(root, from);
-  const into = nodeAt(root, to);
-
-  if (node === null || into === null || !isGroup(into) || from.length === 0 || within(to, from)) {
-    return root;
-  }
-
-  const parent = from.slice(0, -1);
-  const index = from[from.length - 1] ?? 0;
-  const shifted =
-    within(to, parent) && to.length > parent.length && (to[parent.length] ?? 0) > index
-      ? to.with(parent.length, (to[parent.length] ?? 0) - 1)
-      : to;
-
-  return append(
-    update(root, from, () => null),
-    shifted,
-    node,
-  );
 }

@@ -6,9 +6,9 @@
  * composer write out something the game will take. `(pikachu&shiny),(pumpkaboo&xxl)` arrives as two groups inside an
  * `any` and leaves as the four clauses the game needs.
  *
- * What it is *not* is a second composer. Nothing here writes a string; it writes a tree, the canvas draws it, and the
- * one composer takes it from there. So a typed query is an import rather than another way to ask the same question —
- * the pills land on the canvas and can be dragged about afterwards like any others.
+ * What it is *not* is a second composer. Nothing here writes a string; it writes a tree, the cards draw it, and the one
+ * composer takes it from there. So a typed query is an import rather than another way to ask the same question — the
+ * pills land on the cards and can be edited afterwards like any others.
  *
  * **The operators are the game's own, and both sources agree on them now.** Niantic's list groups `|` with `&` as an
  * AND, and the community phrase list says it outright: "`&` or `|` — AND combination", "`,` or `;` or `:` — OR
@@ -18,7 +18,7 @@
  * A negation is carried down rather than kept as a node, which is De Morgan's law applied while reading: a negated
  * `all` is an `any` of negated parts. That is not a convenience but the whole of why this fits — `tree.js` keeps
  * negation on the pills and has no negated group, so a tree whose only negations are on its leaves is the only kind
- * the canvas can draw.
+ * the cards can draw.
  */
 
 import { bounded, GROUPS, RANGES, RANGES_BY_ID, SHORTCUTS, SPAN, type Range } from './terms.js';
@@ -44,7 +44,7 @@ interface Token {
 /** Every catalogue term by the text the game reads it as, which is what a reader will have typed. */
 const IDS_BY_TERM = new Map(GROUPS.flatMap((category) => category.terms).map((term) => [term.term, term.id]));
 
-/** What a typed query came to, for the page to put on the canvas or to complain about. */
+/** What a typed query came to, for the page to put on the cards or to complain about. */
 export interface Read {
   tree: Node | null;
   error: string | null;
@@ -272,11 +272,11 @@ function parse(all: readonly Token[]): Node {
 /**
  * The arrangement a typed query describes, or why it describes none.
  *
- * An empty box is neither: there is nothing to put on the canvas and nothing wrong with that, so both come back null
+ * An empty box is neither: there is nothing to put on the cards and nothing wrong with that, so both come back null
  * and the page does nothing.
  *
- * The root is a group whatever arrives, the canvas having to have something to draw — a query that is one term is
- * wrapped in the `all` that an arrangement of one pill would have been.
+ * The root is a group whatever arrives, the cards having to have something to be the parts of — a query that is one
+ * term is wrapped in the `all` that an arrangement of one pill would have been.
  */
 export function read(text: string): Read {
   if (text.trim() === '') {

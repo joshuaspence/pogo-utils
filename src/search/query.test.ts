@@ -43,7 +43,7 @@ test('the clauses of the tree, joined, are the string', () => {
   expect(spread.clauses).toBe(4);
 });
 
-test('an empty canvas composes nothing at all', () => {
+test('no cards at all compose nothing', () => {
   expect(compose(emptyState()).query).toBe('');
   expect(compose(state(all(any(), all()))).query).toBe('');
 });
@@ -53,7 +53,7 @@ test('a comma binds tighter than an ampersand, which is the one thing the string
    * Stated rather than proved — Niantic's list never combines the two operators in an example — and the page no longer
    * warns about it, a warning that would be on for every arrangement holding an `any` being furniture. So it is pinned
    * here instead: an `any` nested in the root composes one clause of alternatives, and that is only the search the
-   * canvas drew if the comma binds first.
+   * cards drew if the comma binds first.
    */
   expect(compose(state(all(yes('shiny'), any(yes('fire'), yes('water'))))).query).toBe('shiny&fire,water');
   expect(compose(state(all(yes('shiny'), yes('lucky')))).query).toBe('shiny&lucky');
@@ -115,7 +115,7 @@ test("the Pokédex's link into this page arrives as the one name it asked for", 
   /*
    * `pokedex.tsx` offers *Search for it* and *Search its family*, and it used to build `t=` by hand — the key the name
    * box had. A fragment spelled at the call site goes on saying so after the page it points at has stopped reading it,
-   * and the only sign would have been a link that opens an empty canvas. So it goes through `nameFragment`, and this
+   * and the only sign would have been a link that opens with no cards. So it goes through `nameFragment`, and this
    * is that link followed.
    */
   for (const text of ['charmander', '+charmander', "farfetch'd", 'mr. mime']) {
@@ -231,7 +231,7 @@ test('a link nested deeper than the limit is refused on the way down rather than
   /*
    * The reader recurses once per group, so a link claiming ten thousand of them would exhaust the stack before
    * anything could refuse it — which is why the depth is checked before descending rather than measured afterwards.
-   * The canvas cannot reach this: a reader would be pressing *add a group* sixty-odd times into its own last group.
+   * The cards cannot reach this, being two levels deep at most: only a hand-made link can.
    */
   const deep = (count: number) => `q=${Array.from({ length: count }, () => 'A1').join('_')}_Tshiny`;
 

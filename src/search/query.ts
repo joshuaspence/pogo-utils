@@ -1,5 +1,5 @@
 /**
- * Turning the canvas's arrangement into a search string, and back out of a link. Kept apart from the page so what the
+ * Turning the cards' arrangement into a search string, and back out of a link. Kept apart from the page so what the
  * string means is readable without the DOM around it — this is the part that has to be right, and it is the part a
  * reader will check against what the game does.
  *
@@ -36,7 +36,7 @@ export const names = (text: string) =>
 /**
  * The search string, and whatever is worth saying about it.
  *
- * A string mixing `,` and `&` only means what the canvas says it means if a comma binds tighter than an ampersand,
+ * A string mixing `,` and `&` only means what the cards say it means if a comma binds tighter than an ampersand,
  * which the reference `clauses.js` cites states outright for this search box. The page used to warn whenever a string
  * mixed the two and does not now: there is nothing to warn about, and the caveat would in any case have been up for
  * nearly every query worth building, an `any` beside anything else in an `all` mixing them.
@@ -239,8 +239,8 @@ function decodeName(body: string) {
  * The state a fragment describes. Every part is checked against the tables rather than trusted, so a link that has
  * rotted past a renamed id or been typed by hand restores what still means something instead of failing whole.
  *
- * The root is a group whatever arrives, the canvas having to have something to draw. A fragment this wrote always
- * names one; a hand-made one naming a single pill is wrapped rather than thrown away.
+ * The root is a group whatever arrives, the cards having to have something to be the parts of. A fragment this wrote
+ * always names one; a hand-made one naming a single pill is wrapped rather than thrown away.
  */
 export function fromFragment(fragment: string) {
   const state = emptyState();

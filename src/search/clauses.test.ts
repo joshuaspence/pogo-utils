@@ -3,7 +3,7 @@
  *
  * That is the one thing worth proving here, and pinning output strings barely touches it: an `any` of two `all`s has a
  * right answer four clauses long, and a reader comparing it against a literal in a test file is checking a
- * transcription rather than the arithmetic. So each case is built as the tree the canvas would hold, read twice — once
+ * transcription rather than the arithmetic. So each case is built as the tree the page would hold, read twice — once
  * through `clausesOf`, and once as a predicate this file evaluates itself — and the two are compared over every
  * assignment of the terms in them. One assertion then covers the distribution, the absorption, the clause that asks
  * nothing and the pill that has nothing to say, and it goes on covering them when any of those is rewritten.
@@ -22,7 +22,7 @@ import { CLAUSES, clausesOf } from './clauses.js';
 import { RANGES_BY_ID } from './terms.js';
 import { group, spanned, type Leaf, type Node } from './tree.js';
 
-/** A required pill, which is what a chip dragged off the catalogue becomes. */
+/** A required pill, which is what a chip pressed in the catalogue becomes. */
 const yes = (id: string): Leaf => ({ kind: 'term', id, negated: false });
 
 /** The same pill turned round, which is one press on its face. */
@@ -180,7 +180,7 @@ test('the clauses keep the order the pills were arranged in', () => {
   ]);
 });
 
-test('an empty canvas is a query for everything rather than a broken one', () => {
+test('no cards at all is a query for everything rather than a broken one', () => {
   expect(clausesOf(all())).toEqual({ clauses: [], error: null, mishandled: [] });
 });
 
@@ -272,8 +272,8 @@ test('a name that spells a group is not that group', () => {
   /*
    * And the separator between siblings, which a first character cannot guard: each of these spells the key of the
    * `all(a, b)` beside it under one of the schemes this has carried — the bare text, the `=` that replaced it, and the
-   * quoting that replaced that. The group of one around the name is what a reader builds by dropping a single pill
-   * into a new group, and what an `A1` token in a fragment restores.
+   * quoting that replaced that. The group of one around the name is what an `A1` token in a fragment restores, and
+   * what the Advanced pane makes of a bracket holding one pill.
    */
   for (const text of ['a|=b', '"a"|"b"']) {
     const forged = any(
@@ -364,7 +364,7 @@ test('the cap bounds the whole tree rather than the one node it is checked in', 
 });
 
 /*
- * The terms the game mishandles behind a `!`. Nothing between the canvas and the string manufactures a negation — the
+ * The terms the game mishandles behind a `!`. Nothing between the cards and the string manufactures a negation — the
  * pills carry their own and the reductions only ever drop things — so one of these arrives only as a name a reader
  * typed and turned round themselves. They are named anyway, this page's output ending up in a mass transfer.
  */
@@ -521,7 +521,7 @@ test('a swallowed phrase is named as the reader will see it, negation and all', 
 });
 
 /*
- * A pill is one alternative within a clause, so the game's own separators inside one are a search the canvas is not
+ * A pill is one alternative within a clause, so the game's own separators inside one are a search the cards are not
  * showing. The two new boxes split on the comma for this reason — `takeMarked` in `pages/search.js` — where the rest
  * of the punctuation is the line the name box already draws and `parse.js` refuses on the way back.
  */
@@ -529,7 +529,7 @@ test('a swallowed phrase is named as the reader will see it, negation and all', 
 test('a comma inside one pill is the game’s own or, which is why the boxes split on it', () => {
   const whole = clausesOf(all(named('@3crunch,bite', false), yes('shiny')));
 
-  // One pill on the canvas, two alternatives in the clause the game reads.
+  // One pill on a card, two alternatives in the clause the game reads.
   expect(whole.clauses).toEqual(['@3crunch,bite', 'shiny']);
   expect(whole.clauses[0]?.split(',')).toHaveLength(2);
 

@@ -5,12 +5,12 @@
  * separated by `,`, `:` or `;`, each alternative a term or a term behind a `!` — which is all Niantic's own list
  * documents, mentioning no grouping of any kind.
  *
- * That shape is conjunctive normal form, and every boolean expression has one. So the canvas can let a reader arrange
- * the search they actually mean and this writes it back out as something the box will take: two pills in an `any`
+ * That shape is conjunctive normal form, and every boolean expression has one. So the Advanced pane can let a reader
+ * write the search they actually mean and this writes it back out as something the box will take: two pills in an `any`
  * inside an `all` beside two more comes out as four clauses, not one of which anybody would have thought to write.
  *
  * **The precedence is the one assumption under all of this, and it is documented.** A clause list joined with `&`
- * only means what the canvas said if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a
+ * only means what the cards say if a comma binds tighter than an ampersand — `fire,water&shiny` has to read as a
  * shiny that is Fire or Water. The community phrase list — `https://leidwesen.github.io/SearchPhrases/`, the same
  * reference the two negation bugs below are read off — says so in its storage table: "Ambiguity is resolved by always
  * considering `,`s nested inside `&`s", with `meowth,alola&vulpix,galar` as the example. Niantic's own list never
@@ -428,7 +428,27 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
 }
 
 /**
- * The clauses a query comes to, and whatever is worth saying about it. An empty canvas is a query for everything rather
+ * The pills of each clause a query comes to, or null where it spreads past `CLAUSES`. Exported for `cards.js`, which
+ * lays a tree out as these when it is deeper than a card can draw: the cards are then the clauses the string is
+ * written from, and nothing the Builder shows is a rearrangement the string does not make.
+ */
+export function spreadOut(node: Node): readonly (readonly Leaf[])[] | null {
+  // Factored before it is measured, the point of factoring being to bring the measurement under the cap.
+  const tree = factored(node);
+
+  if (size(tree) > CLAUSES) {
+    return null;
+  }
+
+  return absorbed(
+    spread(tree)
+      .map(clause)
+      .filter((one) => one !== null),
+  );
+}
+
+/**
+ * The clauses a query comes to, and whatever is worth saying about it. No cards at all is a query for everything rather
  * than a broken one, that being the state the page spends most of its life in.
  *
  * The clauses follow the order the pills were arranged in, nothing here being sorted: the arrangement is the reader's
@@ -443,22 +463,15 @@ function mishandling(clauses: readonly (readonly Leaf[])[]): Mishandled[] {
  * these notes are for.
  */
 export function clausesOf(node: Node): Written {
-  // Factored before it is measured, the point of factoring being to bring the measurement under the cap.
-  const tree = factored(node);
+  const kept = spreadOut(node);
 
-  if (size(tree) > CLAUSES) {
+  if (kept === null) {
     return {
       clauses: [],
       error: `That spreads past ${CLAUSES} clauses, which is longer than any search box will take`,
       mishandled: [],
     };
   }
-
-  const kept = absorbed(
-    spread(tree)
-      .map(clause)
-      .filter((one) => one !== null),
-  );
 
   return {
     clauses: kept.map((leaves) => leaves.map(written).join(',')),

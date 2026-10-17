@@ -93,8 +93,8 @@ function means(text: string, meant: Node, terms: readonly string[]) {
   }
 }
 
-test('the search the brackets describe is the search that lands on the canvas', () => {
-  // The one this is for: a shiny Pikachu or an XXL Pumpkaboo, which the canvas can hold and the game cannot be told.
+test('the search the brackets describe is the search that lands on the cards', () => {
+  // The one this is for: a shiny Pikachu or an XXL Pumpkaboo, which the game cannot be told in brackets.
   means(
     '(pikachu&shiny),(pumpkaboo&xxl)',
     any(all(named('pikachu'), yes('shiny')), all(named('pumpkaboo'), yes('xxl'))),
@@ -127,7 +127,7 @@ test('every spelling of the two operators is read the way the game reads it', ()
   }
 });
 
-test('a negation is pushed onto the pills, which is the only shape the canvas can draw', () => {
+test('a negation is pushed onto the pills, which is the only shape the cards can draw', () => {
   // `tree.js` has no negated group, so a negated bracket has to arrive as the other junction with its pills turned.
   expect(shape(treeFor('!(shiny,lucky)'))).toEqual({ all: ['!shiny', '!lucky'] });
   expect(shape(treeFor('!(shiny&lucky)'))).toEqual({ any: ['!shiny', '!lucky'] });
@@ -352,7 +352,7 @@ test('a family shorthand and a tag stay the text the game reads', () => {
   expect(stringFor('!#')).toBe('!#');
 });
 
-test('an empty box is nothing to put on the canvas and nothing wrong', () => {
+test('an empty box is nothing to put on the cards and nothing wrong', () => {
   for (const text of ['', '   ', '\n']) {
     expect(read(text)).toEqual({ tree: null, error: null });
   }
@@ -420,7 +420,7 @@ test('every string this page writes out of readable pills, it reads back into th
    * writes on the assumption a comma binds tighter, and the reader would have to make the same assumption to agree.
    *
    * *Readable* pills is the whole of the qualification, and the test below is what it means: these are the pills a
-   * typed query can hand back, so the property is a fixed point rather than a promise about every tree the canvas can
+   * typed query can hand back, so the property is a fixed point rather than a promise about every tree a link can
    * hold.
    */
   let swept = 0;

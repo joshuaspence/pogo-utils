@@ -200,14 +200,16 @@ body[data-page='search'] {
    *
    * *Search*, beside Copy while a phone is held, takes the same geometry and the outline: Copy stays the filled one,
    * being the way out the string has whether or not there is a phone. Copy and Save draw icons rather than words, and
-   * take a square of their own below. The naming dialog's two buttons are the same pair again, Save the filled one.
+   * take a square of their own below. The naming dialog's two buttons are the same pair again, Save the filled one, and
+   * the sheet's Done is filled too, being the one way out of it.
    */
 
   button.use,
   .output button.copy,
   .output button.send,
   .output button.save,
-  .naming button.confirm {
+  .naming button.confirm,
+  .sheet button.confirm {
     min-width: 5.75em;
     padding: 0 18px;
     border: 1px solid var(--accent);
@@ -230,7 +232,8 @@ body[data-page='search'] {
   .output button.copy:hover:not(:disabled),
   .output button.send:hover:not(:disabled),
   .output button.save:hover:not(:disabled),
-  .naming button.confirm:hover:not(:disabled) {
+  .naming button.confirm:hover:not(:disabled),
+  .sheet button.confirm:hover {
     filter: brightness(1.05);
   }
 
@@ -246,7 +249,8 @@ body[data-page='search'] {
   button.use:focus-visible,
   .output button.send:focus-visible,
   .output button.save:focus-visible,
-  .naming button.confirm:focus-visible {
+  .naming button.confirm:focus-visible,
+  .sheet button.confirm:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -569,7 +573,7 @@ body[data-page='search'] {
 
   /**
    * The three boxes a reader types a search into: the name, the `@` search and the tag. Each carries its own border
-   * now that there is no field wrapped round one, a committed text leaving for the canvas as a pill, so what is left
+   * now that there is no field wrapped round one, a committed text leaving for a card as a pill, so what is left
    * is an ordinary input holding at most the one being typed.
    *
    * A class rather than three ids, the look being the gesture and the gesture the same in all three. `#text` keeps its
@@ -800,6 +804,59 @@ body[data-page='search'] {
   }
 
   /**
+   * The catalogue, as a dialog over the page. Its head holds still while the chips scroll beneath it, so *Done* is one
+   * press away however far down the ranges a reader has gone.
+   */
+
+  .sheet {
+    width: min(760px, calc(100vw - 32px));
+    max-height: min(720px, calc(100dvh - 48px));
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: var(--shadow-lift);
+  }
+
+  .sheet[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sheet::backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  .sheet-head h2 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  .sheet-head button.confirm {
+    padding: 9px 18px;
+  }
+
+  .sheet-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px 16px 24px;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+
+  /**
    * Two columns where there is room for them. The groups are short lists of chips, so one column leaves half the page
    * empty and makes the reader scroll past sixty chips to reach the ranges.
    */
@@ -818,11 +875,8 @@ body[data-page='search'] {
   }
 
   /**
-   * A catalogue chip, which holds no state of its own: it is a thing to take a copy of rather than a toggle, so the
-   * three states it used to wear belong to the pill it makes. The category's hue is still here, so which category a
-   * chip came from reads without looking up the page.
-   *
-   * `touch-action` is what lets a finger drag one off the shelf instead of scrolling the page with it.
+   * A catalogue chip, which says whether the card the sheet is open for holds it. The category's hue is here, so which
+   * category a chip came from reads without looking up the page.
    */
 
   .chip {
@@ -847,9 +901,7 @@ body[data-page='search'] {
     color: var(--muted);
     font: inherit;
     font-size: 12px;
-    cursor: grab;
-    touch-action: none;
-    user-select: none;
+    cursor: pointer;
   }
 
   .chip:hover {
@@ -863,10 +915,8 @@ body[data-page='search'] {
   }
 
   /**
-   * A chip's three states, read against the group being filled. Off is the page's own furniture; required takes the
-   * category's colour, so which category a choice came from reads without looking up the page; ruled out takes the
-   * accent red whatever the category, because refusing a Fire type and refusing a shiny mean the same thing and should
-   * not look like two different kinds of choice.
+   * A chip's two states, read against the card being filled. Off is the page's own furniture; on the card takes the
+   * category's colour, so which category a choice came from reads without looking up the page.
    */
 
   .chip[data-state='in'] {
@@ -876,29 +926,9 @@ body[data-page='search'] {
     font-weight: 600;
   }
 
-  .chip[data-state='out'] {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-weight: 600;
-  }
-
   /**
-   * The strike goes on the label rather than on the whole chip, the same way `.pill.out .face .name` does it further
-   * down. A decoration on the button propagates to every in-flow descendant and a descendant cannot turn it off — so
-   * the `text-decoration: none` that used to sit on `.state` was inert, and the strike crossed the `!` glyph. Which is
-   * not merely untidy: a struck-through `!` reads as the `+` that means *off*, so the one thing that says what state a
-   * chip is in without relying on its colour was saying the wrong one.
-   */
-
-  .chip[data-state='out'] .name {
-    text-decoration: line-through;
-    text-decoration-thickness: 1px;
-  }
-
-  /**
-   * The state, said in a glyph as well as in colour — the three have to be tellable apart by someone who cannot see
-   * the difference between a red chip and a teal one.
+   * The state, said in a glyph as well as in colour — the two have to be tellable apart by someone who cannot see the
+   * difference between a grey chip and a teal one.
    */
 
   .chip .state {
@@ -911,131 +941,103 @@ body[data-page='search'] {
   }
 
   /**
-   * The canvas, which is the page's subject: the catalogue below it is a shelf, and this is the thing being built. It
-   * sits in the flow rather than sticking, the output box above it already being what stays in view.
+   * The cards, which are the page's subject: the sheet is a shelf, and these are the thing being built. A list down the
+   * column, every card a clause, with the *and* between two of them drawn in the gap rather than taking a row of its
+   * own — the gap is what it means, and the list's own label says it to a screen reader.
    */
 
-  .canvas {
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--panel);
-    box-shadow: var(--shadow);
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  /**
-   * One group. Nested groups are the same element at every depth, so the indent comes from the nesting itself rather
-   * than from a rule per level — which is the only way a tree of unknown depth can be drawn at all.
-   *
-   * The dashed border says *container* against the solid ones the panels wear: a group is somewhere pills go, and a
-   * reader has to be able to see the hole they are dropping into before anything is in it.
-   */
-
-  .group-node {
+  .card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px;
-    border: 1px dashed var(--border);
-    border-radius: 8px;
+    padding: 8px 10px 12px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
     background: var(--bg);
   }
 
-  .group-node.root {
-    border-style: solid;
-    background: none;
-  }
-
-  /**
-   * The group a pill would land in. Lit on the border and the background both, because a drop target a reader has to
-   * look for is a drop target they will miss — and `--start` is the one colour on this page that already means *yes*.
-   */
-
-  .group-node.target {
-    border-color: var(--start);
-    border-style: solid;
-    background: color-mix(in srgb, var(--start) 10%, var(--panel));
-  }
-
-  /* The group a pressed chip goes into, which is quieter than a drop target: it is a standing state, not a gesture. */
-
-  .group-node.current:not(.target) {
-    border-color: var(--track);
-  }
-
-  .group-head {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .junction {
-    padding: 3px 10px;
-    border: 1px solid var(--track);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--track) 12%, var(--panel));
-    color: var(--text);
-    font: inherit;
+  .card + .card::before {
+    content: 'and';
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    color: var(--muted);
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    cursor: pointer;
+    letter-spacing: 0.05em;
+    transform: translateX(-50%);
   }
 
-  .junction:hover {
-    background: color-mix(in srgb, var(--track) 22%, var(--panel));
-  }
-
-  .group-head .drop {
-    margin-left: auto;
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
   }
 
   .parts {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    align-items: flex-start;
-
-    /* Enough that an empty group is a space a pill can plainly be put into rather than a line of text. */
-    min-height: 34px;
+    align-items: center;
   }
 
-  /* A nested group takes a line of its own, a group being a block of the query rather than a word in it. */
-
-  .parts > .group-node {
-    flex: 1 0 100%;
-  }
-
-  .group-node .empty {
+  .panel > .empty {
     margin: 0;
-    align-self: center;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: 12px;
   }
 
-  .group-node .add {
-    align-self: flex-start;
-    padding: 2px 8px;
+  /* The two ways onto a card: another alternative on one, and a card of its own, dashed as somewhere to put a pill. */
+
+  .card .or,
+  .add-card {
     border: 1px dashed var(--border);
-    border-radius: 999px;
     background: none;
     color: var(--muted);
     font: inherit;
-    font-size: 11px;
     cursor: pointer;
   }
 
-  .group-node .add:hover {
+  .card .or {
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+  }
+
+  .add-card {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .card .or:hover,
+  .add-card:hover {
     border-color: var(--track);
     border-style: solid;
     color: var(--track);
   }
 
   /**
-   * A pill: the term, its state, and the two controls that move it. Built as a row of buttons rather than one button
-   * holding others, which nothing is allowed to be — pressing the face turns the pill round, and the two beside it
-   * pick it up and take it off.
+   * A pill: the term, its state, and the control that takes it off. Built as a row of buttons rather than one button
+   * holding others, which nothing is allowed to be — pressing the face turns the pill round, and the one beside it
+   * takes it off.
    */
 
   .pill {
@@ -1059,9 +1061,7 @@ body[data-page='search'] {
     font: inherit;
     font-size: 12.5px;
     font-weight: 600;
-    cursor: grab;
-    touch-action: none;
-    user-select: none;
+    cursor: pointer;
   }
 
   .pill.in {
@@ -1080,22 +1080,14 @@ body[data-page='search'] {
     text-decoration-thickness: 1px;
   }
 
-  /* The pill a keyboard has picked up, which is waiting for a group to be clicked and says so by lifting. */
-
-  .pill.carried {
-    border-color: var(--start);
-    box-shadow: var(--shadow-lift);
-  }
-
   .pill .state {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 11px;
     text-decoration: none;
   }
 
-  .pill .lift,
   .pill .drop,
-  .group-head .drop {
+  .card-head .drop {
     padding: 0 6px;
     border: 0;
     background: none;
@@ -1106,21 +1098,16 @@ body[data-page='search'] {
     cursor: pointer;
   }
 
-  .pill .lift[aria-pressed='true'] {
-    color: var(--start);
-  }
-
   .pill .drop:hover,
-  .group-head .drop:hover {
+  .card-head .drop:hover {
     color: var(--accent);
   }
 
-  .pill .lift:focus-visible,
   .pill .drop:focus-visible,
   .pill .face:focus-visible,
-  .group-head .drop:focus-visible,
-  .junction:focus-visible,
-  .group-node .add:focus-visible {
+  .card-head .drop:focus-visible,
+  .card .or:focus-visible,
+  .add-card:focus-visible {
     outline: 2px solid var(--track);
     outline-offset: 1px;
   }
@@ -1131,13 +1118,13 @@ body[data-page='search'] {
    * A named end holds no width of its own and takes no declaration to say so: a `select` is as wide as its *longest*
    * option rather than the one showing, so both ends of a buddy pill are the width of *1 buddied but never levelled
    * up* whatever is picked, and this and `.pill` are content-sized `inline-flex` either side of it. Neither a
-   * `max-width: 100%` nor a `min-width: 0` moves it — both were tried on a pill six groups deep at 600px and the
-   * capture came back byte-identical — because nothing in that chain is constraining the width to shrink against.
+   * `max-width: 100%` nor a `min-width: 0` moves it, because nothing in that chain is constraining the width to shrink
+   * against.
    *
    * And no wrapping: a wrap puts the two ends on two lines and leaves the dash beside the label joining nothing,
    * where the stacking at the foot of this sheet is scoped to the width at which stacking is what a reader wants. So
-   * the pill is one line at any width, and a group too narrow to hold it overflows sideways as any group holding
-   * content wider than itself does.
+   * the pill is one line at any width, and a card too narrow to hold it overflows sideways as anything holding content
+   * wider than itself does.
    */
 
   .pill .bounds {
@@ -1182,34 +1169,6 @@ body[data-page='search'] {
   .pill .bounds .dash {
     color: var(--muted);
     font-size: 11px;
-  }
-
-  /**
-   * The pill under the pointer. Fixed and translated off its own corner so it hangs from the grab point, and
-   * `pointer-events: none` so that `elementFromPoint` reports the group beneath rather than this element itself —
-   * which is the whole of how the drop target is found.
-   *
-   * Not `.ghost`, which it was called first: this sheet already gives that word to the Clear button beside the string,
-   * and the Pokédex gives it to a link. `.output button.ghost` outranks a bare `.ghost` on everything the two of them
-   * both set, so the colours were fine and only the one property this rule holds alone leaked — Clear went
-   * `position: fixed` and climbed into the Copy button. A class name means one thing per sheet, and the sheet's own
-   * note about five pages sharing nineteen names is about the easier half of that problem.
-   */
-
-  .dragging {
-    position: fixed;
-    z-index: 50;
-    padding: 4px 10px;
-    border: 1px solid var(--track);
-    border-radius: 999px;
-    background: var(--panel);
-    box-shadow: var(--shadow-lift);
-    color: var(--text);
-    font-size: 12.5px;
-    font-weight: 600;
-    white-space: nowrap;
-    pointer-events: none;
-    transform: translate(-50%, -140%);
   }
 
   @media (width <= 560px) {
@@ -1261,6 +1220,47 @@ body[data-page='search'] {
 
     .pill .bounds:has(select) {
       flex-direction: column;
+    }
+
+    /* The sheet rises from the foot of the screen, where the thumb that opened it already is, and takes its width. */
+
+    .sheet {
+      width: 100%;
+      max-width: 100%;
+      max-height: 88dvh;
+      margin: auto 0 0;
+      border-width: 1px 0 0;
+      border-radius: 16px 16px 0 0;
+    }
+
+    /**
+     * A phone is pressed with a finger, so everything on a card and every chip in the sheet is sized up to around the
+     * 44px a fingertip wants. A pill's ✕ takes the pill's full height rather than the width of its glyph alone.
+     */
+
+    .pill .face {
+      padding: 10px 6px 10px 14px;
+      font-size: 14px;
+    }
+
+    .pill .drop {
+      align-self: stretch;
+      padding: 0 14px;
+    }
+
+    .card-head .drop {
+      min-width: 44px;
+      min-height: 44px;
+    }
+
+    .card .or {
+      padding: 11px 16px;
+      font-size: 13px;
+    }
+
+    .chip {
+      padding: 11px 14px;
+      font-size: 13.5px;
     }
   }
 }
