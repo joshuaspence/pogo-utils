@@ -1,8 +1,8 @@
 /**
  * The Inventory page: one Pokémon's detail screen read end to end in the browser, which is what `pnpm inventory snap`
  * and `parse` do from a terminal. A phone connected over WebUSB — from the settings menu, which every tab shares — is
- * asked for whatever it is showing, or a PNG already saved is dropped in, and the page prints what every reader makes of it — the same four blocks `parse` prints, from
- * the same `readScreen`.
+ * asked for whatever it is showing, or a PNG already saved is dropped in, and the page prints what every reader makes
+ * of it — the same four blocks `parse` prints, from the same `readScreen`.
  *
  * A screen a scan could not have used is refused, with the reason, rather than answered with a page of nulls: the map,
  * a Pokémon with PGSharp's overlay off, anything whose HP did not read. What the readers made of it is still there
