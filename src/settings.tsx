@@ -73,7 +73,7 @@ export function Settings() {
       // Nothing in the file is nothing to change, and leaving before the copy and the corrections is what makes the
       // message below true: the copy would put a file in the reader's Downloads for an import that touched nothing,
       // and the corrections are not free — the Events page closes a reveal the reader had opened — so running them
-      // anyway would say nothing changed on the one render where *Show ended* had just emptied itself.
+      // anyway would say nothing changed on the one render where *Ended* had just emptied itself.
       if (incoming.length === 0) {
         setStatus('That backup held no saved preferences, so nothing changed.');
         return;

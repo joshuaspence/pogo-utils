@@ -62,8 +62,8 @@ function covers({ through, ids }: Seen, ev: Pick<ParsedEvent, 'eventID' | 'added
 
 /**
  * Whether an event survives the type-filter, dismissal and search-term filters — the ones meaning "I do not want to
- * see this", so every view honours them. "Show hidden" reveals a dismissal the way "Show ended" reveals a past event: a
- * temporary reveal rather than a change to what was saved. The status reveals are `isRevealed`'s.
+ * see this", so every view honours them. "Hidden" reveals a dismissal the way "Ended" reveals a past event: a temporary
+ * reveal rather than a change to what was saved. The status reveals are `isRevealed`'s.
  */
 export function admits(
   ev: ParsedEvent,

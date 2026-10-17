@@ -261,10 +261,10 @@ body[data-page='events'] {
   }
 
   /**
-   * The panel's chip row is made of these. A type chip wears its own type's colour — a tinted fill and a matching border
-   * — which makes that row the legend for the three colour-coded views below it: the chip carries the same `.type-*`
-   * class the cards and the calendar and timeline bars do, so --type-color inherits here and one palette serves all
-   * four. The three reveals carry no type and so fall through to the muted grey.
+   * The panel's chip row is made of these. A type chip wears its own type's colour — a tinted fill and a matching
+   * border — which makes that row the legend for the three colour-coded views below it: the chip carries the same
+   * `.type-*` class the cards and the calendar and timeline bars do, so --type-color inherits here and one palette
+   * serves all four. The three reveals carry no type and so fall through to the muted grey.
    *
    * `font-family` has to be asked for because these are buttons: a button does not inherit it, and left alone the chips
    * come out in the UA's default face rather than the page's.
@@ -289,10 +289,10 @@ body[data-page='events'] {
   /**
    * The `display: inline-flex` above is what makes this one necessary: an author `display` beats the UA stylesheet's
    * `[hidden] {display: none}`, so the `hidden` setView() puts on two of the reveals outside the cards view would lay
-   * them out regardless — leaving Show ended and Show undated on screen in the calendar and tracks views, where neither
-   * reveals anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any
-   * later `display` a media query gives `.chip`, and `!important` because the keying alone only outranks a bare class:
-   * a second one ties it and wins on order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
+   * them out regardless — leaving Ended and Undated on screen in the calendar and tracks views, where neither reveals
+   * anything. Keyed on `[hidden]` rather than folded into a `:not([hidden])` above so that it also outranks any later
+   * `display` a media query gives `.chip`, and `!important` because the keying alone only outranks a bare class: a
+   * second one ties it and wins on order, which is the bug `.pane[hidden]` in `search.css` carries the account of.
    */
 
   .chip[hidden] {
@@ -560,8 +560,8 @@ body[data-page='events'] {
   }
 
   /**
-   * A dismissed card is only ever visible while "Show hidden" is on. Dim it and keep its restore button on-screen
-   * (rather than hover-only) so the reader can tell it is hidden and bring it back.
+   * A dismissed card is only ever visible while "Hidden" is on. Dim it and keep its restore button on-screen (rather
+   * than hover-only) so the reader can tell it is hidden and bring it back.
    */
 
   .card.dismissed {

@@ -127,9 +127,9 @@ const TRACKS = [
  * and neither can draw a dateless event at all, `windowOf` giving it no window to place.
  */
 const REVEALS = [
-  { name: 'showPast', label: 'Show ended', cardsOnly: true },
-  { name: 'showUndated', label: 'Show undated', cardsOnly: true },
-  { name: 'showHidden', label: 'Show hidden', cardsOnly: false },
+  { name: 'showPast', label: 'Ended', cardsOnly: true },
+  { name: 'showUndated', label: 'Undated', cardsOnly: true },
+  { name: 'showHidden', label: 'Hidden', cardsOnly: false },
 ] as const satisfies readonly { name: keyof Reveals; label: string; cardsOnly: boolean }[];
 
 // Tracks view geometry. TRACK_DAY_PX is the single source for a day column's width: the bars are positioned in pixels
@@ -554,7 +554,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         )}
 
         {/*
-         * A dismissed card only appears while "Show hidden" is on; there the same corner button restores it rather than
+         * A dismissed card only appears while "Hidden" is on; there the same corner button restores it rather than
          * dismissing it again.
          */}
         <button
