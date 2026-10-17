@@ -261,6 +261,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   // A session's choices rather than saved preferences; `prefs` is what survives a reload.
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<StatusKind>>(new Set());
   const [reveals, setReveals] = useState<Reveals>(NOTHING_REVEALED);
 
   /** The first-of-month the calendar view is showing, or the current month until the reader steps off it. */
@@ -699,12 +700,33 @@ export default function EventsPage({ query: fragment }: { query: string }) {
        */
       body: GROUPS.filter(({ kind }) => buckets[kind].length > 0).map(({ kind, label }) => (
         <Fragment key={kind}>
-          {/* The kind rides along on the heading so the stylesheet can pick out the running events. */}
+          {/*
+           * The kind rides along on the heading so the stylesheet can pick out the running events. The button sits
+           * inside the `<h2>` rather than replacing it, so the bucket stays a heading to navigate by as well as a
+           * control that folds it.
+           */}
           <h2 class={`group group-${kind}`}>
-            {label}
-            <span class="gcount">{buckets[kind].length}</span>
+            <button
+              type="button"
+              aria-controls={`group-${kind}`}
+              aria-expanded={!collapsed.has(kind)}
+              onClick={() =>
+                setCollapsed((was) => {
+                  const next = new Set(was);
+
+                  if (!next.delete(kind)) {
+                    next.add(kind);
+                  }
+
+                  return next;
+                })
+              }
+            >
+              {label}
+              <span class="gcount">{buckets[kind].length}</span>
+            </button>
           </h2>
-          <div key={`g-${kind}-${generation}`} class="grid enter">
+          <div key={`g-${kind}-${generation}`} id={`group-${kind}`} class="grid enter" hidden={collapsed.has(kind)}>
             {buckets[kind].map(renderCard)}
           </div>
         </Fragment>

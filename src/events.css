@@ -331,9 +331,6 @@ body[data-page='events'] {
   }
 
   h2.group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     margin: 28px 0 12px;
     font-size: 12px;
     font-weight: 700;
@@ -343,11 +340,52 @@ body[data-page='events'] {
   }
 
   /**
+   * The whole row is the button, hairline included, so a click anywhere along the heading folds the bucket rather than
+   * only one on its words.
+   */
+
+  h2.group button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  h2.group button:hover {
+    color: var(--text);
+  }
+
+  h2.group button:focus-visible {
+    outline: 2px solid var(--track);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* The same triangles the Integrations page's `details.subgroup` folds with, turned by the state the button reports. */
+
+  h2.group button::before {
+    content: '▾';
+    font-size: 9px;
+  }
+
+  h2.group button[aria-expanded='false']::before {
+    content: '▸';
+  }
+
+  /**
    * A hairline running out to the right margin makes each bucket read as a section rather than as a faint floating
    * label. On the pseudo-element so no extra node is rendered per group.
    */
 
-  h2.group::after {
+  h2.group button::after {
     content: '';
     flex: 1;
     height: 1px;
@@ -360,7 +398,7 @@ body[data-page='events'] {
     color: var(--accent);
   }
 
-  h2.group.group-active::after {
+  h2.group.group-active button::after {
     background: color-mix(in srgb, var(--accent) 35%, var(--border));
   }
 
@@ -382,6 +420,15 @@ body[data-page='events'] {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 12px;
+  }
+
+  /**
+   * The `display: grid` above beats the UA stylesheet's `[hidden] {display: none}`, so a bucket its heading folds would
+   * stay on screen. `!important` for the reason `.filters[hidden]` gives.
+   */
+
+  .grid[hidden] {
+    display: none !important;
   }
 
   /**

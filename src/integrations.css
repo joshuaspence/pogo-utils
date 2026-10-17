@@ -71,9 +71,9 @@ body[data-page='integrations'] {
   }
 
   /**
-   * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label and it only
-   * ever heads a section, so at `--muted` the one thing here that opens read as one of the things that cannot. Full
-   * contrast, an accent on hover and a focus ring tell the two apart.
+   * A control, not a caption. `h2.group` on the events page is this same 700-weight uppercase muted label, so at
+   * `--muted` the one thing here that opens read as a section heading. Full contrast, an accent on hover and a focus
+   * ring mark it as something to press.
    */
 
   .backup details.subgroup > summary {
