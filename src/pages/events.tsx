@@ -261,7 +261,6 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   // A session's choices rather than saved preferences; `prefs` is what survives a reload.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<StatusKind>>(new Set());
   const [reveals, setReveals] = useState<Reveals>(NOTHING_REVEALED);
 
   /** The first-of-month the calendar view is showing, or the current month until the reader steps off it. */
@@ -431,6 +430,14 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     commit(prefs.filterScope === 'view' ? 'hiddenByView' : 'hiddenTypes');
   }
 
+  function toggleGroup(kind: StatusKind) {
+    if (!prefs.collapsed.delete(kind)) {
+      prefs.collapsed.add(kind);
+    }
+
+    commit('collapsed');
+  }
+
   function reset() {
     prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
 
@@ -439,6 +446,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     prefs.hiddenByView = {};
     prefs.filterScope = 'global';
     prefs.dismissed.clear();
+    prefs.collapsed.clear();
 
     // Back to not knowing, which `settleSeen` reads as a first visit and seeds from the feed. Clearing it to empty
     // instead would mark every event on the page new, where a Reset is a return to the defaults.
@@ -709,24 +717,19 @@ export default function EventsPage({ query: fragment }: { query: string }) {
             <button
               type="button"
               aria-controls={`group-${kind}`}
-              aria-expanded={!collapsed.has(kind)}
-              onClick={() =>
-                setCollapsed((was) => {
-                  const next = new Set(was);
-
-                  if (!next.delete(kind)) {
-                    next.add(kind);
-                  }
-
-                  return next;
-                })
-              }
+              aria-expanded={!prefs.collapsed.has(kind)}
+              onClick={() => toggleGroup(kind)}
             >
               {label}
               <span class="gcount">{buckets[kind].length}</span>
             </button>
           </h2>
-          <div key={`g-${kind}-${generation}`} id={`group-${kind}`} class="grid enter" hidden={collapsed.has(kind)}>
+          <div
+            key={`g-${kind}-${generation}`}
+            id={`group-${kind}`}
+            class="grid enter"
+            hidden={prefs.collapsed.has(kind)}
+          >
             {buckets[kind].map(renderCard)}
           </div>
         </Fragment>
@@ -1058,7 +1061,7 @@ export default function EventsPage({ query: fragment }: { query: string }) {
           class="ghost"
           title={
             "Default every view's type filters, hide ended and undated events, " +
-            'restore dismissals and clear new marks'
+            'restore dismissals, unfold every section and clear new marks'
           }
           onClick={reset}
         >
