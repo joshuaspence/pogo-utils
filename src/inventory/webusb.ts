@@ -56,7 +56,7 @@ const TIMEOUT_MS = 30_000;
  * published site but not the LAN address `pnpm serve` prints; and it is a Chromium API, so Firefox and Safari have
  * none.
  */
-export function unreachable(): string | null {
+function unreachable(): string | null {
   if (!window.isSecureContext) {
     return (
       'WebUSB needs a secure context: ' +

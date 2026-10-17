@@ -1,8 +1,9 @@
 /**
  * The settings control at the end of the top bar, beside the notifications, on every tab: a gear that opens a panel
- * for what belongs to the browser rather than to any one page. So far that is the backup of everything this app keeps
- * in `localStorage` — export it as a file, or import one back — which lived on the Events page while the events
- * preferences were the only thing stored, and moved here once other tabs had choices of their own worth carrying.
+ * for what belongs to the browser rather than to any one page. So far that is two things. The backup of everything this
+ * app keeps in `localStorage` — export it as a file, or import one back — lived on the Events page while the events
+ * preferences were the only thing stored, and moved here once other tabs had choices of their own worth carrying. The
+ * phone held over WebUSB lived on the Inventory page, and moved here once the Search page used it too.
  */
 
 import { useRef, useState } from 'preact/hooks';
@@ -10,6 +11,7 @@ import { useRef, useState } from 'preact/hooks';
 import { applyBackup, backupName, ownedKeys, parseBackup, rescueName, writeBackup } from './backup.js';
 import { said } from './errors.js';
 import { eventStore } from './event-store.js';
+import { phoneStore, usePhone } from './phone-store.js';
 import { useDismiss } from './popover.js';
 
 /**
@@ -44,7 +46,41 @@ export function Settings() {
    */
   const picker = useRef<HTMLInputElement>(null);
 
+  const phone = usePhone();
+
+  /** What the last attempt to connect a phone has to say, or null once there is nothing to add to the phone held. */
+  const [phoneStatus, setPhoneStatus] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+
   useDismiss(open, () => setOpen(false), root);
+
+  /**
+   * Offer the browser's chooser and hold whatever is picked. `webusb.ts` is fetched only now: it brings Tango, which
+   * would otherwise load on every tab for a menu most visits never open. A browser with no WebUSB finds out here too,
+   * `connect` refusing with the reason.
+   */
+  async function connectPhone() {
+    setConnecting(true);
+    setPhoneStatus('Pick the phone in the browser’s chooser, then allow USB debugging on it…');
+
+    try {
+      const { connect } = await import('./inventory/webusb.js');
+      const picked = await connect();
+
+      // The chooser dismissed, which keeps whatever phone is already connected rather than letting it go for nothing.
+      if (picked === null) {
+        setPhoneStatus(phoneStore.phone ? null : 'No phone was picked.');
+        return;
+      }
+
+      await phoneStore.hold(picked);
+      setPhoneStatus(null);
+    } catch (e) {
+      setPhoneStatus(`Could not connect: ${said(e)}`);
+    } finally {
+      setConnecting(false);
+    }
+  }
 
   /**
    * Hand the saved preferences over as a file. A storage failure is reported rather than swallowed: `writeBackup` lets
@@ -167,6 +203,28 @@ export function Settings() {
            */}
           <p class="settings-status" aria-live="polite">
             {status}
+          </p>
+        </section>
+
+        <section class="settings-section" aria-labelledby="settings-phone">
+          <h2 id="settings-phone">Phone</h2>
+          <p class="settings-note">
+            Connect an Android phone with USB debugging on, for the Inventory tab to read its screen and the Search tab
+            to type into its storage. Close any <code>adb</code> server first: a phone held by one cannot be claimed
+            here. Where the connection will not come up, <a href="https://webadb.com/">WebADB</a> is a shell over the
+            same WebUSB to find out why. The phone stays connected from tab to tab until it is unplugged or the site is
+            closed.
+          </p>
+
+          <div class="settings-actions">
+            <button type="button" disabled={connecting} onClick={() => void connectPhone()}>
+              {phone ? 'Connect another phone' : 'Connect a phone'}
+            </button>
+          </div>
+
+          {/* Present from the first render, for the reason the backup's status above is. */}
+          <p class="settings-status" aria-live="polite">
+            {phoneStatus ?? (phone ? `Connected to ${phone.name}.` : null)}
           </p>
         </section>
       </div>
