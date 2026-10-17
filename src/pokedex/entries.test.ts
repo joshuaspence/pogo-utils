@@ -6,10 +6,21 @@
 
 import { expect, test } from 'vitest';
 
-import { CATEGORIES, ENTRIES, GENERATION_NUMBERS, HUNTS, generationOf, numbered, type Entry } from './entries.js';
+import {
+  CATEGORIES,
+  ENTRIES,
+  GENERATION_NUMBERS,
+  HUNTS,
+  generationOf,
+  huntsOf,
+  numbered,
+  type Entry,
+} from './entries.js';
 import PGSHARP_FILTERS from '../pgsharp/filters.js';
 import { GENERATIONS } from '../pokemon/generations.js';
 import { fold } from '../pokemon/names.js';
+import POKEMON, { PALDEA } from '../pokemon/pokedex.js';
+import type Pokemon from '../pokemon/pokemon.js';
 
 /** One row by the name the page shows. It throws rather than narrowing: a species gone is a precondition gone. */
 function entry(name: string) {
@@ -114,28 +125,20 @@ test('a hunt can want a species the feed will never turn up, and the row says wh
 });
 
 test('a hunt is watched where any member it wants is, not where every one of them is', () => {
-  // The only rows that can tell `some` from `every`: a hunt wants more than one part and the feed watches some of them
-  // but not all. Found rather than named, because which species reach the difference is a property of the hunt lists —
-  // naming one ties this test to a list that is rewritten whenever the hunt moves on.
-  const split = ENTRIES.flatMap((row) =>
-    HUNTS.flatMap((hunt) => {
-      const wanted = held(row).filter((part) => hunt.members.has(part));
-      const watched = wanted.filter((part) => hunt.watched(part));
+  // A made-up hunt wanting both parts of one row and watching only the species, since the real lists reach this split
+  // only while one of them happens to want a form the feed cannot alert on beside one it can. Under `every` the row
+  // would call the hunt dead while the feed was alerting on the part it does watch, which on the page is a checklist
+  // shown as finished.
+  const species = POKEMON.TAUROS;
+  const variant = species.region(PALDEA);
+  const hunt = {
+    id: 'split',
+    label: 'Split',
+    members: new Set([species, variant]),
+    watched: (p: Pokemon) => p === species,
+  };
 
-      return watched.length > 0 && watched.length < wanted.length ? [{ row, hunt }] : [];
-    }),
-  );
-
-  // A list that no longer splits leaves nothing below to assert, which is a prerequisite gone rather than a pass.
-  expect(split.length).toBeGreaterThan(0);
-
-  // Every one of them reads as watched. Under `every` the row would call the hunt dead while the feed was alerting on
-  // the part it does watch, which on the page is a checklist shown as finished.
-  const dead = split.flatMap(({ row, hunt }) =>
-    row.hunts.some(({ id, watched }) => id === hunt.id && watched) ? [] : [`${row.name} ${hunt.id}`],
-  );
-
-  expect(dead).toEqual([]);
+  expect(huntsOf([species, variant], [hunt])).toEqual([{ id: 'split', watched: true }]);
 });
 
 test('a hunt is watched for exactly the species the PGSharp feed built from its list carries', () => {

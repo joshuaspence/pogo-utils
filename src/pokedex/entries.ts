@@ -114,10 +114,11 @@ function variantsOf(pokemon: Pokemon, name: string): Variant[] {
 /**
  * The hunts that want any one of these, each saying whether the feed watches for any member it wants. A species can be
  * on a list and unwatched — Terapagos is wanted as an XXL like the rest of the dex, and nothing will turn one up in the
- * wild to alert on.
+ * wild to alert on. The hunts are a parameter so a test can hand it one that splits a row, which the real lists only
+ * sometimes do.
  */
-function huntsOf(pokemon: readonly Pokemon[]) {
-  return HUNTS.flatMap(({ id, members, watched }) => {
+export function huntsOf(pokemon: readonly Pokemon[], hunts: readonly Hunt[] = HUNTS) {
+  return hunts.flatMap(({ id, members, watched }) => {
     const wanted = pokemon.filter((p) => members.has(p));
 
     return wanted.length > 0 ? [{ id, watched: wanted.some(watched) }] : [];
