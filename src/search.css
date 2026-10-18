@@ -198,10 +198,10 @@ body[data-page='search'] {
    * The width is held rather than left to the label, so *Use it* does not shift between its enabled and disabled
    * weights: `5.75em` is 74.75px at the 13px below, which it wants 73.41px of at the 600 and 71.23px of at the 500.
    *
-   * *Search*, beside Copy while a phone is held, takes the same geometry and the outline: Copy stays the filled one,
-   * being the way out the string has whether or not there is a phone. Copy and Save draw icons rather than words, and
-   * take a square of their own below. The naming dialog's two buttons are the same pair again, Save the filled one, and
-   * the sheet's Done is filled too, being the one way out of it.
+   * *Search*, beside Copy and greyed out until a phone is held, takes the same geometry and the outline: Copy stays the
+   * filled one, being the way out the string has whether or not there is a phone. Copy, Save and Search draw icons
+   * rather than words, and take a square of their own below. The naming dialog's two buttons are the same pair again,
+   * Save the filled one, and the sheet's Done is filled too, being the one way out of it.
    */
 
   button.use,
@@ -289,7 +289,8 @@ body[data-page='search'] {
   /* A square for an icon, where the hold above is for a word. The clipboard fallback's words still widen Copy. */
 
   .output button.copy,
-  .output button.save {
+  .output button.save,
+  .output button.send {
     display: inline-flex;
     align-items: center;
     justify-content: center;

@@ -72,6 +72,7 @@ const icon = (path: string) => (
 const COPY_ICON = 'M8 8h12v12H8zM4 16V4h12';
 const DONE_ICON = 'M5 12l5 5L19 7';
 const SAVE_ICON = 'M6 3h12v18l-6-4-6 4z';
+const SEARCH_ICON = 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM20 20l-4.9-4.9';
 
 /**
  * What a chip in the sheet wears in each of its two states — the glyph, and the words a screen reader is given instead
@@ -999,18 +1000,24 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 {icon(SAVE_ICON)}
               </button>
 
-              {/* The same string sent the other way out, which only a phone held over WebUSB gives it. */}
-              {phone !== null && (
-                <button
-                  type="button"
-                  class="send"
-                  title={`Type this into Pokémon storage’s search on ${phone.name}`}
-                  disabled={!query || error !== null || sending}
-                  onClick={() => void sendToPhone()}
-                >
-                  Search
-                </button>
-              )}
+              {/*
+               * The same string sent the other way out, which only a phone held over WebUSB gives it. Drawn with no
+               * phone as well, greyed out and saying where to connect one, so a reader can find out the page does this.
+               */}
+              <button
+                type="button"
+                class="send"
+                aria-label="Search on the phone"
+                title={
+                  phone === null
+                    ? 'Connect a phone in Settings to type this into its Pokémon storage search'
+                    : `Type this into Pokémon storage’s search on ${phone.name}`
+                }
+                disabled={phone === null || !query || error !== null || sending}
+                onClick={() => void sendToPhone()}
+              >
+                {icon(SEARCH_ICON)}
+              </button>
             </span>
           </div>
 
