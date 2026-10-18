@@ -368,7 +368,7 @@ test('the arrangement the reader made is never the one that was shortened', () =
 
   optimise(state(tree));
 
-  // The canvas and the link go on carrying what was placed, so turning the toggle off puts the long string back rather
+  // The cards and the link go on carrying what was placed, so turning the toggle off puts the long string back rather
   // than leaving a rewrite to undo.
   expect(tree).toEqual(before);
 });
