@@ -83,6 +83,12 @@ const CHIP = {
   in: { glyph: '✓', said: 'on this card' },
 } as const;
 
+/**
+ * How long a reader has to stop typing in the Advanced box before what is there is laid out, in milliseconds. Long
+ * enough to sit between the keys of a word, short enough that a pause to look at the cards finds them up to date.
+ */
+const IDLE = 800;
+
 /** Which way of writing the query is on show. Both feed the one arrangement; neither is a second state. */
 type Pane = 'builder' | 'advanced';
 
@@ -449,6 +455,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   const namingRef = useRef<HTMLDialogElement>(null);
   const sheetRef = useRef<HTMLDialogElement>(null);
 
+  /** The pause `IDLE` is waiting out in the Advanced box, if one is running. */
+  const idleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { query, was, rewrites, lossy, error, mishandled } = current(state);
   const root = cards(state.tree);
 
@@ -476,6 +485,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
+    settle();
     closeSuggestions();
   }, [fragment]);
 
@@ -577,6 +587,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
+    settle();
     closeSuggestions();
   }
 
@@ -692,15 +703,19 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * A query as it is typed, put on the cards in place of whatever was there each time it reads as one. Replacing rather
-   * than merging, because a reader writing a whole search means that search. `replaceQuery` is `replaceState`
-   * (`router.js`), so the link in the address bar follows along and the browser's Back button leaves the page rather
-   * than stepping back through every keystroke.
+   * A typed query put on the cards in place of whatever was there, once the reader stops typing or leaves the box.
+   * Replacing rather than merging, because a reader writing a whole search means that search. `replaceQuery` is
+   * `replaceState` (`router.js`), so the link in the address bar follows along and the browser's Back button leaves the
+   * page rather than stepping back through every query.
    *
-   * **A query that does not read leaves the cards as they were**, which is what makes laying it out as it is typed
-   * workable at all: every half-written bracket is a refusal, and cards that emptied themselves at each one would be
-   * unusable. The refusal is said under the box, and the cards go on showing the last query that read until the next
-   * one does. An empty box is neither, and leaves them too — clearing the text is not asking for every Pokémon.
+   * **Not on every keystroke**, because nearly every keystroke is a query half written: `(pika` is a refusal, and so is
+   * `shiny&` on its way to `shiny&lucky`. Said as each key landed, the refusal was under the box from the first
+   * character a reader typed, telling them off for a query they had not finished. So the box waits for a pause or a
+   * blur before it reads anything, and a keystroke takes the last refusal away.
+   *
+   * **A query that does not read leaves the cards as they were**, the refusal said under the box and the cards going on
+   * showing the last query that read. An empty box is neither, and leaves them too — clearing the text is not asking
+   * for every Pokémon.
    *
    * Nothing but this function reads the box, so the two of them holding a query is no state the page has to keep in
    * step — the arrangement is still its only state, and an edit on the cards afterwards is not written back here.
@@ -716,6 +731,17 @@ export default function SearchPage({ query: fragment }: { query: string }) {
       arrange(laid);
     }
   }
+
+  /** Calls off the pause before the box is read, if one is running. */
+  function settle() {
+    if (idleRef.current !== null) {
+      clearTimeout(idleRef.current);
+      idleRef.current = null;
+    }
+  }
+
+  // A pause outliving the page would lay a query out on cards nobody is looking at.
+  useEffect(() => settle, []);
 
   /**
    * One name finished with, which becomes a pill on the card being filled. A nickname works as well as a species, and
@@ -1193,8 +1219,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
          * and the pills it leaves can be edited like any others, which is the whole difference between this and a
          * second box that composed beside the first.
          *
-         * It takes effect as it is typed, with no button to press: `importTyped` says why a half-written bracket does no
-         * harm.
+         * It takes effect with no button to press, once the reader pauses or leaves the box: `importTyped` says why not on
+         * every keystroke.
          *
          * The panel is the card, where the Builder's is a column of them, and it carries no heading of its own: the
          * field's label says what the box holds, and a tab panel is named by the tab that opened it.
@@ -1224,7 +1250,19 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                 const { value } = event.currentTarget;
 
                 setTyped(value);
-                importTyped(value);
+                setTypedError(null);
+                settle();
+                idleRef.current = setTimeout(() => {
+                  idleRef.current = null;
+                  importTyped(value);
+                }, IDLE);
+              }}
+              onBlur={() => {
+                // Only where a pause is still running: a blur after it has fired has nothing new to read.
+                if (idleRef.current !== null) {
+                  settle();
+                  importTyped(typed);
+                }
               }}
             />
           </div>
@@ -1240,8 +1278,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and{' '}
             <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
             <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
-            The game takes no brackets, so what you type is multiplied out into cards in the Builder as you go, each one
-            a clause the game does take.
+            The game takes no brackets, so what you type is multiplied out into cards in the Builder when you pause, each
+            one a clause the game does take.
           </p>
         </div>
       </main>
