@@ -625,7 +625,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * downloads it.
    */
   async function sendToPhone() {
+    // Said where the answer to a search goes, so a reader pressing the greyed-out button learns why it did nothing.
     if (phone === null) {
+      setSent({ query, kind: 'failed', message: 'No phone is connected. Connect one in Settings to search on it.' });
+
       return;
     }
 
@@ -1003,6 +1006,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               {/*
                * The same string sent the other way out, which only a phone held over WebUSB gives it. Drawn with no
                * phone as well, greyed out and saying where to connect one, so a reader can find out the page does this.
+               *
+               * `aria-disabled` rather than `disabled` for the missing phone: a disabled button takes no press, and the
+               * press is what says why nothing happened.
                */}
               <button
                 type="button"
@@ -1013,7 +1019,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                     ? 'Connect a phone in Settings to type this into its Pokémon storage search'
                     : `Type this into Pokémon storage’s search on ${phone.name}`
                 }
-                disabled={phone === null || !query || error !== null || sending}
+                aria-disabled={phone === null}
+                disabled={!query || error !== null || sending}
                 onClick={() => void sendToPhone()}
               >
                 {icon(SEARCH_ICON)}
