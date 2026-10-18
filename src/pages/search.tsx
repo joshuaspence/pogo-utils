@@ -415,19 +415,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   /** The span pill's box being typed in, if any — `boxText` above says why that is worth a piece of state. */
   const [typedBound, setTypedBound] = useState<Typed | null>(null);
 
-  /** The query being typed into the import box, and why the last attempt at it went nowhere. */
+  /** The query being typed into the import box, and why what is in it now cannot be laid out. */
   const [typed, setTyped] = useState('');
   const [typedError, setTypedError] = useState<string | null>(null);
-
-  /**
-   * The text the arrangement was last built from, which is what *Use it* is disabled over.
-   *
-   * Pressing it replaces the arrangement, and the text staying in the box means it can be pressed a second time with
-   * the cards since edited — which would rebuild the typed query over that work, silently, from a pane where the cards
-   * are not even on screen. Holding the text that was used closes it: the button says *this query is already
-   * applied* until the reader changes the query, which is the press they kept the text for.
-   */
-  const [used, setUsed] = useState<string | null>(null);
 
   /**
    * Which pane is open. Not in the link and not stored: the arrangement is what a link carries, and it draws in either
@@ -486,7 +476,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
-    setUsed(null);
     closeSuggestions();
   }, [fragment]);
 
@@ -588,7 +577,6 @@ export default function SearchPage({ query: fragment }: { query: string }) {
     setTypedBound(null);
     setTyped('');
     setTypedError(null);
-    setUsed(null);
     closeSuggestions();
   }
 
@@ -704,33 +692,29 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   /**
-   * A typed query put on the cards, replacing whatever was there. Replacing rather than merging, because a reader who
-   * has written a whole search means that search — and it is destructive, which is what `used` above is for: the
-   * arrangement it overwrites is gone, there being nothing to restore it from. `replaceQuery` is `replaceState`
-   * (`router.js`), so the link in the address bar is the new arrangement and the browser's Back button leaves the page
-   * rather than stepping back through arrangements.
+   * A query as it is typed, put on the cards in place of whatever was there each time it reads as one. Replacing rather
+   * than merging, because a reader writing a whole search means that search. `replaceQuery` is `replaceState`
+   * (`router.js`), so the link in the address bar follows along and the browser's Back button leaves the page rather
+   * than stepping back through every keystroke.
    *
-   * The text stays in the box afterwards, being what the reader typed: the query to correct a bracket in and press
-   * again, and the only record of what was asked for once the cards are showing the clauses it came to rather than the
-   * brackets it was written with. Nothing but this function reads the box, so the two of them holding a query is no
-   * state the page has to keep in step — the arrangement is still its only state.
+   * **A query that does not read leaves the cards as they were**, which is what makes laying it out as it is typed
+   * workable at all: every half-written bracket is a refusal, and cards that emptied themselves at each one would be
+   * unusable. The refusal is said under the box, and the cards go on showing the last query that read until the next
+   * one does. An empty box is neither, and leaves them too — clearing the text is not asking for every Pokémon.
    *
-   * A failure leaves the text and the arrangement alone, and leaves `used` alone with them, there being nothing to put
-   * and no reason to take anything away.
+   * Nothing but this function reads the box, so the two of them holding a query is no state the page has to keep in
+   * step — the arrangement is still its only state, and an edit on the cards afterwards is not written back here.
    */
-  function importTyped() {
-    const { tree, error } = read(typed);
+  function importTyped(text: string) {
+    const { tree, error } = read(text);
     const laid = tree === null ? null : asCards(tree);
 
     // A tree that parsed but will not lay out is one spreading past what a search box takes, which the composer says.
     setTypedError(tree === null ? error : laid === null ? clausesOf(tree).error : null);
 
-    if (laid === null) {
-      return;
+    if (laid !== null) {
+      arrange(laid);
     }
-
-    arrange(laid);
-    setUsed(typed);
   }
 
   /**
@@ -1209,8 +1193,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
          * and the pills it leaves can be edited like any others, which is the whole difference between this and a
          * second box that composed beside the first.
          *
-         * It commits on its button or on Enter rather than as it is typed: every half-written bracket is an error, and
-         * cards that emptied themselves at each keystroke would be unusable.
+         * It takes effect as it is typed, with no button to press: `importTyped` says why a half-written bracket does no
+         * harm.
          *
          * The panel is the card, where the Builder's is a column of them, and it carries no heading of its own: the
          * field's label says what the box holds, and a tab panel is named by the tab that opened it.
@@ -1222,13 +1206,7 @@ export default function SearchPage({ query: fragment }: { query: string }) {
           aria-labelledby="pane-advanced"
           hidden={pane !== 'advanced'}
         >
-          <form
-            class="import"
-            onSubmit={(event) => {
-              event.preventDefault();
-              importTyped();
-            }}
-          >
+          <div class="import">
             {/* Named for the string rather than for its brackets, which are one of the things it may hold. */}
             <label class="side" for="typed">
               Your query
@@ -1243,24 +1221,13 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               aria-invalid={typedError !== null}
               aria-describedby="importHelp"
               onInput={(event) => {
-                setTyped(event.currentTarget.value);
-                setTypedError(null);
+                const { value } = event.currentTarget;
+
+                setTyped(value);
+                importTyped(value);
               }}
             />
-            {/*
-             * Disabled over the text the arrangement was built from, which also closes the Enter that would submit the
-             * form: a browser's implicit submission goes through the default button and does nothing where that button
-             * is disabled, so the one guard covers both ways of pressing it.
-             *
-             * Compared trimmed, as the emptiness test beside it is. A space on either end is not a change to the
-             * query — the tokeniser trims each term — so re-enabling over one would hand back the press that
-             * overwrites the cards while asking for nothing. Whitespace *inside* the query still counts as a change,
-             * which is a deliberate edit of its characters rather than a stray keystroke.
-             */}
-            <button type="submit" class="use" disabled={typed.trim() === '' || typed.trim() === used?.trim()}>
-              Use it
-            </button>
-          </form>
+          </div>
 
           <p class="broken" hidden={typedError === null}>
             {ticked(typedError ?? '')}
@@ -1273,8 +1240,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
             <code>&amp;</code> and <code>|</code> are <em>and</em>, <code>,</code> <code>;</code> and{' '}
             <code>:</code> are <em>or</em>, and <code>!</code> rules out whatever follows — so{' '}
             <code>(pikachu&amp;shiny),(pumpkaboo&amp;xxl)</code> matches a shiny Pikachu <em>or</em> an XXL Pumpkaboo.
-            The game takes no brackets, so <em>Use it</em> multiplies them out into cards in the Builder, each one a
-            clause the game does take.
+            The game takes no brackets, so what you type is multiplied out into cards in the Builder as you go, each one
+            a clause the game does take.
           </p>
         </div>
       </main>

@@ -101,7 +101,7 @@ body[data-page='search'] {
 
   /**
    * The two rows a query is read on: the one it is typed into, down in the Advanced pane, and the clauses it comes to,
-   * up in the card. Laid out alike, and with the label and button widths below they line up down the page across the
+   * up in the card. Laid out alike, and with the label width below their fields start in line down the page across the
    * tab bar between them — they are the same search said the two ways, and the pairing is what the page does.
    */
 
@@ -191,12 +191,10 @@ body[data-page='search'] {
   }
 
   /**
-   * The two buttons are one geometry, the rows being a pair, and differ only in fill: *Use it* starts the page's job
-   * and *Copy* ends it, so the outline reads as the step before the filled one rather than as a lesser action. It is
-   * the same outline the Copy button takes when it has nothing to copy, for the reason given below it.
-   *
-   * The width is held rather than left to the label, so *Use it* does not shift between its enabled and disabled
-   * weights: `5.75em` is 74.75px at the 13px below, which it wants 73.41px of at the 600 and 71.23px of at the 500.
+   * One geometry for the page's buttons, differing only in fill: the filled one is the action and the outlined one the
+   * step beside it, never a lesser action. It is the same outline the Copy button takes when it has nothing to copy,
+   * for the reason given below it. The width is held rather than left to a label, so a worded button does not shift
+   * between its enabled and disabled weights.
    *
    * *Search*, beside Copy and greyed out until a phone is held, takes the same geometry and the outline: Copy stays the
    * filled one, being the way out the string has whether or not there is a phone. Copy, Save and Search draw icons
@@ -443,9 +441,9 @@ body[data-page='search'] {
    * page itself at `--bg`, so a `--bg` track would be a declaration that paints nothing. The border is what says
    * where the control ends.
    *
-   * The accent is spent on the fill of *Copy* and the outline of *Use it*, which are the two things on this page that
-   * *do* something. A third accent fill here put the loudest mark on the page on a control that only changes what is
-   * on show, and it read as the action beside the two that are.
+   * The accent is spent on the buttons beside the string, which are the things on this page that *do* something. An
+   * accent fill here put the loudest mark on the page on a control that only changes what is on show, and it read as
+   * an action beside the ones that are.
    */
 
   .panes {
