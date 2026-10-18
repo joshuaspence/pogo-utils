@@ -367,9 +367,19 @@ body[data-page='search'] {
     line-height: 1.5;
   }
 
+  /**
+   * Set off as a chip, the way help text sets its code, rather than in the mono face alone: a refusal quoting a single
+   * `(` or `!` in a different face only reads as the same character in the sentence around it. The panel colour is
+   * what stands out against both the amber and the red tint.
+   */
+
   .caveat code,
   .broken code {
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: var(--panel);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
   }
 
   /**
