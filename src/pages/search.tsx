@@ -372,10 +372,13 @@ function current(state: State) {
 /**
  * Where the last string sent to the phone has got to, and which string that was: an answer is about the string sent, so
  * it is shown only while that is still the string on the page.
+ *
+ * `unheld` is a press with no phone to send to, a kind of its own because it stops being true in a way the others do
+ * not: connecting a phone in Settings leaves this page mounted and the string unchanged.
  */
 interface Sent {
   query: string;
-  kind: 'busy' | 'done' | 'failed';
+  kind: 'busy' | 'done' | 'failed' | 'unheld';
   message: string;
 }
 
@@ -625,7 +628,10 @@ export default function SearchPage({ query: fragment }: { query: string }) {
    * downloads it.
    */
   async function sendToPhone() {
+    // Said where the answer to a search goes, so a reader pressing the greyed-out button learns why it did nothing.
     if (phone === null) {
+      setSent({ query, kind: 'unheld', message: 'No phone is connected. Connect one in Settings to search on it.' });
+
       return;
     }
 
@@ -652,7 +658,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
   }
 
   const sending = sent?.kind === 'busy';
-  const answer = sent !== null && (sending || sent.query === query) ? sent : null;
+  const answer =
+    sent !== null && (sending || sent.query === query) && !(sent.kind === 'unheld' && phone !== null) ? sent : null;
 
   useEffect(() => {
     if (copyLabel === 'Copy') {
@@ -1003,6 +1010,9 @@ export default function SearchPage({ query: fragment }: { query: string }) {
               {/*
                * The same string sent the other way out, which only a phone held over WebUSB gives it. Drawn with no
                * phone as well, greyed out and saying where to connect one, so a reader can find out the page does this.
+               *
+               * `aria-disabled` rather than `disabled` for the missing phone: a disabled button takes no press, and the
+               * press is what says why nothing happened.
                */}
               <button
                 type="button"
@@ -1013,7 +1023,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
                     ? 'Connect a phone in Settings to type this into its Pokémon storage search'
                     : `Type this into Pokémon storage’s search on ${phone.name}`
                 }
-                disabled={phone === null || !query || error !== null || sending}
+                aria-disabled={phone === null}
+                disabled={!query || error !== null || sending}
                 onClick={() => void sendToPhone()}
               >
                 {icon(SEARCH_ICON)}
@@ -1040,8 +1051,8 @@ export default function SearchPage({ query: fragment }: { query: string }) {
 
           {answer !== null && (
             <p
-              class={answer.kind === 'failed' ? 'broken' : 'sent'}
-              role={answer.kind === 'failed' ? 'alert' : 'status'}
+              class={answer.kind === 'failed' || answer.kind === 'unheld' ? 'broken' : 'sent'}
+              role={answer.kind === 'failed' || answer.kind === 'unheld' ? 'alert' : 'status'}
             >
               {answer.message}
             </p>

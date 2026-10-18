@@ -230,7 +230,7 @@ body[data-page='search'] {
 
   button.use:hover:not(:disabled),
   .output button.copy:hover:not(:disabled),
-  .output button.send:hover:not(:disabled),
+  .output button.send:hover:not(:disabled, [aria-disabled='true']),
   .output button.save:hover:not(:disabled),
   .naming button.confirm:hover:not(:disabled),
   .sheet button.confirm:hover {
@@ -239,6 +239,7 @@ body[data-page='search'] {
 
   button.use:disabled,
   .output button.send:disabled,
+  .output button.send[aria-disabled='true'],
   .output button.save:disabled {
     border-color: var(--border);
     color: var(--muted);
