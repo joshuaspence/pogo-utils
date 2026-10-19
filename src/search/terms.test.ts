@@ -28,6 +28,24 @@ test('every help sentence closes the backticks it opens', () => {
   }).toEqual({ open: [], quotes: true });
 });
 
+/**
+ * A pill on the canvas is its label and nothing else — the heading the chip sat under is not drawn there, and the four
+ * type groups share a hue, so neither position nor colour says which group a pill came from. So a label that reads as
+ * a quantifier names nothing a reader can act on: *Safe to transfer* drew `!background` as a pill reading `Any`.
+ */
+test('no label leans on the heading above it to say what it is', () => {
+  const bare = new Set(['all', 'any', 'both', 'either', 'neither', 'none']);
+  const leans = (label: string) => bare.has(label.trim().toLowerCase());
+  const labels = [...GROUPS.flatMap((category) => category.terms), ...RANGES].map((one) => one.label);
+
+  // `caught` is the other half, as above: the filter would report an empty list just as quietly over no labels at all.
+  expect({ leaning: labels.filter(leans), caught: leans('Any'), some: labels.length > 0 }).toEqual({
+    leaning: [],
+    caught: true,
+    some: true,
+  });
+});
+
 test('no range is named the same as a term, and no two terms the same as each other', () => {
   /*
    * An `id` is what a catalogue entry is known by, so a term and a range sharing one are one name for two entries —

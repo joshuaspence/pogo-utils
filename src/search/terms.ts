@@ -265,7 +265,7 @@ export const GROUPS: readonly Group[] = [
     id: 'background',
     label: 'Background',
     hue: 220,
-    help: 'The backdrop the catch was recorded against. `Any` is `background`, the word the game has for either.',
+    help: 'The backdrop the catch was recorded against, where `background` is the word the game has for either.',
     terms: [
       { id: 'locationbackground', term: 'locationbackground', label: 'Location' },
       { id: 'specialbackground', term: 'specialbackground', label: 'Event' },
@@ -276,7 +276,12 @@ export const GROUPS: readonly Group[] = [
        * reader typing it on a phone. `covers` is that union said to `optimise.js`, which writes this in place of both
        * on whichever side they were picked — so the chip saves those characters for the reader who did click twice.
        */
-      { id: 'background', term: 'background', label: 'Any', covers: ['locationbackground', 'specialbackground'] },
+      {
+        id: 'background',
+        term: 'background',
+        label: 'Any background',
+        covers: ['locationbackground', 'specialbackground'],
+      },
     ],
   },
   {
