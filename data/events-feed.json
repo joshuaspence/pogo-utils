@@ -429,17 +429,6 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
-    "eventID": "pokemonspotlighthour2026-10-15",
-    "name": "Stufful Spotlight Hour",
-    "eventType": "pokemon-spotlight-hour",
-    "heading": "Pokémon Spotlight Hour",
-    "link": "https://leekduck.com/events/pokemonspotlighthour2026-10-15/",
-    "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
     "eventID": "pokemonspotlighthour2026-10-22",
     "name": "Morelull Spotlight Hour",
     "eventType": "pokemon-spotlight-hour",
@@ -490,8 +479,8 @@
     "heading": "Event",
     "link": "https://leekduck.com/events/sandile-hatch-day-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-10-17-sandile-hatch-day-2026/sandile-hatch-day-2026.jpg",
-    "start": "2026-10-17T11:00:00.000",
-    "end": "2026-10-17T17:00:00.000",
+    "start": null,
+    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
