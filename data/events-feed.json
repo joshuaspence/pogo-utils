@@ -11,6 +11,28 @@
     "added": "2026-10-13T23:24:36.725Z"
   },
   {
+    "eventID": "cresselia-darkrai-in-5-star-raid-battles-november-2026",
+    "name": "Cresselia and Darkrai in 5-star Raid Battles",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/cresselia-darkrai-in-5-star-raid-battles-november-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-16T06:00:00.000",
+    "end": "2026-11-24T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "deoxys-normal-defense-attack-speed-formes-in-5-star-raid-battles-november-2026",
+    "name": "Deoxys (Normal, Defense, Attack, and Speed Formes) in 5-star Raid Battles",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/deoxys-normal-defense-attack-speed-formes-in-5-star-raid-battles-november-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-25T06:00:00.000",
+    "end": "2026-12-01T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "dialga-in-5-star-raid-battles-october-2026",
     "name": "Dialga in 5-star Raid Battles",
     "eventType": "raid-battles",
@@ -20,6 +42,17 @@
     "start": "2026-10-14T06:00:00.000",
     "end": "2026-10-20T22:00:00.000",
     "added": "2026-10-12T00:00:00.000Z"
+  },
+  {
+    "eventID": "dynamax-trails-2026",
+    "name": "Dynamax Trails",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://leekduck.com/events/dynamax-trails-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-16T10:00:00.000",
+    "end": "2026-11-23T20:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
   },
   {
     "eventID": "dynamax-uxie-mesprit-azelf-max-battle-day-2026",
@@ -121,6 +154,17 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
+    "eventID": "giratina-altered-forme-in-5-star-raid-battles-november-2026",
+    "name": "Giratina (Altered Forme) in 5-star Raid Battles",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/giratina-altered-forme-in-5-star-raid-battles-november-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-04T06:00:00.000",
+    "end": "2026-11-08T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "giratina-origin-forme-in-5-star-raid-battles-october-2026",
     "name": "Giratina (Origin Forme) in 5-star Raid Battles",
     "eventType": "raid-battles",
@@ -198,6 +242,61 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
+    "eventID": "max-mondays-2026-11-02",
+    "name": "Dynamax Machop during Max Monday",
+    "eventType": "max-mondays",
+    "heading": "Max Mondays",
+    "link": "https://leekduck.com/events/max-mondays-2026-11-02/",
+    "image": "https://cdn.leekduck.com/assets/img/events/max-battles-kanto.jpg",
+    "start": "2026-11-02T06:00:00.000",
+    "end": "2026-11-02T21:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "max-mondays-2026-11-16",
+    "name": "Max Monday: Pokémon to be announced",
+    "eventType": "max-mondays",
+    "heading": "Max Mondays",
+    "link": "https://leekduck.com/events/max-mondays-2026-11-16/",
+    "image": "https://cdn.leekduck.com/assets/img/events/max-battles-kanto.jpg",
+    "start": "2026-11-16T06:00:00.000",
+    "end": "2026-11-16T21:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "max-mondays-2026-11-23",
+    "name": "Dynamax Espurr during Max Monday",
+    "eventType": "max-mondays",
+    "heading": "Max Mondays",
+    "link": "https://leekduck.com/events/max-mondays-2026-11-23/",
+    "image": "https://cdn.leekduck.com/assets/img/events/max-battles-kanto.jpg",
+    "start": "2026-11-23T06:00:00.000",
+    "end": "2026-11-23T21:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "max-mondays-2026-11-30",
+    "name": "Dynamax Cryogonal during Max Monday",
+    "eventType": "max-mondays",
+    "heading": "Max Mondays",
+    "link": "https://leekduck.com/events/max-mondays-2026-11-30/",
+    "image": "https://cdn.leekduck.com/assets/img/events/max-battles-kanto.jpg",
+    "start": "2026-11-30T06:00:00.000",
+    "end": "2026-11-30T21:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "mega-banette-in-mega-raids-november-2026",
+    "name": "Mega Banette in Mega Raids",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/mega-banette-in-mega-raids-november-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
+    "start": "2026-11-16T06:00:00.000",
+    "end": "2026-11-24T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "mega-charizard-x-mega-charizard-y-in-mega-raids-october-2026",
     "name": "Mega Charizard X and Mega Charizard Y in Mega Raids",
     "eventType": "raid-battles",
@@ -220,6 +319,17 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
+    "eventID": "mega-metagross-in-mega-raids-november-2026",
+    "name": "Mega Metagross in Mega Raids",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/mega-metagross-in-mega-raids-november-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
+    "start": "2026-11-25T06:00:00.000",
+    "end": "2026-12-01T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "mega-sableye-in-mega-raids-october-2026",
     "name": "Mega Sableye in Mega Raids",
     "eventType": "raid-battles",
@@ -227,7 +337,7 @@
     "link": "https://leekduck.com/events/mega-sableye-in-mega-raids-october-2026/",
     "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
     "start": "2026-10-28T06:00:00.000",
-    "end": "2026-11-03T22:00:00.000",
+    "end": "2026-11-08T22:00:00.000",
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
@@ -407,6 +517,28 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
+    "eventID": "pokemon-night-out-london-2026",
+    "name": "Pokémon Night Out 2026 - London",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://leekduck.com/events/pokemon-night-out-london-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/pokemon-night-out-2026.jpg",
+    "start": "2026-11-10T18:00:00.000Z",
+    "end": "2026-11-10T22:30:00.000Z",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "pokemon-night-out-los-angeles-2026",
+    "name": "Pokémon Night Out 2026 - Los Angeles",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://leekduck.com/events/pokemon-night-out-los-angeles-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/pokemon-night-out-2026.jpg",
+    "start": "2026-10-25T02:30:00.000Z",
+    "end": "2026-10-25T06:59:59.000Z",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "pokemon-tcg-30th-celebration",
     "name": "Pokémon TCG: 30th Celebration",
     "eventType": "event",
@@ -451,6 +583,28 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
+    "eventID": "pokemonspotlighthour2026-11-05",
+    "name": "Teddiursa wearing a witch hat Spotlight Hour",
+    "eventType": "pokemon-spotlight-hour",
+    "heading": "Pokémon Spotlight Hour",
+    "link": "https://leekduck.com/events/pokemonspotlighthour2026-11-05/",
+    "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
+    "start": "2026-11-05T18:00:00.000",
+    "end": "2026-11-05T19:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "pokemonspotlighthour2026-11-26",
+    "name": "Noibat Spotlight Hour",
+    "eventType": "pokemon-spotlight-hour",
+    "heading": "Pokémon Spotlight Hour",
+    "link": "https://leekduck.com/events/pokemonspotlighthour2026-11-26/",
+    "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
+    "start": "2026-11-26T18:00:00.000",
+    "end": "2026-11-26T19:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "raidhour20261021",
     "name": "Palkia Raid Hour",
     "eventType": "raid-hour",
@@ -471,6 +625,39 @@
     "start": "2026-10-28T18:00:00.000",
     "end": "2026-10-28T19:00:00.000",
     "added": "2026-10-12T00:00:00.000Z"
+  },
+  {
+    "eventID": "raidhour20261104",
+    "name": "Giratina (Altered Forme) Raid Hour",
+    "eventType": "raid-hour",
+    "heading": "Raid Hour",
+    "link": "https://leekduck.com/events/raidhour20261104/",
+    "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
+    "start": "2026-11-04T18:00:00.000",
+    "end": "2026-11-04T19:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "raidhour20261118",
+    "name": "Cresselia and Darkrai Raid Hour",
+    "eventType": "raid-hour",
+    "heading": "Raid Hour",
+    "link": "https://leekduck.com/events/raidhour20261118/",
+    "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
+    "start": "2026-11-18T18:00:00.000",
+    "end": "2026-11-18T19:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "raidhour20261125",
+    "name": "Deoxys (Normal, Defense, Attack, and Speed Formes) Raid Hour",
+    "eventType": "raid-hour",
+    "heading": "Raid Hour",
+    "link": "https://leekduck.com/events/raidhour20261125/",
+    "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
+    "start": "2026-11-25T18:00:00.000",
+    "end": "2026-11-25T19:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
   },
   {
     "eventID": "season-24-twilight-trails",
@@ -495,6 +682,28 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
+    "eventID": "shadow-tornadus-incarnate-forme-in-shadow-raids-november-16-2026",
+    "name": "Shadow Tornadus (Incarnate Forme) in Shadow Raids",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/shadow-tornadus-incarnate-forme-in-shadow-raids-november-16-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-16T06:00:00.000",
+    "end": "2026-12-01T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
+    "eventID": "shadow-tornadus-incarnate-forme-in-shadow-raids-november-4-2026",
+    "name": "Shadow Tornadus (Incarnate Forme) in Shadow Raids",
+    "eventType": "raid-battles",
+    "heading": "Raid Battles",
+    "link": "https://leekduck.com/events/shadow-tornadus-incarnate-forme-in-shadow-raids-november-4-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-04T06:00:00.000",
+    "end": "2026-11-08T22:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
+  },
+  {
     "eventID": "super-mega-raid-day-november-2026",
     "name": "Super Mega Raid Day",
     "eventType": "raid-day",
@@ -504,5 +713,16 @@
     "start": "2026-11-28T14:00:00.000",
     "end": "2026-11-28T17:00:00.000",
     "added": "2026-10-12T00:00:00.000Z"
+  },
+  {
+    "eventID": "twilight-wishes-2026",
+    "name": "Twilight Wishes",
+    "eventType": "event",
+    "heading": "Event",
+    "link": "https://leekduck.com/events/twilight-wishes-2026/",
+    "image": "https://cdn.leekduck.com/assets/img/events/events-default-img.jpg",
+    "start": "2026-11-24T10:00:00.000",
+    "end": "2026-11-30T20:00:00.000",
+    "added": "2026-10-19T22:36:12.344Z"
   }
 ]
