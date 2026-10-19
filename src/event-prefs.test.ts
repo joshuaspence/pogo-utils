@@ -1,15 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-import {
-  clearPrefs,
-  DEFAULT_HIDDEN,
-  hiddenFor,
-  KEYS,
-  loadPrefs,
-  persist,
-  RECURRING,
-  type Prefs,
-} from './event-prefs.js';
+import { DEFAULT_HIDDEN, hiddenFor, KEYS, loadPrefs, persist, RECURRING, type Prefs } from './event-prefs.js';
 import RECURRING_TYPES from './recurring-types.js';
 import { installFakeStorage, type FakeStorage } from './testing/storage.js';
 
@@ -425,8 +416,8 @@ test('inside the migration window that same key is carried', () => {
 /**
  * On the **real** clock, not a faked one, which is what makes this the case that notices `UNPREFIXED_UNTIL` arriving:
  * the two above fake their way to either side of it and so keep passing for ever. Without it the whole migration —
- * `UNPREFIXED_KEYS`, `UNPREFIXED_UNTIL`, `keyFor`, `legacySet`, `carryUnprefixedKeys` and the older half of
- * `clearPrefs` — becomes dead weight on 2027-01-01 with nothing to say so.
+ * `UNPREFIXED_KEYS`, `UNPREFIXED_UNTIL`, `keyFor`, `legacySet` and `carryUnprefixedKeys` — becomes dead weight on
+ * 2027-01-01 with nothing to say so.
  *
  * It will not fail alone. Every unprefixed case here reads the real clock too, so the day the window shuts about nine
  * of them go red together, and all of them are part of what there is to delete. The name is written to be read in a
@@ -436,61 +427,6 @@ test('the migration window is still open — when this fails, delete the migrati
   storage.setItem('events:hidden-types', '["raid-hour"]');
 
   expect(loadPrefs().hiddenTypes).toEqual(new Set(['raid-hour']));
-});
-
-/**
- * Reset's own invariant, which is what `clearPrefs` exists for: whatever a reader held, clearing leaves a first visit.
- * `KEYS` stopped being the whole set of names a preference can sit under once reads began falling through, so a page
- * clearing those five alone would have had the old names read straight back on the next load.
- */
-test('clearing leaves a first visit, whatever older names were holding', () => {
-  storage.setItem('events:hidden-types', '[]');
-  storage.setItem('events:dismissed', '["event-a"]');
-  storage.setItem('pgo-events:prefs', JSON.stringify({ dismissed: ['from-object'] }));
-  storage.refusesWrites = true;
-
-  loadPrefs();
-  clearPrefs();
-
-  expect(loadPrefs()).toEqual({
-    hiddenTypes: new Set(DEFAULT_HIDDEN),
-    hiddenByView: {},
-    filterScope: 'global',
-    dismissed: new Set(),
-    seen: null,
-    collapsed: new Set(),
-  });
-});
-
-/**
- * The sharper half of the same hole, which needs only one refused write rather than a store that never writes again:
- * `removeItem` is not subject to quota, so Reset is the one action a full store can complete — and the space it frees
- * is what lets the next load's hop carry up the dismissal the reader had just cleared.
- */
-test('a reset is not undone by the hop on the load after it', () => {
-  storage.setItem('events:hidden-types', '["Raid Hour"]');
-  storage.setItem('events:dismissed', '["kept"]');
-  storage.refusesWritesTo.add(KEYS.dismissed);
-
-  loadPrefs();
-  storage.refusesWritesTo.clear();
-  clearPrefs();
-
-  expect(loadPrefs().dismissed).toEqual(new Set());
-});
-
-/**
- * Past the window `clearPrefs` stops touching the unqualified names too. Nothing reads them by then, so removing one
- * would be claiming a name off the shared origin that this app no longer has any use for.
- */
-test('past the migration window clearing leaves the unprefixed names alone', () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2027-06-01T00:00:00Z'));
-  storage.setItem('events:dismissed', '["theirs"]');
-
-  clearPrefs();
-
-  expect(storage.getItem('events:dismissed')).toBe('["theirs"]');
 });
 
 /**

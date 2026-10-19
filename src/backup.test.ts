@@ -134,8 +134,7 @@ test('a key belonging to another site on this origin is neither carried nor writ
 
 /**
  * Keys the file leaves out are left as they stand. That is what makes a restore faithful only into cleared storage —
- * the browser's own site data, `Reset` reaching the five keys the page names and not a key written through by an
- * import — and what stops a file trimmed by hand from clearing what was trimmed.
+ * the browser's own site data — and what stops a file trimmed by hand from clearing what was trimmed.
  */
 test('a key the file omits is left as it was', () => {
   storePrefs();

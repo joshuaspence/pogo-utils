@@ -329,8 +329,8 @@ export class EventStore {
   }
 
   /**
-   * Settle the seen record against the events already loaded: for a Reset or an import that has just emptied it, and
-   * to fold an acknowledgement. Not against a list missing one of its files, for the reason `#whole` gives.
+   * Settle the seen record against the events already loaded: for an import that has just emptied it, and to fold an
+   * acknowledgement. Not against a list missing one of its files, for the reason `#whole` gives.
    */
   settle() {
     if (this.#whole) {

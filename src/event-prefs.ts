@@ -416,28 +416,6 @@ export function loadPrefs(): Prefs {
   };
 }
 
-/**
- * Every name a preference can be sitting under, removed, so that a Reset lands on a genuine first visit. `KEYS` stopped
- * being that set the moment reads began falling through: a page clearing those five alone leaves an `events:*` value to
- * be read straight back, and on a store that refused one write the next hop then carries the dismissal the reader had
- * just cleared up under the prefixed name. The legacy object goes too, for the same reason — it is a source reads
- * reach, so leaving it is leaving a Reset to be undone.
- *
- * Here rather than at the call site because `UNPREFIXED_KEYS` and the window are this module's, and a page enumerating
- * its own copy of the key set is a copy that falls out of step with this file.
- */
-export function clearPrefs() {
-  const older = Date.now() < UNPREFIXED_UNTIL ? Object.values(UNPREFIXED_KEYS) : [];
-
-  for (const key of [...Object.values(KEYS), ...older, LEGACY_OBJECT_KEY]) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      /* Storage is unavailable, so there is nothing stored to clear. */
-    }
-  }
-}
-
 /** JSON has no Set, so one replacer serialises a bare set and any object holding sets alike, as their members. */
 const asArrays = (_key: string, value: unknown) => (value instanceof Set ? [...value] : value);
 

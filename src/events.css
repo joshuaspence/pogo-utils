@@ -142,25 +142,8 @@ body[data-page='events'] {
   }
 
   /**
-   * The Reset control is destructive-ish (it clears saved filters), so it reads as secondary rather than the accent
-   * Refresh button beside it.
-   */
-
-  .controls button.ghost {
-    background: transparent;
-    color: var(--muted);
-    border-color: var(--border);
-  }
-
-  .controls button.ghost:hover {
-    filter: none;
-    color: var(--text);
-    border-color: var(--accent);
-  }
-
-  /**
-   * The filter disclosure takes the quieter of the two button treatments in this bar — the border and transparent fill
-   * `.ghost` gives Reset rather than the accent fill behind Refresh — on a row of its own at the foot of the panel.
+   * The filter disclosure reads quieter than Refresh beside it — a border and transparent fill rather than the accent
+   * one — on a row of its own at the foot of the panel.
    *
    * The row belongs to the wrapper rather than to the button. `flex: 1 0 100%` is what wins it: the section is a
    * wrapping flex container, so a full-basis item lands below whatever came before it, at any viewport. But a
@@ -176,10 +159,6 @@ body[data-page='events'] {
   }
 
   /**
-   * Declared against `.disclose` rather than by adding `ghost` to its class list, which would say the same three
-   * declarations in one word: `.controls button.ghost:hover` carries a type selector this cannot, so it would outrank
-   * anything keyed on `.disclose` and hold the hover colour at `--text` where the handle wants `--accent`.
-   *
    * The glyph has no ascender above the baseline, so padding that is symmetric centres the line box and leaves the ink
    * low: measured on the page, the ink starts 10px below the top of the 15px content box and ends 2px above the bottom,
    * which is 8px of imbalance at any equal padding. Hence the 8px between 3px over and 11px under, which measures 14px
