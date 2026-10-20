@@ -9,7 +9,7 @@ description: >-
 # Filing a feature request
 
 Turn something the site should do into an issue on
-[joshuaspence/pogo-utils](https://github.com/joshuaspence/pogo-utils), filled against the repository's own feature
+[spence-com-au/pogo-utils](https://github.com/spence-com-au/pogo-utils), filled against the repository's own feature
 request form.
 
 The issue is a handover rather than a wish: whoever picks it up implements it without the conversation that produced it.

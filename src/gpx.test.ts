@@ -295,7 +295,7 @@ test('entryGpx writes a whole GPX 1.1 file', () => {
   expect(out.endsWith('</gpx>\n')).toBe(true);
   expect(root.namespaceURI).toBe('http://www.topografix.com/GPX/1/1');
   expect(root.getAttribute('version')).toBe('1.1');
-  expect(root.getAttribute('creator')).toBe('https://github.com/joshuaspence/pogo-utils');
+  expect(root.getAttribute('creator')).toBe('https://github.com/spence-com-au/pogo-utils');
   expect(out.match(/xmlns:pgr=/g)).toHaveLength(1);
   expect(out).toContain('<trk>');
 });

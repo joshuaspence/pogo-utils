@@ -15,9 +15,11 @@ import { join } from 'node:path';
  * Where the pages are served from. A calendar app shows an event's description far away from this site, so the links
  * inside one have to be absolute — this is the only place that spelling is kept.
  */
-export const SITE = 'https://joshuaspence.github.io/pogo-utils';
+export const SITE = 'https://spence.com.au/pogo-utils';
 
 // A UID has to be unique across every calendar its reader subscribes to, so the stable `eventID` is qualified by us.
+// It names the site's old address on purpose: a UID is an event's identity, and a new spelling would land every event
+// in a subscriber's calendar a second time beside the copy it already holds.
 const UID_DOMAIN = 'pogo-utils.joshuaspence.github.io';
 
 /**
@@ -170,7 +172,7 @@ export function calendar({ name, description }: typeof FEED, events: FeedEvent[]
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//joshuaspence//pogo-utils//EN',
+    'PRODID:-//spence-com-au//pogo-utils//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escape(name)}`,

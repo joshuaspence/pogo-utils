@@ -43,7 +43,7 @@ test('the keys are the names readers hold', () => {
 
 /**
  * The rule those names keep, which the list above only happens to satisfy: each is namespaced to this app, and names a
- * page under that namespace. `localStorage` is keyed by origin and `joshuaspence.github.io` serves every repository
+ * page under that namespace. `localStorage` is keyed by origin and `spence.com.au` serves every repository
  * published there, so an unqualified key is one another site could be holding too.
  */
 test('every key is namespaced to this app, and names a page under it', () => {

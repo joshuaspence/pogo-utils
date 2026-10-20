@@ -8,7 +8,7 @@ import { GPX_PATHS } from './generated.js';
 import { GPX_NS, PGR_NS, type PgrField } from './gpx-dialect.js';
 
 /** What a file of ours names as its writer, which is now also what `entryGpx` writes. */
-const CREATOR = 'https://github.com/joshuaspence/pogo-utils';
+const CREATOR = 'https://github.com/spence-com-au/pogo-utils';
 
 /** Where an `xmlns:` declaration lives, so `setAttributeNS` writes one the serializer reads as a declaration. */
 const XMLNS_NS = 'http://www.w3.org/2000/xmlns/';
