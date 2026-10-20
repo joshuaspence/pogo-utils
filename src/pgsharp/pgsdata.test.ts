@@ -21,7 +21,7 @@ import { backupSummary, buildBackup, type RepoFavourites } from './pgsdata.js';
 const gpx = (body: string) =>
   parseXml(
     '<gpx xmlns="http://www.topografix.com/GPX/1/1" ' +
-      `xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1">${body}</gpx>`,
+      `xmlns:pgr="https://spence.com.au/pogo-utils/gpx/1">${body}</gpx>`,
   );
 
 /** A waypoint at a named place, which is where the timezone in the encoded output comes from. */

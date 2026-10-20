@@ -29,9 +29,6 @@ export const MIN_TRKPTS = 2;
  * and not just the local names — the validator to tell a misspelled `pgr` field from a foreign tool's extension, and
  * `entryGpx` to declare both on the `<gpx>` it writes. Which prefix a file binds `PGR_NS` to is its own affair, every
  * reader here matching on namespace and local name.
- *
- * `PGR_NS` keeps the site's old address although the pages have moved: a namespace is a name rather than a location,
- * and every file already written — in `data/` and on readers' devices — declares this spelling.
  */
 export const GPX_NS = 'http://www.topografix.com/GPX/1/1';
-export const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';
+export const PGR_NS = 'https://spence.com.au/pogo-utils/gpx/1';

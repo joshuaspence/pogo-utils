@@ -18,9 +18,7 @@ import { join } from 'node:path';
 export const SITE = 'https://spence.com.au/pogo-utils';
 
 // A UID has to be unique across every calendar its reader subscribes to, so the stable `eventID` is qualified by us.
-// It names the site's old address on purpose: a UID is an event's identity, and a new spelling would land every event
-// in a subscriber's calendar a second time beside the copy it already holds.
-const UID_DOMAIN = 'pogo-utils.joshuaspence.github.io';
+const UID_DOMAIN = 'pogo-utils.spence.com.au';
 
 /**
  * How often a subscriber should come back. Both spellings are given: `REFRESH-INTERVAL` is the standard one (RFC 7986)
