@@ -24,7 +24,7 @@ const gpx = (body: string) =>
   [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx xmlns="http://www.topografix.com/GPX/1/1"',
-    '     xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1" version="1.1" creator="test">',
+    '     xmlns:pgr="https://spence.com.au/pogo-utils/gpx/1" version="1.1" creator="test">',
     body,
     '</gpx>',
     '',
@@ -44,7 +44,7 @@ test('a reference is read by namespace and local name, not by the prefix a file 
   // The prefix is the file's own affair — `PGR_NS` is what identifies the field — so a file using `x:` carries the same
   // reference. A reader matching the literal `<pgr:event>` finds nothing here and prunes nothing out of it.
   const bound = gpx(
-    '  <metadata><x:event xmlns:x="https://joshuaspence.github.io/pogo-utils/gpx/1">a-2026</x:event></metadata>',
+    '  <metadata><x:event xmlns:x="https://spence.com.au/pogo-utils/gpx/1">a-2026</x:event></metadata>',
   );
 
   expect(idsIn(bound)).toEqual(['a-2026']);

@@ -16,7 +16,7 @@ application and reached from a shared top tab bar:
 - **Inventory** (`#/inventory`) — one Pokémon's detail screen read end to end, off a phone over WebUSB or from a saved
   screenshot: what [`pnpm inventory parse`](#pokémon-inventory) prints, without installing anything.
 
-**➡️ [Open the site](https://joshuaspence.github.io/pogo-utils/)**
+**➡️ [Open the site](https://spence.com.au/pogo-utils/)**
 
 One document, [`index.html`](index.html), and a page per tab under [`src/pages/`](src/pages). The fragment carries both
 where the reader is and the state they left that page in — `#/pokedex?q=pika&n=25` is the Pokédex with a filter typed
@@ -149,10 +149,9 @@ added again.
 
 ## Calendar subscription
 
-The same events are published as an iCalendar feed,
-[`events.ics`](https://joshuaspence.github.io/pogo-utils/events.ics), so they can be subscribed to rather than read
-here. It holds what the Events page shows by default: every dated event other than the weekly-cadence ones, so
-subscribing does not put a Spotlight Hour and a Raid Hour into every week of your calendar.
+The same events are published as an iCalendar feed, [`events.ics`](https://spence.com.au/pogo-utils/events.ics), so they
+can be subscribed to rather than read here. It holds what the Events page shows by default: every dated event other than
+the weekly-cadence ones, so subscribing does not put a Spotlight Hour and a Raid Hour into every week of your calendar.
 
 In Google Calendar, that is **Other calendars → + → From URL**; iOS and Outlook take the same URL. Google re-fetches a
 subscribed URL on its own schedule, typically somewhere between a few hours and a day, so a newly announced event does

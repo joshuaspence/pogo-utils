@@ -31,4 +31,4 @@ export const MIN_TRKPTS = 2;
  * reader here matching on namespace and local name.
  */
 export const GPX_NS = 'http://www.topografix.com/GPX/1/1';
-export const PGR_NS = 'https://joshuaspence.github.io/pogo-utils/gpx/1';
+export const PGR_NS = 'https://spence.com.au/pogo-utils/gpx/1';

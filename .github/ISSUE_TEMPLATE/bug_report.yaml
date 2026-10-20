@@ -28,7 +28,7 @@ body:
       description:
         'The address bar, copied. The fragment carries the state a page was left in, so this is what reproduces it. The
         inventory tool has no address, so leave this empty for it and give the command under What happened instead.'
-      placeholder: 'https://joshuaspence.github.io/pogo-utils/#/pokedex?q=pika&n=25'
+      placeholder: 'https://spence.com.au/pogo-utils/#/pokedex?q=pika&n=25'
 
   - type: 'textarea'
     id: 'expected'

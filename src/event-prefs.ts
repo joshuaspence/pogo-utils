@@ -40,7 +40,7 @@ export interface Seen {
 
 /**
  * The namespace every key this app owns sits under: the Pages path segment, since `localStorage` is keyed by origin and
- * `joshuaspence.github.io` serves every repository published there — an unqualified name is not this app's to claim.
+ * `spence.com.au` serves every repository published there — an unqualified name is not this app's to claim.
  *
  * Exported because `src/backup.ts` sweeps the namespace rather than naming keys, and names it once in the file rather
  * than in every key. One spelling is what rules out the disagreement that does harm: a transport sweeping a prefix
@@ -86,7 +86,7 @@ const UNPREFIXED_KEYS: Partial<Record<keyof typeof KEYS, string>> = {
 
 /**
  * When this app stops touching those names. Reading one, and removing it, claims a name off an origin
- * `joshuaspence.github.io` shares with every repository published there — deliberate, since that is where a reader's
+ * `spence.com.au` shares with every repository published there — deliberate, since that is where a reader's
  * own choices are sitting, but worth it only while someone still holds them. They were current for eight days, so the
  * population needing the hop only shrinks from here.
  *

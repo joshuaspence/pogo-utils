@@ -7,7 +7,7 @@ description: >-
 
 # Filing a bug report
 
-Turn a failure into an issue on [joshuaspence/pogo-utils](https://github.com/joshuaspence/pogo-utils), filled against
+Turn a failure into an issue on [spence-com-au/pogo-utils](https://github.com/spence-com-au/pogo-utils), filled against
 the repository's own bug report form.
 
 An argument, when there is one, says which failure to write up — it steers a session that holds more than one, and is

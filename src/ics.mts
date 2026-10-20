@@ -15,10 +15,10 @@ import { join } from 'node:path';
  * Where the pages are served from. A calendar app shows an event's description far away from this site, so the links
  * inside one have to be absolute — this is the only place that spelling is kept.
  */
-export const SITE = 'https://joshuaspence.github.io/pogo-utils';
+export const SITE = 'https://spence.com.au/pogo-utils';
 
 // A UID has to be unique across every calendar its reader subscribes to, so the stable `eventID` is qualified by us.
-const UID_DOMAIN = 'pogo-utils.joshuaspence.github.io';
+const UID_DOMAIN = 'pogo-utils.spence.com.au';
 
 /**
  * How often a subscriber should come back. Both spellings are given: `REFRESH-INTERVAL` is the standard one (RFC 7986)
@@ -170,7 +170,7 @@ export function calendar({ name, description }: typeof FEED, events: FeedEvent[]
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//joshuaspence//pogo-utils//EN',
+    'PRODID:-//spence-com-au//pogo-utils//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escape(name)}`,

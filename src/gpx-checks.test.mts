@@ -19,7 +19,7 @@ const gpx = (body: string) =>
   [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<gpx xmlns="http://www.topografix.com/GPX/1/1"',
-    '     xmlns:pgr="https://joshuaspence.github.io/pogo-utils/gpx/1" version="1.1" creator="test">',
+    '     xmlns:pgr="https://spence.com.au/pogo-utils/gpx/1" version="1.1" creator="test">',
     body,
     '</gpx>',
     '',

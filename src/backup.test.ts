@@ -113,7 +113,7 @@ const emptyPrefs = (): Prefs => ({
 });
 
 /**
- * `localStorage` is keyed by origin and `joshuaspence.github.io` serves every repository published there, so the store
+ * `localStorage` is keyed by origin and `spence.com.au` serves every repository published there, so the store
  * an export reads holds another site's keys too. They are not this app's to carry, and the assertion is that the file
  * says so in both directions: not exported, and a file naming another namespace refused rather than written back.
  */
