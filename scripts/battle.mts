@@ -67,7 +67,16 @@ if (command === 'record') {
   });
 
   console.error(`recording ${seconds}s to ${out}`);
-  await pipeline(recording.stdout, createWriteStream(out));
+
+  // An OUT that cannot be written fails here, with `adb` still recording into a pipe nobody reads, which would keep the
+  // script alive until `--seconds` ran out.
+  try {
+    await pipeline(recording.stdout, createWriteStream(out));
+  } catch (error) {
+    recording.kill();
+    console.error(`could not write ${out}: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
 
   const code = await exited;
 

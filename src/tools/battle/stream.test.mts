@@ -90,6 +90,23 @@ test('fails when a recording ends without a later one taking over', async () => 
   }
 });
 
+test('reports an ffmpeg it cannot find rather than throwing', async () => {
+  const path = process.env.PATH;
+  const h264 = clip('red', 1).stdout;
+
+  // `spawn` reads `PATH` when it is called, so emptying it around the first step is what hides `ffmpeg` from the
+  // decoder alone, the clip above having already found it.
+  process.env.PATH = '';
+
+  try {
+    const frames = decodeFrames(h264);
+
+    await expect(frames.next()).rejects.toThrow('ffmpeg failed: spawn ffmpeg ENOENT');
+  } finally {
+    process.env.PATH = path;
+  }
+});
+
 test('stops a recording that has started but not yet taken over when closed', async () => {
   const recordings: Recording[] = [];
 

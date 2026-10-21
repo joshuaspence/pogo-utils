@@ -4,8 +4,9 @@
  */
 
 import { execFile } from 'node:child_process';
-import { devNull } from 'node:os';
-import { dirname } from 'node:path';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { devNull, tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
@@ -56,6 +57,25 @@ test('reports an adb it cannot find rather than throwing', async () => {
 
   expect(code).toBe(1);
   expect(stderr).toContain('screenrecord failed: spawn adb ENOENT');
+});
+
+test('reports an OUT it cannot write and stops recording', async () => {
+  // An `adb` that records for a minute, so a script that left it running would outlast the test's timeout.
+  const bin = mkdtempSync(join(tmpdir(), 'battle-adb-'));
+  writeFileSync(join(bin, 'adb'), '#!/bin/sh\nexec sleep 60\n', { mode: 0o755 });
+
+  const { code, stderr } = await promisify(execFile)(
+    'node',
+    [SCRIPT, 'record', '--seconds', '1', join(bin, 'missing', 'out.h264')],
+    { env: { ...process.env, PATH: `${bin}:${dirname(process.execPath)}` }, timeout: 10_000 },
+  ).then(
+    () => ({ code: 0, stderr: '' }),
+    (error: { code: number; stderr: string }) => error,
+  );
+
+  expect(code).toBe(1);
+  expect(stderr).toContain('could not write');
+  expect(stderr).toContain('ENOENT');
 });
 
 test('refuses a recording with nowhere to go', async () => {

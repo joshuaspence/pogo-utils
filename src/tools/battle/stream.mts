@@ -83,8 +83,10 @@ export async function* decodeFrames(h264: Readable, { width, height } = STREAM_S
   let stderr = '';
   ffmpeg.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
 
-  const exited = new Promise<number | null>((resolve, reject) => {
-    ffmpeg.once('error', reject);
+  // Resolved with the error rather than rejected: nothing awaits this until the frames stop, and a rejection waiting
+  // that long — `ffmpeg` missing from `PATH` rejects at once — is unhandled, and ends the process before it is heard.
+  const exited = new Promise<number | null | Error>((resolve) => {
+    ffmpeg.once('error', resolve);
     ffmpeg.once('close', resolve);
   });
 
@@ -112,6 +114,10 @@ export async function* decodeFrames(h264: Readable, { width, height } = STREAM_S
   }
 
   const code = await exited;
+
+  if (code instanceof Error) {
+    throw new Error(`ffmpeg failed: ${code.message}`);
+  }
 
   // A signal is `null`, and is `ffmpeg` being stopped rather than failing.
   if (code !== 0 && code !== null) {
