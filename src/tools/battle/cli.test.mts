@@ -34,10 +34,32 @@ test('help prints the usage out of the header', async () => {
 });
 
 test('refuses a flag it does not know', async () => {
-  const { code, stderr } = await battle('record', '--seconds=5', '--verbose', 'out.h264');
+  const { code, stderr } = await battle('record', '--seconds=5', '--loud', 'out.h264');
 
   expect(code).toBe(1);
-  expect(stderr).toContain("Unknown option '--verbose'");
+  expect(stderr).toContain("Unknown option '--loud'");
+});
+
+test.each([
+  ['record', ['--verbose', 'out.h264'], '--verbose'],
+  ['run', ['--leader', 'spark', '--league', 'great', '--seconds', '5'], '--seconds'],
+])('refuses a flag %s does not act on', async (command, args, flag) => {
+  const { code, stderr } = await battle(command, ...args);
+
+  expect(code).toBe(1);
+  expect(stderr).toContain(`${command} does not act on ${flag}`);
+});
+
+test.each([
+  [['--league', 'great'], '--leader takes one of blanche, candela, spark'],
+  [['--leader', 'arlo', '--league', 'great'], '--leader takes one of blanche, candela, spark'],
+  [['--leader', 'spark'], '--league takes one of great, ultra, master'],
+  [['--leader', 'spark', '--league', 'great', '--count', '0'], '--count takes a whole number of battles'],
+])('refuses run %j', async (args, message) => {
+  const { code, stderr } = await battle('run', ...args);
+
+  expect(code).toBe(1);
+  expect(stderr).toContain(message);
 });
 
 test.each([['0'], ['181'], ['2.5'], ['ten']])('refuses --seconds %s', async (seconds) => {

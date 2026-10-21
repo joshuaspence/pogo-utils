@@ -18,12 +18,21 @@ import { decodeFrames } from './stream.mts';
 
 const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url));
 
-const stills = readdirSync(FIXTURES).filter((name) => name.endsWith('.png'));
+const pngs = readdirSync(FIXTURES).filter((name) => name.endsWith('.png'));
+
+// The screens between battles, which `menus.test.mts` reads, are `other` to the stream: none may be taken for a battle,
+// which would have them swiped at.
+const menus = pngs.filter((name) => name.startsWith('menu-'));
+const stills = pngs.filter((name) => !menus.includes(name));
 
 test.each(stills)('%s', (name) => {
   const expected = name.split('-')[0];
 
   expect(recognise(decodePng(readFileSync(FIXTURES + name)))).toBe(expected);
+});
+
+test.each(menus)('%s is other', (name) => {
+  expect(recognise(decodePng(readFileSync(FIXTURES + name)))).toBe('other');
 });
 
 test('covers every state', () => {

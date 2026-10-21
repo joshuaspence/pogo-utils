@@ -5,24 +5,44 @@
  *
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
+ *   pnpm battle run --leader blanche|candela|spark --league great|ultra|master [--count N] [--serial SERIAL]
+ *                   [--keep-frames DIR] [--verbose]
+ *                       play Team Leader battles one after another, from the Battle tab or anywhere between the
+ *                       result of one battle and the start of the next, until `N` have finished or Ctrl-C; stops,
+ *                       saving its last frames to `DIR`, where nothing on screen has been recognised for 20s
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
+ *   A flag handed to a command whose line omits it is refused rather than ignored — see `HONOURED`.
  *
  * Automating input breaks Niantic's terms of service, and unlike `pnpm inventory` this does not only read: it taps
  * through battles. Run it on an account whose loss you would accept.
  */
 
-import { RECORD_LIMIT_S, screenrecord } from '../src/tools/battle/stream.mts';
-import { createWriteStream, readFileSync } from 'node:fs';
+import { LEADERS, LEAGUES, type League, type Leader } from '../src/tools/battle/menus.mts';
+import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
+import { RECORD_LIMIT_S, Screen, screenrecord } from '../src/tools/battle/stream.mts';
+import { adbCli } from '../src/tools/inventory/adb-cli.mts';
+import { Device } from '../src/tools/inventory/adb.mts';
+import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
+import { useEngine } from '../src/tools/inventory/ocr.mts';
+import { encodePng } from '../src/tools/inventory/png.mts';
+import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
 
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
   options: {
-    seconds: { type: 'string', default: '30' },
-    serial: { type: 'string' },
+    'leader': { type: 'string' },
+    'league': { type: 'string' },
+    'count': { type: 'string' },
+    'keep-frames': { type: 'string' },
+    'verbose': { type: 'boolean', default: false },
+    'seconds': { type: 'string', default: '30' },
+    'serial': { type: 'string' },
   },
 });
 
@@ -33,14 +53,103 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
   .match(/Usage[^]*?\n \*\n[^]*?\n \*\n/)?.[0]
   .replace(/^ \* ?/gm, '');
 
-/** Fails with the usage rather than recording, for anything `record` cannot take. */
+/** Which flags each command acts on, for the reason `inventory.mts` gives beside its own. */
+const HONOURED: Record<string, readonly string[]> = {
+  run: ['leader', 'league', 'count', 'serial', 'keep-frames', 'verbose'],
+  record: ['seconds', 'serial'],
+};
+
+const passed = process.argv.slice(2).flatMap((arg) => /^--([a-z-]+)/.exec(arg)?.[1] ?? []);
+const honoured = Object.hasOwn(HONOURED, command) ? HONOURED[command] : undefined;
+const ignored = honoured ? passed.filter((flag) => !honoured.includes(flag)) : [];
+
+/** Fails with the usage rather than driving the phone, for anything a command cannot take. */
 function fail(message: string): never {
   console.error(`${message}\n`);
   console.error(USAGE);
   process.exit(1);
 }
 
-if (command === 'record') {
+if (ignored.length > 0) {
+  fail(`${command} does not act on ${ignored.map((flag) => `--${flag}`).join(', ')}`);
+}
+
+function oneOf<T extends string>(name: string, value: string | undefined, allowed: readonly T[]): T {
+  const found = allowed.find((option) => option === value);
+
+  return found ?? fail(`--${name} takes one of ${allowed.join(', ')}`);
+}
+
+if (command === 'run') {
+  if (rest.length > 0) {
+    fail('run takes no arguments beyond its flags');
+  }
+
+  const leader: Leader = oneOf('leader', options.leader, LEADERS);
+  const league: League = oneOf('league', options.league, LEAGUES);
+  const count = options.count === undefined ? Infinity : Number(options.count);
+
+  if (count !== Infinity && (!Number.isInteger(count) || count < 1)) {
+    fail('--count takes a whole number of battles, 1 or more');
+  }
+
+  const transport = adbCli(options.serial);
+  const device = new Device(transport);
+  await device.check();
+  useEngine(tesseractCli);
+
+  // A screenshot for the screen's size, which every position here is a fraction of.
+  const { width, height } = await device.screenshot();
+  const at = ([x, y]: readonly [number, number]): [number, number] => [x * width, y * height];
+
+  // Awake for as long as it runs: a screen gone dark mid-battle reads as nothing recognised and ends the run. The
+  // setting is put back as found on every way out, checked first to be the number Android stores, since it goes back
+  // through the shell.
+  const awake = new TextDecoder().decode(
+    await transport.shell(['settings', 'get', 'global', 'stay_on_while_plugged_in']),
+  );
+  const before = /^\d+$/.test(awake.trim()) ? awake.trim() : '0';
+  await transport.shell(['svc', 'power', 'stayon', 'usb']);
+  const restore = () => transport.shell(['settings', 'put', 'global', 'stay_on_while_plugged_in', before]);
+
+  const screen = new Screen(() => screenrecord(options.serial));
+
+  process.once('SIGINT', () => {
+    screen.close();
+    void restore().finally(() => process.exit(130));
+  });
+
+  const phone: Phone = {
+    frame: () => screen.latest()?.image,
+    screenshot: () => device.screenshot(),
+    tap: (point) => device.tap(at(point)),
+    swipe: (from, to, ms) => device.swipe(at(from), at(to), ms),
+  };
+
+  const say = options.verbose ? (line: string) => console.error(line) : undefined;
+
+  try {
+    await screen.first();
+    const battles = await run(phone, { leader, league, count }, { now: () => performance.now(), sleep }, say);
+    console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
+  } catch (error) {
+    process.exitCode = 1;
+    console.error(error instanceof Error ? error.message : String(error));
+
+    const dir = options['keep-frames'];
+
+    if (error instanceof Lost && dir) {
+      mkdirSync(dir, { recursive: true });
+      error.frames.forEach((frame, i) =>
+        writeFileSync(join(dir, `${String(i).padStart(2, '0')}.png`), encodePng(frame)),
+      );
+      console.error(`kept the last ${error.frames.length} frames in ${dir}`);
+    }
+  } finally {
+    screen.close();
+    await restore();
+  }
+} else if (command === 'record') {
   const [out, ...extra] = rest;
   const seconds = Number(options.seconds);
 
