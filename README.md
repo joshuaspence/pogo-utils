@@ -582,11 +582,11 @@ pnpm battle run --leader spark --league great --count 5
 
 Start it from the Battle tab, or anywhere between the result of one battle and the start of the next. Its strategy is
 the simplest that wins against a Team Leader: swipe across the field for fast moves, throw a charged move the moment one
-is ready and swipe through its minigame's bubbles, take every shield offered and send in whoever comes first. Training
-has no rematch, so between battles it taps its way back round — the result's ✓, the leader, BATTLE, the league, then USE
-THIS PARTY on the game's recommended party. It keeps the screen awake while it runs and puts the setting back after.
-Where nothing on screen has been recognised for 20 seconds it stops rather than tap at a screen it does not know, and
-`--keep-frames DIR` saves the last few frames it saw.
+is ready — of a Pokémon's two, whichever is ready first — and swipe through its minigame's bubbles, take every shield
+offered and send in whoever comes first. Training has no rematch, so between battles it taps its way back round — the
+result's ✓, the leader, BATTLE, the league, then USE THIS PARTY on the game's recommended party. It keeps the screen
+awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20 seconds it stops
+rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
 
 A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
 `screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`

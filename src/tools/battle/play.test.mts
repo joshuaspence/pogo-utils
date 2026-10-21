@@ -2,23 +2,32 @@ import { createReadStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { Player, TAPS, type Action, type Point } from './play.mts';
-import { recognise, type State } from './recognise.mts';
+import { readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames } from './stream.mts';
 
-/** The actions for a run of states, a frame every 33ms — 30 a second, as the stream sends them. */
+/** Where the charged-move buttons sit: one move's centred, two moves' either side, as `readyButtons` reports them. */
+const LEFT: Point = [0.31, 0.889];
+const CENTRE: Point = [0.499, 0.889];
+const RIGHT: Point = [0.69, 0.889];
+
+/**
+ * The actions for a run of states, a frame every 33ms — 30 a second, as the stream sends them — with the one button of
+ * a Pokémon with one charged move lit on every `charged` frame.
+ */
 function play(states: readonly State[], player = new Player(), from = 0): Action[] {
-  return states.map((state, i) => player.next(state, from + i * 33));
+  return states.map((state, i) => player.next(state, from + i * 33, state === 'charged' ? [CENTRE] : []));
 }
 
 const taps = (actions: readonly Action[]) => actions.filter((action) => action.kind === 'tap');
 
 const swipes = (actions: readonly Action[]) => actions.flatMap((action) => (action.kind === 'swipe' ? [action] : []));
 
-/** Whether a point lies on the bench's switch buttons, or on the charged-move button. */
+/** Whether a point lies on the bench's switch buttons, or on any of the charged-move buttons. */
 const onBench = ([x, y]: Point) => x > 0.8 && y > 0.53 && y < 0.7;
-const onButton = ([x, y]: Point) => Math.hypot(x - TAPS.charged[0], (y - TAPS.charged[1]) * (760 / 360)) < 0.12;
+const onButton = ([x, y]: Point) =>
+  [LEFT, CENTRE, RIGHT].some(([bx, by]) => Math.hypot(x - bx, (y - by) * (760 / 360)) < 0.12);
 
-test('swipes through the fight, clear of the bench and the charged-move button', () => {
+test('swipes through the fight, clear of the bench and the charged-move buttons', () => {
   const actions = swipes(play(Array(10).fill('battle')));
 
   expect(actions).toHaveLength(10);
@@ -33,13 +42,43 @@ test('throws a charged move once it has held for two frames, and once only', () 
   const actions = play(Array(20).fill('charged'));
 
   expect(actions[0]).toEqual({ kind: 'wait' });
-  expect(taps(actions)).toEqual([{ kind: 'tap', at: TAPS.charged, what: 'charged' }]);
+  expect(taps(actions)).toEqual([{ kind: 'tap', at: CENTRE, what: 'charged' }]);
 });
 
 test('throws again if the button is still lit a second later', () => {
   const actions = play(Array(40).fill('charged'));
 
   expect(taps(actions)).toHaveLength(2);
+});
+
+test('of two charged moves, throws the one that lit first', () => {
+  const player = new Player();
+
+  player.next('charged', 0, [RIGHT]);
+  const action = player.next('charged', 33, [LEFT, RIGHT]);
+
+  expect(action).toEqual({ kind: 'tap', at: RIGHT, what: 'charged' });
+});
+
+test('of two charged moves lit together, throws the left', () => {
+  const player = new Player();
+
+  player.next('charged', 0, [LEFT, RIGHT]);
+  const action = player.next('charged', 33, [LEFT, RIGHT]);
+
+  expect(action).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
+});
+
+test('forgets when a button lit once it goes out', () => {
+  const player = new Player();
+
+  // The right lights, then goes out as it is thrown; later the left lights, then the right again beside it.
+  player.next('charged', 0, [RIGHT]);
+  player.next('battle', 33, []);
+  player.next('charged', 2000, [LEFT]);
+  player.next('charged', 2033, [LEFT, RIGHT]);
+
+  expect(player.next('charged', 3100, [LEFT, RIGHT])).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
 });
 
 test('swipes the lower field after a charged move, until the throw plays', () => {
@@ -101,13 +140,13 @@ test('throws the charged move in a recorded battle as soon as it is ready', asyn
     const state = recognise(frame);
     const at = i++ * 33;
 
-    timed.push({ action: player.next(state, at), state, at });
+    timed.push({ action: player.next(state, at, readyButtons(frame)), state, at });
   }
 
   const tapped = timed.filter(({ action }) => action.kind === 'tap');
   const lit = timed.filter(({ state }) => state === 'charged');
 
-  expect(tapped.map(({ action }) => action)).toContainEqual({ kind: 'tap', at: TAPS.charged, what: 'charged' });
+  expect(tapped.map(({ action }) => action)).toContainEqual({ kind: 'tap', at: CENTRE, what: 'charged' });
   expect(tapped[0]?.at).toBe(lit[1]?.at);
   expect(tapped.every(({ at }, n) => n === 0 || at - (tapped[n - 1]?.at ?? 0) >= 1000)).toBe(true);
 });

@@ -21,20 +21,20 @@ export type Action =
   | { kind: 'wait' };
 
 /**
- * Where each prompt is answered, measured on the footage at 360×760: the charged-move button's centre, the Protect
- * Shield under its prompt, and the first of the switch prompt's two cards. When one Pokémon is left the card is centred
- * instead and this misses it, which costs nothing — the game sends that one in when its countdown runs out.
+ * Where each prompt is answered, measured on the footage at 360×760: the Protect Shield under its prompt, and the first
+ * of the switch prompt's two cards. When one Pokémon is left the card is centred instead and this misses it, which
+ * costs nothing — the game sends that one in when its countdown runs out. A charged move is thrown wherever its lit
+ * button was found, there being one or two of them.
  */
 export const TAPS = {
-  charged: [0.499, 0.889],
   shield: [0.5, 0.82],
   switch: [0.33, 0.87],
 } as const satisfies Record<string, Point>;
 
 /**
  * The fight's swipe, across the middle of the field and back. It stays clear of what a touch there would press instead:
- * the bench's switch buttons down the right edge, at x > 0.8 between y 0.53 and 0.70, and the charged-move button at the
- * bottom.
+ * the bench's switch buttons down the right edge, at x > 0.8 between y 0.53 and 0.70, and the charged-move buttons
+ * along the bottom.
  */
 const FIGHT: readonly (readonly [Point, Point])[] = [
   [
@@ -92,10 +92,29 @@ export class Player {
   #tapped: { state: State; at: number } | undefined;
   #swipes = 0;
 
-  /** What to do about a frame read as `state`, at `now` milliseconds. */
-  next(state: State, now: number): Action {
+  /** When each lit charged-move button lit, by its x, for as long as it stays lit. */
+  readonly #lit = new Map<number, number>();
+
+  /**
+   * What to do about a frame read as `state`, at `now` milliseconds. `ready` is where the frame's lit charged-move
+   * buttons are, as `readyButtons` finds them; of two, the one that lit first is thrown, and the left where they lit
+   * together — the basic strategy's "first ready", with no view yet of which would do more.
+   */
+  next(state: State, now: number, ready: readonly Point[] = []): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
+
+    for (const x of this.#lit.keys()) {
+      if (!ready.some(([rx]) => rx === x)) {
+        this.#lit.delete(x);
+      }
+    }
+
+    for (const [x] of ready) {
+      if (!this.#lit.has(x)) {
+        this.#lit.set(x, now);
+      }
+    }
 
     // A charged move thrown is the minigame next, inside frames that read as `battle` throughout, and over once the
     // throw itself plays, which does not.
@@ -122,12 +141,21 @@ export class Player {
       return { kind: 'wait' };
     }
 
-    this.#tapped = { state, at: now };
+    if (state !== 'charged') {
+      this.#tapped = { state, at: now };
 
-    if (state === 'charged') {
-      this.#minigame = true;
+      return { kind: 'tap', at: TAPS[state], what: state };
     }
 
-    return { kind: 'tap', at: TAPS[state], what: state };
+    const first = [...ready].sort(([a], [b]) => (this.#lit.get(a) ?? now) - (this.#lit.get(b) ?? now) || a - b)[0];
+
+    if (!first) {
+      return { kind: 'wait' };
+    }
+
+    this.#tapped = { state, at: now };
+    this.#minigame = true;
+
+    return { kind: 'tap', at: first, what: state };
   }
 }
