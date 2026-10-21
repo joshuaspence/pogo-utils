@@ -8,7 +8,7 @@
 import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { Player, type Point } from './play.mts';
-import { recognise } from './recognise.mts';
+import { readyButtons, recognise } from './recognise.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -95,7 +95,7 @@ export async function run(
       known = clock.now();
       otherSince = undefined;
 
-      const action = player.next(state, clock.now());
+      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : []);
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);

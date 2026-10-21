@@ -97,36 +97,61 @@ const SWITCH_PANEL: readonly Box[] = [
 const SLATE: Colour = [35, 44, 58];
 
 /**
- * The charged-move button, as the circle its rim traces: centred at 179.5,676 of 360×760 with a radius of 34. A
- * button with a move ready wears a white rim, and one without wears none: 32 points around the circle were white at
- * every one for a ready button, at none for an unready one, and at no more than 44% through the minigame's bubbles.
+ * The charged-move buttons, as the circles their rims trace: one move's centred at 179.5,676 of 360×760, and two moves'
+ * either side of it at the same height, all with a radius of 34. A button with a move ready wears a white rim, and one
+ * without wears none: 32 points around the circle were white at 88–100% of them for a ready button, at none for an
+ * unready one, and at no more than 44% through the minigame's bubbles.
+ *
+ * A ring is the rest of the test, white inside and outside it being what a ready button is not. Kyogre's belly is a
+ * white patch across the centred button's place, and read as a ready button through its whole minigame on the rim alone
+ * — white at every point, but white too at every point inside it and outside it, where a ready button measured no more
+ * than 16% within and 13% beyond.
  */
-const BUTTON = { x: 0.499, y: 0.889, radius: 0.094 } as const;
+const BUTTON_XS = [0.31, 0.499, 0.69] as const;
+const BUTTON = { y: 0.889, radius: 0.094 } as const;
 const RIM_POINTS = 32;
 const RIM_READY = 0.6;
+const AROUND_RIM = 0.3;
 
-/** The fraction of the rim that is white, each point looked for a pixel or two inside the radius, the rim's width. */
-function rimWhite(image: Image): number {
-  const cx = BUTTON.x * image.width;
-  const cy = BUTTON.y * image.height;
-  let white = 0;
+/** The fraction of a circle that is white, each point looked for a pixel or two inside the radius, the rim's width. */
+function white(image: Image, cx: number, cy: number, radius: number): number {
+  let hits = 0;
 
   for (let k = 0; k < RIM_POINTS; k++) {
     const angle = (2 * Math.PI * k) / RIM_POINTS;
 
     const hit = [0, 1, 2].some((inset) => {
-      const radius = BUTTON.radius * image.width - inset * (image.width / 360);
-      const colour = rgb(image, cx + radius * Math.cos(angle), cy + radius * Math.sin(angle));
+      const r = radius - inset * (image.width / 360);
+      const colour = rgb(image, cx + r * Math.cos(angle), cy + r * Math.sin(angle));
 
       return luminance(...colour) > 215 && chroma(...colour) < 40;
     });
 
     if (hit) {
-      white++;
+      hits++;
     }
   }
 
-  return white / RIM_POINTS;
+  return hits / RIM_POINTS;
+}
+
+/**
+ * Where a charged move is ready to throw, as the centre of each lit button, left to right: none, one, or both of two.
+ * Only meaningful on a frame `recognise` reads as a battle.
+ */
+export function readyButtons(image: Image): [x: number, y: number][] {
+  const cy = BUTTON.y * image.height;
+  const radius = BUTTON.radius * image.width;
+
+  return BUTTON_XS.filter((x) => {
+    const cx = x * image.width;
+
+    return (
+      white(image, cx, cy, radius) >= RIM_READY &&
+      white(image, cx, cy, radius * 0.6) <= AROUND_RIM &&
+      white(image, cx, cy, radius * 1.35) <= AROUND_RIM
+    );
+  }).map((x) => [x, BUTTON.y]);
 }
 
 export function recognise(image: Image): State {
@@ -144,5 +169,5 @@ export function recognise(image: Image): State {
     return 'other';
   }
 
-  return rimWhite(image) >= RIM_READY ? 'charged' : 'battle';
+  return readyButtons(image).length > 0 ? 'charged' : 'battle';
 }
