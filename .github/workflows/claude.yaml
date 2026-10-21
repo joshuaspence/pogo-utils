@@ -9,6 +9,12 @@ on:
     types:
       - 'opened'
   pull_request:
+    # The org `Workflows` ruleset reviews a pull request into `master`, and a review from here would share its
+    # concurrency group, so one would cancel the other. A ruleset can't review a pull request into any other branch, so
+    # this still does.
+    branches-ignore:
+      - 'master'
+
     types:
       - 'opened'
       - 'ready_for_review'
@@ -26,10 +32,6 @@ permissions: {}
 
 jobs:
   claude:
-    # A Dependabot pull request is passed no secrets, so its review would be refused a token and fail with a notice that
-    # it reached no verdict. `github.event.pull_request` is unset on `issue_comment` and `issues`, so a mention in a
-    # bot's pull request's conversation still runs.
-    if: "github.event.pull_request.user.type != 'Bot'"
     uses: 'spence-com-au/claude-code-action/.github/workflows/claude.yaml@master'
     permissions:
       contents: 'write'
