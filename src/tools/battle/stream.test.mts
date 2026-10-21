@@ -122,7 +122,9 @@ test('stops a recording that has started but not yet taken over when closed', as
   await sleep(700);
   screen.close();
 
-  expect(recordings).toHaveLength(2);
+  // At least the one that never took over, and as many more as a slow first frame let start: a fixed count failed every
+  // time six copies of this file ran at once, a third recording having started before the close.
+  expect(recordings.length).toBeGreaterThanOrEqual(2);
   expect(recordings.every((recording) => recording.killed)).toBe(true);
 });
 
