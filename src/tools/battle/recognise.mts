@@ -107,7 +107,7 @@ const SLATE: Colour = [35, 44, 58];
  * — white at every point, but white too at every point inside it and outside it, where a ready button measured no more
  * than 16% within and 13% beyond.
  */
-const BUTTON_XS = [0.31, 0.499, 0.69] as const;
+export const BUTTON_XS = [0.31, 0.499, 0.69] as const;
 const BUTTON = { y: 0.889, radius: 0.094 } as const;
 const RIM_POINTS = 32;
 const RIM_READY = 0.6;

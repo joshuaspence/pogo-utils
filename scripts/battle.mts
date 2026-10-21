@@ -24,6 +24,7 @@ import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord } from '../src/tools/battle/stream.mts';
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device } from '../src/tools/inventory/adb.mts';
+import { CACHE, loadGameData } from '../src/tools/inventory/download.mts';
 import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
 import { useEngine } from '../src/tools/inventory/ocr.mts';
 import { encodePng } from '../src/tools/inventory/png.mts';
@@ -98,6 +99,9 @@ if (command === 'run') {
   await device.check();
   useEngine(tesseractCli);
 
+  // Which move does the most damage, out of the game master `pnpm inventory` downloads and caches for a week.
+  const data = await loadGameData(CACHE);
+
   // A screenshot for the screen's size, which every position here is a fraction of.
   const { width, height } = await device.screenshot();
   const at = ([x, y]: readonly [number, number]): [number, number] => [x * width, y * height];
@@ -130,7 +134,7 @@ if (command === 'run') {
 
   try {
     await screen.first();
-    const battles = await run(phone, { leader, league, count }, { now: () => performance.now(), sleep }, say);
+    const battles = await run(phone, { leader, league, data, count }, { now: () => performance.now(), sleep }, say);
     console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
   } catch (error) {
     process.exitCode = 1;

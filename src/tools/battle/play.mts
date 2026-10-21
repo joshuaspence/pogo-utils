@@ -1,7 +1,7 @@
 /**
- * What to do about each frame of a battle, given which state `recognise` read it as: the basic strategy, with no notion
- * of energy, types or the opponent. Swipe for fast moves, throw a charged move the moment one is ready, take every
- * shield offered and send in whoever comes first.
+ * What to do about each frame of a battle, given which state `recognise` read it as. Swipe for fast moves, throw the
+ * charged move the caller names the moment it is ready — or, where it names none, whichever is ready first — take every
+ * shield offered and send in whoever comes first. Which move is worth throwing is `strategy.mts`'s to say.
  *
  * Pure, so that every rule here is tested without a phone: `next` takes the state and the time and answers an action,
  * which the caller performs. Positions are fractions of the screen, as everywhere else the phone is driven.
@@ -95,12 +95,18 @@ export class Player {
   /** When each lit charged-move button lit, by its x, for as long as it stays lit. */
   readonly #lit = new Map<number, number>();
 
+  /** Whether the charged-move minigame is being swiped at, which nothing else should hold up. */
+  get minigame(): boolean {
+    return this.#minigame;
+  }
+
   /**
    * What to do about a frame read as `state`, at `now` milliseconds. `ready` is where the frame's lit charged-move
-   * buttons are, as `readyButtons` finds them; of two, the one that lit first is thrown, and the left where they lit
-   * together — the basic strategy's "first ready", with no view yet of which would do more.
+   * buttons are, as `readyButtons` finds them. `best` is the x of the button worth throwing: while another is lit and it
+   * is not, the fight goes on, the energy kept for it. Without one, of two the one that lit first is thrown, and the
+   * left where they lit together.
    */
-  next(state: State, now: number, ready: readonly Point[] = []): Action {
+  next(state: State, now: number, ready: readonly Point[] = [], best?: number): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
 
@@ -122,7 +128,9 @@ export class Player {
       this.#minigame = false;
     }
 
-    if (state === 'battle') {
+    const throwable = best === undefined ? ready : ready.filter(([x]) => x === best);
+
+    if (state === 'battle' || (state === 'charged' && throwable.length === 0)) {
       if (this.#tapped?.state === 'charged' && now - this.#tapped.at < HOLD_MS) {
         return { kind: 'wait' };
       }
@@ -147,7 +155,7 @@ export class Player {
       return { kind: 'tap', at: TAPS[state], what: state };
     }
 
-    const first = [...ready].sort(([a], [b]) => (this.#lit.get(a) ?? now) - (this.#lit.get(b) ?? now) || a - b)[0];
+    const first = [...throwable].sort(([a], [b]) => (this.#lit.get(a) ?? now) - (this.#lit.get(b) ?? now) || a - b)[0];
 
     if (!first) {
       return { kind: 'wait' };

@@ -1,0 +1,40 @@
+/**
+ * The names and move labels read off committed stream frames by the real Tesseract, each expectation being what the
+ * frame shows. Our own name is a nickname in every one of them, so `own` is null throughout.
+ */
+
+import { readFileSync } from 'node:fs';
+import { beforeAll, expect, test } from 'vitest';
+import { type GameData } from '../inventory/game-master.mts';
+import { tesseractCli } from '../inventory/ocr-cli.mts';
+import { useEngine } from '../inventory/ocr.mts';
+import { decodePng } from '../inventory/png.mts';
+import { readBattle } from './read.mts';
+
+beforeAll(() => useEngine(tesseractCli));
+
+const DATA = JSON.parse(
+  readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
+) as GameData;
+
+const read = async (name: string) => {
+  const sighting = await readBattle(decodePng(readFileSync(new URL(`fixtures/${name}.png`, import.meta.url))), DATA);
+
+  return { ...sighting, moves: Object.fromEntries(sighting.moves) };
+};
+
+test.each([
+  ['battle-two-unlit', 'Salamence', { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
+  ['charged-two-both', 'Entei', { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
+  ['charged-two-right', 'Entei', { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
+  ['battle-deoxys', 'Sneasel', { 0.499: 'Zap Cannon' }],
+  ['charged-avalanche', 'Empoleon', { 0.499: 'Avalanche' }],
+  ['charged-shadow-sneak', 'Mamoswine', { 0.499: 'Shadow Sneak' }],
+])('%s: against %s, with %o', async (name, opponent, moves) => {
+  expect(await read(name)).toEqual({ own: null, opponent, moves });
+});
+
+test('a frame with no labels reads none, rather than reading its artwork as moves', async () => {
+  expect(await read('battle-minigame-kyogre-great')).toEqual({ own: null, opponent: 'Entei', moves: {} });
+  expect(await read('shield-glaceon')).toEqual({ own: null, opponent: null, moves: {} });
+});

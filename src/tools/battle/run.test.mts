@@ -4,6 +4,7 @@
  * answer leaves it where it is, which is how a wrong tap shows: the run stalls, and ends `Lost`.
  */
 
+import { type GameData } from '../inventory/game-master.mts';
 import { decodePng, type Image } from '../inventory/png.mts';
 import { useEngine } from '../inventory/ocr.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
@@ -14,6 +15,10 @@ import { type Point } from './play.mts';
 import { Lost, LOST_MS, run, type Clock, type Phone } from './run.mts';
 
 beforeAll(() => useEngine(tesseractCli));
+
+const DATA = JSON.parse(
+  readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
+) as GameData;
 
 const fixture = (name: string) =>
   decodePng(readFileSync(fileURLToPath(new URL(`fixtures/${name}.png`, import.meta.url))));
@@ -126,7 +131,7 @@ function battleAndBack(): Record<string, Scene> {
 test('plays a battle from the Battle tab and taps its way back round', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 
-  const battles = await run(phone, { leader: 'blanche', league: 'ultra', count: 1 }, clock);
+  const battles = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, count: 1 }, clock);
 
   expect(battles).toBe(1);
   expect(taps).toEqual(['training', 'intro', 'league', 'party', 'charged', 'result']);
@@ -135,14 +140,38 @@ test('plays a battle from the Battle tab and taps its way back round', async () 
 test('carries on into the next battle until the count is reached', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 
-  expect(await run(phone, { leader: 'blanche', league: 'ultra', count: 2 }, clock)).toBe(2);
+  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, count: 2 }, clock)).toBe(2);
   expect(taps.filter((scene) => scene === 'result')).toHaveLength(2);
+});
+
+/**
+ * Kyogre against Entei, with Avalanche lit and Hydro Pump not: Avalanche is resisted and Hydro Pump super effective, so
+ * the fight carries on until Hydro Pump lights. Thrown the moment it lit, as before, Avalanche would end the run here.
+ */
+test('holds a lit move for a stronger one still charging', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      fight: {
+        frame: fixture('charged-two-right'),
+        tap: { at: [0.69, 0.889], to: 'training' },
+        swipes: { count: 10, to: 'both' },
+      },
+      both: { frame: fixture('charged-two-both'), tap: { at: [0.31, 0.889], to: 'minigame' } },
+    },
+    'fight',
+  );
+
+  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, count: 1 }, clock)).toBe(1);
+  expect(taps).toEqual(['both', 'result']);
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {
   const { phone, clock, taps } = scripted({ stuck: { frame: fixture('other-loss') } }, 'stuck');
 
-  const lost = await run(phone, { leader: 'blanche', league: 'ultra' }, clock).catch((error: unknown) => error);
+  const lost = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA }, clock).catch(
+    (error: unknown) => error,
+  );
 
   expect(lost).toBeInstanceOf(Lost);
   expect((lost as Lost).frames.length).toBeGreaterThan(0);
