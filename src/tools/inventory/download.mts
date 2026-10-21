@@ -67,9 +67,36 @@ interface Template {
       forms?: { form: string; isCostume?: boolean }[];
     };
     moveSettings?: object;
+    combatMove?: { type: string; power?: number };
+    typeEffective?: { attackType: string; attackScalar: number[] };
     playerLevel?: { cpMultiplier: number[] };
   };
 }
+
+/**
+ * The order of `typeEffective.attackScalar`, which is the game's `PokemonType` enum from `NORMAL` = 1. The templates
+ * themselves come alphabetically and name only the attacking type, so nothing in the game master states it.
+ */
+const SCALAR_ORDER = [
+  'NORMAL',
+  'FIGHTING',
+  'FLYING',
+  'POISON',
+  'GROUND',
+  'ROCK',
+  'BUG',
+  'GHOST',
+  'STEEL',
+  'FIRE',
+  'WATER',
+  'GRASS',
+  'ELECTRIC',
+  'PSYCHIC',
+  'ICE',
+  'DRAGON',
+  'DARK',
+  'FAIRY',
+];
 
 /** What a form has to be called to be the species' ordinary one, which decides its display name and its icon alike. */
 const ORDINARY = /(^|_)NORMAL$/;
@@ -168,6 +195,32 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     byId.set(id, move);
   }
 
+  const combat: GameData['combat'] = {};
+
+  for (const { templateId, data } of templates) {
+    const match = /^COMBAT_V(\d{4})_MOVE_(\w+)$/.exec(templateId);
+    const name = match && (strings.get(`move_name_${match[1]}`) ?? titleise(match[2]?.replace(/_FAST$/, '') ?? ''));
+
+    // A name can be several templates — Blastoise's own 90-power Hydro Pump beside everyone's 130, Weather Ball once
+    // per type — and the screen shows only the name, so the first-numbered stands for it: the ordinary move, or for a
+    // move varying by type, its first type. Splash and Transform have no power at all rather than a power of 0.
+    if (data.combatMove && name && !(name in combat)) {
+      combat[name] = { type: typeName(data.combatMove.type), power: data.combatMove.power ?? 0 };
+    }
+  }
+
+  const effectiveness: GameData['effectiveness'] = {};
+
+  for (const { data } of templates) {
+    if (data.typeEffective) {
+      const { attackType, attackScalar } = data.typeEffective;
+
+      effectiveness[typeName(attackType)] = Object.fromEntries(
+        SCALAR_ORDER.map((type, i) => [typeName(type), attackScalar[i] ?? 1]),
+      );
+    }
+  }
+
   const forms: Form[] = [];
   const bare = new Map<number, Form>();
 
@@ -252,6 +305,8 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     species: [...new Set(forms.map((f) => f.species))],
     types: [...new Set(forms.flatMap((f) => f.types))],
     cpm,
+    combat,
+    effectiveness,
   };
 }
 

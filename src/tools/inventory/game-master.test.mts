@@ -45,6 +45,41 @@ test('the vended game master is the shape the readers are asserted against', () 
 });
 
 /**
+ * The type chart's order, which `loadGameData` writes down because the game master does not say it. One matchup per
+ * row of the game's own chart, each one a pair the alphabetical order the templates come in would get wrong, so
+ * reading the scalars in that order instead fails here.
+ */
+test('the type chart reads in the order the game deals damage', () => {
+  const chart = DATA.effectiveness;
+
+  expect([
+    chart['Fire']?.['Grass'],
+    chart['Water']?.['Fire'],
+    chart['Grass']?.['Water'],
+    chart['Electric']?.['Ground'],
+    chart['Normal']?.['Ghost'],
+    chart['Fighting']?.['Ghost'],
+    chart['Dragon']?.['Fairy'],
+    chart['Poison']?.['Steel'],
+    chart['Ice']?.['Dragon'],
+    chart['Psychic']?.['Dark'],
+    chart['Ground']?.['Flying'],
+    chart['Dark']?.['Psychic'],
+  ]).toStrictEqual([1.6, 1.6, 1.6, 0.390625, 0.390625, 0.390625, 0.390625, 0.390625, 1.6, 0.390625, 0.390625, 1.6]);
+  expect(Object.keys(chart).sort()).toStrictEqual([...DATA.types].sort());
+});
+
+/**
+ * The trainer-battle numbers rather than the raid ones, and the ordinary move where a name is several: the game's
+ * battle screen prints only Hydro Pump, which is 130 for everyone but the Blastoise that has its own 90.
+ */
+test('a move is read with its trainer-battle power', () => {
+  expect(DATA.combat['Hydro Pump']).toStrictEqual({ type: 'Water', power: 130 });
+  expect(DATA.combat['Avalanche']).toStrictEqual({ type: 'Ice', power: 90 });
+  expect(DATA.combat['Shadow Sneak']).toStrictEqual({ type: 'Ghost', power: 75 });
+});
+
+/**
  * The multiplier table, which is the one input neither formula can derive. The game master carries a value per whole
  * level and `loadGameData` fills in the half steps, each the root mean square of the two either side.
  *
