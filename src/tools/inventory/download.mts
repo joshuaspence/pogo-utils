@@ -240,8 +240,9 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
       dex,
       species: strings.get(`pokemon_name_${match[1]}`) ?? titleise(settings.pokemonId),
 
-      // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it.
-      form: ORDINARY.test(suffix) ? null : titleise(suffix),
+      // Nidoran's is `NIDORAN_NORMAL` under a `pokemonId` of `NIDORAN_FEMALE`, so the prefix test alone misses it. A
+      // species with no forms at all, as Ogerpon is upstream, has nothing to test and is ordinary too.
+      form: settings.form === undefined || ORDINARY.test(suffix) ? null : titleise(suffix),
 
       costume: settings.form !== undefined && costumes.has(settings.form),
       icon: iconName(index, dex, suffix, settings.form),

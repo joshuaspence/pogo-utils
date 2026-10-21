@@ -28376,7 +28376,7 @@
     {
       "dex": 1017,
       "species": "Ogerpon",
-      "form": "",
+      "form": null,
       "costume": false,
       "icon": null,
       "types": ["Grass"],
