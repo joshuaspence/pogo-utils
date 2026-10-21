@@ -139,9 +139,15 @@ export class Screen {
   readonly #segmentMs: number;
   #latest: Frame | undefined;
   #failure: Error | undefined;
-  #current: ChildProcess | undefined;
+  #current: Recording | undefined;
   #timer: NodeJS.Timeout | undefined;
   #closed = false;
+
+  /**
+   * Every recording still running, which `close` stops. The one `latest` answers from is not enough: through a
+   * hand-over its successor is running too, unadopted until its first frame.
+   */
+  readonly #running = new Set<Recording>();
 
   /** How many recordings have started, and which of them is the one `latest` answers from. */
   #started = 0;
@@ -183,7 +189,10 @@ export class Screen {
   close(): void {
     this.#closed = true;
     clearTimeout(this.#timer);
-    this.#current?.kill();
+
+    for (const recording of this.#running) {
+      recording.kill();
+    }
   }
 
   #start(): void {
@@ -191,6 +200,13 @@ export class Screen {
     const generation = ++this.#started;
     let stderr = '';
 
+    // A process that could not start — `adb` missing from `PATH` — says so only through `error`, which unheard is an
+    // uncaught exception. Heard, it is the reason the recording ended, its streams having closed empty.
+    let unstarted: Error | undefined;
+    recording.once('error', (error) => (unstarted = error));
+
+    this.#running.add(recording);
+    recording.once('close', () => this.#running.delete(recording));
     recording.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
     this.#timer = setTimeout(() => this.#start(), this.#segmentMs);
 
@@ -198,6 +214,11 @@ export class Screen {
     // takes, and one of those must not hand the screen back to it.
     const decoded = (async () => {
       for await (const image of decodeFrames(recording.stdout)) {
+        if (this.#closed) {
+          recording.kill();
+          break;
+        }
+
         if (generation > this.#live) {
           this.#current?.kill();
           this.#current = recording;
@@ -210,15 +231,18 @@ export class Screen {
       }
     })();
 
-    // A recording ending on its own is a failure unless a later one took over from it: the phone unplugged, `adb`
-    // gone, or `screenrecord` refusing, which it does with exit 0 and the reason on stderr. The first recording counts
-    // as live from the start, so one that never sends a frame fails too. Its own stderr is the reason before `ffmpeg`'s,
+    // The newest recording ending is a failure: the phone unplugged, `adb` gone, or `screenrecord` refusing, which it
+    // does with exit 0 and the reason on stderr. An older one ending is not, a successor having started — it is the
+    // limit, met while the successor is still starting. What the recording itself said is the reason before `ffmpeg`'s,
     // which for a recording that sent nothing only says that there was nothing to decode.
     decoded
       .catch((error: unknown) => error)
       .then((error) => {
-        if (!this.#closed && generation >= this.#live) {
-          const reason = stderr.trim() || (error instanceof Error ? error.message : 'it stopped sending frames');
+        if (!this.#closed && generation === this.#started) {
+          const reason =
+            unstarted?.message ||
+            stderr.trim() ||
+            (error instanceof Error ? error.message : 'it stopped sending frames');
           this.#failure = new Error(`screen recording ended: ${reason}`);
           this.close();
         }

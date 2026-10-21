@@ -89,3 +89,32 @@ test('fails when a recording ends without a later one taking over', async () => 
     screen.close();
   }
 });
+
+test('stops a recording that has started but not yet taken over when closed', async () => {
+  const recordings: Recording[] = [];
+
+  // The second never sends a frame, so it is still waiting to take over when the screen closes.
+  const screen = new Screen(() => {
+    const recording =
+      recordings.length === 0 ? clip('red', 5) : spawn('sleep', ['30'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    recordings.push(recording);
+    return recording;
+  }, 500);
+
+  await screen.first();
+  await sleep(700);
+  screen.close();
+
+  expect(recordings).toHaveLength(2);
+  expect(recordings.every((recording) => recording.killed)).toBe(true);
+});
+
+test('fails with the reason when a recording cannot start', async () => {
+  const screen = new Screen(() => spawn('no-such-recorder', [], { stdio: ['ignore', 'pipe', 'pipe'] }));
+
+  try {
+    await expect(screen.first(5000)).rejects.toThrow(/screen recording ended: spawn no-such-recorder ENOENT/);
+  } finally {
+    screen.close();
+  }
+});

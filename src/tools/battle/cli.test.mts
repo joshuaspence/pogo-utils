@@ -4,6 +4,8 @@
  */
 
 import { execFile } from 'node:child_process';
+import { devNull } from 'node:os';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { expect, test } from 'vitest';
@@ -42,6 +44,18 @@ test.each([['0'], ['181'], ['2.5'], ['ten']])('refuses --seconds %s', async (sec
 
   expect(code).toBe(1);
   expect(stderr).toContain('--seconds takes a whole number from 1 to 180');
+});
+
+test('reports an adb it cannot find rather than throwing', async () => {
+  const { code, stderr } = await promisify(execFile)('node', [SCRIPT, 'record', '--seconds', '1', devNull], {
+    env: { ...process.env, PATH: dirname(process.execPath) },
+  }).then(
+    () => ({ code: 0, stderr: '' }),
+    (error: { code: number; stderr: string }) => error,
+  );
+
+  expect(code).toBe(1);
+  expect(stderr).toContain('screenrecord failed: spawn adb ENOENT');
 });
 
 test('refuses a recording with nowhere to go', async () => {

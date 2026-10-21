@@ -57,7 +57,14 @@ if (command === 'record') {
   let stderr = '';
   recording.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
 
-  const exited = new Promise<number | null>((resolve) => recording.once('close', resolve));
+  // `error` rather than `close` where `adb` could not start, which with no listener would be an uncaught exception.
+  const exited = new Promise<number | null>((resolve) => {
+    recording.once('close', resolve);
+    recording.once('error', (error) => {
+      stderr ||= error.message;
+      resolve(null);
+    });
+  });
 
   console.error(`recording ${seconds}s to ${out}`);
   await pipeline(recording.stdout, createWriteStream(out));
