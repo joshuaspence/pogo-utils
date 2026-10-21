@@ -2294,7 +2294,6 @@ test('the families short of an icon are the ones upstream draws no full set for'
     'Spinda (20)',
     'Scatterbug (20)',
     'Spewpa (20)',
-    'Minior (7)',
     'Magearna (2)',
   ]);
 });

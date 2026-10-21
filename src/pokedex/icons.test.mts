@@ -72,10 +72,10 @@ test('`build:sprites` names every species whose icon the dex number cannot deriv
   /*
    * The counts a re-vend of `game-master.json` moves, pinned for the reason that file's own counts are: a species
    * released upstream changes which of these three a dex number falls in, and that is a reviewed commit rather than a
-   * refresh. 961 of the 1025 draw the game's own render, 49 of them under a name only this table holds.
+   * refresh. 962 of the 1025 draw the game's own render, 50 of them under a name only this table holds.
    */
   expect(rows).toHaveLength(113);
-  expect(rows.filter(([, icon]) => icon === null)).toHaveLength(64);
+  expect(rows.filter(([, icon]) => icon === null)).toHaveLength(63);
 
   // A row is worth its place only where it differs from the derivation, which is what keeps this a table of exceptions
   // rather than a copy of the dex.
