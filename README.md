@@ -570,6 +570,22 @@ than what any capture answers: tesseract.js is a fork of Tesseract 5.1 where `ap
 sweep the region for it, `charizard-gigantamax.png`'s the other way round, and the sweep offers a different stray on
 `castform-sunny.png` and `pikachu-santa-hat.png`. Pinned to the CLI's routes, they are the CLI's to keep.
 
+## Trainer battles
+
+`pnpm battle` is the start of a bot for the game's trainer battles, built against Team Leader training, driving the same
+phone over `adb` as [`pnpm inventory`](#pokémon-inventory). Unlike the inventory scanner it does not only read, and
+automating input breaks Niantic's terms of service, so run it on an account whose loss you would accept.
+
+A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
+`screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`
+beside `adb`. [`src/tools/battle/recognise.mts`](src/tools/battle/recognise.mts) reads which part of a battle a frame
+shows — the fight, a charged move ready, the shield prompt, the switch prompt or anything else — from colour samples
+alone, cheap enough for every frame. So far there is one command, which records what the recogniser is tuned against:
+
+```sh
+pnpm battle record --seconds 60 battle.h264
+```
+
 ## Live PokeMap watcher
 
 `pnpm watch:livepokemap` keeps a [Live PokeMap](https://livepokemap.com) session open the way a browser tab would and

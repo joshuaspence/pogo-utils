@@ -35,7 +35,9 @@ jobs:
           lfs: true
 
       - name: 'Install dependencies'
-        run: 'sudo apt-get update && sudo apt-get install --no-install-recommends --yes tesseract-ocr tesseract-ocr-eng'
+        run:
+          'sudo apt-get update && sudo apt-get install --no-install-recommends --yes ffmpeg tesseract-ocr
+          tesseract-ocr-eng'
 
       - uses: 'pnpm/setup@v3'
         with:
