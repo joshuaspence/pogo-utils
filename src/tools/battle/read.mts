@@ -32,6 +32,14 @@ const LABELS = { left: 0.05, right: 0.95, top: 0.925, bottom: 0.985 } as const;
  */
 const LABEL_REACH = 0.12;
 
+/**
+ * How wide a label's letter is, as a fraction of the screen's width: 0.019 to 0.023 across Hydro Pump, Avalanche,
+ * Shadow Sneak and Crunch on the committed frames. A label's line can run on past it, OCR taking in whatever is drawn
+ * to its right — Crunch's from 0.42 to 0.89 behind a Tyranitar, its centre then nearer the right button than its own —
+ * so the left edge, which held at 0.42 to 0.46, is what places it, with the name's own width.
+ */
+const LETTER = 0.022;
+
 const band = (image: Image, box: { left?: number; right?: number; top: number; bottom: number }, factor: number) => {
   const left = Math.round((box.left ?? 0) * image.width);
   const top = Math.round(box.top * image.height);
@@ -68,10 +76,19 @@ export async function readBattle(
   // Beneath each move is how effective it is, which matches no move and so drops out here.
   for (const line of await read(labels.image)) {
     const move = closest(line.text, charged, (name) => name);
-    const x = across(line, labels, image);
-    const button = BUTTON_XS.find((bx) => Math.abs(bx - x) <= LABEL_REACH);
 
-    if (move && button !== undefined) {
+    if (!move) {
+      continue;
+    }
+
+    const left = (labels.left + line.left / labels.factor) / image.width;
+    const width = Math.min(line.width / labels.factor / image.width, move.length * LETTER);
+    const x = left + width / 2;
+    const [button] = BUTTON_XS.filter((bx) => Math.abs(bx - x) <= LABEL_REACH).sort(
+      (a, b) => Math.abs(a - x) - Math.abs(b - x),
+    );
+
+    if (button !== undefined) {
       sighting.moves.set(button, move);
     }
   }

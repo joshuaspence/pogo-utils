@@ -30,6 +30,10 @@ test.each([
   ['battle-deoxys', 'Sneasel', { 0.499: 'Zap Cannon' }],
   ['charged-avalanche', 'Empoleon', { 0.499: 'Avalanche' }],
   ['charged-shadow-sneak', 'Mamoswine', { 0.499: 'Shadow Sneak' }],
+
+  // Crunch's line runs on to x 0.89 behind Tyranitar, its centre nearer the right button than its own.
+  ['battle-crunch-entei', 'Entei', { 0.499: 'Crunch' }],
+  ['battle-crunch-salamence', 'Salamence', { 0.499: 'Crunch' }],
 ])('%s: against %s, with %o', async (name, opponent, moves) => {
   expect(await read(name)).toEqual({ own: null, opponent, moves });
 });
