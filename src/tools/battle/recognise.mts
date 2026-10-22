@@ -46,34 +46,63 @@ const near = (colour: Colour, target: Colour, within: number) =>
   colour.every((channel, i) => Math.abs(channel - (target[i] ?? 0)) <= within);
 
 /**
- * Strips of the two panels across the top of a battle, beside each player's CP. They are white but not opaque, so
- * over sky they read blue-white — 237/246/251 at the bluest — and across every battle frame recorded they measured
- * 236–251 by luminance for all but a few, with a chroma of 16 at most, and never more than a rounding error redder than
- * blue: a neutral strip reads 244/243/243 or 246/244/244. Where they
- * are hidden — the shield prompt, some banners — the same strips show the sky itself, bluer than that (210/239/250).
+ * Strips of the two panels across the top of a battle, beside each player's CP, and the line above them that holds
+ * each side's name and CP.
  *
- * The sky between them is the rest of the test, and is what the two near misses fail. The map's notifications are a
+ * The panels are white at about 80% opacity, so each takes a fifth of its colour from the sky behind it: 243/243/243
+ * under cloud, 211/232/250 under a deep blue sky and 203/212/226 under a night one, which a 19/59/140 gap between them
+ * predicts. So no channel falls below 195 and the chroma stays under 52 — a fifth of the most a sky could have — and
+ * the sky being blue keeps them no more than a rounding error redder than blue.
+ *
+ * That is a range bare sky falls in too: the sky the shield prompt leaves where it hides them measured 210/239/250. The
+ * names are what tell the two apart. Their slate-grey text, and the blur the encoder gives it, is 13–18% of their line
+ * wherever the panels are drawn across 27,000 recorded frames, counting anything darker than the panel can be; a day
+ * sky's prompt has none, and a night sky's no more than 7% where its strips fail anyway. A dark screen is dark all
+ * over, hence the ceiling.
+ *
+ * The sky between the panels is the rest of the test, and is what two near misses fail. The map's notifications are a
  * bar straight across the top, and `96% found a Candy!` measured 225/233/224 in the right strip and 204/214/209 in the
- * gap — no sky there, its blue under its green — after a battle a looser test had passed, which would have had the map
- * swiped at. The fade into a battle failed the same way, 211/231/227 in the gap. Sky, and the grey countdown that sits
- * on it during a prompt, never has less blue than green.
+ * gap — no sky there, its blue under its green. The fade into a battle failed the same way, 211/231/227 in the gap.
+ * Sky, and the grey countdown that sits on it during a prompt, never has less blue than green.
  */
 const HUD: readonly Box[] = [
   [0.03, 0.085, 0.2, 0.095],
   [0.62, 0.085, 0.8, 0.095],
 ];
+const HUD_NAMES: readonly Box[] = [
+  [0.03, 0.07, 0.4, 0.086],
+  [0.6, 0.07, 0.97, 0.086],
+];
 const HUD_GAP: Box = [0.44, 0.085, 0.56, 0.095];
+const TEXT = { dark: 180, least: 0.08, most: 0.3 } as const;
 
-const panel = (colour: Colour) => {
-  const light = luminance(...colour);
+const panel = (colour: Colour) => Math.min(...colour) >= 195 && colour[2] >= colour[0] - 4 && chroma(...colour) <= 52;
 
-  return light >= 236 && light <= 251 && colour[2] >= colour[0] - 4 && chroma(...colour) <= 16;
-};
+/** The share of a box darker than `TEXT.dark`. */
+function darkIn(image: Image, [left, top, right, bottom]: Box): number {
+  let [dark, n] = [0, 0];
+
+  for (let y = Math.round(top * image.height); y < Math.round(bottom * image.height); y++) {
+    for (let x = Math.round(left * image.width); x < Math.round(right * image.width); x++) {
+      dark += luminance(...rgb(image, x, y)) < TEXT.dark ? 1 : 0;
+      n++;
+    }
+  }
+
+  return dark / Math.max(n, 1);
+}
 
 function showsHud(image: Image): boolean {
   const [, green, blue] = mean(image, HUD_GAP);
 
-  return HUD.every((box) => panel(mean(image, box))) && blue >= green;
+  return (
+    blue >= green &&
+    HUD.every((box) => panel(mean(image, box))) &&
+    HUD_NAMES.every((box) => {
+      const text = darkIn(image, box);
+      return text >= TEXT.least && text <= TEXT.most;
+    })
+  );
 }
 
 /**
