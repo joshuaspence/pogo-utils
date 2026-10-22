@@ -9,7 +9,7 @@ import { type GameData } from '../inventory/game-master.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { useEngine } from '../inventory/ocr.mts';
 import { decodePng } from '../inventory/png.mts';
-import { readBattle } from './read.mts';
+import { merge, readBattle } from './read.mts';
 
 beforeAll(() => useEngine(tesseractCli));
 
@@ -37,4 +37,17 @@ test.each([
 test('a frame with no labels reads none, rather than reading its artwork as moves', async () => {
   expect(await read('battle-minigame-kyogre-great')).toEqual({ own: null, opponent: 'Entei', moves: {} });
   expect(await read('shield-glaceon')).toEqual({ own: null, opponent: null, moves: {} });
+});
+
+test('a read keeps what earlier reads found, bar labels of the other layout', () => {
+  const seen = { own: null, opponent: 'Entei', moves: new Map([[0.499, 'Crunch']]) };
+
+  expect(merge(seen, { own: null, opponent: null, moves: new Map([[0.31, 'Crunch']]) })).toEqual({
+    own: null,
+    opponent: 'Entei',
+    moves: new Map([[0.31, 'Crunch']]),
+  });
+  expect(merge(seen, { own: null, opponent: 'Moltres', moves: new Map() }).moves, 'a read of no labels').toEqual(
+    seen.moves,
+  );
 });

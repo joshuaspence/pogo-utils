@@ -78,3 +78,20 @@ export async function readBattle(
 
   return sighting;
 }
+
+/**
+ * What is known after another read: what it read, and what earlier reads did that it did not. A Pokémon has either the
+ * one centred button or the pair, so a label read under one layout drops any left from the other, which a label read
+ * once off a frame mid-transition would otherwise hold against the pair for the rest of the Pokémon's turn out.
+ */
+export function merge(seen: Sighting, read: Sighting): Sighting {
+  const centre = BUTTON_XS[1];
+  const layout = read.moves.size > 0 ? read.moves.has(centre) : undefined;
+  const kept = [...seen.moves].filter(([x]) => layout === undefined || (x === centre) === layout);
+
+  return {
+    own: read.own ?? seen.own,
+    opponent: read.opponent ?? seen.opponent,
+    moves: new Map([...kept, ...read.moves]),
+  };
+}

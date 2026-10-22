@@ -67,7 +67,7 @@ interface Template {
       forms?: { form: string; isCostume?: boolean }[];
     };
     moveSettings?: object;
-    combatMove?: { type: string; power?: number };
+    combatMove?: { type: string; power?: number; energyDelta?: number };
     typeEffective?: { attackType: string; attackScalar: number[] };
     playerLevel?: { cpMultiplier: number[] };
   };
@@ -205,7 +205,11 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     // per type — and the screen shows only the name, so the first-numbered stands for it: the ordinary move, or for a
     // move varying by type, its first type. Splash and Transform have no power at all rather than a power of 0.
     if (data.combatMove && name && !(name in combat)) {
-      combat[name] = { type: typeName(data.combatMove.type), power: data.combatMove.power ?? 0 };
+      combat[name] = {
+        type: typeName(data.combatMove.type),
+        power: data.combatMove.power ?? 0,
+        energy: data.combatMove.energyDelta ?? 0,
+      };
     }
   }
 

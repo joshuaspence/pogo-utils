@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { type GameData } from '../inventory/game-master.mts';
-import { activeOf, bestButton, damage, shouldShield, typesOf } from './strategy.mts';
+import { activeOf, bestButton, damage, nextOut, shouldShield, typesOf } from './strategy.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -17,18 +17,22 @@ const KYOGRE = new Map([
   [0.69, 'Avalanche'],
 ]);
 
-test('a species has the types its forms agree on', () => {
-  expect(typesOf(DATA, 'Kyogre')).toEqual(['Water']);
-  expect(typesOf(DATA, 'Salamence')).toEqual(['Dragon', 'Flying']);
-  expect(typesOf(DATA, 'Marowak'), 'an Alolan Marowak is Fire and Ghost').toBe(null);
-  expect(typesOf(DATA, null)).toBe(null);
+test('a species has every typing its forms have', () => {
+  expect(typesOf(DATA, 'Kyogre')).toEqual([['Water']]);
+  expect(typesOf(DATA, 'Salamence')).toEqual([['Dragon', 'Flying']]);
+  expect(typesOf(DATA, 'Marowak'), 'an Alolan Marowak is Fire and Ghost').toEqual([['Fire', 'Ghost'], ['Ground']]);
+  expect(typesOf(DATA, null)).toEqual([]);
 });
 
 test('damage is power, times STAB, times what each of the defender’s types makes of it', () => {
-  expect(damage(DATA, 'Hydro Pump', ['Water'], ['Fire'])).toBeCloseTo(130 * 1.2 * 1.6);
-  expect(damage(DATA, 'Avalanche', ['Water'], ['Dragon', 'Flying'])).toBeCloseTo(90 * 1.6 * 1.6);
-  expect(damage(DATA, 'Avalanche', null, null), 'unknowns are neutral').toBe(90);
-  expect(damage(DATA, 'Not A Move', null, null)).toBe(0);
+  expect(damage(DATA, 'Hydro Pump', [['Water']], [['Fire']])).toBeCloseTo(130 * 1.2 * 1.6);
+  expect(damage(DATA, 'Avalanche', [['Water']], [['Dragon', 'Flying']])).toBeCloseTo(90 * 1.6 * 1.6);
+  expect(damage(DATA, 'Avalanche', [], []), 'unknowns are neutral').toBe(90);
+  expect(damage(DATA, 'Not A Move', [], [])).toBe(0);
+  expect(
+    damage(DATA, 'Stone Edge', typesOf(DATA, 'Tyranitar'), typesOf(DATA, 'Moltres')),
+    'Rock into a Galarian Moltres, Dark and Flying, rather than 2.56× into a Kantonian one',
+  ).toBeCloseTo(100 * 1.2 * 1.6);
 });
 
 test('the best button is the move that hits hardest against this opponent', () => {
@@ -36,7 +40,7 @@ test('the best button is the move that hits hardest against this opponent', () =
 
   expect(bestButton(DATA, KYOGRE, kyogre, typesOf(DATA, 'Entei')), 'Hydro Pump into Entei').toBe(0.31);
   expect(bestButton(DATA, KYOGRE, kyogre, typesOf(DATA, 'Salamence')), 'Avalanche into Salamence').toBe(0.69);
-  expect(bestButton(DATA, KYOGRE, null, null), 'Hydro Pump on power alone').toBe(0.31);
+  expect(bestButton(DATA, KYOGRE, [], []), 'Hydro Pump on power alone').toBe(0.31);
 });
 
 test('the slot out is the first not fainted whose species can hold the moves read', () => {
@@ -60,11 +64,33 @@ test('a shield is taken unless none of the opponent’s charged moves is super e
   expect(shouldShield(DATA, 'Latias', 'Entei')).toBe(false);
   expect(shouldShield(DATA, null, 'Entei'), 'our species unknown').toBe(true);
   expect(shouldShield(DATA, 'Kyogre', null), 'theirs unknown').toBe(true);
-  expect(shouldShield(DATA, 'Marowak', 'Entei'), 'our types unknown, its forms disagreeing').toBe(true);
+  expect(shouldShield(DATA, 'Marowak', 'Entei'), 'Solar Beam into a Kantonian Marowak').toBe(true);
+});
+
+test('while baiting, the cheapest move is best whatever it hits for', () => {
+  const kyogre = typesOf(DATA, 'Kyogre');
+  const entei = typesOf(DATA, 'Entei');
+
+  expect(bestButton(DATA, KYOGRE, kyogre, entei), 'Hydro Pump into Entei once its shields are gone').toBe(0.31);
+  expect(bestButton(DATA, KYOGRE, kyogre, entei, true), 'Avalanche, 45 to Hydro Pump’s 75, while they are up').toBe(
+    0.69,
+  );
+  expect(bestButton(DATA, new Map([[0.499, 'Hydro Pump']]), kyogre, entei, true), 'one move baits too').toBe(0.499);
+});
+
+test.each<[(string | null)[], number[], string, number | undefined, string]>([
+  [['Latias', 'Mamoswine', 'Giratina'], [0], 'Glaceon', 1, 'none safe from Glaceon; Mamoswine hits hardest'],
+  [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Salamence', 2, 'Kyogre the one Salamence cannot hit hard'],
+  [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Entei', 2, 'both safe from Entei; Kyogre hits hardest'],
+  [['Kyogre', null, 'Giratina'], [0], 'Entei', 2, 'a named safe card ahead of an unread one'],
+  [['Tyranitar', 'Kyogre', 'Tyranitar'], [0], 'Moltres', 2, 'Stone Edge into either Moltres beats Hydro Pump'],
+  [['Kyogre', 'Tyranitar', 'Giratina'], [0, 1, 2], 'Entei', undefined, 'nobody left'],
+])('after a faint, %o less %o against %s sends in slot %s: %s', (party, fainted, opponent, slot) => {
+  expect(nextOut(DATA, party, new Set(fainted), opponent)).toBe(slot);
 });
 
 test('no button is best while one of a pair has no move read under it', () => {
-  expect(bestButton(DATA, new Map([[0.69, 'Avalanche']]), null, null)).toBe(undefined);
-  expect(bestButton(DATA, new Map(), null, null)).toBe(undefined);
-  expect(bestButton(DATA, new Map([[0.499, 'Shadow Sneak']]), null, null)).toBe(0.499);
+  expect(bestButton(DATA, new Map([[0.69, 'Avalanche']]), [], [])).toBe(undefined);
+  expect(bestButton(DATA, new Map(), [], [])).toBe(undefined);
+  expect(bestButton(DATA, new Map([[0.499, 'Shadow Sneak']]), [], [])).toBe(0.499);
 });

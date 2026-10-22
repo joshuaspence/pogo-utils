@@ -13,7 +13,7 @@ import { decodePng } from '../inventory/png.mts';
 import { createReadStream, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { readyButtons, recognise, type State } from './recognise.mts';
+import { opponentShields, readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames } from './stream.mts';
 
 const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url));
@@ -70,4 +70,14 @@ test('follows a charged move coming ready and being thrown through the decoder',
   }
 
   expect(runs).toEqual(['battle', 'charged', 'battle', 'other']);
+});
+
+test.each([
+  ['battle-latias', 2],
+  ['battle-night', 2],
+  ['battle-shield-blocked', 1],
+  ['battle-two-unlit', 0],
+  ['charged-two-both', 2],
+])('%s: the opponent has %i shields left', (name, shields) => {
+  expect(opponentShields(decodePng(readFileSync(`${FIXTURES}${name}.png`)))).toBe(shields);
 });

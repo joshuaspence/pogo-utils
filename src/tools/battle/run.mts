@@ -9,10 +9,10 @@ import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
-import { Player, type Point } from './play.mts';
-import { readBattle, type Sighting } from './read.mts';
-import { readyButtons, recognise } from './recognise.mts';
-import { activeOf, bestButton, shouldShield, typesOf } from './strategy.mts';
+import { Player, SWITCH_CARDS, type Point } from './play.mts';
+import { merge, readBattle, type Sighting } from './read.mts';
+import { opponentShields, readyButtons, recognise } from './recognise.mts';
+import { activeOf, bestButton, nextOut, shouldShield, typesOf } from './strategy.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -94,7 +94,13 @@ export async function run(
   const kept: Image[] = [];
   let party: (string | null)[] = [];
   let fainted = new Set<number>();
-  let switched = false;
+  let sent = 0;
+
+  // What the switch prompt showing was decided to be answered with, once, on its first frame: who fainted and who goes
+  // in. Decided again on a later frame, the first tap having moved `sent`, a retap would go to another card.
+  let prompt:
+    { fainted: number | undefined; next: number | undefined; card: Point | undefined; answered: boolean } | undefined;
+  let theirShields = 2;
   let seen: Sighting = { own: null, opponent: null, moves: new Map() };
   let readAt = -Infinity;
   let said = '';
@@ -121,6 +127,13 @@ export async function run(
         seen = { own: null, opponent: null, moves: new Map() };
         readAt = -Infinity;
         fainted = new Set();
+        sent = 0;
+        theirShields = 2;
+      }
+
+      // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one held.
+      if (state === 'battle' || state === 'charged') {
+        theirShields = Math.min(theirShields, opponentShields(frame));
       }
 
       // The Pokémon sent in next has moves of its own, and perhaps a name.
@@ -131,22 +144,18 @@ export async function run(
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
-        const read = await readBattle(frame, data);
-        seen = {
-          own: read.own ?? seen.own,
-          opponent: read.opponent ?? seen.opponent,
-          moves: new Map([...seen.moves, ...read.moves]),
-        };
+        seen = merge(seen, await readBattle(frame, data));
       }
 
       // A nickname in the HUD leaves the species to the party: whichever slot is out.
-      const slot = activeOf(data, party, fainted, seen.moves.values());
+      const slot = activeOf(data, party, fainted, seen.moves.values(), sent);
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
-      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent));
+      const bait = theirShields > 0;
+      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
       const shield = shouldShield(data, own, seen.opponent);
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
-      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'}: ${moves}, throwing ${throwing}, ${shield ? '' : 'not '}shielding`;
+      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding`;
 
       if (saying !== said) {
         log(saying);
@@ -155,10 +164,22 @@ export async function run(
 
       battling = true;
       known = clock.now();
-      switched &&= state === 'switch';
+      prompt = state === 'switch' ? prompt : undefined;
       otherSince = undefined;
 
-      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : [], best, shield);
+      // The switch prompt's cards are the slots not fainted bar the one out, in party order.
+      if (state === 'switch' && !prompt) {
+        const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
+        const next = nextOut(data, party, out, seen.opponent);
+        const card =
+          next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
+
+        prompt = { fainted: slot, next, card, answered: false };
+      }
+
+      const ready = state === 'charged' ? readyButtons(frame) : [];
+      const card = prompt?.card;
+      const action = player.next(state, clock.now(), { ready, best, shield, ...(card && { card }) });
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
@@ -166,13 +187,19 @@ export async function run(
         log(`tap ${action.what}`);
         await phone.tap(action.at);
 
-        // The slot out has fainted, the first time this prompt is answered: a second tap, a second later, would mark
-        // the one sent in.
-        if (action.what === 'switch' && !switched && slot !== undefined) {
-          fainted.add(slot);
-        }
+        // Once a prompt: a retap, a second later, is the same answer to it.
+        if (action.what === 'switch' && prompt && !prompt.answered) {
+          prompt.answered = true;
 
-        switched ||= action.what === 'switch';
+          if (prompt.fainted !== undefined) {
+            fainted.add(prompt.fainted);
+          }
+
+          if (prompt.next !== undefined) {
+            sent = prompt.next;
+            log(`sending in ${party[prompt.next] ?? '?'}`);
+          }
+        }
       } else {
         await clock.sleep(20);
       }

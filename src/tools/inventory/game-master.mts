@@ -54,6 +54,9 @@ export interface Move {
 export interface CombatMove {
   type: string;
   power: number;
+
+  /** What the move does to its user's energy: what a fast move gains, and what a charged move costs, as a negative. */
+  energy: number;
 }
 
 export interface GameData {
