@@ -36,10 +36,19 @@ const SHARE = { least: 0.3, most: 1.15 } as const;
 const CHANNEL_FROM_WHITE = 40;
 
 /**
- * How big a blob of the colour can be and be bubbles, in pixels at `WIDTH`: one small bubble to a chain of six large
- * ones, a Pokémon's body being bigger. And how much of its box it has to fill, a scatter of specks filling little.
+ * How far below what the share makes it a channel near white in the type's colour may be. Psychic's icon is
+ * 247/111/117, which left only green and blue to judge by, and Mewtwo's lavender — 163/149/162, 204/200/213 — holds
+ * the same share in those two: its body read as bubbles before and after the minigame, and was swiped at. The red of
+ * Psychic's bubbles stays at 218–244.
  */
-const AREA = { least: 20, most: 4000 } as const;
+const PALE = 40;
+
+/**
+ * How big a blob of the colour can be and be bubbles, in pixels at `WIDTH`: one small bubble to a chain of Psychic's
+ * large ones running down the right of the screen, Kyogre's body being bigger. And how much of its box it has to fill,
+ * a scatter of specks filling little.
+ */
+const AREA = { least: 20, most: 10000 } as const;
 const FILL = 0.25;
 
 /** How much white a blob's box has to hold beside it, the emblem on each bubble and its rim. */
@@ -48,6 +57,13 @@ const WHITE = { least: 225, spread: 25 } as const;
 
 /** How far past a blob's ends a swipe through it runs, as a fraction of the width, so its end bubbles are crossed. */
 const OVERRUN = 0.03;
+
+/**
+ * Where a swipe may start and end, as fractions of the screen: off its edges, where Android takes a swipe for its own
+ * gestures. One aimed at a blob reaching y 0.97 left the game for the home screen mid-battle, a swipe in from a side
+ * edge being back.
+ */
+const REACH = { left: 0.05, right: 0.95, top: FIELD.top, bottom: 0.92 } as const;
 
 /** The colour a type's bubbles are drawn in: its icon's commonest colour, the white emblem on it aside. */
 export function typeColour(icon: Image): Colour {
@@ -79,8 +95,14 @@ function washed([r, g, b]: Colour, colour: Colour): boolean {
     return from > CHANNEL_FROM_WHITE ? [(255 - c) / from] : [];
   });
   const mean = shares.reduce((sum, share) => sum + share, 0) / shares.length;
+  const pale = [r, g, b].every((c, i) => {
+    const from = 255 - (colour[i] ?? 0);
+
+    return from > CHANNEL_FROM_WHITE || 255 - mean * from - c <= PALE;
+  });
 
   return (
+    pale &&
     shares.length >= 2 &&
     Math.max(...shares) - Math.min(...shares) <= SPREAD &&
     mean >= SHARE.least &&
@@ -179,7 +201,11 @@ function along(xs: readonly number[], ys: readonly number[], width: number, heig
   const [ux, uy] = [Math.cos(angle), Math.sin(angle)];
   const along = xs.map((x, i) => (x - mx) * ux + ((ys[i] ?? 0) - my) * uy);
   const overrun = OVERRUN * width;
-  const end = (t: number): Point => [(mx + ux * t) / width, (my + uy * t) / height];
+  const clamp = (v: number, least: number, most: number) => Math.min(Math.max(v, least), most);
+  const end = (t: number): Point => [
+    clamp((mx + ux * t) / width, REACH.left, REACH.right),
+    clamp((my + uy * t) / height, REACH.top, REACH.bottom),
+  ];
 
   return [end(Math.min(...along) - overrun), end(Math.max(...along) + overrun)];
 }

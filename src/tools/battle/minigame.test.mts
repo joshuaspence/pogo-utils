@@ -1,6 +1,6 @@
 /**
- * The bubble finder against minigames of four types, each against the game's own icon for its type: Kyogre's Hydro
- * Pump, Mamoswine's Avalanche, Giratina's Shadow Sneak and Tyranitar's Crunch. Each expectation is a box the bubbles
+ * The bubble finder against minigames of five types, each against the game's own icon for its type: Kyogre's Hydro
+ * Pump, Mamoswine's Avalanche, Giratina's Shadow Sneak, Tyranitar's Crunch and Mewtwo's Psychic. Each expectation is a box the bubbles
  * are drawn in on the frame, which the first swipe has to cross; the Get Ready! that comes before them has none.
  */
 
@@ -33,6 +33,7 @@ test.each([
   ['battle-minigame-mamoswine', 'ICE', [0.45, 0.53, 0.72, 0.6]],
   ['battle-minigame-giratina', 'GHOST', [0.4, 0.8, 0.5, 0.84]],
   ['battle-minigame-tyranitar', 'DARK', [0.2, 0.5, 0.56, 0.6]],
+  ['battle-minigame-mewtwo', 'PSYCHIC', [0.65, 0.6, 0.9, 0.8]],
 ] as const)('%s: the first swipe crosses the %s bubbles', (name, type, box) => {
   const [first] = bubbleSwipes(png(name), colour(type));
 
@@ -57,4 +58,16 @@ test('a Pokémon the colour of its bubbles is not taken for them', () => {
 
   // Kyogre's body, the same blue, fills the bottom left of the frame below y 0.6.
   expect(swipes.every(([from, to]) => !crosses([from, to], [0, 0.65, 0.5, 1]))).toBe(true);
+});
+
+/** Mewtwo's lavender holds Psychic's share of pink in green and blue, though not in red. */
+test('a Pokémon only partly the colour of its bubbles is not taken for them once they are gone', () => {
+  expect(bubbleSwipes(png('battle-minigame-mewtwo-over'), colour('PSYCHIC'))).toEqual([]);
+});
+
+test('no swipe starts or ends on an edge Android takes for its own gestures', () => {
+  const swipes = bubbleSwipes(png('battle-minigame-mewtwo'), colour('PSYCHIC'));
+
+  expect(swipes.length).toBeGreaterThan(0);
+  expect(swipes.flat().every(([x, y]) => x >= 0.05 && x <= 0.95 && y <= 0.92)).toBe(true);
 });
