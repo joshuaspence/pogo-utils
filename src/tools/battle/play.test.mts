@@ -109,6 +109,31 @@ test('swipes the lower field after a charged move, until the throw plays', () =>
   expect(lowest(after)).toBeLessThan(0.55);
 });
 
+test('swipes through the bubbles found in the minigame, and waits for them through its lead-in', () => {
+  const player = new Player();
+  const chain: [Point, Point] = [
+    [0.17, 0.59],
+    [0.59, 0.51],
+  ];
+
+  play(['charged', 'charged'], player);
+
+  // Past the hold after the tap, still in the minigame.
+  expect(player.next('battle', 1000, { bubbles: [] })).toEqual({ kind: 'wait' });
+  expect(player.next('battle', 1033, { bubbles: [chain] })).toEqual({
+    kind: 'swipe',
+    from: chain[0],
+    to: chain[1],
+    ms: 80,
+  });
+
+  // Bubbles not found once the lead-in is over, it sweeps the rows rather than not swipe at all.
+  const late = player.next('battle', 3000, { bubbles: [] });
+
+  expect(late.kind).toBe('swipe');
+  expect(late).not.toMatchObject({ from: chain[0] });
+});
+
 test('swipes nothing for a moment after a charged move is tapped', () => {
   const player = new Player();
   const tapped = play(['charged', 'charged'], player);

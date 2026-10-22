@@ -8,9 +8,10 @@ import { type GameData } from '../inventory/game-master.mts';
 import { decodePng, type Image } from '../inventory/png.mts';
 import { useEngine } from '../inventory/ocr.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, expect, test } from 'vitest';
+import { typeColour } from './minigame.mts';
 import { silhouetteOfIcon } from './party.mts';
 import { type Point } from './play.mts';
 import { Lost, LOST_MS, run, type Clock, type Phone } from './run.mts';
@@ -30,6 +31,17 @@ const ICONS = readdirSync(new URL('fixtures/icons/', import.meta.url)).map((icon
   silhouette: silhouetteOfIcon(fixture(`icons/${icon.replace(/[.]png$/, '')}`)),
 }));
 
+/** The bubble colours of the types `minigame.test.mts` has icons for, by the game master's type names. */
+const COLOURS = Object.fromEntries(
+  DATA.types.flatMap((type) => {
+    const name = `types/POKEMON_TYPE_${type.toUpperCase()}`;
+
+    return existsSync(fileURLToPath(new URL(`fixtures/${name}.png`, import.meta.url)))
+      ? [[type, typeColour(fixture(name))]]
+      : [];
+  }),
+);
+
 interface Scene {
   frame: Image;
   screenshot?: Image;
@@ -44,12 +56,16 @@ interface Scene {
   lasts?: { ms: number; to: string };
 }
 
-function scripted(scenes: Record<string, Scene>, start: string): { phone: Phone; clock: Clock; taps: string[] } {
+function scripted(
+  scenes: Record<string, Scene>,
+  start: string,
+): { phone: Phone; clock: Clock; taps: string[]; strokes: { scene: string; from: Point; to: Point }[] } {
   let time = 0;
   let current = start;
   let entered = 0;
   let swiped = 0;
   const taps: string[] = [];
+  const strokes: { scene: string; from: Point; to: Point }[] = [];
 
   const go = (to: string) => {
     current = to;
@@ -90,8 +106,9 @@ function scripted(scenes: Record<string, Scene>, start: string): { phone: Phone;
 
       return Promise.resolve();
     },
-    swipe: (_from, _to, ms) => {
+    swipe: (from, to, ms) => {
       time += ms + 30;
+      strokes.push({ scene: current, from, to });
       const { swipes } = scene();
 
       if (swipes && ++swiped >= swipes.count) {
@@ -110,7 +127,7 @@ function scripted(scenes: Record<string, Scene>, start: string): { phone: Phone;
     },
   };
 
-  return { phone, clock, taps };
+  return { phone, clock, taps, strokes };
 }
 
 /** One battle and the way back round to the next, as recorded against Blanche in the Ultra League. */
@@ -138,7 +155,11 @@ function battleAndBack(): Record<string, Scene> {
 test('plays a battle from the Battle tab and taps its way back round', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 
-  const battles = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock);
+  const battles = await run(
+    phone,
+    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+    clock,
+  );
 
   expect(battles).toBe(1);
   expect(taps).toEqual(['training', 'intro', 'league', 'party', 'charged', 'result']);
@@ -156,7 +177,13 @@ test('finds its way to the leader from the map', async () => {
     'map',
   );
 
-  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock)).toBe(1);
+  expect(
+    await run(
+      phone,
+      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      clock,
+    ),
+  ).toBe(1);
   expect(taps.slice(0, 3)).toEqual(['map', 'main', 'training']);
 });
 
@@ -186,8 +213,11 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
   const lines: string[] = [];
 
   expect(
-    await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock, (line) =>
-      lines.push(line),
+    await run(
+      phone,
+      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      clock,
+      (line) => lines.push(line),
     ),
   ).toBe(1);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
@@ -203,18 +233,59 @@ test('stops on a Battle tab whose Training card never shows, rather than scroll 
     'main',
   );
 
-  const lost = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS }, clock).catch(
-    (error: unknown) => error,
-  );
+  const lost = await run(
+    phone,
+    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS },
+    clock,
+  ).catch((error: unknown) => error);
 
   expect(lost).toBeInstanceOf(Lost);
   expect(taps).toEqual(['main']);
 });
 
+/**
+ * Shadow Sneak thrown, its minigame's Ghost bubbles are swiped through rather than swept across in rows: every swipe in
+ * it crosses the bubble low in the middle of `battle-minigame-giratina`.
+ */
+test('aims the minigame’s swipes at its bubbles', async () => {
+  // Straight to Shadow Sneak's frame: the usual fight is Deoxys's, whose Zap Cannon would be read as the move thrown.
+  const { phone, clock, strokes } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('charged-shadow-sneak'), tap: { at: [0.499, 0.889], to: 'minigame' } },
+    },
+    'fight',
+  );
+
+  expect(
+    await run(
+      phone,
+      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      clock,
+    ),
+  ).toBe(1);
+
+  const minigame = strokes.filter(({ scene }) => scene === 'minigame');
+
+  expect(minigame.length).toBeGreaterThan(0);
+
+  for (const { from, to } of minigame) {
+    expect([from[1], to[1]].every((y) => y > 0.78 && y < 0.86)).toBe(true);
+    expect(Math.min(from[0], to[0])).toBeLessThan(0.45);
+    expect(Math.max(from[0], to[0])).toBeGreaterThan(0.45);
+  }
+});
+
 test('carries on into the next battle until the count is reached', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 
-  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 2 }, clock)).toBe(2);
+  expect(
+    await run(
+      phone,
+      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 2 },
+      clock,
+    ),
+  ).toBe(2);
   expect(taps.filter((scene) => scene === 'result')).toHaveLength(2);
 });
 
@@ -236,7 +307,13 @@ test('baits with the cheaper move while the opponent has shields', async () => {
     'fight',
   );
 
-  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock)).toBe(1);
+  expect(
+    await run(
+      phone,
+      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      clock,
+    ),
+  ).toBe(1);
   expect(taps).toEqual(['fight', 'result']);
 });
 
@@ -256,8 +333,11 @@ test('names the lead from the party, and the next of it after a faint', async ()
   );
   const lines: string[] = [];
 
-  await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock, (line) =>
-    lines.push(line),
+  await run(
+    phone,
+    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+    clock,
+    (line) => lines.push(line),
   );
 
   const named = lines.filter((line) => line.includes(' against ')).map((line) => line.split(':')[0]);
@@ -268,9 +348,11 @@ test('names the lead from the party, and the next of it after a faint', async ()
 test('stops, keeping its last frames, where nothing is recognised', async () => {
   const { phone, clock, taps } = scripted({ stuck: { frame: fixture('other-loss') } }, 'stuck');
 
-  const lost = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS }, clock).catch(
-    (error: unknown) => error,
-  );
+  const lost = await run(
+    phone,
+    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS },
+    clock,
+  ).catch((error: unknown) => error);
 
   expect(lost).toBeInstanceOf(Lost);
   expect((lost as Lost).frames.length).toBeGreaterThan(0);

@@ -10,6 +10,7 @@ import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
+import { bubbleSwipes, type Colour } from './minigame.mts';
 import { merge, readBattle, type Sighting } from './read.mts';
 import { opponentShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, shouldShield, typesOf } from './strategy.mts';
@@ -71,6 +72,9 @@ export interface Options {
 
   /** Every form's silhouette with its species, which the party screen's cards are read against. */
   icons: readonly Icon[];
+
+  /** The colour each type's minigame bubbles are drawn in, by type name, as `typeColour` reads the type's icon. */
+  colours: Readonly<Record<string, Colour>>;
   count?: number;
 }
 
@@ -81,7 +85,7 @@ export interface Options {
  */
 export async function run(
   phone: Phone,
-  { leader, league, data, icons, count = Infinity }: Options,
+  { leader, league, data, icons, colours, count = Infinity }: Options,
   clock: Clock,
   log: (line: string) => void = () => {},
 ): Promise<number> {
@@ -101,6 +105,9 @@ export async function run(
   let prompt:
     { fainted: number | undefined; next: number | undefined; card: Point | undefined; answered: boolean } | undefined;
   let theirShields = 2;
+
+  // The colour of the bubbles the minigame now showing draws, that of the move last thrown, where its type is known.
+  let bubbleColour: Colour | undefined;
   let seen: Sighting = { own: null, opponent: null, moves: new Map() };
   let readAt = -Infinity;
   let said = '';
@@ -179,13 +186,25 @@ export async function run(
 
       const ready = state === 'charged' ? readyButtons(frame) : [];
       const card = prompt?.card;
-      const action = player.next(state, clock.now(), { ready, best, shield, ...(card && { card }) });
+      const bubbles = player.minigame && bubbleColour ? bubbleSwipes(frame, bubbleColour) : undefined;
+      const action = player.next(state, clock.now(), {
+        ready,
+        best,
+        shield,
+        ...(card && { card }),
+        ...(bubbles && { bubbles }),
+      });
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
       } else if (action.kind === 'tap') {
         log(`tap ${action.what}`);
         await phone.tap(action.at);
+
+        if (action.what === 'charged') {
+          const type = data.combat[seen.moves.get(action.at[0]) ?? '']?.type;
+          bubbleColour = type === undefined ? undefined : colours[type];
+        }
 
         // Once a prompt: a retap, a second later, is the same answer to it.
         if (action.what === 'switch' && prompt && !prompt.answered) {
