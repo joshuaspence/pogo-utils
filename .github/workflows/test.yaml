@@ -35,11 +35,13 @@ jobs:
           lfs: true
 
       # Cached rather than installed from the runner's Ubuntu mirror on every run, which four times in a day hung a job
-      # on `apt-get` until its 30 minutes were up.
+      # on `apt-get` until its 30 minutes were up. The install scripts run on a restore, since ffmpeg reaches
+      # `libblas.so.3` through a link one of them makes: restored without them, it would not start.
       - name: 'Install dependencies'
         uses: 'awalsh128/cache-apt-pkgs-action@v1'
         with:
           packages: 'ffmpeg tesseract-ocr tesseract-ocr-eng'
+          execute_install_scripts: true
 
       - uses: 'pnpm/setup@v3'
         with:
