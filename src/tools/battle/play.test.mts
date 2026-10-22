@@ -69,6 +69,16 @@ test('of two charged moves lit together, throws the left', () => {
   expect(action).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
 });
 
+test('fights on while only a weaker move is lit, and throws the best once it lights', () => {
+  const player = new Player();
+
+  player.next('charged', 0, [RIGHT], LEFT[0]);
+  const held = player.next('charged', 33, [RIGHT], LEFT[0]);
+
+  expect(held.kind).toBe('swipe');
+  expect(player.next('charged', 66, [LEFT, RIGHT], LEFT[0])).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
+});
+
 test('forgets when a button lit once it goes out', () => {
   const player = new Player();
 

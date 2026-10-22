@@ -5,10 +5,13 @@
  * Driven through `Phone` rather than `adb`, so a test can stand a scripted phone in for a real one.
  */
 
+import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { Player, type Point } from './play.mts';
+import { readBattle, type Sighting } from './read.mts';
 import { readyButtons, recognise } from './recognise.mts';
+import { bestButton, typesOf } from './strategy.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -39,6 +42,12 @@ const MENU_AFTER_MS = 1_500;
 /** How long a menu's tap is given to animate into the next screen before that is screenshot. */
 const MENU_SETTLE_MS = 1_500;
 
+/**
+ * How often the battle's names and move labels are read again, in milliseconds. A read holds the loop up for about
+ * 220ms, a fast move's worth, and what it reads changes only when a Pokémon on either side does.
+ */
+const READ_MS = 3_000;
+
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
 
@@ -58,7 +67,7 @@ export class Lost extends Error {
  */
 export async function run(
   phone: Phone,
-  { leader, league, count = Infinity }: { leader: Leader; league: League; count?: number },
+  { leader, league, data, count = Infinity }: { leader: Leader; league: League; data: GameData; count?: number },
   clock: Clock,
   log: (line: string) => void = () => {},
 ): Promise<number> {
@@ -69,6 +78,9 @@ export async function run(
   let otherSince: number | undefined;
   let frames = 0;
   const kept: Image[] = [];
+  let seen: Sighting = { own: null, opponent: null, moves: new Map() };
+  let readAt = -Infinity;
+  let said = '';
 
   while (battles < count) {
     const frame = phone.frame();
@@ -89,13 +101,41 @@ export async function run(
       if (!battling) {
         log(`battle ${battles + 1} started`);
         player = new Player();
+        seen = { own: null, opponent: null, moves: new Map() };
+        readAt = -Infinity;
+      }
+
+      // The Pokémon sent in next has moves of its own, and perhaps a name.
+      if (state === 'switch') {
+        seen = { ...seen, own: null, moves: new Map() };
+        readAt = -Infinity;
+      }
+
+      if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
+        readAt = clock.now();
+        const read = await readBattle(frame, data);
+        seen = {
+          own: read.own ?? seen.own,
+          opponent: read.opponent ?? seen.opponent,
+          moves: new Map([...seen.moves, ...read.moves]),
+        };
+      }
+
+      const best = bestButton(data, seen.moves, typesOf(data, seen.own), typesOf(data, seen.opponent));
+      const moves = [...seen.moves.values()].join(', ') || '?';
+      const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
+      const saying = `${seen.own ?? '?'} against ${seen.opponent ?? '?'}: ${moves}, throwing ${throwing}`;
+
+      if (saying !== said) {
+        log(saying);
+        said = saying;
       }
 
       battling = true;
       known = clock.now();
       otherSince = undefined;
 
-      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : []);
+      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : [], best);
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);

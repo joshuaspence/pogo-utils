@@ -50,6 +50,12 @@ export interface Move {
   fast: boolean;
 }
 
+/** A move as trainer battles have it, which is not as raids do: Aqua Tail is 55 power here and 50 there. */
+export interface CombatMove {
+  type: string;
+  power: number;
+}
+
 export interface GameData {
   forms: Form[];
   moves: Move[];
@@ -58,6 +64,15 @@ export interface GameData {
 
   /** Every level from 1 to 51 in half steps, against its CP multiplier. */
   cpm: [number, number][];
+
+  /**
+   * Every move's trainer-battle numbers, by its name. A table of its own rather than fields on `Move`, which the form
+   * pools repeat 10,000 times over in the vended copy.
+   */
+  combat: Record<string, CombatMove>;
+
+  /** What a move of the first type multiplies its damage by against a Pokémon of the second, by type name. */
+  effectiveness: Record<string, Record<string, number>>;
 }
 
 export interface IVs {

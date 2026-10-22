@@ -48,6 +48,7 @@ test.each([
   ['charged-avalanche', [0.499]],
   ['charged-two-right', [0.69]],
   ['charged-two-both', [0.31, 0.69]],
+  ['charged-deep-sky', [0.69]],
   ['battle-two-unlit', []],
   ['battle-minigame-kyogre-great', []],
   ['battle-minigame-kyogre-excellent', []],

@@ -580,20 +580,22 @@ Niantic's terms of service, so run it on an account whose loss you would accept.
 pnpm battle run --leader spark --league great --count 5
 ```
 
-Start it from the Battle tab, or anywhere between the result of one battle and the start of the next. Its strategy is
-the simplest that wins against a Team Leader: swipe across the field for fast moves, throw a charged move the moment one
-is ready — of a Pokémon's two, whichever is ready first — and swipe through its minigame's bubbles, take every shield
-offered and send in whoever comes first. Training has no rematch, so between battles it taps its way back round — the
-result's ✓, the leader, BATTLE, the league, then USE THIS PARTY on the game's recommended party. It keeps the screen
-awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20 seconds it stops
-rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
+Start it from the Battle tab, or anywhere between the result of one battle and the start of the next. It swipes across
+the field for fast moves and throws the charged move that does the most damage — power, times STAB, times its
+effectiveness against the opponent — keeping the energy for it while a weaker one is ready instead. It reads the moves
+off the labels under their buttons and the two Pokémon off the names along the top, every few seconds; a nicknamed
+Pokémon of yours, or a name it cannot read, counts as neutral. It swipes through the minigame's bubbles, takes every
+shield offered and sends in whoever comes first. Training has no rematch, so between battles it taps its way back round
+— the result's ✓, the leader, BATTLE, the league, then USE THIS PARTY on the game's recommended party. It keeps the
+screen awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20 seconds
+it stops rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
 
 A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
 `screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`
-beside `adb`, and Tesseract for the league screen. [`src/tools/battle/recognise.mts`](src/tools/battle/recognise.mts)
-reads which part of a battle a frame shows from colour samples alone, cheap enough for every frame;
-[`src/tools/battle/menus.mts`](src/tools/battle/menus.mts) reads the screens between battles off full screenshots.
-`pnpm battle record` saves what the recognisers are tuned against:
+beside `adb`, and Tesseract for the league screen and the names and moves.
+[`src/tools/battle/recognise.mts`](src/tools/battle/recognise.mts) reads which part of a battle a frame shows from
+colour samples alone, cheap enough for every frame; [`src/tools/battle/menus.mts`](src/tools/battle/menus.mts) reads the
+screens between battles off full screenshots. `pnpm battle record` saves what the recognisers are tuned against:
 
 ```sh
 pnpm battle record --seconds 60 battle.h264
