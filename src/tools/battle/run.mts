@@ -192,17 +192,22 @@ export async function run(
         log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
       }
 
+      // A scroll is not progress: a tab already at its foot whose portraits go unmatched would be scrolled for ever, so
+      // the scrolls count towards `LOST_MS` from the tap that opened the tab.
       if (menu.screen === 'battle-tab') {
+        if (clock.now() - known > LOST_MS) {
+          throw new Lost(kept);
+        }
+
         log('battle-tab: scroll');
         await phone.swipe(...menu.swipe, SCROLL_MS);
       } else if (menu.screen !== 'unknown') {
         log(`${menu.screen}: tap`);
         await phone.tap(menu.tap);
+        known = clock.now();
       }
 
       if (menu.screen !== 'unknown') {
-        known = clock.now();
-
         if (menu.screen === 'result') {
           battles++;
           battling = false;
