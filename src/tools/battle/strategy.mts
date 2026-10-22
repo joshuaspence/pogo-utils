@@ -59,20 +59,24 @@ function chargedMoves(data: GameData, species: string): Set<string> {
 }
 
 /**
- * Which of the party is out, given the charged moves read under its buttons: the one member whose species can hold
- * them all, or null where none or several can, or no move has been read. A nickname hides the species from the HUD and
- * not from this.
+ * Which slot of the party is out: the first not yet fainted, the lead before any faint, since a battle opens with the
+ * lead and the switch prompt lists the rest in party order and the first of them is the one sent in. Passed over where
+ * its species cannot hold every charged move read under the buttons, which a misread card would show; a card that was
+ * not read cannot be checked, and stands. Undefined where no slot is left that fits.
  */
-export function activeOf(data: GameData, party: readonly (string | null)[], moves: Iterable<string>): string | null {
+export function activeOf(
+  data: GameData,
+  party: readonly (string | null)[],
+  fainted: ReadonlySet<number>,
+  moves: Iterable<string>,
+): number | undefined {
   const read = [...moves];
-  const fits = new Set(
-    party.filter(
-      (species): species is string => species !== null && read.every((move) => chargedMoves(data, species).has(move)),
-    ),
+  const slot = party.findIndex(
+    (species, i) =>
+      !fainted.has(i) && (species === null || read.every((move) => chargedMoves(data, species).has(move))),
   );
-  const [only] = fits;
 
-  return read.length > 0 && fits.size === 1 && only !== undefined ? only : null;
+  return slot === -1 ? undefined : slot;
 }
 
 /**

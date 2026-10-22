@@ -584,14 +584,15 @@ Start it from the Battle tab, or anywhere between the result of one battle and t
 the field for fast moves and throws the charged move that does the most damage — power, times STAB, times its
 effectiveness against the opponent — keeping the energy for it while a weaker one is ready instead. It reads the moves
 off the labels under their buttons and the two Pokémon off the names along the top, every few seconds. A nicknamed
-Pokémon of yours is named by the party screen instead, whose pictures it matches against the game's icons, as whichever
-of the three can hold the moves read; one it still cannot name, or an opponent it cannot read, counts as neutral. It
-swipes through the minigame's bubbles and sends in whoever comes first. The shield prompt never says which move is
-coming, so it takes a shield unless none of the charged moves the opponent's species can have would be super effective —
-and whenever it does not know both species. Training has no rematch, so between battles it taps its way back round — the
-result's ✓, the leader, BATTLE, the league, then USE THIS PARTY on the game's recommended party. It keeps the screen
-awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20 seconds it stops
-rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
+Pokémon of yours is named by the party screen instead, whose pictures it matches against the game's icons: the lead
+first, then after each faint the next of the party, which is the card it sends in, passing over any that cannot hold the
+moves read; one it still cannot name, or an opponent it cannot read, counts as neutral. It swipes through the minigame's
+bubbles and sends in whoever comes first. The shield prompt never says which move is coming, so it takes a shield unless
+none of the charged moves the opponent's species can have would be super effective — and whenever it does not know both
+species. Training has no rematch, so between battles it taps its way back round — the result's ✓, the leader, BATTLE,
+the league, then USE THIS PARTY on the game's recommended party. It keeps the screen awake while it runs and puts the
+setting back after. Where nothing on screen has been recognised for 20 seconds it stops rather than tap at a screen it
+does not know, and `--keep-frames DIR` saves the last few frames it saw.
 
 A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
 `screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`

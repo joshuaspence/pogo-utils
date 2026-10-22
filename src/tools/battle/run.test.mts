@@ -173,6 +173,31 @@ test('holds a lit move for a stronger one still charging', async () => {
   expect(taps).toEqual(['both', 'result']);
 });
 
+/**
+ * Latias leads, from the party screen, and faints to Glaceon; the switch prompt's first card sends in Mamoswine, the
+ * next of the party. No frame here shows a move label or our species, so the party is all that names either.
+ */
+test('names the lead from the party, and the next of it after a faint', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'fainted' } },
+      fainted: { frame: fixture('switch-glaceon'), tap: { at: [0.33, 0.87], to: 'next' } },
+      next: { frame: fixture('battle-minigame-mamoswine'), swipes: { count: 10, to: 'won' } },
+    },
+    'party',
+  );
+  const lines: string[] = [];
+
+  await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock, (line) =>
+    lines.push(line),
+  );
+
+  const named = lines.filter((line) => line.includes(' against ')).map((line) => line.split(':')[0]);
+
+  expect(named).toEqual(['Latias against Glaceon', 'Mamoswine against Glaceon']);
+});
+
 test('stops, keeping its last frames, where nothing is recognised', async () => {
   const { phone, clock, taps } = scripted({ stuck: { frame: fixture('other-loss') } }, 'stuck');
 

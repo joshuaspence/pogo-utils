@@ -39,15 +39,18 @@ test('the best button is the move that hits hardest against this opponent', () =
   expect(bestButton(DATA, KYOGRE, null, null), 'Hydro Pump on power alone').toBe(0.31);
 });
 
-test('the one member of the party who can hold every move read is the one out', () => {
+test('the slot out is the first not fainted whose species can hold the moves read', () => {
   const party = ['Latias', 'Mamoswine', 'Giratina'];
+  const none = new Set<number>();
 
-  expect(activeOf(DATA, party, ['Avalanche'])).toBe('Mamoswine');
-  expect(activeOf(DATA, party, ['Shadow Sneak'])).toBe('Giratina');
-  expect(activeOf(DATA, ['Kyogre', 'Mamoswine', null], ['Hydro Pump', 'Avalanche'])).toBe('Kyogre');
-  expect(activeOf(DATA, party, []), 'nothing read yet').toBe(null);
-  expect(activeOf(DATA, party, ['Hydro Pump']), 'none of them').toBe(null);
-  expect(activeOf(DATA, ['Kyogre', 'Mamoswine'], ['Avalanche']), 'both of them').toBe(null);
+  expect(activeOf(DATA, party, none, []), 'the lead, before anything is read').toBe(0);
+  expect(activeOf(DATA, party, new Set([0]), []), 'the first of the rest after a faint').toBe(1);
+  expect(activeOf(DATA, party, none, ['Avalanche']), 'Latias cannot hold Avalanche; Mamoswine can').toBe(1);
+  expect(activeOf(DATA, party, none, ['Shadow Sneak'])).toBe(2);
+  expect(activeOf(DATA, [null, 'Mamoswine'], none, ['Shadow Sneak']), 'an unread card cannot be ruled out').toBe(0);
+  expect(activeOf(DATA, party, none, ['Hydro Pump']), 'none of them').toBe(undefined);
+  expect(activeOf(DATA, party, new Set([0, 1, 2]), [])).toBe(undefined);
+  expect(activeOf(DATA, [], none, []), 'a run started mid-battle, past the party screen').toBe(undefined);
 });
 
 test('a shield is taken unless none of the opponent’s charged moves is super effective', () => {
