@@ -34,10 +34,12 @@ jobs:
         with:
           lfs: true
 
+      # Cached rather than installed from the runner's Ubuntu mirror on every run, which four times in a day hung a job
+      # on `apt-get` until its 30 minutes were up.
       - name: 'Install dependencies'
-        run:
-          'sudo apt-get update && sudo apt-get install --no-install-recommends --yes ffmpeg tesseract-ocr
-          tesseract-ocr-eng'
+        uses: 'awalsh128/cache-apt-pkgs-action@v1'
+        with:
+          packages: 'ffmpeg tesseract-ocr tesseract-ocr-eng'
 
       - uses: 'pnpm/setup@v3'
         with:
