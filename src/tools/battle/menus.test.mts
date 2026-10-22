@@ -85,6 +85,23 @@ test('still finds the leader with a result due', async () => {
   expect(menu.screen).toBe('training');
 });
 
+/**
+ * Full-size screenshots whose green the two buttons' colour test passes: the map's grass, and GO Battle League's BATTLE
+ * at the top of the Battle tab, where USE THIS PARTY is tapped. Tapped, it enters a GO Battle League match. With a
+ * result due the tab's ✗ is still taken for the ✓, which closes the tab and nothing more.
+ */
+test.each(['menu-unknown-map', 'menu-unknown-battle-league'])('taps neither green button on %s', async (name) => {
+  for (const result of [false, true]) {
+    const menu = await readMenu(fixture(name), { leader: 'candela', league: 'master', result });
+
+    expect(['unknown', 'result']).toContain(menu.screen);
+  }
+
+  expect(await readMenu(fixture(name), { leader: 'candela', league: 'master', result: false })).toEqual({
+    screen: 'unknown',
+  });
+});
+
 test.each(['menu-unknown-medal', 'menu-unknown-loss'])('waits on %s, before the ✓ has appeared', async (name) => {
   expect(await readMenu(fixture(name), { leader: 'blanche', league: 'ultra', result: true })).toEqual({
     screen: 'unknown',
