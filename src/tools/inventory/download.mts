@@ -316,6 +316,16 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
 }
 
 /**
+ * `GITHUB_TOKEN` for GitHub's API, and for nowhere else: the artwork listing is the one download it answers, and with no
+ * token it answers an address only 60 times an hour, which a few cold runs and anything else on the network can spend.
+ */
+function authorised(url: string): Record<string, string> {
+  const token = process.env.GITHUB_TOKEN;
+
+  return token && new URL(url).host === 'api.github.com' ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
  * A download kept under `dir` for a week, or the copy from before where the network fails. Throws where there is
  * neither.
  */
@@ -336,7 +346,7 @@ export async function cached(dir: string, file: string, url: string, refresh: bo
   try {
     // `fetch` rejects rather than answering when there is no network at all, which is the case a stale copy is most
     // wanted for, so the fallback has to cover a throw as well as a status.
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: authorised(url) });
 
     if (!response.ok) {
       throw new Error(`${response.status} ${response.statusText}`);

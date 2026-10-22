@@ -487,8 +487,10 @@ so the script works it out from the HP, IVs and types against the base stats in
 Size comes from the `XXL` or `XXS` badge on the detail screen, and shiny, lucky and costume from the game's own
 searches, one quick pass each before the full pass; `--flags` picks which. Expect several seconds per Pokémon. `--limit`
 and `--skip` break a long run into pieces, and `--refresh` downloads the game master and form icons again rather than
-using the week-old cache. Pokémon GO is launched only where it is not already the app in front, so a run started over an
-open storage screen picks up from there rather than waiting out a cold start.
+using the week-old cache. The icons are found through GitHub's API, which answers an address without a token 60 times an
+hour; `GITHUB_TOKEN=$(gh auth token)` in front of the command lifts that where it runs out. Pokémon GO is launched only
+where it is not already the app in front, so a run started over an open storage screen picks up from there rather than
+waiting out a cold start.
 
 A scroll capture keeps dragging the screen up and taking a screenshot until it stops moving, then stitches the frames
 into one tall image, which is how a screen longer than the phone is seen whole. `pnpm inventory snap` takes one of any
