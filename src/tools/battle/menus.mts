@@ -57,6 +57,25 @@ function green(image: Image, [x, y]: Point): boolean {
 }
 
 /**
+ * Whether the row a button is on runs across a white card either side of it, at x 0.1 and 0.9. The colour alone does
+ * not tell the two screens' buttons from others of the same green: the Battle tab draws GO Battle League's BATTLE in
+ * it, inside a white card, and the map's grass passes it. So USE THIS PARTY is the one on a white panel, and BATTLE
+ * under the leader's speech the one over the artwork — where GO Battle League's, at whatever height the tab is scrolled
+ * to, is neither: on a card, above the ✗.
+ *
+ * Measured either side, on each fixture's button row: 248–249/252–254/237–240 on `menu-party` and `menu-party-full`,
+ * from 4/6/6 to 92/73/57 on `menu-intro` and `menu-intro-spark`, 255/255/255 on `menu-unknown-battle-league`, and
+ * 142/199/173 and 228/238/234 on `menu-unknown-map`.
+ */
+function panel(image: Image, y: number): boolean {
+  return [0.1, 0.9].every((x) => {
+    const [r, g, b] = rgb(image, x * image.width, y * image.height);
+
+    return Math.min(r, g, b) >= 230 && Math.max(r, g, b) - Math.min(r, g, b) <= 16;
+  });
+}
+
+/**
  * The round button at the foot of the screen: ✓ on the result, ✗ on the Battle tab and under the leader's speech. The ✗
  * closes the menu, so this is only ever tapped where nothing else has claimed the screen.
  *
@@ -106,11 +125,11 @@ export async function readMenu(
   { leader, league, result }: { leader: Leader; league: League; result: boolean },
   read: (image: Image) => Promise<Line[]> = ocr,
 ): Promise<Menu> {
-  if (green(image, BATTLE) && teal(image)) {
+  if (green(image, BATTLE) && teal(image) && !panel(image, BATTLE[1])) {
     return { screen: 'intro', tap: BATTLE };
   }
 
-  if (green(image, USE_PARTY)) {
+  if (green(image, USE_PARTY) && panel(image, USE_PARTY[1]) && !teal(image)) {
     return { screen: 'party', tap: USE_PARTY };
   }
 
