@@ -19,8 +19,9 @@
  * through battles. Run it on an account whose loss you would accept.
  */
 
-import { ICON_BASE } from '../src/pokedex/icons.ts';
+import { ICON_BASE, POGO_ASSETS } from '../src/pokedex/icons.ts';
 import { LEADERS, LEAGUES, type League, type Leader } from '../src/tools/battle/menus.mts';
+import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord } from '../src/tools/battle/stream.mts';
@@ -76,6 +77,28 @@ function fail(message: string): never {
 
 if (ignored.length > 0) {
   fail(`${command} does not act on ${ignored.map((flag) => `--${flag}`).join(', ')}`);
+}
+
+/**
+ * The colour each type's minigame bubbles are drawn in, out of the game's own icon for the type: 18 small files, cached
+ * beside the form icons. A type whose icon cannot be had is swiped at in rows, as before the bubbles were aimed at.
+ */
+async function bubbleColours(data: GameData): Promise<Record<string, Colour>> {
+  const read = await Promise.all(
+    data.types.map(async (type) => {
+      const file = `POKEMON_TYPE_${type.toUpperCase()}.png`;
+
+      try {
+        const icon = await cachedAs(join(CACHE, 'types'), file, `${POGO_ASSETS}Images/Types/${file}`, false, decodePng);
+
+        return [[type, typeColour(icon)] as const];
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  return Object.fromEntries(read.flat());
 }
 
 /**
@@ -137,6 +160,7 @@ if (command === 'run') {
   // Which move does the most damage, out of the game master `pnpm inventory` downloads and caches for a week.
   const data = await loadGameData(CACHE);
   const icons = await silhouettes(data);
+  const colours = await bubbleColours(data);
 
   // A screenshot for the screen's size, which every position here is a fraction of.
   const { width, height } = await device.screenshot();
@@ -172,7 +196,7 @@ if (command === 'run') {
     await screen.first();
     const battles = await run(
       phone,
-      { leader, league, data, icons, count },
+      { leader, league, data, icons, colours, count },
       { now: () => performance.now(), sleep },
       say,
     );

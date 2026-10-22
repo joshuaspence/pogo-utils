@@ -50,6 +50,13 @@ export interface Choices {
 
   /** Which of the switch prompt's cards to send in. */
   card?: Point;
+
+  /**
+   * The swipes through the minigame's bubbles on this frame, as `bubbleSwipes` finds them, the first swiped. None found
+   * waits through the minigame's lead-in, there being nothing to pop yet, and sweeps rows after it; undefined, where the
+   * bubbles' colour is not known, sweeps rows throughout.
+   */
+  bubbles?: readonly (readonly [Point, Point])[];
 }
 
 /**
@@ -69,9 +76,10 @@ const FIGHT: readonly (readonly [Point, Point])[] = [
 ];
 
 /**
- * The minigame's swipes, row after row across the lower two thirds and back. Its bubbles are wherever the move puts
- * them — Shadow Sneak's in the middle, Psychic's between y 0.55 and 0.95 — and the fight's one band reached only
- * `NICE!` against Psychic's. Nothing is pressed by accident here: the minigame draws neither the bench nor the button.
+ * The minigame's swipes where its bubbles are not found, row after row across the lower two thirds and back. Its
+ * bubbles are wherever the move puts them — Shadow Sneak's in the middle, Psychic's between y 0.55 and 0.95 — and the
+ * fight's one band reached only `NICE!` against Psychic's, the rows `GREAT!`. Nothing is pressed by accident here: the
+ * minigame draws neither the bench nor the button.
  */
 const MINIGAME: readonly (readonly [Point, Point])[] = [0.4, 0.52, 0.64, 0.76, 0.88].flatMap((y, row) => {
   const ends: [Point, Point] = [
@@ -81,6 +89,13 @@ const MINIGAME: readonly (readonly [Point, Point])[] = [0.4, 0.52, 0.64, 0.76, 0
 
   return [row % 2 === 0 ? ends : ([ends[1], ends[0]] as [Point, Point])];
 });
+
+/**
+ * How long after a charged move's tap its minigame's bubbles are waited for, in milliseconds, before rows are swept
+ * instead. In a recorded Crunch the first bubbles came 2.1s after the throw began, behind `Get Ready!`; a minigame
+ * whose bubbles are not found after that is swept as before rather than not swiped at all.
+ */
+const LEAD_IN_MS = 2_500;
 
 /** How long one swipe takes, in milliseconds: short, so a fast move fires about six times a second. */
 const SWIPE_MS = 80;
@@ -122,7 +137,11 @@ export class Player {
   }
 
   /** What to do about a frame read as `state`, at `now` milliseconds. */
-  next(state: State, now: number, { ready = [], best, shield = true, card = TAPS.switch }: Choices = {}): Action {
+  next(
+    state: State,
+    now: number,
+    { ready = [], best, shield = true, card = TAPS.switch, bubbles }: Choices = {},
+  ): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
 
@@ -148,6 +167,16 @@ export class Player {
 
     if (state === 'battle' || (state === 'charged' && throwable.length === 0)) {
       if (this.#tapped?.state === 'charged' && now - this.#tapped.at < HOLD_MS) {
+        return { kind: 'wait' };
+      }
+
+      const [through] = this.#minigame ? (bubbles ?? []) : [];
+
+      if (through) {
+        return { kind: 'swipe', from: through[0], to: through[1], ms: SWIPE_MS };
+      }
+
+      if (this.#minigame && bubbles && this.#tapped && now - this.#tapped.at < LEAD_IN_MS) {
         return { kind: 'wait' };
       }
 

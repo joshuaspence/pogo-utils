@@ -12,7 +12,10 @@
  */
 export const ICON_DIR = 'Images/Pokemon - 256x256/Addressable Assets';
 
-export const ICON_BASE = `https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/${encodeURI(ICON_DIR)}/`;
+/** `pogo_assets` itself, which the form icons and the type icons the battle tool reads are both under. */
+export const POGO_ASSETS = 'https://raw.githubusercontent.com/PokeMiners/pogo_assets/master/';
+
+export const ICON_BASE = `${POGO_ASSETS}${encodeURI(ICON_DIR)}/`;
 
 /** PokeAPI's pixel sprites, which cover the national dex by number with a shiny beside each. */
 const PIXEL_BASE = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/';
