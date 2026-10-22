@@ -90,6 +90,8 @@ export async function run(
   let frames = 0;
   const kept: Image[] = [];
   let party: (string | null)[] = [];
+  let fainted = new Set<number>();
+  let switched = false;
   let seen: Sighting = { own: null, opponent: null, moves: new Map() };
   let readAt = -Infinity;
   let said = '';
@@ -115,6 +117,7 @@ export async function run(
         player = new Player();
         seen = { own: null, opponent: null, moves: new Map() };
         readAt = -Infinity;
+        fainted = new Set();
       }
 
       // The Pokémon sent in next has moves of its own, and perhaps a name.
@@ -133,8 +136,9 @@ export async function run(
         };
       }
 
-      // A nickname in the HUD leaves the species to whichever of the party can hold the moves read.
-      const own = seen.own ?? activeOf(data, party, seen.moves.values());
+      // A nickname in the HUD leaves the species to the party: whichever slot is out.
+      const slot = activeOf(data, party, fainted, seen.moves.values());
+      const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
       const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent));
       const shield = shouldShield(data, own, seen.opponent);
       const moves = [...seen.moves.values()].join(', ') || '?';
@@ -148,6 +152,7 @@ export async function run(
 
       battling = true;
       known = clock.now();
+      switched &&= state === 'switch';
       otherSince = undefined;
 
       const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : [], best, shield);
@@ -157,6 +162,14 @@ export async function run(
       } else if (action.kind === 'tap') {
         log(`tap ${action.what}`);
         await phone.tap(action.at);
+
+        // The slot out has fainted, the first time this prompt is answered: a second tap, a second later, would mark
+        // the one sent in.
+        if (action.what === 'switch' && !switched && slot !== undefined) {
+          fainted.add(slot);
+        }
+
+        switched ||= action.what === 'switch';
       } else {
         await clock.sleep(20);
       }
