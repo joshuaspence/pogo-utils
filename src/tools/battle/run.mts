@@ -9,10 +9,10 @@ import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
-import { Player, type Point } from './play.mts';
+import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { readBattle, type Sighting } from './read.mts';
-import { readyButtons, recognise } from './recognise.mts';
-import { activeOf, bestButton, shouldShield, typesOf } from './strategy.mts';
+import { opponentShields, readyButtons, recognise } from './recognise.mts';
+import { activeOf, bestButton, nextOut, shouldShield, typesOf } from './strategy.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -94,7 +94,9 @@ export async function run(
   const kept: Image[] = [];
   let party: (string | null)[] = [];
   let fainted = new Set<number>();
+  let sent = 0;
   let switched = false;
+  let theirShields = 2;
   let seen: Sighting = { own: null, opponent: null, moves: new Map() };
   let readAt = -Infinity;
   let said = '';
@@ -121,6 +123,13 @@ export async function run(
         seen = { own: null, opponent: null, moves: new Map() };
         readAt = -Infinity;
         fainted = new Set();
+        sent = 0;
+        theirShields = 2;
+      }
+
+      // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one held.
+      if (state === 'battle' || state === 'charged') {
+        theirShields = Math.min(theirShields, opponentShields(frame));
       }
 
       // The Pokémon sent in next has moves of its own, and perhaps a name.
@@ -140,13 +149,14 @@ export async function run(
       }
 
       // A nickname in the HUD leaves the species to the party: whichever slot is out.
-      const slot = activeOf(data, party, fainted, seen.moves.values());
+      const slot = activeOf(data, party, fainted, seen.moves.values(), sent);
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
-      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent));
+      const bait = theirShields > 0;
+      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
       const shield = shouldShield(data, own, seen.opponent);
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
-      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'}: ${moves}, throwing ${throwing}, ${shield ? '' : 'not '}shielding`;
+      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding`;
 
       if (saying !== said) {
         log(saying);
@@ -158,7 +168,13 @@ export async function run(
       switched &&= state === 'switch';
       otherSince = undefined;
 
-      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : [], best, shield);
+      // The switch prompt's cards are the slots not fainted bar the one out, in party order.
+      const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
+      const next = state === 'switch' ? nextOut(data, party, out, seen.opponent) : undefined;
+      const card =
+        next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
+      const ready = state === 'charged' ? readyButtons(frame) : [];
+      const action = player.next(state, clock.now(), { ready, best, shield, ...(card && { card }) });
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
@@ -168,8 +184,15 @@ export async function run(
 
         // The slot out has fainted, the first time this prompt is answered: a second tap, a second later, would mark
         // the one sent in.
-        if (action.what === 'switch' && !switched && slot !== undefined) {
-          fainted.add(slot);
+        if (action.what === 'switch' && !switched) {
+          if (slot !== undefined) {
+            fainted.add(slot);
+          }
+
+          if (next !== undefined) {
+            sent = next;
+            log(`sending in ${party[next] ?? '?'}`);
+          }
         }
 
         switched ||= action.what === 'switch';

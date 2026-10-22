@@ -1,7 +1,7 @@
 import { createReadStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { Player, TAPS, type Action, type Point } from './play.mts';
+import { Player, SWITCH_CARDS, TAPS, type Action, type Point } from './play.mts';
 import { readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames } from './stream.mts';
 
@@ -15,7 +15,7 @@ const RIGHT: Point = [0.69, 0.889];
  * a Pokémon with one charged move lit on every `charged` frame.
  */
 function play(states: readonly State[], player = new Player(), from = 0): Action[] {
-  return states.map((state, i) => player.next(state, from + i * 33, state === 'charged' ? [CENTRE] : []));
+  return states.map((state, i) => player.next(state, from + i * 33, { ready: state === 'charged' ? [CENTRE] : [] }));
 }
 
 const taps = (actions: readonly Action[]) => actions.filter((action) => action.kind === 'tap');
@@ -54,8 +54,8 @@ test('throws again if the button is still lit a second later', () => {
 test('of two charged moves, throws the one that lit first', () => {
   const player = new Player();
 
-  player.next('charged', 0, [RIGHT]);
-  const action = player.next('charged', 33, [LEFT, RIGHT]);
+  player.next('charged', 0, { ready: [RIGHT] });
+  const action = player.next('charged', 33, { ready: [LEFT, RIGHT] });
 
   expect(action).toEqual({ kind: 'tap', at: RIGHT, what: 'charged' });
 });
@@ -63,8 +63,8 @@ test('of two charged moves, throws the one that lit first', () => {
 test('of two charged moves lit together, throws the left', () => {
   const player = new Player();
 
-  player.next('charged', 0, [LEFT, RIGHT]);
-  const action = player.next('charged', 33, [LEFT, RIGHT]);
+  player.next('charged', 0, { ready: [LEFT, RIGHT] });
+  const action = player.next('charged', 33, { ready: [LEFT, RIGHT] });
 
   expect(action).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
 });
@@ -72,23 +72,27 @@ test('of two charged moves lit together, throws the left', () => {
 test('fights on while only a weaker move is lit, and throws the best once it lights', () => {
   const player = new Player();
 
-  player.next('charged', 0, [RIGHT], LEFT[0]);
-  const held = player.next('charged', 33, [RIGHT], LEFT[0]);
+  player.next('charged', 0, { ready: [RIGHT], best: LEFT[0] });
+  const held = player.next('charged', 33, { ready: [RIGHT], best: LEFT[0] });
 
   expect(held.kind).toBe('swipe');
-  expect(player.next('charged', 66, [LEFT, RIGHT], LEFT[0])).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
+  expect(player.next('charged', 66, { ready: [LEFT, RIGHT], best: LEFT[0] })).toEqual({
+    kind: 'tap',
+    at: LEFT,
+    what: 'charged',
+  });
 });
 
 test('forgets when a button lit once it goes out', () => {
   const player = new Player();
 
   // The right lights, then goes out as it is thrown; later the left lights, then the right again beside it.
-  player.next('charged', 0, [RIGHT]);
-  player.next('battle', 33, []);
-  player.next('charged', 2000, [LEFT]);
-  player.next('charged', 2033, [LEFT, RIGHT]);
+  player.next('charged', 0, { ready: [RIGHT] });
+  player.next('battle', 33, { ready: [] });
+  player.next('charged', 2000, { ready: [LEFT] });
+  player.next('charged', 2033, { ready: [LEFT, RIGHT] });
 
-  expect(player.next('charged', 3100, [LEFT, RIGHT])).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
+  expect(player.next('charged', 3100, { ready: [LEFT, RIGHT] })).toEqual({ kind: 'tap', at: LEFT, what: 'charged' });
 });
 
 test('swipes the lower field after a charged move, until the throw plays', () => {
@@ -126,9 +130,16 @@ test.each([
   expect(taps(actions)).toEqual([{ kind: 'tap', at: TAPS[state], what: state }]);
 });
 
+test('sends in the card it is told to', () => {
+  const player = new Player();
+  const actions = Array.from({ length: 5 }, (_, i) => player.next('switch', i * 33, { card: SWITCH_CARDS[1] }));
+
+  expect(taps(actions)).toEqual([{ kind: 'tap', at: [0.67, 0.87], what: 'switch' }]);
+});
+
 test('leaves a declined shield prompt to run out, and does not swipe at it', () => {
   const player = new Player();
-  const actions = Array.from({ length: 20 }, (_, i) => player.next('shield', i * 33, [], undefined, false));
+  const actions = Array.from({ length: 20 }, (_, i) => player.next('shield', i * 33, { shield: false }));
 
   expect(actions.every((action) => action.kind === 'wait')).toBe(true);
 });
@@ -157,7 +168,7 @@ test('throws the charged move in a recorded battle as soon as it is ready', asyn
     const state = recognise(frame);
     const at = i++ * 33;
 
-    timed.push({ action: player.next(state, at, readyButtons(frame)), state, at });
+    timed.push({ action: player.next(state, at, { ready: readyButtons(frame) }), state, at });
   }
 
   const tapped = timed.filter(({ action }) => action.kind === 'tap');

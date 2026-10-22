@@ -185,25 +185,25 @@ test('carries on into the next battle until the count is reached', async () => {
 });
 
 /**
- * Kyogre against Entei, with Avalanche lit and Hydro Pump not: Avalanche is resisted and Hydro Pump super effective, so
- * the fight carries on until Hydro Pump lights. Thrown the moment it lit, as before, Avalanche would end the run here.
+ * Kyogre against Entei, with Avalanche lit and Hydro Pump not, and both of Entei's shields up: Avalanche costs 45 to
+ * Hydro Pump's 75, so it goes now to draw a shield, where with the shields gone the fight would carry on until Hydro
+ * Pump lit — `strategy.test.mts` holds that half.
  */
-test('holds a lit move for a stronger one still charging', async () => {
+test('baits with the cheaper move while the opponent has shields', async () => {
   const { phone, clock, taps } = scripted(
     {
       ...battleAndBack(),
       fight: {
         frame: fixture('charged-two-right'),
-        tap: { at: [0.69, 0.889], to: 'training' },
-        swipes: { count: 10, to: 'both' },
+        tap: { at: [0.69, 0.889], to: 'minigame' },
+        swipes: { count: 10, to: 'training' },
       },
-      both: { frame: fixture('charged-two-both'), tap: { at: [0.31, 0.889], to: 'minigame' } },
     },
     'fight',
   );
 
   expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock)).toBe(1);
-  expect(taps).toEqual(['both', 'result']);
+  expect(taps).toEqual(['fight', 'result']);
 });
 
 /**
@@ -228,7 +228,7 @@ test('names the lead from the party, and the next of it after a faint', async ()
 
   const named = lines.filter((line) => line.includes(' against ')).map((line) => line.split(':')[0]);
 
-  expect(named).toEqual(['Latias against Glaceon', 'Mamoswine against Glaceon']);
+  expect(named).toEqual(['Latias against Glaceon (2 shields)', 'Mamoswine against Glaceon (2 shields)']);
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {

@@ -59,24 +59,62 @@ function chargedMoves(data: GameData, species: string): Set<string> {
 }
 
 /**
- * Which slot of the party is out: the first not yet fainted, the lead before any faint, since a battle opens with the
- * lead and the switch prompt lists the rest in party order and the first of them is the one sent in. Passed over where
- * its species cannot hold every charged move read under the buttons, which a misread card would show; a card that was
- * not read cannot be checked, and stands. Undefined where no slot is left that fits.
+ * Which slot of the party is out: `sent`, the slot last sent in, or before any faint the lead, a battle opening with
+ * it. Passed over for the next not fainted, in party order, where its species cannot hold every charged move read under
+ * the buttons, which a misread card would show; a card that was not read cannot be checked, and stands. Undefined where
+ * no slot is left that fits.
  */
 export function activeOf(
   data: GameData,
   party: readonly (string | null)[],
   fainted: ReadonlySet<number>,
   moves: Iterable<string>,
+  sent = 0,
 ): number | undefined {
   const read = [...moves];
-  const slot = party.findIndex(
-    (species, i) =>
-      !fainted.has(i) && (species === null || read.every((move) => chargedMoves(data, species).has(move))),
-  );
 
-  return slot === -1 ? undefined : slot;
+  const fits = (slot: number) => {
+    const species = party[slot];
+
+    return (
+      species !== undefined &&
+      !fainted.has(slot) &&
+      (species === null || read.every((move) => chargedMoves(data, species).has(move)))
+    );
+  };
+
+  return [sent, ...party.keys()].find(fits);
+}
+
+/**
+ * Which slot to send in after a faint, of those not fainted: first one the opponent cannot hit super effectively, then
+ * the one with the hardest hit on it, then the first. Hardest out of every charged move its species can hold, which of
+ * them it has being shown only once it is out. A card that was not read is neither safe nor known to hit, so it goes in
+ * only where nothing named is left, or where it is first and nothing named is safe or hits at all.
+ */
+export function nextOut(
+  data: GameData,
+  party: readonly (string | null)[],
+  fainted: ReadonlySet<number>,
+  opponent: string | null,
+): number | undefined {
+  const types = typesOf(data, opponent);
+  const scored = party.flatMap((species, slot) => {
+    if (fainted.has(slot)) {
+      return [];
+    }
+
+    const safe = species !== null && !shouldShield(data, species, opponent);
+    const own = typesOf(data, species);
+    const hits = species === null ? [] : [...chargedMoves(data, species)].map((move) => damage(data, move, own, types));
+    const hardest = Math.max(0, ...hits);
+
+    return [{ slot, safe, hardest }];
+  });
+
+  scored.sort((a, b) => Number(b.safe) - Number(a.safe) || b.hardest - a.hardest || a.slot - b.slot);
+
+  return scored[0]?.slot;
 }
 
 /**
@@ -98,17 +136,19 @@ export function shouldShield(data: GameData, own: string | null, opponent: strin
 
 /**
  * Which button to throw, by its x, given the move read under each button: the one doing the most damage, or undefined
- * where a button of the pair has no move read under it yet and so could be either.
+ * where a button of the pair has no move read under it yet and so could be either. While `bait`, the cheapest instead,
+ * to draw a shield the strongest would otherwise be thrown into; the more damaging of two that cost the same.
  */
 export function bestButton(
   data: GameData,
   moves: ReadonlyMap<number, string>,
   own: readonly string[] | null,
   opponent: readonly string[] | null,
+  bait = false,
 ): number | undefined {
   const [left, centre, right] = BUTTON_XS;
   const buttons = moves.has(left) || moves.has(right) ? [left, right] : [centre];
-  let best: { x: number; damage: number } | undefined;
+  let best: { x: number; cost: number; damage: number } | undefined;
 
   for (const x of buttons) {
     const move = moves.get(x);
@@ -117,10 +157,12 @@ export function bestButton(
       return undefined;
     }
 
-    const hit = damage(data, move, own, opponent);
+    const hit = { x, cost: -(data.combat[move]?.energy ?? 0), damage: damage(data, move, own, opponent) };
+    const better =
+      bait && best?.cost !== hit.cost ? hit.cost < (best?.cost ?? Infinity) : hit.damage > (best?.damage ?? -1);
 
-    if (!best || hit > best.damage) {
-      best = { x, damage: hit };
+    if (!best || better) {
+      best = hit;
     }
   }
 

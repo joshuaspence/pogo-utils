@@ -1,8 +1,8 @@
 /**
  * What to do about each frame of a battle, given which state `recognise` read it as. Swipe for fast moves, throw the
  * charged move the caller names the moment it is ready — or, where it names none, whichever is ready first — take a
- * shield offered unless the caller says not to, and send in whoever comes first. Which move is worth throwing and
- * which shield worth taking is `strategy.mts`'s to say.
+ * shield offered unless the caller says not to, and send in the card it names, or the first. Which move is worth
+ * throwing, which shield worth taking and who to send in is `strategy.mts`'s to say.
  *
  * Pure, so that every rule here is tested without a phone: `next` takes the state and the time and answers an action,
  * which the caller performs. Positions are fractions of the screen, as everywhere else the phone is driven.
@@ -22,15 +22,35 @@ export type Action =
   | { kind: 'wait' };
 
 /**
- * Where each prompt is answered, measured on the footage at 360×760: the Protect Shield under its prompt, and the first
- * of the switch prompt's two cards. When one Pokémon is left the card is centred instead and this misses it, which
- * costs nothing — the game sends that one in when its countdown runs out. A charged move is thrown wherever its lit
- * button was found, there being one or two of them.
+ * Where each prompt is answered, measured on the footage at 360×760: the Protect Shield under its prompt, and the
+ * switch prompt's two cards, centred at x 0.32 and 0.67 in `switch-glaceon`. When one Pokémon is left the card is
+ * centred instead and the first card's tap misses it, which costs nothing — the game sends that one in when its
+ * countdown runs out. A charged move is thrown wherever its lit button was found, there being one or two of them.
  */
 export const TAPS = {
   shield: [0.5, 0.82],
   switch: [0.33, 0.87],
 } as const satisfies Record<string, Point>;
+
+export const SWITCH_CARDS: readonly Point[] = [TAPS.switch, [0.67, 0.87]];
+
+/** What the caller has decided about a frame, which `next` acts on. */
+export interface Choices {
+  /** Where the frame's lit charged-move buttons are, as `readyButtons` finds them. */
+  ready?: readonly Point[];
+
+  /**
+   * The x of the button worth throwing: while another is lit and it is not, the fight goes on, the energy kept for it.
+   * Without one, of two the one that lit first is thrown, and the left where they lit together.
+   */
+  best?: number;
+
+  /** Whether a shield offered is taken: declined, the prompt is left to run out. */
+  shield?: boolean;
+
+  /** Which of the switch prompt's cards to send in. */
+  card?: Point;
+}
 
 /**
  * The fight's swipe, across the middle of the field and back. It stays clear of what a touch there would press instead:
@@ -101,14 +121,8 @@ export class Player {
     return this.#minigame;
   }
 
-  /**
-   * What to do about a frame read as `state`, at `now` milliseconds. `ready` is where the frame's lit charged-move
-   * buttons are, as `readyButtons` finds them. `best` is the x of the button worth throwing: while another is lit and it
-   * is not, the fight goes on, the energy kept for it. Without one, of two the one that lit first is thrown, and the
-   * left where they lit together. `shield` is whether a shield offered is taken: declined, the prompt is left to run
-   * out.
-   */
-  next(state: State, now: number, ready: readonly Point[] = [], best?: number, shield = true): Action {
+  /** What to do about a frame read as `state`, at `now` milliseconds. */
+  next(state: State, now: number, { ready = [], best, shield = true, card = TAPS.switch }: Choices = {}): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
 
@@ -154,7 +168,7 @@ export class Player {
     if (state !== 'charged') {
       this.#tapped = { state, at: now };
 
-      return { kind: 'tap', at: TAPS[state], what: state };
+      return { kind: 'tap', at: state === 'switch' ? card : TAPS[state], what: state };
     }
 
     const first = [...throwable].sort(([a], [b]) => (this.#lit.get(a) ?? now) - (this.#lit.get(b) ?? now) || a - b)[0];

@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { type GameData } from '../inventory/game-master.mts';
-import { activeOf, bestButton, damage, shouldShield, typesOf } from './strategy.mts';
+import { activeOf, bestButton, damage, nextOut, shouldShield, typesOf } from './strategy.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -61,6 +61,27 @@ test('a shield is taken unless none of the opponent’s charged moves is super e
   expect(shouldShield(DATA, null, 'Entei'), 'our species unknown').toBe(true);
   expect(shouldShield(DATA, 'Kyogre', null), 'theirs unknown').toBe(true);
   expect(shouldShield(DATA, 'Marowak', 'Entei'), 'our types unknown, its forms disagreeing').toBe(true);
+});
+
+test('while baiting, the cheapest move is best whatever it hits for', () => {
+  const kyogre = typesOf(DATA, 'Kyogre');
+  const entei = typesOf(DATA, 'Entei');
+
+  expect(bestButton(DATA, KYOGRE, kyogre, entei), 'Hydro Pump into Entei once its shields are gone').toBe(0.31);
+  expect(bestButton(DATA, KYOGRE, kyogre, entei, true), 'Avalanche, 45 to Hydro Pump’s 75, while they are up').toBe(
+    0.69,
+  );
+  expect(bestButton(DATA, new Map([[0.499, 'Hydro Pump']]), kyogre, entei, true), 'one move baits too').toBe(0.499);
+});
+
+test.each<[(string | null)[], number[], string, number | undefined, string]>([
+  [['Latias', 'Mamoswine', 'Giratina'], [0], 'Glaceon', 1, 'none safe from Glaceon; Mamoswine hits hardest'],
+  [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Salamence', 2, 'Kyogre the one Salamence cannot hit hard'],
+  [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Entei', 2, 'both safe from Entei; Kyogre hits hardest'],
+  [['Kyogre', null, 'Giratina'], [0], 'Entei', 2, 'a named safe card ahead of an unread one'],
+  [['Kyogre', 'Tyranitar', 'Giratina'], [0, 1, 2], 'Entei', undefined, 'nobody left'],
+])('after a faint, %o less %o against %s sends in slot %s: %s', (party, fainted, opponent, slot) => {
+  expect(nextOut(DATA, party, new Set(fainted), opponent)).toBe(slot);
 });
 
 test('no button is best while one of a pair has no move read under it', () => {
