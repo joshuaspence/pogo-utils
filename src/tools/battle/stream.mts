@@ -20,6 +20,20 @@ import { type Readable } from 'node:stream';
 export const STREAM_SIZE = { width: 360, height: 760 } as const;
 
 /**
+ * The largest screen of `STREAM_SIZE`'s shape that fits inside `screen`, which a phone of another shape is set to for
+ * a battle. The game lays itself out by the screen's width, so on a taller or squatter screen everything drawn near the
+ * top or the foot sits at another fraction of the height than every position here was measured at; and `screenrecord`
+ * keeps the screen's shape inside `STREAM_SIZE`, so another shape arrives with black bars down two sides.
+ */
+export function streamShaped({ width, height }: { width: number; height: number }): { width: number; height: number } {
+  const ratio = STREAM_SIZE.width / STREAM_SIZE.height;
+
+  return width / height <= ratio
+    ? { width, height: Math.round(width / ratio) }
+    : { width: Math.round(height * ratio), height };
+}
+
+/**
  * Enough for the picture at `STREAM_SIZE`, against `screenrecord`'s default of 20 Mbps, which made 6 MB of four
  * seconds. Nothing here watches for detail a lower rate would blur; the cost of a higher one is USB and decoding time.
  */
