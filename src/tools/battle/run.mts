@@ -10,7 +10,7 @@ import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
-import { readBattle, type Sighting } from './read.mts';
+import { merge, readBattle, type Sighting } from './read.mts';
 import { opponentShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, shouldShield, typesOf } from './strategy.mts';
 
@@ -140,12 +140,7 @@ export async function run(
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
-        const read = await readBattle(frame, data);
-        seen = {
-          own: read.own ?? seen.own,
-          opponent: read.opponent ?? seen.opponent,
-          moves: new Map([...seen.moves, ...read.moves]),
-        };
+        seen = merge(seen, await readBattle(frame, data));
       }
 
       // A nickname in the HUD leaves the species to the party: whichever slot is out.
