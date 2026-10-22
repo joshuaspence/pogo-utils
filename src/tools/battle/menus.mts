@@ -59,9 +59,13 @@ function green(image: Image, [x, y]: Point): boolean {
 /**
  * Whether the row a button is on runs across a white card either side of it, at x 0.1 and 0.9. The colour alone does
  * not tell the two screens' buttons from others of the same green: the Battle tab draws GO Battle League's BATTLE in
- * it, inside a white card, and the map's grass passes it. So USE THIS PARTY is the one on a white panel, measured
- * 247–249/250–254/237–245 on both party screens, and BATTLE under the leader's speech the one over the artwork —
- * where GO Battle League's, at whatever height the tab is scrolled to, is neither: on a card, above the ✗.
+ * it, inside a white card, and the map's grass passes it. So USE THIS PARTY is the one on a white panel, and BATTLE
+ * under the leader's speech the one over the artwork — where GO Battle League's, at whatever height the tab is scrolled
+ * to, is neither: on a card, above the ✗.
+ *
+ * Measured either side, on each fixture's button row: 248–249/252–254/237–240 on `menu-party` and `menu-party-full`,
+ * from 4/6/6 to 92/73/57 on `menu-intro` and `menu-intro-spark`, 255/255/255 on `menu-unknown-battle-league`, and
+ * 142/199/173 and 228/238/234 on `menu-unknown-map`.
  */
 function panel(image: Image, y: number): boolean {
   return [0.1, 0.9].every((x) => {
