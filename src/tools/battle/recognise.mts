@@ -183,6 +183,23 @@ export function readyButtons(image: Image): [x: number, y: number][] {
   }).map((x) => [x, BUTTON.y]);
 }
 
+/**
+ * The opponent's two shields along the top, as small boxes at the centre of each hexagon. One still held is pink,
+ * measured 223–233/159–167/235–248 on the committed frames, under day and night skies alike; one spent is a dark
+ * purple, 108–116/79–82/113–123, and the left goes first.
+ */
+const OPPONENT_SHIELDS: readonly Box[] = [0.718, 0.764].map((x) => [x - 0.006, 0.096, x + 0.006, 0.102] as const);
+const SPENT: Colour = [111, 81, 118];
+
+/**
+ * How many shields the opponent has left, out of the two each side starts with. A hexagon that reads as neither colour
+ * — under a banner, say — counts as one still held, as costing a bait at worst where the other way round would throw
+ * the strongest move into a shield.
+ */
+export function opponentShields(image: Image): number {
+  return OPPONENT_SHIELDS.filter((box) => !near(mean(image, box), SPENT, 25)).length;
+}
+
 export function recognise(image: Image): State {
   if (SWITCH_PANEL.every((box) => near(mean(image, box), SLATE, 12))) {
     return 'switch';
