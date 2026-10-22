@@ -39,6 +39,10 @@ jobs:
         with:
           packages: 'ffmpeg tesseract-ocr tesseract-ocr-eng'
 
+          # `libblas3` and `liblapack3` link the `libblas.so.3` and `liblapack.so.3` that `ffmpeg` loads only in their
+          # `postinst`, through `update-alternatives`.
+          execute_install_scripts: true
+
       - uses: 'pnpm/setup@v3'
         with:
           cache: true
