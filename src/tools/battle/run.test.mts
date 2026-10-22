@@ -160,6 +160,40 @@ test('finds its way to the leader from the map', async () => {
   expect(taps.slice(0, 3)).toEqual(['map', 'main', 'training']);
 });
 
+/**
+ * Zeraora leads and faints to Glaceon. Of Latias and Gyarados, Glaceon hits Latias super effectively and not Gyarados,
+ * so Gyarados goes in, off the prompt's second card. The first tap does not land, and the retap a second later goes to
+ * the same card: decided again, with Gyarados already taken to be out, it went to Latias's. A retap that misses runs on
+ * into a screen nothing recognises, so a regression ends `Lost` rather than tapping at the prompt for ever.
+ */
+test('retaps the card it chose when the first tap on the switch prompt does not land', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      party: { frame: fixture('menu-party-full'), tap: { at: [0.5, 0.87], to: 'loading' } },
+      fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'fainted' } },
+      fainted: { frame: fixture('switch-glaceon'), lasts: { ms: 600, to: 'again' } },
+      again: {
+        frame: fixture('switch-glaceon'),
+        tap: { at: [0.67, 0.87], to: 'next' },
+        lasts: { ms: 3000, to: 'stuck' },
+      },
+      stuck: { frame: fixture('other-loss') },
+      next: { frame: fixture('battle-minigame-mamoswine'), swipes: { count: 10, to: 'won' } },
+    },
+    'party',
+  );
+  const lines: string[] = [];
+
+  expect(
+    await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock, (line) =>
+      lines.push(line),
+    ),
+  ).toBe(1);
+  expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
+  expect(lines).toContain('sending in Gyarados');
+});
+
 test('stops on a Battle tab whose Training card never shows, rather than scroll it for ever', async () => {
   const { phone, clock, taps } = scripted(
     {

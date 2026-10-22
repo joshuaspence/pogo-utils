@@ -95,7 +95,11 @@ export async function run(
   let party: (string | null)[] = [];
   let fainted = new Set<number>();
   let sent = 0;
-  let switched = false;
+
+  // What the switch prompt showing was decided to be answered with, once, on its first frame: who fainted and who goes
+  // in. Decided again on a later frame, the first tap having moved `sent`, a retap would go to another card.
+  let prompt:
+    { fainted: number | undefined; next: number | undefined; card: Point | undefined; answered: boolean } | undefined;
   let theirShields = 2;
   let seen: Sighting = { own: null, opponent: null, moves: new Map() };
   let readAt = -Infinity;
@@ -160,15 +164,21 @@ export async function run(
 
       battling = true;
       known = clock.now();
-      switched &&= state === 'switch';
+      prompt = state === 'switch' ? prompt : undefined;
       otherSince = undefined;
 
       // The switch prompt's cards are the slots not fainted bar the one out, in party order.
-      const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
-      const next = state === 'switch' ? nextOut(data, party, out, seen.opponent) : undefined;
-      const card =
-        next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
+      if (state === 'switch' && !prompt) {
+        const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
+        const next = nextOut(data, party, out, seen.opponent);
+        const card =
+          next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
+
+        prompt = { fainted: slot, next, card, answered: false };
+      }
+
       const ready = state === 'charged' ? readyButtons(frame) : [];
+      const card = prompt?.card;
       const action = player.next(state, clock.now(), { ready, best, shield, ...(card && { card }) });
 
       if (action.kind === 'swipe') {
@@ -177,20 +187,19 @@ export async function run(
         log(`tap ${action.what}`);
         await phone.tap(action.at);
 
-        // The slot out has fainted, the first time this prompt is answered: a second tap, a second later, would mark
-        // the one sent in.
-        if (action.what === 'switch' && !switched) {
-          if (slot !== undefined) {
-            fainted.add(slot);
+        // Once a prompt: a retap, a second later, is the same answer to it.
+        if (action.what === 'switch' && prompt && !prompt.answered) {
+          prompt.answered = true;
+
+          if (prompt.fainted !== undefined) {
+            fainted.add(prompt.fainted);
           }
 
-          if (next !== undefined) {
-            sent = next;
-            log(`sending in ${party[next] ?? '?'}`);
+          if (prompt.next !== undefined) {
+            sent = prompt.next;
+            log(`sending in ${party[prompt.next] ?? '?'}`);
           }
         }
-
-        switched ||= action.what === 'switch';
       } else {
         await clock.sleep(20);
       }
