@@ -8,10 +8,11 @@
 import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
+import { readParty, type Icon } from './party.mts';
 import { Player, type Point } from './play.mts';
 import { readBattle, type Sighting } from './read.mts';
 import { readyButtons, recognise } from './recognise.mts';
-import { bestButton, typesOf } from './strategy.mts';
+import { activeOf, bestButton, shouldShield, typesOf } from './strategy.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -60,6 +61,16 @@ export class Lost extends Error {
   }
 }
 
+export interface Options {
+  leader: Leader;
+  league: League;
+  data: GameData;
+
+  /** Every form's silhouette with its species, which the party screen's cards are read against. */
+  icons: readonly Icon[];
+  count?: number;
+}
+
 /**
  * Plays `count` battles, or until stopped, starting from anywhere between the result of one and the start of the next —
  * the Battle tab, typically. Answers how many battles finished. Throws `Lost` with the last few frames when nothing has
@@ -67,7 +78,7 @@ export class Lost extends Error {
  */
 export async function run(
   phone: Phone,
-  { leader, league, data, count = Infinity }: { leader: Leader; league: League; data: GameData; count?: number },
+  { leader, league, data, icons, count = Infinity }: Options,
   clock: Clock,
   log: (line: string) => void = () => {},
 ): Promise<number> {
@@ -78,6 +89,7 @@ export async function run(
   let otherSince: number | undefined;
   let frames = 0;
   const kept: Image[] = [];
+  let party: (string | null)[] = [];
   let seen: Sighting = { own: null, opponent: null, moves: new Map() };
   let readAt = -Infinity;
   let said = '';
@@ -121,10 +133,13 @@ export async function run(
         };
       }
 
-      const best = bestButton(data, seen.moves, typesOf(data, seen.own), typesOf(data, seen.opponent));
+      // A nickname in the HUD leaves the species to whichever of the party can hold the moves read.
+      const own = seen.own ?? activeOf(data, party, seen.moves.values());
+      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent));
+      const shield = shouldShield(data, own, seen.opponent);
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
-      const saying = `${seen.own ?? '?'} against ${seen.opponent ?? '?'}: ${moves}, throwing ${throwing}`;
+      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'}: ${moves}, throwing ${throwing}, ${shield ? '' : 'not '}shielding`;
 
       if (saying !== said) {
         log(saying);
@@ -135,7 +150,7 @@ export async function run(
       known = clock.now();
       otherSince = undefined;
 
-      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : [], best);
+      const action = player.next(state, clock.now(), state === 'charged' ? readyButtons(frame) : [], best, shield);
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
@@ -153,7 +168,13 @@ export async function run(
     otherSince ??= clock.now();
 
     if (clock.now() - otherSince >= MENU_AFTER_MS) {
-      const menu = await readMenu(await phone.screenshot(), { leader, league, result: battling });
+      const screenshot = await phone.screenshot();
+      const menu = await readMenu(screenshot, { leader, league, result: battling });
+
+      if (menu.screen === 'party') {
+        party = readParty(screenshot, icons);
+        log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
+      }
 
       if (menu.screen !== 'unknown') {
         log(`${menu.screen}: tap`);

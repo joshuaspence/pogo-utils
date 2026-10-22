@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { type GameData } from '../inventory/game-master.mts';
-import { bestButton, damage, typesOf } from './strategy.mts';
+import { activeOf, bestButton, damage, shouldShield, typesOf } from './strategy.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -37,6 +37,27 @@ test('the best button is the move that hits hardest against this opponent', () =
   expect(bestButton(DATA, KYOGRE, kyogre, typesOf(DATA, 'Entei')), 'Hydro Pump into Entei').toBe(0.31);
   expect(bestButton(DATA, KYOGRE, kyogre, typesOf(DATA, 'Salamence')), 'Avalanche into Salamence').toBe(0.69);
   expect(bestButton(DATA, KYOGRE, null, null), 'Hydro Pump on power alone').toBe(0.31);
+});
+
+test('the one member of the party who can hold every move read is the one out', () => {
+  const party = ['Latias', 'Mamoswine', 'Giratina'];
+
+  expect(activeOf(DATA, party, ['Avalanche'])).toBe('Mamoswine');
+  expect(activeOf(DATA, party, ['Shadow Sneak'])).toBe('Giratina');
+  expect(activeOf(DATA, ['Kyogre', 'Mamoswine', null], ['Hydro Pump', 'Avalanche'])).toBe('Kyogre');
+  expect(activeOf(DATA, party, []), 'nothing read yet').toBe(null);
+  expect(activeOf(DATA, party, ['Hydro Pump']), 'none of them').toBe(null);
+  expect(activeOf(DATA, ['Kyogre', 'Mamoswine'], ['Avalanche']), 'both of them').toBe(null);
+});
+
+test('a shield is taken unless none of the opponent’s charged moves is super effective', () => {
+  expect(shouldShield(DATA, 'Latias', 'Glaceon'), 'Avalanche into Dragon').toBe(true);
+  expect(shouldShield(DATA, 'Giratina', 'Sneasel'), 'Foul Play into Ghost').toBe(true);
+  expect(shouldShield(DATA, 'Kyogre', 'Entei'), 'nothing of Entei’s beats Water').toBe(false);
+  expect(shouldShield(DATA, 'Latias', 'Entei')).toBe(false);
+  expect(shouldShield(DATA, null, 'Entei'), 'our species unknown').toBe(true);
+  expect(shouldShield(DATA, 'Kyogre', null), 'theirs unknown').toBe(true);
+  expect(shouldShield(DATA, 'Marowak', 'Entei'), 'our types unknown, its forms disagreeing').toBe(true);
 });
 
 test('no button is best while one of a pair has no move read under it', () => {

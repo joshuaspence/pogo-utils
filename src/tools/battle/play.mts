@@ -1,7 +1,8 @@
 /**
  * What to do about each frame of a battle, given which state `recognise` read it as. Swipe for fast moves, throw the
- * charged move the caller names the moment it is ready — or, where it names none, whichever is ready first — take every
- * shield offered and send in whoever comes first. Which move is worth throwing is `strategy.mts`'s to say.
+ * charged move the caller names the moment it is ready — or, where it names none, whichever is ready first — take a
+ * shield offered unless the caller says not to, and send in whoever comes first. Which move is worth throwing and
+ * which shield worth taking is `strategy.mts`'s to say.
  *
  * Pure, so that every rule here is tested without a phone: `next` takes the state and the time and answers an action,
  * which the caller performs. Positions are fractions of the screen, as everywhere else the phone is driven.
@@ -104,9 +105,10 @@ export class Player {
    * What to do about a frame read as `state`, at `now` milliseconds. `ready` is where the frame's lit charged-move
    * buttons are, as `readyButtons` finds them. `best` is the x of the button worth throwing: while another is lit and it
    * is not, the fight goes on, the energy kept for it. Without one, of two the one that lit first is thrown, and the
-   * left where they lit together.
+   * left where they lit together. `shield` is whether a shield offered is taken: declined, the prompt is left to run
+   * out.
    */
-  next(state: State, now: number, ready: readonly Point[] = [], best?: number): Action {
+  next(state: State, now: number, ready: readonly Point[] = [], best?: number, shield = true): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
 
@@ -141,7 +143,7 @@ export class Player {
       return swipe ? { kind: 'swipe', from: swipe[0], to: swipe[1], ms: SWIPE_MS } : { kind: 'wait' };
     }
 
-    if (state === 'other' || this.#streak < (SETTLE[state] ?? 0)) {
+    if (state === 'other' || (state === 'shield' && !shield) || this.#streak < (SETTLE[state] ?? 0)) {
       return { kind: 'wait' };
     }
 

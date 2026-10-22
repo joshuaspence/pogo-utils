@@ -8,9 +8,10 @@ import { type GameData } from '../inventory/game-master.mts';
 import { decodePng, type Image } from '../inventory/png.mts';
 import { useEngine } from '../inventory/ocr.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, expect, test } from 'vitest';
+import { silhouetteOfIcon } from './party.mts';
 import { type Point } from './play.mts';
 import { Lost, LOST_MS, run, type Clock, type Phone } from './run.mts';
 
@@ -22,6 +23,12 @@ const DATA = JSON.parse(
 
 const fixture = (name: string) =>
   decodePng(readFileSync(fileURLToPath(new URL(`fixtures/${name}.png`, import.meta.url))));
+
+/** The icons `party.test.mts` reads the party screens against. */
+const ICONS = readdirSync(new URL('fixtures/icons/', import.meta.url)).map((icon) => ({
+  species: DATA.forms.find((form) => form.icon === icon)?.species ?? icon,
+  silhouette: silhouetteOfIcon(fixture(`icons/${icon.replace(/[.]png$/, '')}`)),
+}));
 
 interface Scene {
   frame: Image;
@@ -131,7 +138,7 @@ function battleAndBack(): Record<string, Scene> {
 test('plays a battle from the Battle tab and taps its way back round', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 
-  const battles = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, count: 1 }, clock);
+  const battles = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock);
 
   expect(battles).toBe(1);
   expect(taps).toEqual(['training', 'intro', 'league', 'party', 'charged', 'result']);
@@ -140,7 +147,7 @@ test('plays a battle from the Battle tab and taps its way back round', async () 
 test('carries on into the next battle until the count is reached', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 
-  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, count: 2 }, clock)).toBe(2);
+  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 2 }, clock)).toBe(2);
   expect(taps.filter((scene) => scene === 'result')).toHaveLength(2);
 });
 
@@ -162,14 +169,14 @@ test('holds a lit move for a stronger one still charging', async () => {
     'fight',
   );
 
-  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, count: 1 }, clock)).toBe(1);
+  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock)).toBe(1);
   expect(taps).toEqual(['both', 'result']);
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {
   const { phone, clock, taps } = scripted({ stuck: { frame: fixture('other-loss') } }, 'stuck');
 
-  const lost = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA }, clock).catch(
+  const lost = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS }, clock).catch(
     (error: unknown) => error,
   );
 

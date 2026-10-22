@@ -126,6 +126,13 @@ test.each([
   expect(taps(actions)).toEqual([{ kind: 'tap', at: TAPS[state], what: state }]);
 });
 
+test('leaves a declined shield prompt to run out, and does not swipe at it', () => {
+  const player = new Player();
+  const actions = Array.from({ length: 20 }, (_, i) => player.next('shield', i * 33, [], undefined, false));
+
+  expect(actions.every((action) => action.kind === 'wait')).toBe(true);
+});
+
 test('ignores a prompt that shows for a frame as it slides in', () => {
   expect(taps(play(['battle', 'switch', 'battle', 'battle']))).toEqual([]);
 });

@@ -19,15 +19,18 @@
  * through battles. Run it on an account whose loss you would accept.
  */
 
+import { ICON_BASE } from '../src/pokedex/icons.ts';
 import { LEADERS, LEAGUES, type League, type Leader } from '../src/tools/battle/menus.mts';
+import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord } from '../src/tools/battle/stream.mts';
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device } from '../src/tools/inventory/adb.mts';
-import { CACHE, loadGameData } from '../src/tools/inventory/download.mts';
+import { CACHE, cachedAs, loadGameData } from '../src/tools/inventory/download.mts';
+import { type GameData } from '../src/tools/inventory/game-master.mts';
 import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
 import { useEngine } from '../src/tools/inventory/ocr.mts';
-import { encodePng } from '../src/tools/inventory/png.mts';
+import { decodePng, encodePng } from '../src/tools/inventory/png.mts';
 import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -75,6 +78,38 @@ if (ignored.length > 0) {
   fail(`${command} does not act on ${ignored.map((flag) => `--${flag}`).join(', ')}`);
 }
 
+/**
+ * Every form's outline, which the party screen is read against: each icon the game draws, some 1,300 files and 40 MB
+ * on the first run, cached beside the ones `pnpm inventory` keeps. One that cannot be had leaves its form unmatched
+ * rather than stopping the run.
+ */
+async function silhouettes(data: GameData): Promise<Icon[]> {
+  const icons = [...new Map(data.forms.flatMap((form) => (form.icon ? [[form.icon, form.species]] : []))).entries()];
+  const read: Icon[] = [];
+  let missing = 0;
+
+  for (let at = 0; at < icons.length; at += 16) {
+    const batch = icons.slice(at, at + 16).map(async ([icon, species]) => {
+      try {
+        const silhouette = await cachedAs(join(CACHE, 'icons'), icon, ICON_BASE + icon, false, (bytes) =>
+          silhouetteOfIcon(decodePng(bytes)),
+        );
+        read.push({ species, silhouette });
+      } catch {
+        missing++;
+      }
+    });
+
+    await Promise.all(batch);
+  }
+
+  if (missing > 0) {
+    console.error(`${missing} of ${icons.length} form icons could not be had; those forms go unmatched`);
+  }
+
+  return read;
+}
+
 function oneOf<T extends string>(name: string, value: string | undefined, allowed: readonly T[]): T {
   const found = allowed.find((option) => option === value);
 
@@ -101,6 +136,7 @@ if (command === 'run') {
 
   // Which move does the most damage, out of the game master `pnpm inventory` downloads and caches for a week.
   const data = await loadGameData(CACHE);
+  const icons = await silhouettes(data);
 
   // A screenshot for the screen's size, which every position here is a fraction of.
   const { width, height } = await device.screenshot();
@@ -134,7 +170,12 @@ if (command === 'run') {
 
   try {
     await screen.first();
-    const battles = await run(phone, { leader, league, data, count }, { now: () => performance.now(), sleep }, say);
+    const battles = await run(
+      phone,
+      { leader, league, data, icons, count },
+      { now: () => performance.now(), sleep },
+      say,
+    );
     console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
   } catch (error) {
     process.exitCode = 1;
