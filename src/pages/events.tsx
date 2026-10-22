@@ -14,7 +14,7 @@ import { Fragment, type ComponentChildren, type HTMLAttributes } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 
 import { routeSummary } from '../event-feed.js';
-import { clearPrefs, DEFAULT_HIDDEN, hiddenFor, type Prefs } from '../event-prefs.js';
+import { hiddenFor, type Prefs } from '../event-prefs.js';
 import {
   addDays,
   DAY_MS,
@@ -363,9 +363,9 @@ export default function EventsPage({ query: fragment }: { query: string }) {
 
   /**
    * An import from the top bar's settings has written over storage, which the store has re-read already. What is left
-   * is the page's own: a change this wholesale cannot leave a session reveal widening the page, which is the same
-   * correction Reset makes. Skipped on the first render, so opening the page after an import keeps the defaults it
-   * opened with rather than resetting them for an import it never saw.
+   * is the page's own: a change this wholesale cannot leave a session reveal widening the page. Skipped on the first
+   * render, so opening the page after an import keeps the defaults it opened with rather than resetting them for an
+   * import it never saw.
    */
   const restores = useRef(store.restores);
 
@@ -436,28 +436,6 @@ export default function EventsPage({ query: fragment }: { query: string }) {
     }
 
     commit('collapsed');
-  }
-
-  function reset() {
-    prefs.hiddenTypes = new Set(DEFAULT_HIDDEN);
-
-    // Emptied rather than filled with the defaults, an absent set being what `hiddenFor` seeds from the global one, so
-    // every view returns to the same set the chips now show whichever scope a reader comes back in.
-    prefs.hiddenByView = {};
-    prefs.filterScope = 'global';
-    prefs.dismissed.clear();
-    prefs.collapsed.clear();
-
-    // Back to not knowing, which `settleSeen` reads as a first visit and seeds from the feed. Clearing it to empty
-    // instead would mark every event on the page new, where a Reset is a return to the defaults.
-    prefs.seen = null;
-
-    clearPrefs();
-
-    // Not stored, so `clearPrefs` leaves these as they were — but they are three of the same chips Reset puts back,
-    // and a Reset cannot leave one of them widening the page.
-    setReveals(NOTHING_REVEALED);
-    store.settle();
   }
 
   /**
@@ -1055,17 +1033,6 @@ export default function EventsPage({ query: fragment }: { query: string }) {
         />
         <button type="button" onClick={() => void load(true)}>
           Refresh
-        </button>
-        <button
-          type="button"
-          class="ghost"
-          title={
-            "Default every view's type filters, hide ended and undated events, " +
-            'restore dismissals, unfold every section and clear new marks'
-          }
-          onClick={reset}
-        >
-          Reset
         </button>
         {/*
          * `aria-expanded` carries the state and the title says which way a click goes, so the label stays neutral in

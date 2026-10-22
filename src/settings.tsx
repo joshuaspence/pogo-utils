@@ -99,8 +99,8 @@ export function Settings() {
 
   /**
    * Read a backup back, over whatever is stored now. Keys the file omits are left alone, so a faithful restore is one
-   * into a cleared browser, which is the browser's own site data and not the Events page's Reset: `reset()` names the
-   * five keys that page owns, where an import writes through anything in the namespace.
+   * into a cleared browser, which is the browser's own site data: an import writes through anything in the namespace,
+   * and nothing in the app clears it.
    */
   async function importPrefs(file: File) {
     try {
