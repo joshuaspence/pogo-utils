@@ -166,8 +166,19 @@ if (command === 'run') {
   const icons = await silhouettes(data);
   const colours = await bubbleColours(data);
 
-  // The shape every position here was measured on, for as long as it runs. Read before anything is changed, so a phone
-  // that will not say its size is refused as it was found.
+  // The two settings a run changes, each read first so that it can be put back as found on every way out, with
+  // `restore` and the Ctrl-C handler in place before either is changed: `restore` writes back only what was read, so
+  // it is harmless where nothing has changed yet.
+  //
+  // Awake for as long as it runs: a screen gone dark mid-battle reads as nothing recognised and ends the run. Checked to
+  // be the number Android stores, since it goes back through the shell.
+  const awake = new TextDecoder().decode(
+    await transport.shell(['settings', 'get', 'global', 'stay_on_while_plugged_in']),
+  );
+  const before = /^\d+$/.test(awake.trim()) ? awake.trim() : '0';
+
+  // And the shape every position here was measured on. A phone that will not say its size is refused as it was found;
+  // an override already set is restored rather than reset, as the digits `wm size` answered.
   const sizes = new TextDecoder().decode(await transport.shell(['wm', 'size']));
   const physical = /Physical size: (\d+)x(\d+)/.exec(sizes);
 
@@ -175,48 +186,42 @@ if (command === 'run') {
     throw new Error(`wm size answered ${JSON.stringify(sizes.trim())} rather than the screen's size`);
   }
 
-  // Awake for as long as it runs: a screen gone dark mid-battle reads as nothing recognised and ends the run. The
-  // setting is put back as found on every way out, checked first to be the number Android stores, since it goes back
-  // through the shell.
-  const awake = new TextDecoder().decode(
-    await transport.shell(['settings', 'get', 'global', 'stay_on_while_plugged_in']),
-  );
-  const before = /^\d+$/.test(awake.trim()) ? awake.trim() : '0';
-  await transport.shell(['svc', 'power', 'stayon', 'usb']);
-
-  // The size put back the same way: an override already set is restored rather than reset, as the digits `wm size`
-  // answered.
   const override = /Override size: (\d+x\d+)/.exec(sizes)?.[1];
   const shaped = streamShaped({ width: Number(physical[1]), height: Number(physical[2]) });
-  await transport.shell(['wm', 'size', `${shaped.width}x${shaped.height}`]);
 
   const restore = async () => {
     await transport.shell(['settings', 'put', 'global', 'stay_on_while_plugged_in', before]);
     await transport.shell(['wm', 'size', override ?? 'reset']);
   };
 
-  const screen = new Screen(() => screenrecord(options.serial));
+  // Recording only once the size is set, so that no frame is of the shape it replaced.
+  let screen: Screen | undefined;
 
   process.once('SIGINT', () => {
-    screen.close();
+    screen?.close();
     void restore().finally(() => process.exit(130));
   });
 
   const say = options.verbose ? (line: string) => console.error(line) : undefined;
 
   try {
+    await transport.shell(['svc', 'power', 'stayon', 'usb']);
+    await transport.shell(['wm', 'size', `${shaped.width}x${shaped.height}`]);
+    const recording = new Screen(() => screenrecord(options.serial));
+    screen = recording;
+
     // A screenshot for the screen's size, which every position here is a fraction of.
     const { width, height } = await device.screenshot();
     const at = ([x, y]: readonly [number, number]): [number, number] => [x * width, y * height];
 
     const phone: Phone = {
-      frame: () => screen.latest()?.image,
+      frame: () => recording.latest()?.image,
       screenshot: () => device.screenshot(),
       tap: (point) => device.tap(at(point)),
       swipe: (from, to, ms) => device.swipe(at(from), at(to), ms),
     };
 
-    await screen.first();
+    await recording.first();
     const battles = await run(
       phone,
       { leader, league, data, icons, colours, count },
@@ -238,7 +243,7 @@ if (command === 'run') {
       console.error(`kept the last ${error.frames.length} frames in ${dir}`);
     }
   } finally {
-    screen.close();
+    screen?.close();
     await restore();
   }
 } else if (command === 'record') {
