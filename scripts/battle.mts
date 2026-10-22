@@ -7,7 +7,7 @@
  *
  *   pnpm battle run --leader blanche|candela|spark --league great|ultra|master [--count N] [--serial SERIAL]
  *                   [--keep-frames DIR] [--verbose]
- *                       play Team Leader battles one after another, from the Battle tab or anywhere between the
+ *                       play Team Leader battles one after another, from the map or anywhere between the
  *                       result of one battle and the start of the next, until `N` have finished or Ctrl-C; stops,
  *                       saving its last frames to `DIR`, where nothing on screen has been recognised for 20s
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT

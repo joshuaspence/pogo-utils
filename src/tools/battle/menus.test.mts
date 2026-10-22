@@ -18,7 +18,7 @@ const fixture = (name: string) =>
   decodePng(readFileSync(fileURLToPath(new URL(`fixtures/${name}.png`, import.meta.url))));
 
 const near = (menu: Menu, x: number, y: number) =>
-  menu.screen !== 'unknown' && Math.abs(menu.tap[0] - x) < 0.04 && Math.abs(menu.tap[1] - y) < 0.03;
+  'tap' in menu && Math.abs(menu.tap[0] - x) < 0.04 && Math.abs(menu.tap[1] - y) < 0.03;
 
 // `menu-training-full` is a full-size screenshot, the kind a run reads, off which OCR read none of the leaders' names.
 test.each([
@@ -86,20 +86,34 @@ test('still finds the leader with a result due', async () => {
 });
 
 /**
- * Full-size screenshots whose green the two buttons' colour test passes: the map's grass, and GO Battle League's BATTLE
- * at the top of the Battle tab, where USE THIS PARTY is tapped. Tapped, it enters a GO Battle League match. With a
- * result due the tab's ✗ is still taken for the ✓, which closes the tab and nothing more.
+ * The way in from the map, off full-size screenshots: the Poké Ball, then BATTLE on the main menu under its label, then
+ * the Battle tab, which opens on GO Battle League and is scrolled down to the Training card. The map's grass and GO
+ * Battle League's BATTLE both pass the green buttons' colour test, and a tap on the latter enters a GO Battle League
+ * match; neither is ever read as either button, with a result due or not. The map's friend-gift banner is painted over.
  */
-test.each(['menu-unknown-map', 'menu-unknown-battle-league'])('taps neither green button on %s', async (name) => {
+test.each([
+  ['menu-map', { screen: 'map', tap: [0.5, 0.932] }],
+  [
+    'menu-battle-league',
+    {
+      screen: 'battle-tab',
+      swipe: [
+        [0.5, 0.75],
+        [0.5, 0.35],
+      ],
+    },
+  ],
+] as const)('finds the way in on %s', async (name, expected) => {
   for (const result of [false, true]) {
-    const menu = await readMenu(fixture(name), { leader: 'candela', league: 'master', result });
-
-    expect(['unknown', 'result']).toContain(menu.screen);
+    expect(await readMenu(fixture(name), { leader: 'candela', league: 'master', result })).toEqual(expected);
   }
+});
 
-  expect(await readMenu(fixture(name), { leader: 'candela', league: 'master', result: false })).toEqual({
-    screen: 'unknown',
-  });
+test('taps BATTLE on the main menu, under its label', async () => {
+  const menu = await readMenu(fixture('menu-main'), { leader: 'candela', league: 'master', result: false });
+
+  expect(menu.screen).toBe('main');
+  expect(near(menu, 0.777, 0.5975)).toBe(true);
 });
 
 test.each(['menu-unknown-medal', 'menu-unknown-loss'])('waits on %s, before the ✓ has appeared', async (name) => {

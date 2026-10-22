@@ -144,6 +144,39 @@ test('plays a battle from the Battle tab and taps its way back round', async () 
   expect(taps).toEqual(['training', 'intro', 'league', 'party', 'charged', 'result']);
 });
 
+/** The map's Poké Ball, BATTLE on the main menu, and the Battle tab scrolled from GO Battle League to Training. */
+test('finds its way to the leader from the map', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      map: { frame: fixture('menu-map'), tap: { at: [0.5, 0.932], to: 'main' } },
+      main: { frame: fixture('menu-main'), tap: { at: [0.777, 0.5975], to: 'tab' } },
+      tab: { frame: fixture('menu-battle-league'), swipes: { count: 1, to: 'training' } },
+    },
+    'map',
+  );
+
+  expect(await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, count: 1 }, clock)).toBe(1);
+  expect(taps.slice(0, 3)).toEqual(['map', 'main', 'training']);
+});
+
+test('stops on a Battle tab whose Training card never shows, rather than scroll it for ever', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      main: { frame: fixture('menu-main'), tap: { at: [0.777, 0.5975], to: 'tab' } },
+      tab: { frame: fixture('menu-battle-league') },
+    },
+    'main',
+  );
+
+  const lost = await run(phone, { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS }, clock).catch(
+    (error: unknown) => error,
+  );
+
+  expect(lost).toBeInstanceOf(Lost);
+  expect(taps).toEqual(['main']);
+});
+
 test('carries on into the next battle until the count is reached', async () => {
   const { phone, clock, taps } = scripted(battleAndBack(), 'training');
 

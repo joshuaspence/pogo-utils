@@ -43,6 +43,9 @@ const MENU_AFTER_MS = 1_500;
 /** How long a menu's tap is given to animate into the next screen before that is screenshot. */
 const MENU_SETTLE_MS = 1_500;
 
+/** How long the Battle tab's scroll takes, in milliseconds: long enough to be a drag rather than a tap. */
+const SCROLL_MS = 400;
+
 /**
  * How often the battle's names and move labels are read again, in milliseconds. A read holds the loop up for about
  * 220ms, a fast move's worth, and what it reads changes only when a Pokémon on either side does.
@@ -72,9 +75,9 @@ export interface Options {
 }
 
 /**
- * Plays `count` battles, or until stopped, starting from anywhere between the result of one and the start of the next —
- * the Battle tab, typically. Answers how many battles finished. Throws `Lost` with the last few frames when nothing has
- * been recognised for `LOST_MS`.
+ * Plays `count` battles, or until stopped, starting from the map or anywhere between the result of one battle and the
+ * start of the next. Answers how many battles finished. Throws `Lost` with the last few frames when nothing has been
+ * recognised for `LOST_MS`.
  */
 export async function run(
   phone: Phone,
@@ -189,11 +192,22 @@ export async function run(
         log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
       }
 
-      if (menu.screen !== 'unknown') {
+      // A scroll is not progress: a tab already at its foot whose portraits go unmatched would be scrolled for ever, so
+      // the scrolls count towards `LOST_MS` from the tap that opened the tab.
+      if (menu.screen === 'battle-tab') {
+        if (clock.now() - known > LOST_MS) {
+          throw new Lost(kept);
+        }
+
+        log('battle-tab: scroll');
+        await phone.swipe(...menu.swipe, SCROLL_MS);
+      } else if (menu.screen !== 'unknown') {
         log(`${menu.screen}: tap`);
         await phone.tap(menu.tap);
         known = clock.now();
+      }
 
+      if (menu.screen !== 'unknown') {
         if (menu.screen === 'result') {
           battles++;
           battling = false;

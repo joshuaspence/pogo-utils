@@ -2,11 +2,14 @@
  * The screens between one Team Leader battle and the next, and where to tap on each to get from the result of one to
  * the start of the next: the result's ✓, the leader on the Battle tab, BATTLE under the leader's speech, the league,
  * then USE THIS PARTY on the game's recommended party. Training has no rematch, so this is the way round every time.
+ * And the way in from the map: the Poké Ball, BATTLE on the main menu, and the Battle tab scrolled down from GO Battle
+ * League, where it opens, to the Training card.
  *
  * Colour wherever it settles the question, being far cheaper than OCR and, on the game's own lettering, far surer: the
- * leaders' portraits, the two green buttons and the teal one at the foot of the screen. OCR for the league alone, whose
- * three lines are the one place the screen is plain text. Positions are fractions of the screen, and colours were
- * measured on recorded frames of each screen and on a full-size screenshot.
+ * leaders' portraits, the two green buttons, the teal one at the foot of the screen and the map's Poké Ball. OCR for
+ * the rest, which are told by words in plain capitals: the league's three lines, the main menu's labels and the Battle
+ * tab's header. Positions are fractions of the screen, and colours were measured on recorded frames of each screen and
+ * on full-size screenshots.
  */
 
 import { fold, ocr, type Line } from '../inventory/ocr.mts';
@@ -19,7 +22,10 @@ export type Leader = (typeof LEADERS)[number];
 export const LEAGUES = ['great', 'ultra', 'master'] as const;
 export type League = (typeof LEAGUES)[number];
 
-export type Menu = { screen: 'training' | 'intro' | 'league' | 'party' | 'result'; tap: Point } | { screen: 'unknown' };
+export type Menu =
+  | { screen: 'map' | 'main' | 'training' | 'intro' | 'league' | 'party' | 'result'; tap: Point }
+  | { screen: 'battle-tab'; swipe: readonly [Point, Point] }
+  | { screen: 'unknown' };
 
 /**
  * The leaders' portraits on the Battle tab, found by colour rather than by name: OCR read the names under them as
@@ -90,6 +96,34 @@ function teal(image: Image): boolean {
   return r < 100 && Math.abs(g - 132) <= 15 && Math.abs(b - 146) <= 15;
 }
 
+/**
+ * The map's Poké Ball, which opens the main menu: its red top and white bottom either side of the grey centre, measured
+ * at 235/76/78 and 255/56/69 above and 253–255 all three below on two maps. Nothing else is drawn red there.
+ */
+const BALL: Point = [0.5, 0.932];
+
+function pokeBall(image: Image): boolean {
+  const [r, g, b] = rgb(image, BALL[0] * image.width, (BALL[1] - 0.02) * image.height);
+  const below = rgb(image, BALL[0] * image.width, (BALL[1] + 0.023) * image.height);
+
+  return r >= 200 && g <= 110 && b <= 110 && below.every((c) => c >= 240);
+}
+
+/** How far below its label the main menu's BATTLE is tapped, at the centre of its circle. */
+const LABEL_ABOVE = 0.06;
+
+/**
+ * The Battle tab's scroll, up its middle: from GO Battle League, where it opens, towards the Training card at its foot.
+ * Slow enough to be a drag rather than a tap on whatever it starts over, and short of the ✗.
+ */
+const SCROLL: readonly [Point, Point] = [
+  [0.5, 0.75],
+  [0.5, 0.35],
+];
+
+/** The Battle tab's header, BATTLE and PARTY, in the band at the top of the screen. */
+const HEADER = 0.1;
+
 const centre = (line: Line, image: Image): Point => [
   (line.left + line.width / 2) / image.width,
   (line.top + line.height / 2) / image.height,
@@ -133,6 +167,10 @@ export async function readMenu(
     return { screen: 'party', tap: USE_PARTY };
   }
 
+  if (pokeBall(image)) {
+    return { screen: 'map', tap: BALL };
+  }
+
   const row = portraits(image);
 
   if (row !== undefined) {
@@ -145,6 +183,20 @@ export async function readMenu(
 
   if (leagues.length >= 2 && chosen) {
     return { screen: 'league', tap: centre(chosen, image) };
+  }
+
+  const words = (word: string) => lines.filter((line) => fold(line.text) === word);
+  const [battle] = words('battle');
+
+  // The labels are only the main menu's beside ITEMS and SHOP; BATTLE alone is on the Battle tab twice over.
+  if (battle && words('items').length > 0 && words('shop').length > 0) {
+    const [x, y] = centre(battle, image);
+
+    return { screen: 'main', tap: [x, y + LABEL_ABOVE] };
+  }
+
+  if (words('party').some((line) => centre(line, image)[1] < HEADER)) {
+    return { screen: 'battle-tab', swipe: SCROLL };
   }
 
   if (result && teal(image)) {
