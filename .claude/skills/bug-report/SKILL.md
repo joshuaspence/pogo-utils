@@ -77,5 +77,5 @@ gh issue create --title '<title>' --label '<each label from the form>' --body-fi
 No `--repo`: `gh` takes it from the checkout's remote, which is the one place it is written down, and a second copy on
 the command line is a copy that can disagree with it.
 
-Print the URL it returns, and stop. Do not open a browser, and do not comment `@claude` on the issue: the mention
-workflow gates on `github.event.issue.pull_request`, so a mention on an issue reaches nobody.
+Print the URL it returns, and stop. Do not open a browser, and do not comment `@claude` on the issue: no workflow here
+answers a mention, so it reaches nobody.
