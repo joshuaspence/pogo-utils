@@ -5,7 +5,7 @@
  */
 
 import { decodePng } from '../inventory/png.mts';
-import { useEngine } from '../inventory/ocr.mts';
+import { fold, ocr, useEngine } from '../inventory/ocr.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,7 @@ test.each([
   ['menu-training-full', 'spark', 0.74],
 ] as const)("taps %s's %s portrait on the Battle tab, without reading the screen", async (name, leader, x) => {
   const read = vi.fn();
-  const menu = await readMenu(fixture(name), { leader, league: 'ultra', result: false }, read);
+  const menu = await readMenu(fixture(name), { mode: 'training', leader, league: 'ultra', result: false }, read);
 
   expect(menu.screen).toBe('training');
   expect(near(menu, x, 0.8)).toBe(true);
@@ -40,7 +40,11 @@ test.each([
 // Blanche's off a recording, over daylight; Spark's a full-size screenshot over a lit city, which shows through the ✗.
 test.each(['menu-intro', 'menu-intro-spark'])('taps BATTLE on %s without reading the screen', async (name) => {
   const read = vi.fn();
-  const menu = await readMenu(fixture(name), { leader: 'spark', league: 'ultra', result: false }, read);
+  const menu = await readMenu(
+    fixture(name),
+    { mode: 'training', leader: 'spark', league: 'ultra', result: false },
+    read,
+  );
 
   expect(menu).toEqual({ screen: 'intro', tap: [0.5, 0.733] });
   expect(read).not.toHaveBeenCalled();
@@ -51,7 +55,7 @@ test.each([
   ['ultra', 0.58],
   ['master', 0.74],
 ] as const)('taps %s league', async (league, y) => {
-  const menu = await readMenu(fixture('menu-league'), { leader: 'blanche', league, result: false });
+  const menu = await readMenu(fixture('menu-league'), { mode: 'training', leader: 'blanche', league, result: false });
 
   expect(menu.screen).toBe('league');
   expect(near(menu, 0.55, y)).toBe(true);
@@ -60,27 +64,40 @@ test.each([
 // The recording's button and the full-size screenshot's differ by 28 in red, which one colour to within 20 missed.
 test.each(['menu-party', 'menu-party-full'])('taps USE THIS PARTY on %s without reading the screen', async (name) => {
   const read = vi.fn();
-  const menu = await readMenu(fixture(name), { leader: 'blanche', league: 'ultra', result: false }, read);
+  const menu = await readMenu(
+    fixture(name),
+    { mode: 'training', leader: 'blanche', league: 'ultra', result: false },
+    read,
+  );
 
   expect(menu).toEqual({ screen: 'party', tap: [0.5, 0.87] });
   expect(read).not.toHaveBeenCalled();
 });
 
 test('taps the ✓ on the result once a battle has ended', async () => {
-  expect(await readMenu(fixture('menu-result'), { leader: 'blanche', league: 'ultra', result: true })).toEqual({
+  expect(
+    await readMenu(fixture('menu-result'), { mode: 'training', leader: 'blanche', league: 'ultra', result: true }),
+  ).toEqual({
     screen: 'result',
     tap: [0.5, 0.935],
   });
 });
 
 test('leaves the teal button alone when no result is due', async () => {
-  expect(await readMenu(fixture('menu-result'), { leader: 'blanche', league: 'ultra', result: false })).toEqual({
+  expect(
+    await readMenu(fixture('menu-result'), { mode: 'training', leader: 'blanche', league: 'ultra', result: false }),
+  ).toEqual({
     screen: 'unknown',
   });
 });
 
 test('still finds the leader with a result due', async () => {
-  const menu = await readMenu(fixture('menu-training'), { leader: 'blanche', league: 'ultra', result: true });
+  const menu = await readMenu(fixture('menu-training'), {
+    mode: 'training',
+    leader: 'blanche',
+    league: 'ultra',
+    result: true,
+  });
 
   expect(menu.screen).toBe('training');
 });
@@ -105,21 +122,30 @@ test.each([
   ],
 ] as const)('finds the way in on %s', async (name, expected) => {
   for (const result of [false, true]) {
-    expect(await readMenu(fixture(name), { leader: 'candela', league: 'master', result })).toEqual(expected);
+    expect(await readMenu(fixture(name), { mode: 'training', leader: 'candela', league: 'master', result })).toEqual(
+      expected,
+    );
   }
 });
 
 test('taps BATTLE on the main menu, under its label', async () => {
-  const menu = await readMenu(fixture('menu-main'), { leader: 'candela', league: 'master', result: false });
+  const menu = await readMenu(fixture('menu-main'), {
+    mode: 'training',
+    leader: 'candela',
+    league: 'master',
+    result: false,
+  });
 
   expect(menu.screen).toBe('main');
   expect(near(menu, 0.777, 0.5975)).toBe(true);
 });
 
 test.each(['menu-unknown-medal', 'menu-unknown-loss'])('waits on %s, before the ✓ has appeared', async (name) => {
-  expect(await readMenu(fixture(name), { leader: 'blanche', league: 'ultra', result: true })).toEqual({
-    screen: 'unknown',
-  });
+  expect(await readMenu(fixture(name), { mode: 'training', leader: 'blanche', league: 'ultra', result: true })).toEqual(
+    {
+      screen: 'unknown',
+    },
+  );
 });
 
 /**
@@ -128,7 +154,12 @@ test.each(['menu-unknown-medal', 'menu-unknown-loss'])('waits on %s, before the 
  * over, and its Training card is under the ✗, so it is the header alone that says what it is.
  */
 test('taps BATTLE on a main menu whose ITEMS went unread', async () => {
-  const menu = await readMenu(fixture('menu-pixel8-main'), { leader: 'candela', league: 'great', result: false });
+  const menu = await readMenu(fixture('menu-pixel8-main'), {
+    mode: 'training',
+    leader: 'candela',
+    league: 'great',
+    result: false,
+  });
 
   expect(menu.screen).toBe('main');
   expect(near(menu, 0.777, 0.62)).toBe(true);
@@ -136,7 +167,12 @@ test('taps BATTLE on a main menu whose ITEMS went unread', async () => {
 
 test('scrolls a Battle tab whose PARTY went unread', async () => {
   expect(
-    await readMenu(fixture('menu-pixel8-battle-tab'), { leader: 'candela', league: 'great', result: false }),
+    await readMenu(fixture('menu-pixel8-battle-tab'), {
+      mode: 'training',
+      leader: 'candela',
+      league: 'great',
+      result: false,
+    }),
   ).toEqual({
     screen: 'battle-tab',
     swipe: [
@@ -164,14 +200,16 @@ test.each([
   ['league', 'league', 0.545, 0.431],
   ['party', 'party', 0.5, 0.871],
 ] as const)('taps the %s on a Pixel 8 Pro', async (name, screen, x, y) => {
-  const menu = await readMenu(pixel8(name), { leader: 'candela', league: 'great', result: false });
+  const menu = await readMenu(pixel8(name), { mode: 'training', leader: 'candela', league: 'great', result: false });
 
   expect(menu.screen).toBe(screen);
   expect(at(menu, x, y)).toBe(true);
 });
 
 test('scrolls a Training card found under the ✗ rather than tap it', async () => {
-  expect(await readMenu(pixel8('training-low'), { leader: 'candela', league: 'great', result: false })).toEqual({
+  expect(
+    await readMenu(pixel8('training-low'), { mode: 'training', leader: 'candela', league: 'great', result: false }),
+  ).toEqual({
     screen: 'battle-tab',
     swipe: [
       [0.5, 0.75],
@@ -181,8 +219,130 @@ test('scrolls a Training card found under the ✗ rather than tap it', async () 
 });
 
 test('taps the ✓ on a Pixel 8 Pro’s result', async () => {
-  const menu = await readMenu(fixture('other-pixel8-loss'), { leader: 'candela', league: 'great', result: true });
+  const menu = await readMenu(fixture('other-pixel8-loss'), {
+    mode: 'training',
+    leader: 'candela',
+    league: 'great',
+    result: true,
+  });
 
   expect(menu.screen).toBe('result');
   expect(at(menu, 0.5, 0.935)).toBe(true);
+});
+
+const GBL = { mode: 'gbl', result: false } as const;
+
+test("taps GO Battle League's BATTLE on the Battle tab", async () => {
+  const menu = await readMenu(fixture('menu-gbl-battle-tab'), { ...GBL, league: 'ultra' });
+
+  expect(menu.screen).toBe('gbl');
+  expect(near(menu, 0.3, 0.843)).toBe(true);
+});
+
+// Before a set the card has a line more and BATTLE sits low, its middle under the ✗.
+test("taps GO Battle League's BATTLE clear of the ✗ before a set", async () => {
+  const menu = await readMenu(fixture('menu-gbl-new-set'), { ...GBL, league: 'ultra' });
+
+  expect(menu.screen).toBe('gbl');
+  expect(near(menu, 0.3, 0.903)).toBe(true);
+});
+
+// The same green on the same white as USE THIS PARTY, which it was taken for.
+test("taps LET'S GO! on GO Battle League's welcome before a set", async () => {
+  const menu = await readMenu(fixture('menu-gbl-welcome'), { ...GBL, league: 'ultra' });
+
+  expect(menu.screen).toBe('welcome');
+  expect(near(menu, 0.3, 0.895)).toBe(true);
+});
+
+test('scrolls the Battle tab back up to GO Battle League, and never taps a leader for it', async () => {
+  expect(await readMenu(fixture('menu-training'), { ...GBL, league: 'ultra' })).toEqual({
+    screen: 'battle-tab',
+    swipe: [
+      [0.5, 0.35],
+      [0.5, 0.75],
+    ],
+  });
+});
+
+// Next week's leagues are listed faded under the ones on now, Master League among them: only the one on now is tapped.
+test.each([
+  ['ultra', 0.54, 0.43],
+  ['Master League', 0.64, 0.57],
+  ['fantasy cup', 0.62, 0.71],
+])('taps the GO Battle League %s card', async (league, x, y) => {
+  const menu = await readMenu(fixture('menu-gbl-league'), { ...GBL, league });
+
+  expect(menu.screen).toBe('league');
+  expect(near(menu, x, y)).toBe(true);
+});
+
+test('refuses a league that is not on now, naming those that are', async () => {
+  await expect(readMenu(fixture('menu-gbl-league'), { ...GBL, league: 'great' })).rejects.toThrow(
+    '--league great is not on now: ultra league; master league mega edition; fantasy cup great league edition',
+  );
+});
+
+// Two cards read in full but not the heading over the first: the list may have opened part way down, the league asked
+// for above them, so it is scrolled up rather than refused.
+test('scrolls the league list up rather than refuse a league where its heading went unread', async () => {
+  const unheaded = async (image: Parameters<typeof ocr>[0]) =>
+    (await ocr(image)).filter((line) => fold(line.text) !== 'choose your league');
+
+  expect(await readMenu(fixture('menu-gbl-league'), { ...GBL, league: 'great' }, unheaded)).toEqual({
+    screen: 'league',
+    swipe: [
+      [0.5, 0.42],
+      [0.5, 0.85],
+    ],
+  });
+});
+
+test('scrolls the league list to its top where it opened part way down', async () => {
+  expect(await readMenu(fixture('menu-gbl-league-scrolled'), { ...GBL, league: 'ultra' })).toEqual({
+    screen: 'league',
+    swipe: [
+      [0.5, 0.42],
+      [0.5, 0.85],
+    ],
+  });
+});
+
+test("taps USE THIS PARTY on GO Battle League's recommended party", async () => {
+  expect(await readMenu(fixture('menu-gbl-party'), { ...GBL, league: 'ultra' })).toEqual({
+    screen: 'party',
+    tap: [0.5, 0.87],
+  });
+});
+
+test('waits while GO Battle League finds an opponent', async () => {
+  expect(await readMenu(fixture('menu-gbl-matchmaking'), { ...GBL, league: 'ultra' })).toEqual({
+    screen: 'matchmaking',
+  });
+});
+
+test("taps NEXT BATTLE on GO Battle League's result, and the ✓ in Training", async () => {
+  const gbl = await readMenu(fixture('menu-gbl-result'), { ...GBL, league: 'ultra', result: true });
+  const training = await readMenu(fixture('menu-gbl-result'), {
+    mode: 'training',
+    leader: 'blanche',
+    league: 'ultra',
+    result: true,
+  });
+
+  expect(gbl.screen).toBe('result');
+  expect(near(gbl, 0.5, 0.854)).toBe(true);
+  expect(training).toEqual({ screen: 'result', tap: [0.5, 0.935] });
+});
+
+// A set's last battle has no NEXT BATTLE, only the ✓.
+test("taps the ✓ on the result of a GO Battle League set's last battle", async () => {
+  expect(await readMenu(fixture('menu-gbl-result-last'), { ...GBL, league: 'ultra', result: true })).toEqual({
+    screen: 'result',
+    tap: [0.5, 0.935],
+  });
+});
+
+test('finds no battle on the GO Battle League card while its reward waits to be collected', async () => {
+  expect(await readMenu(fixture('menu-gbl-collect'), { ...GBL, league: 'ultra' })).toEqual({ screen: 'no-battle' });
 });

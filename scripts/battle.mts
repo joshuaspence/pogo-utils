@@ -1,15 +1,20 @@
 /**
  * Plays Pokémon GO's trainer battles on an Android phone over `adb`, watching the screen as H.264 from `screenrecord`
  * rather than screenshot by screenshot — a screenshot takes longer than a turn. Team Leader training is what it is built
- * against: a battle with nothing at stake, which is where its timing and its reading of the screen are tuned.
+ * against: a battle with nothing at stake, which is where its timing and its reading of the screen are tuned. GO Battle
+ * League plays the same battles against other trainers, with the game's Recommended Battle Party.
  *
  * Usage, from the repository root, with the phone plugged in, USB debugging on and Pokémon GO in English:
  *
  *   pnpm battle run --leader blanche|candela|spark --league great|ultra|master [--count N] [--serial SERIAL]
  *                   [--keep-frames DIR] [--verbose]
- *                       play Team Leader battles one after another, from the map or anywhere between the
- *                       result of one battle and the start of the next, until `N` have finished or Ctrl-C; stops,
- *                       saving its last frames to `DIR`, where nothing on screen has been recognised for 20s
+ *   pnpm battle run --mode gbl --league LEAGUE [--count N] [--serial SERIAL] [--keep-frames DIR] [--verbose]
+ *                       play Team Leader or GO Battle League battles one after another, from the map or anywhere
+ *                       between the result of one battle and the start of the next, until `N` have finished or
+ *                       Ctrl-C; stops, saving its last frames to `DIR`, where nothing on screen has been recognised
+ *                       for 20s. GO Battle League stops at the end of a set with a reward to collect, the
+ *                       encounter among them, which is left to be caught by hand.
+ *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
@@ -21,7 +26,7 @@
  */
 
 import { ICON_BASE, POGO_ASSETS } from '../src/pokedex/icons.ts';
-import { LEADERS, LEAGUES, type League, type Leader } from '../src/tools/battle/menus.mts';
+import { LEADERS, LEAGUES, type Mode } from '../src/tools/battle/menus.mts';
 import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
@@ -42,6 +47,7 @@ import { parseArgs } from 'node:util';
 const { values: options, positionals } = parseArgs({
   allowPositionals: true,
   options: {
+    'mode': { type: 'string', default: 'training' },
     'leader': { type: 'string' },
     'league': { type: 'string' },
     'count': { type: 'string' },
@@ -64,7 +70,7 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
 
 /** Which flags each command acts on, for the reason `inventory.mts` gives beside its own. */
 const HONOURED: Record<string, readonly string[]> = {
-  run: ['leader', 'league', 'count', 'serial', 'keep-frames', 'verbose'],
+  run: ['mode', 'leader', 'league', 'count', 'serial', 'keep-frames', 'verbose'],
   record: ['seconds', 'serial'],
 };
 
@@ -154,8 +160,22 @@ if (command === 'run') {
     fail('run takes no arguments beyond its flags');
   }
 
-  const leader: Leader = oneOf('leader', options.leader, LEADERS);
-  const league: League = oneOf('league', options.league, LEAGUES);
+  const mode: Mode =
+    oneOf('mode', options.mode, ['training', 'gbl']) === 'training'
+      ? {
+          mode: 'training',
+          leader: oneOf('leader', options.leader, LEADERS),
+          league: oneOf('league', options.league, LEAGUES),
+        }
+      : {
+          mode: 'gbl',
+          league: options.league?.trim() || fail('--mode gbl takes --league, as `ultra` or `fantasy cup`'),
+        };
+
+  if (mode.mode === 'gbl' && options.leader !== undefined) {
+    fail('--leader is for training; GO Battle League has no leader');
+  }
+
   const count = options.count === undefined ? Infinity : Number(options.count);
 
   if (count !== Infinity && (!Number.isInteger(count) || count < 1)) {
@@ -209,11 +229,15 @@ if (command === 'run') {
     await recording.first();
     const battles = await run(
       phone,
-      { leader, league, data, icons, colours, count },
+      { mode, data, icons, colours, count },
       { now: () => performance.now(), sleep },
       say,
     );
     console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
+
+    if (battles < count) {
+      console.log('GO Battle League has no battle to offer until its reward is collected');
+    }
   } catch (error) {
     process.exitCode = 1;
     console.error(error instanceof Error ? error.message : String(error));

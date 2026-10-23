@@ -62,6 +62,10 @@ test.each([
   [['--leader', 'arlo', '--league', 'great'], '--leader takes one of blanche, candela, spark'],
   [['--leader', 'spark'], '--league takes one of great, ultra, master'],
   [['--leader', 'spark', '--league', 'great', '--count', '0'], '--count takes a whole number of battles'],
+  [['--mode', 'rocket', '--league', 'great'], '--mode takes one of training, gbl'],
+  [['--mode', 'gbl'], '--mode gbl takes --league'],
+  [['--mode', 'gbl', '--league', ' '], '--mode gbl takes --league'],
+  [['--mode', 'gbl', '--league', 'ultra', '--leader', 'spark'], '--leader is for training'],
 ])('refuses run %j', async (args, message) => {
   const { code, stderr } = await battle('run', ...args);
 
