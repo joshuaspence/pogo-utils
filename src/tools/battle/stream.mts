@@ -9,32 +9,23 @@
  */
 
 import { type Image } from '../inventory/png.mts';
+import { type Size } from './layout.mts';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { type Readable } from 'node:stream';
 
 /**
- * A quarter of the Pixel 4 XL's 1440×3040 each way, and so its exact shape. Colour samples need no more, and the frames
- * `ffmpeg` hands back are a quarter of what `screenrecord`'s 720×1520 would be — 33 MB a second rather than 131. The
- * screens read by OCR are still, and take a full screenshot instead.
+ * A quarter of the Pixel 4 XL's 1440×3040 across, 360×760, and as tall on another phone as its shape makes it, rounded
+ * to even for H.264. A size of any other shape `screenrecord` fits inside with black bars down two sides, which every
+ * position measured across the frame would miss by. Colour samples need no more, and the frames `ffmpeg` hands back
+ * are a quarter of what `screenrecord`'s 720×1520 would be — 33 MB a second rather than 131. The screens read by OCR
+ * are still, and take a full screenshot instead.
  */
-export const STREAM_SIZE = { width: 360, height: 760 } as const;
-
-/**
- * The largest screen of `STREAM_SIZE`'s shape that fits inside `screen`, which a phone of another shape is set to for
- * a battle. The game lays itself out by the screen's width, so on a taller or squatter screen everything drawn near the
- * top or the foot sits at another fraction of the height than every position here was measured at; and `screenrecord`
- * keeps the screen's shape inside `STREAM_SIZE`, so another shape arrives with black bars down two sides.
- */
-export function streamShaped({ width, height }: { width: number; height: number }): { width: number; height: number } {
-  const ratio = STREAM_SIZE.width / STREAM_SIZE.height;
-
-  return width / height <= ratio
-    ? { width, height: Math.round(width / ratio) }
-    : { width: Math.round(height * ratio), height };
+export function streamSize({ width, height }: Size): Size {
+  return { width: 360, height: 2 * Math.round((180 * height) / width) };
 }
 
 /**
- * Enough for the picture at `STREAM_SIZE`, against `screenrecord`'s default of 20 Mbps, which made 6 MB of four
+ * Enough for the picture at `streamSize`, against `screenrecord`'s default of 20 Mbps, which made 6 MB of four
  * seconds. Nothing here watches for detail a lower rate would blur; the cost of a higher one is USB and decoding time.
  */
 const BIT_RATE = 2_000_000;
@@ -58,9 +49,7 @@ const adbArgs = (serial: string | undefined, ...args: string[]) => [...(serial ?
  * `screenrecord` writing H.264 to its stdout, for `seconds`. Its stdout carries nothing else — `exec-out` keeps stderr
  * apart, where `shell` would merge it — so whatever arrives decodes.
  */
-export function screenrecord(serial: string | undefined, seconds = RECORD_LIMIT_S): Recording {
-  const { width, height } = STREAM_SIZE;
-
+export function screenrecord(serial: string | undefined, { width, height }: Size, seconds = RECORD_LIMIT_S): Recording {
   return spawn(
     'adb',
     adbArgs(
@@ -83,7 +72,7 @@ export function screenrecord(serial: string | undefined, seconds = RECORD_LIMIT_
  * side by side, either of which puts the picture behind the battle it shows. `-fflags nobuffer` is the one that reads as
  * if it belongs with them and does not: it dropped 28 of the first 30 frames of a recording off the phone.
  */
-export async function* decodeFrames(h264: Readable, { width, height } = STREAM_SIZE): AsyncGenerator<Image> {
+export async function* decodeFrames(h264: Readable, { width, height }: Size): AsyncGenerator<Image> {
   const ffmpeg = spawn(
     'ffmpeg',
     [
@@ -156,6 +145,7 @@ export interface Frame {
  */
 export class Screen {
   readonly #record: () => Recording;
+  readonly #size: Size;
   readonly #segmentMs: number;
   #latest: Frame | undefined;
   #failure: Error | undefined;
@@ -173,9 +163,12 @@ export class Screen {
   #started = 0;
   #live = 0;
 
-  /** `record` is `screenrecord` in a battle, and anything else that writes H.264 to its stdout in a test. */
-  constructor(record: () => Recording, segmentMs = SEGMENT_MS) {
+  /**
+   * `record` is `screenrecord` in a battle, and anything else that writes H.264 to its stdout in a test, at `size`.
+   */
+  constructor(record: () => Recording, size: Size, segmentMs = SEGMENT_MS) {
     this.#record = record;
+    this.#size = size;
     this.#segmentMs = segmentMs;
     this.#start();
   }
@@ -233,7 +226,7 @@ export class Screen {
     // Taking over only ever forwards, by `generation`: the old recording goes on sending frames for as long as its kill
     // takes, and one of those must not hand the screen back to it.
     const decoded = (async () => {
-      for await (const image of decodeFrames(recording.stdout)) {
+      for await (const image of decodeFrames(recording.stdout, this.#size)) {
         if (this.#closed) {
           recording.kill();
           break;

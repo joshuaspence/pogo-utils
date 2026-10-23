@@ -11,6 +11,7 @@
 import { closest, type GameData } from '../inventory/game-master.mts';
 import { centre, ocr, type Line } from '../inventory/ocr.mts';
 import { crop, scale, type Image } from '../inventory/png.mts';
+import { BOTTOM, down, TOP } from './layout.mts';
 import { BUTTON_XS } from './recognise.mts';
 
 export interface Sighting {
@@ -22,7 +23,10 @@ export interface Sighting {
   moves: Map<number, string>;
 }
 
-/** Fractions of the screen: the HUD's line of names, and the labels beneath the buttons, lit or not. */
+/**
+ * Fractions of a Pixel 4 XL's screen: the HUD's line of names, pinned to the top, and the labels beneath the buttons,
+ * lit or not, pinned to the foot.
+ */
 const NAMES = { top: 0.066, bottom: 0.09 } as const;
 const LABELS = { left: 0.05, right: 0.95, top: 0.925, bottom: 0.985 } as const;
 
@@ -40,11 +44,16 @@ const LABEL_REACH = 0.12;
  */
 const LETTER = 0.022;
 
-const band = (image: Image, box: { left?: number; right?: number; top: number; bottom: number }, factor: number) => {
+const band = (
+  image: Image,
+  box: { left?: number; right?: number; top: number; bottom: number },
+  anchor: number,
+  factor: number,
+) => {
   const left = Math.round((box.left ?? 0) * image.width);
-  const top = Math.round(box.top * image.height);
+  const top = Math.round(down(box.top, anchor, image) * image.height);
   const width = Math.round((box.right ?? 1) * image.width) - left;
-  const height = Math.round(box.bottom * image.height) - top;
+  const height = Math.round(down(box.bottom, anchor, image) * image.height) - top;
 
   return { image: scale(crop(image, left, top, width, height), factor), left, width, factor };
 };
@@ -58,8 +67,8 @@ export async function readBattle(
   data: GameData,
   read: (image: Image) => Promise<Line[]> = ocr,
 ): Promise<Sighting> {
-  const names = band(image, NAMES, 2);
-  const labels = band(image, LABELS, 3);
+  const names = band(image, NAMES, TOP, 2);
+  const labels = band(image, LABELS, BOTTOM, 3);
   const charged = data.moves.filter((move) => !move.fast && move.name in data.combat).map((move) => move.name);
   const sighting: Sighting = { own: null, opponent: null, moves: new Map() };
 

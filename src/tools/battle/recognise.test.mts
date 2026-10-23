@@ -14,7 +14,7 @@ import { createReadStream, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { opponentShields, readyButtons, recognise, type State } from './recognise.mts';
-import { decodeFrames } from './stream.mts';
+import { decodeFrames, streamSize } from './stream.mts';
 
 const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url));
 
@@ -49,6 +49,8 @@ test.each([
   ['charged-two-right', [0.69]],
   ['charged-two-both', [0.31, 0.69]],
   ['charged-deep-sky', [0.69]],
+  ['charged-pixel8', [0.499]],
+  ['battle-pixel8', []],
   ['battle-two-unlit', []],
   ['battle-minigame-kyogre-great', []],
   ['battle-minigame-kyogre-excellent', []],
@@ -61,7 +63,10 @@ test.each([
 test('follows a charged move coming ready and being thrown through the decoder', async () => {
   const runs: State[] = [];
 
-  for await (const frame of decodeFrames(createReadStream(FIXTURES + 'charge.h264'))) {
+  for await (const frame of decodeFrames(
+    createReadStream(FIXTURES + 'charge.h264'),
+    streamSize({ width: 1440, height: 3040 }),
+  )) {
     const state = recognise(frame);
 
     if (runs.at(-1) !== state) {
@@ -78,6 +83,7 @@ test.each([
   ['battle-shield-blocked', 1],
   ['battle-two-unlit', 0],
   ['charged-two-both', 2],
+  ['battle-pixel8', 2],
 ])('%s: the opponent has %i shields left', (name, shields) => {
   expect(opponentShields(decodePng(readFileSync(`${FIXTURES}${name}.png`)))).toBe(shields);
 });

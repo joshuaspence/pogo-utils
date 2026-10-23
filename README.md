@@ -596,9 +596,8 @@ type, and swipes along each chain of them, sweeping rows only where none are fou
 move is coming, so it takes a shield unless none of the charged moves the opponent's species can have would be super
 effective — and whenever it does not know both species. Training has no rematch, so between battles it taps its way back
 round — the result's ✓, the leader, BATTLE, the league, then USE THIS PARTY on the game's recommended party. It keeps
-the screen awake while it runs and sets it with `wm size` to the Pixel 4 XL's shape, which every position it reads and
-taps was measured on; both are put back after. Where nothing on screen has been recognised for 20 seconds it stops
-rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
+the screen awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20
+seconds it stops rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
 
 A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
 `screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`
@@ -606,7 +605,11 @@ beside `adb`, and Tesseract for the league screen and the names and moves. The f
 icons for the party screen, some 40 MB, kept for a week like the game master.
 [`src/tools/battle/recognise.mts`](src/tools/battle/recognise.mts) reads which part of a battle a frame shows from
 colour samples alone, cheap enough for every frame; [`src/tools/battle/menus.mts`](src/tools/battle/menus.mts) reads the
-screens between battles off full screenshots. `pnpm battle record` saves what the recognisers are tuned against:
+screens between battles off full screenshots. Their positions were measured on a Pixel 4 XL and are placed on a phone of
+any other shape by where the game pins each piece — the top edge, the foot, or a fraction of the height between — which
+[`src/tools/battle/layout.mts`](src/tools/battle/layout.mts) records. A position added needs its anchor too, measured on
+both the Pixel 4 XL's fixtures and the Pixel 8 Pro's, which the tests read alike. `pnpm battle record` saves what the
+recognisers are tuned against, at the phone's own shape:
 
 ```sh
 pnpm battle record --seconds 60 battle.h264

@@ -8,12 +8,13 @@
  * Colour wherever it settles the question, being far cheaper than OCR and, on the game's own lettering, far surer: the
  * leaders' portraits, the two green buttons, the teal one at the foot of the screen and the map's Poké Ball. OCR for
  * the rest, which are told by words in plain capitals: the league's three lines, the main menu's labels and the Battle
- * tab's header. Positions are fractions of the screen, and colours were measured on recorded frames of each screen and
- * on full-size screenshots.
+ * tab's header. Positions are fractions of a Pixel 4 XL's screen, placed on another shape by their anchors as
+ * `layout.mts` places them, and colours were measured on recorded frames of each screen and on full-size screenshots.
  */
 
 import { fold, ocr, type Line } from '../inventory/ocr.mts';
 import { rgb, type Image } from '../inventory/png.mts';
+import { BOTTOM, down, place, tall, TOP } from './layout.mts';
 import { type Point } from './play.mts';
 
 export const LEADERS = ['blanche', 'candela', 'spark'] as const;
@@ -53,6 +54,14 @@ const PORTRAIT_SEARCH = { from: 0.15, to: 0.95, step: 0.004 };
 const BATTLE: Point = [0.5, 0.733];
 const USE_PARTY: Point = [0.5, 0.87];
 
+/**
+ * Where the two buttons are pinned. BATTLE was measured at 0.507 of the height, which is the middle to well within a
+ * pixel. USE THIS PARTY was measured at 0.90: it sits on the party's panel, which stretches with the screen from where
+ * its top is pinned, 0.565 down, to its foot.
+ */
+const BATTLE_ANCHOR = 0.5;
+const USE_PARTY_ANCHOR = 0.9;
+
 /** Whether the button is under `[x, y]`, sampled there and a little left of it, clear of the label. */
 function green(image: Image, [x, y]: Point): boolean {
   return [x - 0.08, x].some((sx) => {
@@ -90,8 +99,14 @@ function panel(image: Image, y: number): boolean {
  */
 const FOOT: Point = [0.5, 0.935];
 
+/**
+ * How far above `FOOT` a tap is clear of the ✗, which floats over whatever the Battle tab has scrolled beneath it: a
+ * Training card one scroll from its foot on a taller screen than the Pixel 4 XL's put Candela's portrait under it.
+ */
+const CLEAR_OF_FOOT = 0.04;
+
 function teal(image: Image): boolean {
-  const [r, g, b] = rgb(image, FOOT[0] * image.width, FOOT[1] * image.height);
+  const [r, g, b] = rgb(image, FOOT[0] * image.width, down(FOOT[1], BOTTOM, image) * image.height);
 
   return r < 100 && Math.abs(g - 132) <= 15 && Math.abs(b - 146) <= 15;
 }
@@ -103,8 +118,9 @@ function teal(image: Image): boolean {
 const BALL: Point = [0.5, 0.932];
 
 function pokeBall(image: Image): boolean {
-  const [r, g, b] = rgb(image, BALL[0] * image.width, (BALL[1] - 0.02) * image.height);
-  const below = rgb(image, BALL[0] * image.width, (BALL[1] + 0.023) * image.height);
+  const [x, y] = place(BALL, BOTTOM, image);
+  const [r, g, b] = rgb(image, x * image.width, (y - tall(0.02, image)) * image.height);
+  const below = rgb(image, x * image.width, (y + tall(0.023, image)) * image.height);
 
   return r >= 200 && g <= 110 && b <= 110 && below.every((c) => c >= 240);
 }
@@ -169,22 +185,32 @@ export async function readMenu(
   { leader, league, result }: { leader: Leader; league: League; result: boolean },
   read: (image: Image) => Promise<Line[]> = ocr,
 ): Promise<Menu> {
-  if (green(image, BATTLE) && teal(image) && !panel(image, BATTLE[1])) {
-    return { screen: 'intro', tap: BATTLE };
+  const fight = place(BATTLE, BATTLE_ANCHOR, image);
+  const party = place(USE_PARTY, USE_PARTY_ANCHOR, image);
+  const foot = place(FOOT, BOTTOM, image);
+
+  if (green(image, fight) && teal(image) && !panel(image, fight[1])) {
+    return { screen: 'intro', tap: fight };
   }
 
-  if (green(image, USE_PARTY) && panel(image, USE_PARTY[1]) && !teal(image)) {
-    return { screen: 'party', tap: USE_PARTY };
+  if (green(image, party) && panel(image, party[1]) && !teal(image)) {
+    return { screen: 'party', tap: party };
   }
 
   if (pokeBall(image)) {
-    return { screen: 'map', tap: BALL };
+    return { screen: 'map', tap: place(BALL, BOTTOM, image) };
   }
 
   const row = portraits(image);
+  const portrait = row === undefined ? undefined : row + tall(PORTRAIT_BELOW, image);
 
-  if (row !== undefined) {
-    return { screen: 'training', tap: [LEADER_X[leader], row + PORTRAIT_BELOW] };
+  // A card found under the ✗ is scrolled up clear of it rather than tapped, which would close the menu.
+  if (portrait !== undefined && portrait > foot[1] - tall(CLEAR_OF_FOOT, image)) {
+    return { screen: 'battle-tab', swipe: SCROLL };
+  }
+
+  if (portrait !== undefined) {
+    return { screen: 'training', tap: [LEADER_X[leader], portrait] };
   }
 
   const lines = await read(image);
@@ -201,15 +227,15 @@ export async function readMenu(
   if (battle && MAIN_LABELS.filter((label) => words(label).length > 0).length >= 2) {
     const [x, y] = centre(battle, image);
 
-    return { screen: 'main', tap: [x, y + LABEL_ABOVE] };
+    return { screen: 'main', tap: [x, y + tall(LABEL_ABOVE, image)] };
   }
 
-  if ([...words('battle'), ...words('party')].some((line) => centre(line, image)[1] < HEADER)) {
+  if ([...words('battle'), ...words('party')].some((line) => centre(line, image)[1] < down(HEADER, TOP, image))) {
     return { screen: 'battle-tab', swipe: SCROLL };
   }
 
   if (result && teal(image)) {
-    return { screen: 'result', tap: FOOT };
+    return { screen: 'result', tap: foot };
   }
 
   return { screen: 'unknown' };

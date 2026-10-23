@@ -78,13 +78,15 @@ test('reports an adb it cannot find rather than throwing', async () => {
   );
 
   expect(code).toBe(1);
-  expect(stderr).toContain('screenrecord failed: spawn adb ENOENT');
+  expect(stderr).toContain("could not read the screen's size: adb shell wm size: spawn adb ENOENT");
 });
 
 test('reports an OUT it cannot write and stops recording', async () => {
-  // An `adb` that records for a minute, so a script that left it running would outlast the test's timeout.
+  // An `adb` that answers `wm size` and records for a minute, so a script that left it running would outlast the test's
+  // timeout.
   const bin = mkdtempSync(join(tmpdir(), 'battle-adb-'));
-  writeFileSync(join(bin, 'adb'), '#!/bin/sh\nexec sleep 60\n', { mode: 0o755 });
+  const adb = '#!/bin/sh\n[ "$1" = shell ] && echo "Physical size: 1440x3040" && exit\nexec sleep 60\n';
+  writeFileSync(join(bin, 'adb'), adb, { mode: 0o755 });
 
   const { code, stderr } = await promisify(execFile)(
     'node',
