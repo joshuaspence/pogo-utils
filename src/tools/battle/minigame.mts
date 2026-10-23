@@ -36,6 +36,18 @@ const SHARE = { least: 0.3, most: 1.15 } as const;
 const CHANNEL_FROM_WHITE = 40;
 
 /**
+ * How dim a light, as a fraction of full white, a pixel's shares may be judged under, agreeing under any light from
+ * full down to it being enough. The bubbles are shaded across their face, and shading takes the same fraction off
+ * every channel, which in a channel near white in the type's colour is much of its share: Water's icon is 78/144/214,
+ * blue only 41 from white, and Swampert's Hydro Cannon bubbles read 129/188/220 and 97/154/202, blue's share 0.85 and
+ * 1.29 against red's 0.71 and 0.89, so under full white none of their chain agreed within `SPREAD`. Sky of the same
+ * hue is paler in that channel than its share makes it, not darker, which a dimmer light only makes worse. Down to
+ * 0.88, parts of Giratina's and Kyogre's frames that are not bubbles read as them; only down to 0.97, Swampert's chain
+ * read as separate bubbles.
+ */
+const DIMMEST = 0.93;
+
+/**
  * How far below what the share makes it a channel near white in the type's colour may be. Psychic's icon is
  * 247/111/117, which left only green and blue to judge by, and Mewtwo's lavender — 163/149/162, 204/200/213 — holds
  * the same share in those two: its body read as bubbles before and after the minigame, and was swiped at. The red of
@@ -87,7 +99,39 @@ export function typeColour(icon: Image): Colour {
   return commonest?.colour ?? [255, 255, 255];
 }
 
-/** Whether a pixel is `colour` washed towards white, by the same share in each channel that tells. */
+/**
+ * Whether the shares of the channels that tell agree within `SPREAD` under some light from full white down to
+ * `DIMMEST`. Lit by `light`, a channel's share is `(255 - c / light) / from`, a line in `1 / light`, so each pair of
+ * channels agrees over a range of it, and some light has to lie in every pair's range.
+ */
+function agreesLit(pixel: Colour, colour: Colour): boolean {
+  let [least, most] = [1, 1 / DIMMEST];
+
+  for (let i = 0; i < 3; i++) {
+    for (let j = i + 1; j < 3; j++) {
+      const [from, other] = [255 - (colour[i] ?? 0), 255 - (colour[j] ?? 0)];
+
+      if (from <= CHANNEL_FROM_WHITE || other <= CHANNEL_FROM_WHITE) {
+        continue;
+      }
+
+      // The two shares differ by `apart - slope / light`.
+      const apart = 255 / from - 255 / other;
+      const slope = (pixel[i] ?? 0) / from - (pixel[j] ?? 0) / other;
+      const [a, b] = [(apart - SPREAD) / slope, (apart + SPREAD) / slope];
+      least = Math.max(least, Math.min(a, b));
+      most = Math.min(most, Math.max(a, b));
+    }
+  }
+
+  return least <= most;
+}
+
+/**
+ * Whether a pixel is `colour` washed towards white, by the same share in each channel that tells under some light.
+ * How much share there is, and how pale the channels that do not tell are, are judged under full white: dimmed, the
+ * `PALE` guard let Mewtwo's lavender back in.
+ */
 function washed([r, g, b]: Colour, colour: Colour): boolean {
   const shares = [r, g, b].flatMap((c, i) => {
     const from = 255 - (colour[i] ?? 0);
@@ -101,13 +145,7 @@ function washed([r, g, b]: Colour, colour: Colour): boolean {
     return from > CHANNEL_FROM_WHITE || 255 - mean * from - c <= PALE;
   });
 
-  return (
-    pale &&
-    shares.length >= 2 &&
-    Math.max(...shares) - Math.min(...shares) <= SPREAD &&
-    mean >= SHARE.least &&
-    mean <= SHARE.most
-  );
+  return pale && shares.length >= 2 && agreesLit([r, g, b], colour) && mean >= SHARE.least && mean <= SHARE.most;
 }
 
 const white = ([r, g, b]: Colour) =>
