@@ -130,6 +130,12 @@ async function silhouettes(data: GameData): Promise<Icon[]> {
     console.error(`${missing} of ${icons.length} form icons could not be had; those forms go unmatched`);
   }
 
+  // None at all is every party read against nothing. Where no form even names an icon, it is the listing of the artwork
+  // that failed, which `loadGameData` reports and carries on from: `pnpm inventory` loses only its narrowing by artwork.
+  if (read.length === 0) {
+    throw new Error('no form icon could be had, so no party could be read');
+  }
+
   return read;
 }
 
