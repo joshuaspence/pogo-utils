@@ -18,6 +18,12 @@ import { BUTTON_XS } from './recognise.mts';
 /** What a move sharing a type with the Pokémon using it multiplies its damage by. */
 const STAB = 1.2;
 
+/**
+ * The charged moves only a shadow (Frustration) or a purified (Return) Pokémon holds, which every species with a shadow
+ * form lists. By name, as `GameData` keys every move: the vended copy keeps no template ids.
+ */
+const SHADOW_AND_PURIFIED = new Set(['Frustration', 'Return']);
+
 /** The types of one form, the one or two of them. */
 export type Typing = readonly string[];
 
@@ -90,8 +96,9 @@ export function activeOf(
 /**
  * Which slot to send in after a faint, of those not fainted: first one the opponent cannot hit super effectively, then
  * the one with the hardest hit on it, then the first. Hardest out of every charged move its species can hold, which of
- * them it has being shown only once it is out. A card that was not read is neither safe nor known to hit, so it goes in
- * only where nothing named is left, or where it is first and nothing named is safe or hits at all.
+ * them it has being shown only once it is out, bar Frustration and Return: Return's 130 would otherwise tie every
+ * species that has a shadow form, few of ours being purified. A card that was not read is neither safe nor known to
+ * hit, so it goes in only where nothing named is left, or where it is first and nothing named is safe or hits at all.
  */
 export function nextOut(
   data: GameData,
@@ -107,7 +114,8 @@ export function nextOut(
 
     const safe = species !== null && !shouldShield(data, species, opponent);
     const own = typesOf(data, species);
-    const hits = species === null ? [] : [...chargedMoves(data, species)].map((move) => damage(data, move, own, types));
+    const moves = species === null ? [] : [...chargedMoves(data, species)].filter((m) => !SHADOW_AND_PURIFIED.has(m));
+    const hits = moves.map((move) => damage(data, move, own, types));
     const hardest = Math.max(0, ...hits);
 
     return [{ slot, safe, hardest }];

@@ -84,6 +84,13 @@ test.each<[(string | null)[], number[], string, number | undefined, string]>([
   [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Entei', 2, 'both safe from Entei; Kyogre hits hardest'],
   [['Kyogre', null, 'Giratina'], [0], 'Entei', 2, 'a named safe card ahead of an unread one'],
   [['Tyranitar', 'Kyogre', 'Tyranitar'], [0], 'Moltres', 2, 'Stone Edge into either Moltres beats Hydro Pump'],
+  [
+    ['Swampert', 'Charizard', 'Mamoswine'],
+    [0],
+    'Quaquaval',
+    2,
+    'High Horsepower beats Fire Blast; a purified one’s Return, 130 for either, decides nothing',
+  ],
   [['Kyogre', 'Tyranitar', 'Giratina'], [0, 1, 2], 'Entei', undefined, 'nobody left'],
 ])('after a faint, %o less %o against %s sends in slot %s: %s', (party, fainted, opponent, slot) => {
   expect(nextOut(DATA, party, new Set(fainted), opponent)).toBe(slot);
