@@ -201,8 +201,8 @@ test('finds its way to the leader from the map', async () => {
 
 /**
  * GO Battle League from the map: its card's BATTLE at the top of the Battle tab, the welcome before a set, the league,
- * the recommended party, and
- * an opponent found for longer than `LOST_MS`, then NEXT BATTLE on the result, back to the league.
+ * the recommended party, and an opponent found for longer than `LOST_MS`, then NEXT BATTLE on the result, back to the
+ * league.
  */
 function league(): Record<string, Scene> {
   return {
