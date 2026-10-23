@@ -29,23 +29,40 @@ type Colour = [r: number, g: number, b: number];
 const rows = (image: Image, top: number, bottom: number, anchor: number) =>
   [down(top, anchor, image), down(bottom, anchor, image)].map((y) => Math.round(y * image.height)) as [number, number];
 
-function mean(image: Image, [left, top, right, bottom]: Box, anchor: number): Colour {
-  let [r, g, b, n] = [0, 0, 0, 0];
+function* pixels(image: Image, [left, top, right, bottom]: Box, anchor: number): Generator<Colour> {
   const [from, to] = rows(image, top, bottom, anchor);
 
   for (let y = from; y < to; y++) {
     for (let x = Math.round(left * image.width); x < Math.round(right * image.width); x++) {
-      const [red, green, blue] = rgb(image, x, y);
-      r += red;
-      g += green;
-      b += blue;
-      n++;
+      yield rgb(image, x, y);
     }
+  }
+}
+
+function mean(image: Image, box: Box, anchor: number): Colour {
+  let [r, g, b, n] = [0, 0, 0, 0];
+
+  for (const [red, green, blue] of pixels(image, box, anchor)) {
+    r += red;
+    g += green;
+    b += blue;
+    n++;
   }
 
   n = Math.max(n, 1);
 
   return [r / n, g / n, b / n];
+}
+
+/** Each channel's median over a box: the colour of whatever covers most of it, deaf to what covers the rest. */
+function median(image: Image, box: Box, anchor: number): Colour {
+  const channels: [number[], number[], number[]] = [[], [], []];
+
+  for (const colour of pixels(image, box, anchor)) {
+    colour.forEach((level, i) => channels[i]?.push(level));
+  }
+
+  return channels.map((levels) => levels.sort((a, b) => a - b)[levels.length >> 1] ?? 0) as Colour;
 }
 
 const near = (colour: Colour, target: Colour, within: number) =>
@@ -55,21 +72,27 @@ const near = (colour: Colour, target: Colour, within: number) =>
  * Strips of the two panels across the top of a battle, beside each player's CP, and the line above them that holds
  * each side's name and CP.
  *
- * The panels are white at about 80% opacity, so each takes a fifth of its colour from the sky behind it: 243/243/243
- * under cloud, 211/232/250 under a deep blue sky and 203/212/226 under a night one, which a 19/59/140 gap between them
+ * The panels are white at about 80% opacity, so each takes a fifth of its colour from the sky behind it: 244/251/251
+ * under cloud, 229/244/252 under a deep blue sky and 207/216/230 under a night one, which a 19/59/140 gap between them
  * predicts. So no channel falls below 195 and the chroma stays under 52 — a fifth of the most a sky could have — and
  * the sky being blue keeps them no more than a rounding error redder than blue.
  *
- * That is a range bare sky falls in too: the sky the shield prompt leaves where it hides them measured 210/239/250. The
+ * That is a range bare sky falls in too: the sky the shield prompt leaves where it hides them measured 210/238/250. The
  * names are what tell the two apart. Their slate-grey text, and the blur the encoder gives it, is 13–18% of their line
  * wherever the panels are drawn across 27,000 recorded frames, counting anything darker than the panel can be; a day
  * sky's prompt has none, and a night sky's no more than 7% where its strips fail anyway. A dark screen is dark all
  * over, hence the ceiling.
  *
  * The sky between the panels is the rest of the test, and is what two near misses fail. The map's notifications are a
- * bar straight across the top, and `96% found a Candy!` measured 225/233/224 in the right strip and 204/214/209 in the
+ * bar straight across the top, and `96% found a Candy!` measured 249/253/243 in the right strip and 204/214/209 in the
  * gap — no sky there, its blue under its green. The fade into a battle failed the same way, 211/231/227 in the gap.
  * Sky, and the grey countdown that sits on it during a prompt, never has less blue than green.
+ *
+ * The panels' colours are each channel's median along a strip rather than its mean, because the strips clip the tops of
+ * each side's Poké Balls, and the right one the opponent's shields. A mean takes their colour in: three red balls drew
+ * the left strip to 249/245/243 over bright white cloud, redder than blue by 6, which read a charged move's minigame
+ * there as no battle at all. Its median is the panel's own 251/254/252. What is saturated or darker than a panel can be
+ * is no more than 8% of a strip on any committed frame, so the median never sees it, however many balls are left.
  */
 const HUD: readonly Box[] = [
   [0.03, 0.085, 0.2, 0.095],
@@ -85,15 +108,12 @@ const TEXT = { dark: 180, least: 0.08, most: 0.3 } as const;
 const panel = (colour: Colour) => Math.min(...colour) >= 195 && colour[2] >= colour[0] - 4 && chroma(...colour) <= 52;
 
 /** The share of a box darker than `TEXT.dark`. */
-function darkIn(image: Image, [left, top, right, bottom]: Box): number {
+function darkIn(image: Image, box: Box): number {
   let [dark, n] = [0, 0];
-  const [from, to] = rows(image, top, bottom, TOP);
 
-  for (let y = from; y < to; y++) {
-    for (let x = Math.round(left * image.width); x < Math.round(right * image.width); x++) {
-      dark += luminance(...rgb(image, x, y)) < TEXT.dark ? 1 : 0;
-      n++;
-    }
+  for (const colour of pixels(image, box, TOP)) {
+    dark += luminance(...colour) < TEXT.dark ? 1 : 0;
+    n++;
   }
 
   return dark / Math.max(n, 1);
@@ -104,7 +124,7 @@ function showsHud(image: Image): boolean {
 
   return (
     blue >= green &&
-    HUD.every((box) => panel(mean(image, box, TOP))) &&
+    HUD.every((box) => panel(median(image, box, TOP))) &&
     HUD_NAMES.every((box) => {
       const text = darkIn(image, box);
       return text >= TEXT.least && text <= TEXT.most;
