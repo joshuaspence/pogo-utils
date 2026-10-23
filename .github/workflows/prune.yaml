@@ -37,11 +37,11 @@ jobs:
           client-id: '${{ vars.APP_CLIENT_ID }}'
           private-key: '${{ secrets.APP_PRIVATE_KEY }}'
 
-      - uses: 'actions/checkout@v7'
+      - uses: 'actions/checkout@v7.0.1'
         with:
           token: '${{ steps.token.outputs.token }}'
 
-      - uses: 'pnpm/setup@v3'
+      - uses: 'pnpm/setup@v3.1.1'
         with:
           cache: true
       - run: 'pnpm prune:events'
@@ -62,7 +62,7 @@ jobs:
 
       - name: 'Commit'
         id: 'commit'
-        uses: 'stefanzweifel/git-auto-commit-action@v7'
+        uses: 'stefanzweifel/git-auto-commit-action@v7.2.1'
         with:
           commit_author: '${{ steps.committer.outputs.author }}'
           commit_message: 'Remove ended events'
