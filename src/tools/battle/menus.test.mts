@@ -5,7 +5,7 @@
  */
 
 import { decodePng } from '../inventory/png.mts';
-import { useEngine } from '../inventory/ocr.mts';
+import { fold, ocr, useEngine } from '../inventory/ocr.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -281,6 +281,21 @@ test('refuses a league that is not on now, naming those that are', async () => {
   await expect(readMenu(fixture('menu-gbl-league'), { ...GBL, league: 'great' })).rejects.toThrow(
     '--league great is not on now: ultra league; master league mega edition; fantasy cup great league edition',
   );
+});
+
+// Two cards read in full but not the heading over the first: the list may have opened part way down, the league asked
+// for above them, so it is scrolled up rather than refused.
+test('scrolls the league list up rather than refuse a league where its heading went unread', async () => {
+  const unheaded = async (image: Parameters<typeof ocr>[0]) =>
+    (await ocr(image)).filter((line) => fold(line.text) !== 'choose your league');
+
+  expect(await readMenu(fixture('menu-gbl-league'), { ...GBL, league: 'great' }, unheaded)).toEqual({
+    screen: 'league',
+    swipe: [
+      [0.5, 0.42],
+      [0.5, 0.85],
+    ],
+  });
 });
 
 test('scrolls the league list to its top where it opened part way down', async () => {

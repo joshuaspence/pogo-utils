@@ -358,8 +358,9 @@ export async function readMenu(
         return { screen: 'league', tap: chosen[0].tap };
       }
 
-      // Two cards in full and neither is the one: the list is the leagues on now, and it is not among them.
-      if (offered.length >= 2) {
+      // The heading over the first card read, and none is the one: the list is the leagues on now from its top, and it
+      // is not among them. Without the heading the list may have opened part way down, the one asked for above it.
+      if (offered.length > 0 && lines.some((line) => fold(line.text) === 'choose your league')) {
         throw new Error(`--league ${mode.league} is not on now: ${offered.map((l) => l.title).join('; ')}`);
       }
 
