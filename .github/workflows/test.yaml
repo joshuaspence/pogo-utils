@@ -30,7 +30,7 @@ jobs:
           - 'corpus'
           - 'default'
     steps:
-      - uses: 'actions/checkout@v7'
+      - uses: 'actions/checkout@v7.0.1'
         with:
           lfs: true
 
@@ -39,7 +39,7 @@ jobs:
           'sudo apt-get update && sudo apt-get install --no-install-recommends --yes ffmpeg tesseract-ocr
           tesseract-ocr-eng'
 
-      - uses: 'pnpm/setup@v3'
+      - uses: 'pnpm/setup@v3.1.1'
         with:
           cache: true
       - run: 'pnpm test:${{ matrix.project }}'
