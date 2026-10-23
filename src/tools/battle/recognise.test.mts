@@ -25,19 +25,10 @@ const pngs = readdirSync(FIXTURES).filter((name) => name.endsWith('.png'));
 const menus = pngs.filter((name) => name.startsWith('menu-'));
 const stills = pngs.filter((name) => !menus.includes(name));
 
-// Stills the recogniser misreads, kept to the state they show so that reading them right fails here until they are
-// moved back among the rest. Swampert's left panel, over white cloud and the tops of three red Poké Balls, measures
-// 249/245/243, redder than `panel` lets a panel be.
-const misread = ['battle-minigame-swampert.png'];
-
-test.each(stills.filter((name) => !misread.includes(name)))('%s', (name) => {
+test.each(stills)('%s', (name) => {
   const expected = name.split('-')[0];
 
   expect(recognise(decodePng(readFileSync(FIXTURES + name)))).toBe(expected);
-});
-
-test.fails.each(misread)('%s is misread', (name) => {
-  expect(recognise(decodePng(readFileSync(FIXTURES + name)))).toBe(name.split('-')[0]);
 });
 
 test.each(menus)('%s is other', (name) => {
