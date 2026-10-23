@@ -23,10 +23,16 @@ export type Leader = (typeof LEADERS)[number];
 export const LEAGUES = ['great', 'ultra', 'master'] as const;
 export type League = (typeof LEAGUES)[number];
 
+/**
+ * Which battles a run plays: Training against a leader in one of the three leagues, or GO Battle League in whichever of
+ * its leagues and cups is on now, named by how its title starts — `ultra`, `master league: mega`, `fantasy cup`.
+ */
+export type Mode = { mode: 'training'; leader: Leader; league: League } | { mode: 'gbl'; league: string };
+
 export type Menu =
-  | { screen: 'map' | 'main' | 'training' | 'intro' | 'league' | 'party' | 'result'; tap: Point }
-  | { screen: 'battle-tab'; swipe: readonly [Point, Point] }
-  | { screen: 'unknown' };
+  | { screen: 'map' | 'main' | 'training' | 'gbl' | 'welcome' | 'intro' | 'league' | 'party' | 'result'; tap: Point }
+  | { screen: 'battle-tab' | 'league'; swipe: readonly [Point, Point] }
+  | { screen: 'matchmaking' | 'no-battle' | 'unknown' };
 
 /**
  * The leaders' portraits on the Battle tab, found by colour rather than by name: OCR read the names under them as
@@ -62,13 +68,12 @@ const USE_PARTY: Point = [0.5, 0.87];
 const BATTLE_ANCHOR = 0.5;
 const USE_PARTY_ANCHOR = 0.9;
 
+const isGreen = ([r, g, b]: readonly [number, number, number]) =>
+  g >= 195 && g - r >= 25 && g - b >= 35 && r >= 90 && b >= 130 && b <= 175;
+
 /** Whether the button is under `[x, y]`, sampled there and a little left of it, clear of the label. */
 function green(image: Image, [x, y]: Point): boolean {
-  return [x - 0.08, x].some((sx) => {
-    const [r, g, b] = rgb(image, sx * image.width, y * image.height);
-
-    return g >= 195 && g - r >= 25 && g - b >= 35 && r >= 90 && b >= 130 && b <= 175;
-  });
+  return [x - 0.08, x].some((sx) => isGreen(rgb(image, sx * image.width, y * image.height)));
 }
 
 /**
@@ -173,55 +178,199 @@ function portraits(image: Image): number | undefined {
 }
 
 /**
- * Which screen `image` is, and where to tap on it for `leader` in the `league`. `read` is the OCR, which is only asked
- * for where colour cannot answer.
+ * GO Battle League's BATTLE, on its card at the top of the Battle tab: the first run of the buttons' green down the
+ * card from its heading, sampled left of the label, which OCR reads only as `GO BATTLE LEAGUE` above and `3/5 battles
+ * played` below it. Measured at 122/202/152 on a Pixel 4 XL's full-size screenshot. A run shorter than `BUTTON` is a
+ * speck of the same green in the reward track's artwork. Tapped where it was sampled rather than at its middle: before a
+ * set, with a line more on the card, the button sits low enough that the ✗ covers its middle.
+ */
+const GBL_BUTTON_X = 0.3;
+const BUTTON = 0.02;
+
+function buttonBelow(image: Image, line: Line): Point | undefined {
+  let top: number | undefined;
+
+  for (let y = (line.top + line.height) / image.height; y < 1; y += 0.002) {
+    const lit = isGreen(rgb(image, GBL_BUTTON_X * image.width, y * image.height));
+
+    if (lit) {
+      top ??= y;
+    } else if (top !== undefined && y - top >= BUTTON) {
+      return [GBL_BUTTON_X, (top + y) / 2];
+    } else {
+      top = undefined;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * LET'S GO! on the welcome GO Battle League shows before a set, between the card's BATTLE and the league chooser: the
+ * buttons' green on a white panel, as USE THIS PARTY is, at 0.865 to 0.925 of the height to the party button's 0.87, so
+ * only its words tell it from the party. Found under them the way the card's BATTLE is.
+ */
+async function welcomeButton(image: Image, read: (image: Image) => Promise<Line[]>): Promise<Point | undefined> {
+  const title = (await read(image)).find((line) => fold(line.text).startsWith('welcome to the go'));
+
+  return title && buttonBelow(image, title);
+}
+
+/** The Battle tab's scroll the other way, back up to GO Battle League's card at its top. */
+const SCROLL_UP: readonly [Point, Point] = [SCROLL[1], SCROLL[0]];
+
+/**
+ * GO Battle League's NEXT BATTLE on its result, the buttons' green over the artwork, above the ✓ and pinned with it to
+ * the screen's foot: 131/204/149 at 0.854 of a Pixel 4 XL's height.
+ */
+const NEXT_BATTLE: Point = [0.5, 0.854];
+
+/**
+ * The Battle tab's cards below GO Battle League's, the tab's header having gone unread off one scrolled down to them.
+ * Nearby Battle's heading reads where Training's does not.
+ */
+const LOWER_CARDS = ['nearby battle'];
+
+/** What GO Battle League shows while it finds an opponent, before the battle's first frame. */
+const MATCHMAKING = ['finding opponent', 'battle starting'];
+
+/**
+ * The league chooser's list, scrolled from where it opens — at the league last played, which can leave the first
+ * cards above the screen — back down to its top.
+ */
+const LIST_TO_TOP: readonly [Point, Point] = [
+  [0.5, 0.42],
+  [0.5, 0.85],
+];
+
+/**
+ * Where a card's title is, as fractions of the screen: right of its league's badge, which OCR reads as litter, and no
+ * more than its two lines above its `Max CP per Pokémon`, the blurred backdrop above the first card reading as litter
+ * too.
+ */
+const TITLE_LEFT = 0.33;
+const TITLE_ABOVE = 0.1;
+
+/**
+ * The leagues GO Battle League offers now, each card's title — over one line or two — above its `Max CP per Pokémon`
+ * line, and above `SEE WHAT'S COMING NEXT`, under which the next ones are listed faded. Answers each title with where
+ * to tap it, or `undefined` off the chooser. Any of the three is the chooser, OCR having read neither the heading nor
+ * the line under the leagues on now off one scrolled part way down, and the recommended party's `Max CP per Pokémon`
+ * being told by its button before this is asked.
+ */
+function gblLeagues(lines: readonly Line[], image: Image): { title: string; tap: Point }[] | undefined {
+  const folded = lines.map((line) => ({ line, text: fold(line.text) }));
+  const header = folded.find(({ text }) => text === 'choose your league');
+  const upcoming = folded.find(({ text }) => text.startsWith('see what s coming next'));
+
+  const caps = folded.filter(
+    ({ line, text }) => text.startsWith('max cp per pokemon') && (!upcoming || line.top < upcoming.line.top),
+  );
+
+  if (!header && !upcoming && caps.length === 0) {
+    return undefined;
+  }
+
+  return caps.flatMap(({ line: cap }, i) => {
+    const above = caps[i - 1]?.line.top ?? header?.line.top ?? 0;
+    const title = folded.filter(
+      ({ line, text }) =>
+        line.top > Math.max(above, cap.top - TITLE_ABOVE * image.height) &&
+        line.top < cap.top &&
+        line.left >= TITLE_LEFT * image.width &&
+        !/^(max cp|limited selection|choose your league)/.test(text),
+    );
+    const [first] = title;
+
+    return first ? [{ title: title.map(({ text }) => text).join(' '), tap: centre(first.line, image) }] : [];
+  });
+}
+
+/**
+ * Which screen `image` is, and where to tap on it for the `mode`'s battles. `read` is the OCR, which is only asked for
+ * where colour cannot answer. Training's screens are never looked for in GO Battle League, nor its screens in Training:
+ * a portrait scrolled into view on the Battle tab is not to be tapped for GO Battle League.
  *
  * `result` says whether a battle has ended with its ✓ not yet tapped, which is the only time the teal button at the foot
  * is read as the result's. Anywhere else it is the ✗ that closes the menu, and a Battle tab whose portraits were not
  * found would otherwise have been taken for the result and closed.
+ *
+ * Throws where the GO Battle League chooser lists leagues and none is the one asked for.
  */
 export async function readMenu(
   image: Image,
-  { leader, league, result }: { leader: Leader; league: League; result: boolean },
+  { result, ...mode }: Mode & { result: boolean },
   read: (image: Image) => Promise<Line[]> = ocr,
 ): Promise<Menu> {
   const fight = place(BATTLE, BATTLE_ANCHOR, image);
   const party = place(USE_PARTY, USE_PARTY_ANCHOR, image);
   const foot = place(FOOT, BOTTOM, image);
+  const training = mode.mode === 'training';
 
-  if (green(image, fight) && teal(image) && !panel(image, fight[1])) {
+  if (training && green(image, fight) && teal(image) && !panel(image, fight[1])) {
     return { screen: 'intro', tap: fight };
   }
 
   if (green(image, party) && panel(image, party[1]) && !teal(image)) {
-    return { screen: 'party', tap: party };
+    const welcome = training ? undefined : await welcomeButton(image, read);
+
+    return welcome ? { screen: 'welcome', tap: welcome } : { screen: 'party', tap: party };
   }
 
   if (pokeBall(image)) {
     return { screen: 'map', tap: place(BALL, BOTTOM, image) };
   }
 
-  const row = portraits(image);
+  const row = training ? portraits(image) : undefined;
   const portrait = row === undefined ? undefined : row + tall(PORTRAIT_BELOW, image);
 
   // A card found under the ✗ is scrolled up clear of it rather than tapped, which would close the menu.
-  if (portrait !== undefined && portrait > foot[1] - tall(CLEAR_OF_FOOT, image)) {
+  if (training && portrait !== undefined && portrait > foot[1] - tall(CLEAR_OF_FOOT, image)) {
     return { screen: 'battle-tab', swipe: SCROLL };
   }
 
-  if (portrait !== undefined) {
-    return { screen: 'training', tap: [LEADER_X[leader], portrait] };
+  if (training && portrait !== undefined) {
+    return { screen: 'training', tap: [LEADER_X[mode.leader], portrait] };
   }
 
   const lines = await read(image);
-  const leagues = lines.filter((line) => /^(great|ultra|master) league$/.test(fold(line.text)));
-  const chosen = leagues.find((line) => fold(line.text) === `${league} league`);
+  const words = (word: string) => lines.filter((line) => fold(line.text) === word);
 
-  if (leagues.length >= 2 && chosen) {
-    return { screen: 'league', tap: centre(chosen, image) };
+  if (training) {
+    const leagues = lines.filter((line) => /^(great|ultra|master) league$/.test(fold(line.text)));
+    const chosen = leagues.find((line) => fold(line.text) === `${mode.league} league`);
+
+    if (leagues.length >= 2 && chosen) {
+      return { screen: 'league', tap: centre(chosen, image) };
+    }
+  } else {
+    const offered = gblLeagues(lines, image);
+
+    if (offered) {
+      const wanted = fold(mode.league);
+      const chosen = offered.filter(({ title }) => title.startsWith(wanted));
+
+      if (chosen.length > 1) {
+        throw new Error(`--league ${mode.league} is more than one league: ${chosen.map((l) => l.title).join('; ')}`);
+      }
+
+      if (chosen[0]) {
+        return { screen: 'league', tap: chosen[0].tap };
+      }
+
+      // Two cards in full and neither is the one: the list is the leagues on now, and it is not among them.
+      if (offered.length >= 2) {
+        throw new Error(`--league ${mode.league} is not on now: ${offered.map((l) => l.title).join('; ')}`);
+      }
+
+      return { screen: 'league', swipe: LIST_TO_TOP };
+    }
+
+    if (lines.some((line) => MATCHMAKING.some((text) => fold(line.text).startsWith(text)))) {
+      return { screen: 'matchmaking' };
+    }
   }
 
-  const words = (word: string) => lines.filter((line) => fold(line.text) === word);
   const [battle] = words('battle');
 
   if (battle && MAIN_LABELS.filter((label) => words(label).length > 0).length >= 2) {
@@ -231,11 +380,29 @@ export async function readMenu(
   }
 
   if ([...words('battle'), ...words('party')].some((line) => centre(line, image)[1] < down(HEADER, TOP, image))) {
-    return { screen: 'battle-tab', swipe: SCROLL };
+    if (training) {
+      return { screen: 'battle-tab', swipe: SCROLL };
+    }
+
+    const [heading] = words('go battle league');
+    const button = heading && buttonBelow(image, heading);
+
+    if (button) {
+      return { screen: 'gbl', tap: button };
+    }
+
+    // The card with its BATTLE greyed out: a reward to collect, the encounter among them, and no battle until it is.
+    return heading ? { screen: 'no-battle' } : { screen: 'battle-tab', swipe: SCROLL_UP };
+  }
+
+  if (!training && LOWER_CARDS.some((card) => words(card).length > 0)) {
+    return { screen: 'battle-tab', swipe: SCROLL_UP };
   }
 
   if (result && teal(image)) {
-    return { screen: 'result', tap: foot };
+    const next = place(NEXT_BATTLE, BOTTOM, image);
+
+    return { screen: 'result', tap: !training && green(image, next) ? next : foot };
   }
 
   return { screen: 'unknown' };

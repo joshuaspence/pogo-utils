@@ -157,7 +157,13 @@ test('plays a battle from the Battle tab and taps its way back round', async () 
 
   const battles = await run(
     phone,
-    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
     clock,
   );
 
@@ -180,11 +186,75 @@ test('finds its way to the leader from the map', async () => {
   expect(
     await run(
       phone,
-      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      {
+        mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+        data: DATA,
+        icons: ICONS,
+        colours: COLOURS,
+        count: 1,
+      },
       clock,
     ),
   ).toBe(1);
   expect(taps.slice(0, 3)).toEqual(['map', 'main', 'training']);
+});
+
+/**
+ * GO Battle League from the map: its card's BATTLE at the top of the Battle tab, the welcome before a set, the league,
+ * the recommended party, and
+ * an opponent found for longer than `LOST_MS`, then NEXT BATTLE on the result, back to the league.
+ */
+function league(): Record<string, Scene> {
+  return {
+    ...battleAndBack(),
+    map: { frame: fixture('menu-map'), tap: { at: [0.5, 0.932], to: 'main' } },
+    main: { frame: fixture('menu-main'), tap: { at: [0.777, 0.5975], to: 'tab' } },
+    tab: { frame: fixture('menu-gbl-battle-tab'), tap: { at: [0.3, 0.843], to: 'welcome' } },
+    welcome: { frame: fixture('menu-gbl-welcome'), tap: { at: [0.3, 0.895], to: 'league' } },
+    league: { frame: fixture('menu-gbl-league'), tap: { at: [0.54, 0.43], to: 'party' } },
+    party: { frame: fixture('menu-gbl-party'), tap: { at: [0.5, 0.87], to: 'matching' } },
+    matching: { frame: fixture('menu-gbl-matchmaking'), lasts: { ms: LOST_MS * 2, to: 'fight' } },
+    result: { frame: fixture('menu-gbl-result'), tap: { at: [0.5, 0.854], to: 'league' } },
+  };
+}
+
+const GBL = { mode: 'gbl', league: 'ultra' } as const;
+
+test('plays GO Battle League battles from the map, waiting out matchmaking', async () => {
+  const { phone, clock, taps } = scripted(league(), 'map');
+
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 2 }, clock)).toBe(2);
+  expect(taps).toEqual([
+    ...['map', 'main', 'tab', 'welcome', 'league', 'party', 'charged', 'result'],
+    ...['league', 'party', 'charged', 'result'],
+  ]);
+});
+
+// The reward encounter's Poké Ball is left alone: GO Battle League does not come back to the map of itself.
+test('taps no Poké Ball once a GO Battle League battle has been played', async () => {
+  const { phone, clock, taps } = scripted(
+    { ...league(), result: { frame: fixture('menu-gbl-result'), tap: { at: [0.5, 0.854], to: 'map' } } },
+    'tab',
+  );
+
+  await expect(
+    run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 2 }, clock),
+  ).rejects.toBeInstanceOf(Lost);
+  expect(taps.filter((scene) => scene === 'map')).toEqual([]);
+});
+
+test('stops at the end of a GO Battle League set, leaving its reward to be collected', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...league(),
+      result: { frame: fixture('menu-gbl-result-last'), tap: { at: [0.5, 0.935], to: 'collect' } },
+      collect: { frame: fixture('menu-gbl-collect') },
+    },
+    'party',
+  );
+
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 3 }, clock)).toBe(1);
+  expect(taps).toEqual(['party', 'charged', 'result']);
 });
 
 /**
@@ -215,7 +285,13 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
   expect(
     await run(
       phone,
-      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      {
+        mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+        data: DATA,
+        icons: ICONS,
+        colours: COLOURS,
+        count: 1,
+      },
       clock,
       (line) => lines.push(line),
     ),
@@ -235,7 +311,7 @@ test('stops on a Battle tab whose Training card never shows, rather than scroll 
 
   const lost = await run(
     phone,
-    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS },
+    { mode: { mode: 'training', leader: 'blanche', league: 'ultra' }, data: DATA, icons: ICONS, colours: COLOURS },
     clock,
   ).catch((error: unknown) => error);
 
@@ -260,7 +336,13 @@ test('aims the minigame’s swipes at its bubbles', async () => {
   expect(
     await run(
       phone,
-      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      {
+        mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+        data: DATA,
+        icons: ICONS,
+        colours: COLOURS,
+        count: 1,
+      },
       clock,
     ),
   ).toBe(1);
@@ -282,7 +364,13 @@ test('carries on into the next battle until the count is reached', async () => {
   expect(
     await run(
       phone,
-      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 2 },
+      {
+        mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+        data: DATA,
+        icons: ICONS,
+        colours: COLOURS,
+        count: 2,
+      },
       clock,
     ),
   ).toBe(2);
@@ -310,7 +398,13 @@ test('baits with the cheaper move while the opponent has shields', async () => {
   expect(
     await run(
       phone,
-      { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+      {
+        mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+        data: DATA,
+        icons: ICONS,
+        colours: COLOURS,
+        count: 1,
+      },
       clock,
     ),
   ).toBe(1);
@@ -335,7 +429,13 @@ test('names the lead from the party, and the next of it after a faint', async ()
 
   await run(
     phone,
-    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS, count: 1 },
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
     clock,
     (line) => lines.push(line),
   );
@@ -350,7 +450,7 @@ test('stops, keeping its last frames, where nothing is recognised', async () => 
 
   const lost = await run(
     phone,
-    { leader: 'blanche', league: 'ultra', data: DATA, icons: ICONS, colours: COLOURS },
+    { mode: { mode: 'training', leader: 'blanche', league: 'ultra' }, data: DATA, icons: ICONS, colours: COLOURS },
     clock,
   ).catch((error: unknown) => error);
 

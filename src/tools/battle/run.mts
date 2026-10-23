@@ -1,13 +1,13 @@
 /**
- * Team Leader battles one after another: `Player` through each battle, read off the stream frame by frame, and
- * `readMenu` between them, read off full screenshots, from the result's ✓ round to the next USE THIS PARTY.
+ * Team Leader or GO Battle League battles one after another: `Player` through each battle, read off the stream frame by
+ * frame, and `readMenu` between them, read off full screenshots, from the result round to the next USE THIS PARTY.
  *
  * Driven through `Phone` rather than `adb`, so a test can stand a scripted phone in for a real one.
  */
 
 import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
-import { readMenu, type League, type Leader } from './menus.mts';
+import { readMenu, type Mode } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
@@ -67,8 +67,7 @@ export class Lost extends Error {
 }
 
 export interface Options {
-  leader: Leader;
-  league: League;
+  mode: Mode;
   data: GameData;
 
   /** Every form's silhouette with its species, which the party screen's cards are read against. */
@@ -81,12 +80,13 @@ export interface Options {
 
 /**
  * Plays `count` battles, or until stopped, starting from the map or anywhere between the result of one battle and the
- * start of the next. Answers how many battles finished. Throws `Lost` with the last few frames when nothing has been
+ * start of the next. Answers how many battles finished, fewer than `count` where GO Battle League has no battle to
+ * offer until its reward is collected by hand. Throws `Lost` with the last few frames when nothing has been
  * recognised for `LOST_MS`.
  */
 export async function run(
   phone: Phone,
-  { leader, league, data, icons, colours, count = Infinity }: Options,
+  { mode, data, icons, colours, count = Infinity }: Options,
   clock: Clock,
   log: (line: string) => void = () => {},
 ): Promise<number> {
@@ -236,7 +236,11 @@ export async function run(
 
     if (clock.now() - otherSince >= MENU_AFTER_MS) {
       const screenshot = await phone.screenshot();
-      const menu = await readMenu(screenshot, { leader, league, result: battling });
+      const read = await readMenu(screenshot, { ...mode, result: battling });
+
+      // GO Battle League never comes back to the map of itself once a battle has been played: a Poké Ball there is the
+      // reward encounter's, which is left for the player rather than tapped.
+      const menu = read.screen === 'map' && mode.mode === 'gbl' && battles > 0 ? { screen: 'unknown' as const } : read;
 
       if (menu.screen === 'party') {
         party = readParty(screenshot, icons);
@@ -244,15 +248,21 @@ export async function run(
       }
 
       // A scroll is not progress: a tab already at its foot whose portraits go unmatched would be scrolled for ever, so
-      // the scrolls count towards `LOST_MS` from the tap that opened the tab.
-      if (menu.screen === 'battle-tab') {
+      // the scrolls count towards `LOST_MS` from the tap that opened the tab. Matchmaking is: it is waited out, however
+      // long GO Battle League takes to find an opponent.
+      if ('swipe' in menu) {
         if (clock.now() - known > LOST_MS) {
           throw new Lost(kept);
         }
 
-        log('battle-tab: scroll');
+        log(`${menu.screen}: scroll`);
         await phone.swipe(...menu.swipe, SCROLL_MS);
-      } else if (menu.screen !== 'unknown') {
+      } else if (menu.screen === 'matchmaking') {
+        known = clock.now();
+      } else if (menu.screen === 'no-battle') {
+        log('no-battle: a reward to collect');
+        return battles;
+      } else if ('tap' in menu) {
         log(`${menu.screen}: tap`);
         await phone.tap(menu.tap);
         known = clock.now();
