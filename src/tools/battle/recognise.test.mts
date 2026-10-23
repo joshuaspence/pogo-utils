@@ -13,7 +13,7 @@ import { decodePng } from '../inventory/png.mts';
 import { createReadStream, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { opponentShields, readyButtons, recognise, type State } from './recognise.mts';
+import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames, streamSize } from './stream.mts';
 
 const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url));
@@ -86,4 +86,20 @@ test.each([
   ['battle-pixel8', 2],
 ])('%s: the opponent has %i shields left', (name, shields) => {
   expect(opponentShields(decodePng(readFileSync(`${FIXTURES}${name}.png`)))).toBe(shields);
+});
+
+test.each([
+  ['battle-latias', 2],
+  ['battle-pixel8', 2],
+  ['battle-banner', 1],
+  ['battle-two-unlit', 1],
+  ['battle-one-shield', 1],
+  ['charged-shadow-sneak', 0],
+  ['battle-shields-spent', 0],
+])('%s: we have %i shields left', (name, shields) => {
+  expect(ownShields(decodePng(readFileSync(`${FIXTURES}${name}.png`)))).toBe(shields);
+});
+
+test('our shields go unread where the shield prompt hides the HUD', () => {
+  expect(ownShields(decodePng(readFileSync(`${FIXTURES}shield-glaceon.png`)))).toBeNull();
 });
