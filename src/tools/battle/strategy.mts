@@ -16,13 +16,13 @@ import { type GameData } from '../inventory/game-master.mts';
 import { BUTTON_XS } from './recognise.mts';
 
 /** What a move sharing a type with the Pokémon using it multiplies its damage by. */
-const STAB = 1.2;
+export const STAB = 1.2;
 
 /**
  * The charged moves only a shadow (Frustration) or a purified (Return) Pokémon holds, which every species with a shadow
  * form lists. By name, as `GameData` keys every move: the vended copy keeps no template ids.
  */
-const SHADOW_AND_PURIFIED = new Set(['Frustration', 'Return']);
+export const SHADOW_AND_PURIFIED = new Set(['Frustration', 'Return']);
 
 /** The types of one form, the one or two of them. */
 export type Typing = readonly string[];
@@ -54,7 +54,7 @@ export function damage(data: GameData, move: string, own: readonly Typing[], opp
 }
 
 /** What a move of `type` multiplies its damage by against a Pokémon of the `defender`'s types. */
-function effectiveness(data: GameData, type: string, defender: readonly string[]): number {
+export function effectiveness(data: GameData, type: string, defender: readonly string[]): number {
   return defender.reduce((product, against) => product * (data.effectiveness[type]?.[against] ?? 1), 1);
 }
 
