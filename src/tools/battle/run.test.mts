@@ -541,6 +541,61 @@ test.each([
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(tapped);
 });
 
+/**
+ * Charizard, CP 2495, against Magmar, CP 1826, in the Ultra League, as played live: Magmar's hardest charged move takes
+ * about half of Charizard. At 87% the shield is declined, the hit survived; at 9% it is taken, where live it was not
+ * and Charizard fainted to it.
+ */
+test.each([
+  ['shield-charizard-high', []],
+  ['shield-low', ['prompt']],
+])('at %s, the shield is taken only against a hit that would faint us: %j', async (prompt, tapped) => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-charizard-magmar'), swipes: { count: 10, to: 'prompt' } },
+      prompt: { frame: fixture(prompt), tap: { at: [0.5, 0.82], to: 'won' }, lasts: { ms: 3000, to: 'won' } },
+    },
+    'fight',
+  );
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+  );
+
+  expect(taps.filter((scene) => scene === 'prompt')).toEqual(tapped);
+});
+
+// Started mid-battle in GO Battle League, the party screen that states the league's cap never seen: every shield taken.
+test('takes every shield in GO Battle League until the party screen has given the cap', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...league(),
+      fight: { frame: fixture('battle-charizard-magmar'), swipes: { count: 10, to: 'prompt' } },
+      prompt: {
+        frame: fixture('shield-charizard-high'),
+        tap: { at: [0.5, 0.82], to: 'won' },
+        lasts: { ms: 3000, to: 'won' },
+      },
+      result: { frame: fixture('menu-gbl-result-last'), tap: { at: [0.5, 0.935], to: 'collect' } },
+      collect: { frame: fixture('menu-gbl-collect') },
+    },
+    'fight',
+  );
+
+  await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock);
+
+  expect(taps.filter((scene) => scene === 'prompt')).toEqual(['prompt']);
+});
+
 /** What is read of each side through a battle: its CP off the HUD, its HP off its bar and how many shields we have. */
 test('says each side’s CP and HP, and how many shields we have left', async () => {
   const { phone, clock } = scripted(

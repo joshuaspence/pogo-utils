@@ -7,7 +7,7 @@
 
 import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
-import { readMenu, type Menu, type Mode } from './menus.mts';
+import { CAPS, readMenu, type Menu, type Mode } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
@@ -15,7 +15,8 @@ import { bubbleSwipes, type Colour } from './minigame.mts';
 import { readHealth, type Health } from './health.mts';
 import { merge, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
-import { activeOf, bestButton, nextOut, shouldShield, typesOf } from './strategy.mts';
+import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
+import { wouldFaint } from './damage.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -119,6 +120,10 @@ export async function run(
   let theirShields = 2;
   let ourShields = 2;
 
+  // The league's CP cap, which a CP read over it is a misread of: Training's by its league, GO Battle League's as its
+  // party screen states it. `undefined` until known, and then every shield is taken.
+  let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : undefined;
+
   // Each side's HP as last read, a bar not drawn on this frame keeping what an earlier one showed. The opponent's is
   // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
   let health: Health = { own: null, opponent: null };
@@ -191,7 +196,19 @@ export async function run(
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
       const bait = theirShields > 0;
       const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
-      const shield = ourShields > 0 && shouldShield(data, own, seen.opponent);
+
+      // Taken only where the opponent's hardest charged move would faint us: a hit we survive is eaten, the shield kept
+      // for one we would not. A league whose cap went unread takes every shield, as anything else unknown does.
+      const shield =
+        ourShields > 0 &&
+        (cap === undefined ||
+          wouldFaint(
+            data,
+            { species: own, cp: seen.ownCp },
+            { species: seen.opponent, cp: seen.opponentCp },
+            health.own,
+            cap,
+          ));
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
       const side = (cp: number | null, hp: number | null) =>
@@ -299,6 +316,7 @@ export async function run(
 
       if (menu.screen === 'party') {
         party = readParty(screenshot, icons);
+        cap = mode.mode === 'training' ? CAPS[mode.league] : menu.cap;
         log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
       }
 
