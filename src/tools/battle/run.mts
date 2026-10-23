@@ -9,6 +9,7 @@ import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
 import { readMenu, type League, type Leader } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
+import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
 import { merge, readBattle, type Sighting } from './read.mts';
@@ -89,7 +90,7 @@ export async function run(
   clock: Clock,
   log: (line: string) => void = () => {},
 ): Promise<number> {
-  let player = new Player();
+  let player: Player | undefined;
   let battles = 0;
   let battling = false;
   let known = clock.now();
@@ -120,6 +121,9 @@ export async function run(
       continue;
     }
 
+    // Made for the frames' size, which every frame of a run shares, and made again for each battle.
+    player ??= new Player(frame);
+
     if (frames++ % 10 === 0 && kept.at(-1) !== frame) {
       kept.push(frame);
       kept.splice(0, kept.length - KEPT_FRAMES);
@@ -130,7 +134,7 @@ export async function run(
     if (state !== 'other') {
       if (!battling) {
         log(`battle ${battles + 1} started`);
-        player = new Player();
+        player = new Player(frame);
         seen = { own: null, opponent: null, moves: new Map() };
         readAt = -Infinity;
         fainted = new Set();
@@ -178,8 +182,9 @@ export async function run(
       if (state === 'switch' && !prompt) {
         const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
         const next = nextOut(data, party, out, seen.opponent);
-        const card =
+        const measured =
           next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
+        const card = measured && place(measured, BOTTOM, frame);
 
         prompt = { fainted: slot, next, card, answered: false };
       }

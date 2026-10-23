@@ -12,6 +12,7 @@
  * through.
  */
 
+import { BOTTOM, place, type Size } from './layout.mts';
 import { type State } from './recognise.mts';
 
 export type Point = readonly [x: number, y: number];
@@ -26,6 +27,7 @@ export type Action =
  * switch prompt's two cards, centred at x 0.32 and 0.67 in `switch-glaceon`. When one Pokémon is left the card is
  * centred instead and the first card's tap misses it, which costs nothing — the game sends that one in when its
  * countdown runs out. A charged move is thrown wherever its lit button was found, there being one or two of them.
+ * Both prompts are pinned to the foot, so a `Player` places them for the screen it is given.
  */
 export const TAPS = {
   shield: [0.5, 0.82],
@@ -122,6 +124,7 @@ const RETAP_MS = 1000;
 const HOLD_MS = 700;
 
 export class Player {
+  readonly #taps: { shield: Point; switch: Point };
   #state: State | undefined;
   #streak = 0;
   #minigame = false;
@@ -130,6 +133,11 @@ export class Player {
 
   /** When each lit charged-move button lit, by its x, for as long as it stays lit. */
   readonly #lit = new Map<number, number>();
+
+  /** `screen` is the frames' size, which the prompts' taps are placed on. */
+  constructor(screen: Size) {
+    this.#taps = { shield: place(TAPS.shield, BOTTOM, screen), switch: place(TAPS.switch, BOTTOM, screen) };
+  }
 
   /** Whether the charged-move minigame is being swiped at, which nothing else should hold up. */
   get minigame(): boolean {
@@ -140,7 +148,7 @@ export class Player {
   next(
     state: State,
     now: number,
-    { ready = [], best, shield = true, card = TAPS.switch, bubbles }: Choices = {},
+    { ready = [], best, shield = true, card = this.#taps.switch, bubbles }: Choices = {},
   ): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
@@ -197,7 +205,7 @@ export class Player {
     if (state !== 'charged') {
       this.#tapped = { state, at: now };
 
-      return { kind: 'tap', at: state === 'switch' ? card : TAPS[state], what: state };
+      return { kind: 'tap', at: state === 'switch' ? card : this.#taps[state], what: state };
     }
 
     const first = [...throwable].sort(([a], [b]) => (this.#lit.get(a) ?? now) - (this.#lit.get(b) ?? now) || a - b)[0];

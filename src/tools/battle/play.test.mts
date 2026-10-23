@@ -3,7 +3,10 @@ import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { Player, SWITCH_CARDS, TAPS, type Action, type Point } from './play.mts';
 import { readyButtons, recognise, type State } from './recognise.mts';
-import { decodeFrames } from './stream.mts';
+import { decodeFrames, streamSize } from './stream.mts';
+
+/** The size of the committed frames, a Pixel 4 XL's stream. */
+const SIZE = streamSize({ width: 1440, height: 3040 });
 
 /** Where the charged-move buttons sit: one move's centred, two moves' either side, as `readyButtons` reports them. */
 const LEFT: Point = [0.31, 0.889];
@@ -14,7 +17,7 @@ const RIGHT: Point = [0.69, 0.889];
  * The actions for a run of states, a frame every 33ms — 30 a second, as the stream sends them — with the one button of
  * a Pokémon with one charged move lit on every `charged` frame.
  */
-function play(states: readonly State[], player = new Player(), from = 0): Action[] {
+function play(states: readonly State[], player = new Player(SIZE), from = 0): Action[] {
   return states.map((state, i) => player.next(state, from + i * 33, { ready: state === 'charged' ? [CENTRE] : [] }));
 }
 
@@ -52,7 +55,7 @@ test('throws again if the button is still lit a second later', () => {
 });
 
 test('of two charged moves, throws the one that lit first', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
 
   player.next('charged', 0, { ready: [RIGHT] });
   const action = player.next('charged', 33, { ready: [LEFT, RIGHT] });
@@ -61,7 +64,7 @@ test('of two charged moves, throws the one that lit first', () => {
 });
 
 test('of two charged moves lit together, throws the left', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
 
   player.next('charged', 0, { ready: [LEFT, RIGHT] });
   const action = player.next('charged', 33, { ready: [LEFT, RIGHT] });
@@ -70,7 +73,7 @@ test('of two charged moves lit together, throws the left', () => {
 });
 
 test('fights on while only a weaker move is lit, and throws the best once it lights', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
 
   player.next('charged', 0, { ready: [RIGHT], best: LEFT[0] });
   const held = player.next('charged', 33, { ready: [RIGHT], best: LEFT[0] });
@@ -84,7 +87,7 @@ test('fights on while only a weaker move is lit, and throws the best once it lig
 });
 
 test('forgets when a button lit once it goes out', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
 
   // The right lights, then goes out as it is thrown; later the left lights, then the right again beside it.
   player.next('charged', 0, { ready: [RIGHT] });
@@ -96,7 +99,7 @@ test('forgets when a button lit once it goes out', () => {
 });
 
 test('swipes the lower field after a charged move, until the throw plays', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
   const fight = swipes(play(Array(4).fill('battle'), player));
   const minigame = swipes(play(['charged', 'charged', ...Array<State>(40).fill('battle')], player, 1000));
   const after = swipes(play(['other', ...Array<State>(4).fill('battle')], player, 3000));
@@ -110,7 +113,7 @@ test('swipes the lower field after a charged move, until the throw plays', () =>
 });
 
 test('swipes through the bubbles found in the minigame, and waits for them through its lead-in', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
   const chain: [Point, Point] = [
     [0.17, 0.59],
     [0.59, 0.51],
@@ -135,7 +138,7 @@ test('swipes through the bubbles found in the minigame, and waits for them throu
 });
 
 test('swipes nothing for a moment after a charged move is tapped', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
   const tapped = play(['charged', 'charged'], player);
   const after = play(Array<State>(30).fill('battle'), player, 66);
   const waited = after.findIndex((action) => action.kind === 'swipe');
@@ -156,14 +159,14 @@ test.each([
 });
 
 test('sends in the card it is told to', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
   const actions = Array.from({ length: 5 }, (_, i) => player.next('switch', i * 33, { card: SWITCH_CARDS[1] }));
 
   expect(taps(actions)).toEqual([{ kind: 'tap', at: [0.67, 0.87], what: 'switch' }]);
 });
 
 test('leaves a declined shield prompt to run out, and does not swipe at it', () => {
-  const player = new Player();
+  const player = new Player(SIZE);
   const actions = Array.from({ length: 20 }, (_, i) => player.next('shield', i * 33, { shield: false }));
 
   expect(actions.every((action) => action.kind === 'wait')).toBe(true);
@@ -183,12 +186,13 @@ test('does nothing on any other screen', () => {
  * show is the first tap landing on the button's second lit frame, and none following sooner than a second apart.
  */
 test('throws the charged move in a recorded battle as soon as it is ready', async () => {
-  const player = new Player();
+  const player = new Player(SIZE);
   const timed: { action: Action; state: State; at: number }[] = [];
   let i = 0;
 
   for await (const frame of decodeFrames(
     createReadStream(fileURLToPath(new URL('fixtures/charge.h264', import.meta.url))),
+    SIZE,
   )) {
     const state = recognise(frame);
     const at = i++ * 33;

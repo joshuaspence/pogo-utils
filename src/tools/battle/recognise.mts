@@ -1,14 +1,15 @@
 /**
  * Which part of a battle a frame shows, out of colour samples alone: cheap enough to ask of every frame at 30 a second,
- * which OCR is not. Every position is a fraction of the frame, so a frame at any size of the phone's shape answers the
- * same, and every threshold was measured on 935 frames of Team Leader battles recorded off a Pixel 4 XL — quoted beside
- * it, so that a threshold that stops working can be checked against what it was set from.
+ * which OCR is not. Every position is a fraction of a Pixel 4 XL's frame, placed on a frame of any size or shape by its
+ * anchor as `layout.mts` places it, and every threshold was measured on 935 frames of Team Leader battles recorded off
+ * a Pixel 4 XL — quoted beside it, so that a threshold that stops working can be checked against what it was set from.
  *
  * Screens that are not a battle — the result, the menus between battles, the fades — are all `other`, for a caller to
  * read with OCR once the screen has settled.
  */
 
 import { chroma, luminance, rgb, type Image } from '../inventory/png.mts';
+import { BOTTOM, down, TOP } from './layout.mts';
 
 /**
  * - `battle`: the fight, with no charged move ready, or an animation within it — the charged-move minigame among them.
@@ -24,10 +25,15 @@ type Box = readonly [left: number, top: number, right: number, bottom: number];
 /** The mean colour of a box given as fractions of the frame. */
 type Colour = [r: number, g: number, b: number];
 
-function mean(image: Image, [left, top, right, bottom]: Box): Colour {
-  let [r, g, b, n] = [0, 0, 0, 0];
+/** Where a box pinned at `anchor` runs down `image`, in pixels, out of where the Pixel 4 XL drew it. */
+const rows = (image: Image, top: number, bottom: number, anchor: number) =>
+  [down(top, anchor, image), down(bottom, anchor, image)].map((y) => Math.round(y * image.height)) as [number, number];
 
-  for (let y = Math.round(top * image.height); y < Math.round(bottom * image.height); y++) {
+function mean(image: Image, [left, top, right, bottom]: Box, anchor: number): Colour {
+  let [r, g, b, n] = [0, 0, 0, 0];
+  const [from, to] = rows(image, top, bottom, anchor);
+
+  for (let y = from; y < to; y++) {
     for (let x = Math.round(left * image.width); x < Math.round(right * image.width); x++) {
       const [red, green, blue] = rgb(image, x, y);
       r += red;
@@ -81,8 +87,9 @@ const panel = (colour: Colour) => Math.min(...colour) >= 195 && colour[2] >= col
 /** The share of a box darker than `TEXT.dark`. */
 function darkIn(image: Image, [left, top, right, bottom]: Box): number {
   let [dark, n] = [0, 0];
+  const [from, to] = rows(image, top, bottom, TOP);
 
-  for (let y = Math.round(top * image.height); y < Math.round(bottom * image.height); y++) {
+  for (let y = from; y < to; y++) {
     for (let x = Math.round(left * image.width); x < Math.round(right * image.width); x++) {
       dark += luminance(...rgb(image, x, y)) < TEXT.dark ? 1 : 0;
       n++;
@@ -93,11 +100,11 @@ function darkIn(image: Image, [left, top, right, bottom]: Box): number {
 }
 
 function showsHud(image: Image): boolean {
-  const [, green, blue] = mean(image, HUD_GAP);
+  const [, green, blue] = mean(image, HUD_GAP, TOP);
 
   return (
     blue >= green &&
-    HUD.every((box) => panel(mean(image, box))) &&
+    HUD.every((box) => panel(mean(image, box, TOP))) &&
     HUD_NAMES.every((box) => {
       const text = darkIn(image, box);
       return text >= TEXT.least && text <= TEXT.most;
@@ -169,7 +176,8 @@ function white(image: Image, cx: number, cy: number, radius: number): number {
  * Only meaningful on a frame `recognise` reads as a battle.
  */
 export function readyButtons(image: Image): [x: number, y: number][] {
-  const cy = BUTTON.y * image.height;
+  const y = down(BUTTON.y, BOTTOM, image);
+  const cy = y * image.height;
   const radius = BUTTON.radius * image.width;
 
   return BUTTON_XS.filter((x) => {
@@ -180,7 +188,7 @@ export function readyButtons(image: Image): [x: number, y: number][] {
       white(image, cx, cy, radius * 0.6) <= AROUND_RIM &&
       white(image, cx, cy, radius * 1.35) <= AROUND_RIM
     );
-  }).map((x) => [x, BUTTON.y]);
+  }).map((x) => [x, y]);
 }
 
 /**
@@ -197,17 +205,17 @@ const SPENT: Colour = [111, 81, 118];
  * the strongest move into a shield.
  */
 export function opponentShields(image: Image): number {
-  return OPPONENT_SHIELDS.filter((box) => !near(mean(image, box), SPENT, 25)).length;
+  return OPPONENT_SHIELDS.filter((box) => !near(mean(image, box, TOP), SPENT, 25)).length;
 }
 
 export function recognise(image: Image): State {
-  if (SWITCH_PANEL.every((box) => near(mean(image, box), SLATE, 12))) {
+  if (SWITCH_PANEL.every((box) => near(mean(image, box, BOTTOM), SLATE, 12))) {
     return 'switch';
   }
 
   const hud = showsHud(image);
 
-  if (!hud && near(mean(image, SHIELD), SHIELD_PINK, 25)) {
+  if (!hud && near(mean(image, SHIELD, BOTTOM), SHIELD_PINK, 25)) {
     return 'shield';
   }
 

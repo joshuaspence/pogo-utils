@@ -15,10 +15,6 @@
  *                       a battle decodes, which is what the recognition fixtures are cut from
  *   A flag handed to a command whose line omits it is refused rather than ignored — see `HONOURED`.
  *
- * For as long as `run` plays, the phone is kept awake and its screen set with `wm size` to the Pixel 4 XL's shape, which
- * every position read and tapped was measured on; both are put back on the way out. Another shape draws the HUD and the
- * buttons at the foot at other fractions of the screen, and nothing on it is recognised.
- *
  * Automating input breaks Niantic's terms of service, and unlike `pnpm inventory` this does not only read: it taps
  * through battles. Run it on an account whose loss you would accept.
  */
@@ -28,7 +24,7 @@ import { LEADERS, LEAGUES, type League, type Leader } from '../src/tools/battle/
 import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
-import { RECORD_LIMIT_S, Screen, screenrecord, streamShaped } from '../src/tools/battle/stream.mts';
+import { RECORD_LIMIT_S, Screen, screenrecord, streamSize } from '../src/tools/battle/stream.mts';
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device } from '../src/tools/inventory/adb.mts';
 import { CACHE, cachedAs, loadGameData } from '../src/tools/inventory/download.mts';
@@ -172,35 +168,14 @@ if (command === 'run') {
   const icons = await silhouettes(data);
   const colours = await bubbleColours(data);
 
-  // The two settings a run changes, each read first so that it can be put back as found on every way out, with
-  // `restore` and the Ctrl-C handler in place before either is changed: `restore` writes back only what was read, so
-  // it is harmless where nothing has changed yet.
-  //
-  // Awake for as long as it runs: a screen gone dark mid-battle reads as nothing recognised and ends the run. Checked to
-  // be the number Android stores, since it goes back through the shell.
+  // Awake for as long as it runs: a screen gone dark mid-battle reads as nothing recognised and ends the run. The
+  // setting is read first and put back as found on every way out, `restore` and the Ctrl-C handler in place before it
+  // is changed, and checked to be the number Android stores, since it goes back through the shell.
   const awake = new TextDecoder().decode(
     await transport.shell(['settings', 'get', 'global', 'stay_on_while_plugged_in']),
   );
   const before = /^\d+$/.test(awake.trim()) ? awake.trim() : '0';
-
-  // And the shape every position here was measured on. A phone that will not say its size is refused as it was found;
-  // an override already set is restored rather than reset, as the digits `wm size` answered.
-  const sizes = new TextDecoder().decode(await transport.shell(['wm', 'size']));
-  const physical = /Physical size: (\d+)x(\d+)/.exec(sizes);
-
-  if (!physical) {
-    throw new Error(`wm size answered ${JSON.stringify(sizes.trim())} rather than the screen's size`);
-  }
-
-  const override = /Override size: (\d+x\d+)/.exec(sizes)?.[1];
-  const shaped = streamShaped({ width: Number(physical[1]), height: Number(physical[2]) });
-
-  const restore = async () => {
-    await transport.shell(['settings', 'put', 'global', 'stay_on_while_plugged_in', before]);
-    await transport.shell(['wm', 'size', override ?? 'reset']);
-  };
-
-  // Recording only once the size is set, so that no frame is of the shape it replaced.
+  const restore = () => transport.shell(['settings', 'put', 'global', 'stay_on_while_plugged_in', before]);
   let screen: Screen | undefined;
 
   process.once('SIGINT', () => {
@@ -212,13 +187,13 @@ if (command === 'run') {
 
   try {
     await transport.shell(['svc', 'power', 'stayon', 'usb']);
-    await transport.shell(['wm', 'size', `${shaped.width}x${shaped.height}`]);
-    const recording = new Screen(() => screenrecord(options.serial));
-    screen = recording;
 
-    // A screenshot for the screen's size, which every position here is a fraction of.
-    const { width, height } = await device.screenshot();
-    const at = ([x, y]: readonly [number, number]): [number, number] => [x * width, y * height];
+    // A screenshot for the screen's size, which every tap is a fraction of and the stream takes its shape from.
+    const shot = await device.screenshot();
+    const at = ([x, y]: readonly [number, number]): [number, number] => [x * shot.width, y * shot.height];
+    const size = streamSize(shot);
+    const recording = new Screen(() => screenrecord(options.serial, size), size);
+    screen = recording;
 
     const phone: Phone = {
       frame: () => recording.latest()?.image,
@@ -265,7 +240,25 @@ if (command === 'run') {
     fail(`--seconds takes a whole number from 1 to ${RECORD_LIMIT_S}, screenrecord's own limit`);
   }
 
-  const recording = screenrecord(options.serial, seconds);
+  // The size `screenrecord` records at, an override where one is set and the screen's own otherwise, for the stream's
+  // shape: what a battle would decode.
+  let sizes: string;
+
+  try {
+    sizes = new TextDecoder().decode(await adbCli(options.serial).shell(['wm', 'size']));
+  } catch (error) {
+    console.error(`could not read the screen's size: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+
+  const [, width, height] = /Override size: (\d+)x(\d+)/.exec(sizes) ?? /Physical size: (\d+)x(\d+)/.exec(sizes) ?? [];
+
+  if (!width || !height) {
+    console.error(`wm size answered ${JSON.stringify(sizes.trim())} rather than the screen's size`);
+    process.exit(1);
+  }
+
+  const recording = screenrecord(options.serial, streamSize({ width: Number(width), height: Number(height) }), seconds);
   let stderr = '';
   recording.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
 

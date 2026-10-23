@@ -1,6 +1,6 @@
 /**
  * The bubble finder against minigames of five types, each against the game's own icon for its type: Kyogre's Hydro
- * Pump, Mamoswine's Avalanche, Giratina's Shadow Sneak, Tyranitar's Crunch and Mewtwo's Psychic. Each expectation is a box the bubbles
+ * Pump, Mamoswine's Avalanche, Giratina's Shadow Sneak, Tyranitar's Crunch and Mewtwo's Psychic, and a Dark Pulse off a Pixel 8 Pro. Each expectation is a box the bubbles
  * are drawn in on the frame, which the first swipe has to cross; the Get Ready! that comes before them has none.
  */
 
@@ -34,6 +34,7 @@ test.each([
   ['battle-minigame-giratina', 'GHOST', [0.4, 0.8, 0.5, 0.84]],
   ['battle-minigame-tyranitar', 'DARK', [0.2, 0.5, 0.56, 0.6]],
   ['battle-minigame-mewtwo', 'PSYCHIC', [0.65, 0.6, 0.9, 0.8]],
+  ['battle-minigame-pixel8-dark', 'DARK', [0.11, 0.59, 0.44, 0.81]],
 ] as const)('%s: the first swipe crosses the %s bubbles', (name, type, box) => {
   const [first] = bubbleSwipes(png(name), colour(type));
 

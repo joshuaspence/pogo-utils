@@ -145,3 +145,44 @@ test('scrolls a Battle tab whose PARTY went unread', async () => {
     ],
   });
 });
+
+/**
+ * The rest of the way round off that Pixel 8 Pro, at 1008×2244 rather than the Pixel 4 XL's shape, where a piece pinned to the
+ * wrong edge lands 0.005 to 0.02 of the height from where it is drawn: so its taps are held to 0.01 of where each was
+ * measured on the screenshot. One scroll down its Battle tab leaves the Training card under the ✗. The QR code and the
+ * trainer's name are painted over.
+ */
+const pixel8 = (name: string) => fixture(`menu-pixel8-${name}`);
+
+const at = (menu: Menu, x: number, y: number) =>
+  'tap' in menu && Math.abs(menu.tap[0] - x) < 0.01 && Math.abs(menu.tap[1] - y) < 0.01;
+
+test.each([
+  ['map', 'map', 0.5, 0.936],
+  ['training', 'training', 0.5, 0.809],
+  ['intro', 'intro', 0.5, 0.7215],
+  ['league', 'league', 0.545, 0.431],
+  ['party', 'party', 0.5, 0.871],
+] as const)('taps the %s on a Pixel 8 Pro', async (name, screen, x, y) => {
+  const menu = await readMenu(pixel8(name), { leader: 'candela', league: 'great', result: false });
+
+  expect(menu.screen).toBe(screen);
+  expect(at(menu, x, y)).toBe(true);
+});
+
+test('scrolls a Training card found under the ✗ rather than tap it', async () => {
+  expect(await readMenu(pixel8('training-low'), { leader: 'candela', league: 'great', result: false })).toEqual({
+    screen: 'battle-tab',
+    swipe: [
+      [0.5, 0.75],
+      [0.5, 0.35],
+    ],
+  });
+});
+
+test('taps the ✓ on a Pixel 8 Pro’s result', async () => {
+  const menu = await readMenu(fixture('other-pixel8-loss'), { leader: 'candela', league: 'great', result: true });
+
+  expect(menu.screen).toBe('result');
+  expect(at(menu, 0.5, 0.935)).toBe(true);
+});

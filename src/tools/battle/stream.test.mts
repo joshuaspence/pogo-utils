@@ -1,5 +1,5 @@
 /**
- * The shape a phone is set to, then the decoder and the hand-over between recordings, fed H.264 that `ffmpeg` makes up
+ * The size a phone is streamed at, then the decoder and the hand-over between recordings, fed H.264 that `ffmpeg` makes up
  * on the spot rather than a phone. Each clip is one flat colour, so which recording a frame came from is a question of
  * its first pixel.
  */
@@ -8,9 +8,11 @@ import { rgb } from '../inventory/png.mts';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { expect, test } from 'vitest';
-import { decodeFrames, Screen, STREAM_SIZE, streamShaped, type Recording } from './stream.mts';
+import { decodeFrames, Screen, streamSize, type Recording } from './stream.mts';
 
-const { width, height } = STREAM_SIZE;
+/** The stream a Pixel 4 XL sends, which these clips stand in for. */
+const size = streamSize({ width: 1440, height: 3040 });
+const { width, height } = size;
 
 /**
  * `seconds` of `colour` at 30 frames a second, as raw H.264 on stdout, the way `screenrecord` sends it. `zerolatency`
@@ -40,26 +42,17 @@ const clip = (colour: string, seconds: number): Recording =>
   );
 
 test.each([
-  [
-    { width: 1440, height: 3040 },
-    { width: 1440, height: 3040 },
-  ],
-  [
-    { width: 1008, height: 2244 },
-    { width: 1008, height: 2128 },
-  ],
-  [
-    { width: 1080, height: 2160 },
-    { width: 1023, height: 2160 },
-  ],
-])('shapes a %o screen as %o', (screen, shaped) => {
-  expect(streamShaped(screen)).toEqual(shaped);
+  [{ width: 1440, height: 3040 }, 760],
+  [{ width: 1008, height: 2244 }, 802],
+  [{ width: 1080, height: 2400 }, 800],
+])('streams a %o screen 360 wide by %i', (screen, tall) => {
+  expect(streamSize(screen)).toEqual({ width: 360, height: tall });
 });
 
 test('decodes every frame of a stream at the stream size', async () => {
   const frames = [];
 
-  for await (const frame of decodeFrames(clip('red', 1).stdout)) {
+  for await (const frame of decodeFrames(clip('red', 1).stdout, size)) {
     frames.push(frame);
   }
 
@@ -76,11 +69,15 @@ test('hands the screen to the next recording without going back to the last', as
   const recordings: Recording[] = [];
   const colours = ['red', 'blue'];
 
-  const screen = new Screen(() => {
-    const recording = clip(colours[recordings.length] ?? 'blue', 3);
-    recordings.push(recording);
-    return recording;
-  }, 1000);
+  const screen = new Screen(
+    () => {
+      const recording = clip(colours[recordings.length] ?? 'blue', 3);
+      recordings.push(recording);
+      return recording;
+    },
+    size,
+    1000,
+  );
 
   try {
     expect(rgb((await screen.first()).image, 10, 10)[0]).toBeGreaterThan(200);
@@ -97,8 +94,9 @@ test('hands the screen to the next recording without going back to the last', as
 });
 
 test('fails when a recording ends without a later one taking over', async () => {
-  const screen = new Screen(() =>
-    spawn('sh', ['-c', 'echo "Unable to get output buffers" >&2'], { stdio: ['ignore', 'pipe', 'pipe'] }),
+  const screen = new Screen(
+    () => spawn('sh', ['-c', 'echo "Unable to get output buffers" >&2'], { stdio: ['ignore', 'pipe', 'pipe'] }),
+    size,
   );
 
   try {
@@ -117,7 +115,7 @@ test('reports an ffmpeg it cannot find rather than throwing', async () => {
   process.env.PATH = '';
 
   try {
-    const frames = decodeFrames(h264);
+    const frames = decodeFrames(h264, size);
 
     await expect(frames.next()).rejects.toThrow('ffmpeg failed: spawn ffmpeg ENOENT');
   } finally {
@@ -129,12 +127,16 @@ test('stops a recording that has started but not yet taken over when closed', as
   const recordings: Recording[] = [];
 
   // The second never sends a frame, so it is still waiting to take over when the screen closes.
-  const screen = new Screen(() => {
-    const recording =
-      recordings.length === 0 ? clip('red', 5) : spawn('sleep', ['30'], { stdio: ['ignore', 'pipe', 'pipe'] });
-    recordings.push(recording);
-    return recording;
-  }, 500);
+  const screen = new Screen(
+    () => {
+      const recording =
+        recordings.length === 0 ? clip('red', 5) : spawn('sleep', ['30'], { stdio: ['ignore', 'pipe', 'pipe'] });
+      recordings.push(recording);
+      return recording;
+    },
+    size,
+    500,
+  );
 
   await screen.first();
   await sleep(700);
@@ -147,7 +149,7 @@ test('stops a recording that has started but not yet taken over when closed', as
 });
 
 test('fails with the reason when a recording cannot start', async () => {
-  const screen = new Screen(() => spawn('no-such-recorder', [], { stdio: ['ignore', 'pipe', 'pipe'] }));
+  const screen = new Screen(() => spawn('no-such-recorder', [], { stdio: ['ignore', 'pipe', 'pipe'] }), size);
 
   try {
     await expect(screen.first(5000)).rejects.toThrow(/screen recording ended: spawn no-such-recorder ENOENT/);
