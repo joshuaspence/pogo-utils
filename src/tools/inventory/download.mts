@@ -67,7 +67,7 @@ interface Template {
       forms?: { form: string; isCostume?: boolean }[];
     };
     moveSettings?: object;
-    combatMove?: { type: string; power?: number; energyDelta?: number };
+    combatMove?: { type: string; power?: number; energyDelta?: number; durationTurns?: number };
     typeEffective?: { attackType: string; attackScalar: number[] };
     playerLevel?: { cpMultiplier: number[] };
   };
@@ -209,6 +209,7 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
         type: typeName(data.combatMove.type),
         power: data.combatMove.power ?? 0,
         energy: data.combatMove.energyDelta ?? 0,
+        turns: (data.combatMove.durationTurns ?? 0) + 1,
       };
     }
   }
