@@ -121,8 +121,18 @@ const SCROLL: readonly [Point, Point] = [
   [0.5, 0.35],
 ];
 
-/** The Battle tab's header, BATTLE and PARTY, in the band at the top of the screen. */
+/**
+ * The Battle tab's header, BATTLE and PARTY, in the band at the top of the screen. Either word will do, OCR having read
+ * only BATTLE off a Pixel 8 Pro's, the unselected PARTY being grey on the teal; nothing else draws BATTLE that high, the
+ * main menu's being halfway down and the leader's BATTLE three quarters.
+ */
 const HEADER = 0.1;
+
+/**
+ * The main menu's other labels, any two of which beside BATTLE make it the main menu: OCR has missed ITEMS where
+ * PGSharp's toolbar was open down the screen's left edge, and the Battle tab draws none of them.
+ */
+const MAIN_LABELS = ['pokedex', 'pokemon', 'shop', 'items'];
 
 const centre = (line: Line, image: Image): Point => [
   (line.left + line.width / 2) / image.width,
@@ -188,14 +198,13 @@ export async function readMenu(
   const words = (word: string) => lines.filter((line) => fold(line.text) === word);
   const [battle] = words('battle');
 
-  // The labels are only the main menu's beside ITEMS and SHOP; BATTLE alone is on the Battle tab twice over.
-  if (battle && words('items').length > 0 && words('shop').length > 0) {
+  if (battle && MAIN_LABELS.filter((label) => words(label).length > 0).length >= 2) {
     const [x, y] = centre(battle, image);
 
     return { screen: 'main', tap: [x, y + LABEL_ABOVE] };
   }
 
-  if (words('party').some((line) => centre(line, image)[1] < HEADER)) {
+  if ([...words('battle'), ...words('party')].some((line) => centre(line, image)[1] < HEADER)) {
     return { screen: 'battle-tab', swipe: SCROLL };
   }
 
