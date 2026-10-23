@@ -14,6 +14,7 @@
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
  *   A flag handed to a command whose line omits it is refused rather than ignored — see `HONOURED`.
+ *   `help`, or `--help` beside any command, prints this.
  *
  * Automating input breaks Niantic's terms of service, and unlike `pnpm inventory` this does not only read: it taps
  * through battles. Run it on an account whose loss you would accept.
@@ -48,10 +49,13 @@ const { values: options, positionals } = parseArgs({
     'verbose': { type: 'boolean', default: false },
     'seconds': { type: 'string', default: '30' },
     'serial': { type: 'string' },
+    'help': { type: 'boolean', default: false },
   },
 });
 
-const [command = 'help', ...rest] = positionals;
+// `--help` stands in for the command rather than going beside it, so `run --help` prints the usage instead of being
+// refused as a flag `run` does not act on.
+const [command = 'help', ...rest] = options.help ? [] : positionals;
 
 /** The synopsis out of this file's own header, as `inventory.mts` reads its own. */
 const USAGE = readFileSync(new URL(import.meta.url), 'utf8')

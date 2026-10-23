@@ -26,6 +26,7 @@
  *   pnpm inventory parse [--verbose] [--refresh] [--config FILE] FILE.png…
  *                       the same for screenshots already saved, with no phone needed
  *   A flag handed to a command whose line omits it is refused rather than ignored — see `HONOURED`.
+ *   `help`, or `--help` beside any command, prints this.
  *
  * A scroll capture drags the screen up until it stops moving and stitches the frames into one tall image, which is how
  * a screen longer than the phone is seen whole. The stitch is **not** given to the other readers, and that is a limit
@@ -160,10 +161,13 @@ const { values: options, positionals } = parseArgs({
     'serial': { type: 'string' },
     'refresh': { type: 'boolean', default: false },
     'verbose': { type: 'boolean', default: false },
+    'help': { type: 'boolean', default: false },
   },
 });
 
-const [command = 'help', ...rest] = positionals;
+// `--help` stands in for the command rather than going beside it, so `scan --help` prints the usage instead of being
+// refused as a flag `scan` does not act on.
+const [command = 'help', ...rest] = options.help ? [] : positionals;
 
 /**
  * The synopsis out of this file's own header. Read once rather than where it is printed, because an argument error

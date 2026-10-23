@@ -160,6 +160,17 @@ test('`help` prints the synopsis and exits 0', async () => {
   expect(stdout).toBe('');
 });
 
+/** `--help` is `help` wherever it goes, rather than a flag refused because the command beside it does not act on it. */
+test.each([[[]], [['scan']], [['parse', 'x.png']]])(
+  '`--help` after %j prints the synopsis and exits 0',
+  async (args) => {
+    const { stdout, stderr } = await run(process.execPath, [SCRIPT, ...args, '--help']);
+
+    expect(stderr).toContain('pnpm inventory scan');
+    expect(stdout).toBe('');
+  },
+);
+
 /**
  * That `HONOURED` names every flag `parseArgs` accepts and invents none: a flag in neither list is one no command acts
  * on, and one in the table but not the options is one no command could be given.
@@ -167,10 +178,14 @@ test('`help` prints the synopsis and exits 0', async () => {
  * It is also what keeps the two patterns above honest. A source reader that stops matching returns *less*, so the
  * comparisons would agree about a shrinking set; here the union has to equal the options block, which a half-read
  * table cannot do.
+ *
+ * `--help` is the one flag outside it, standing in for the `help` command rather than being acted on by one.
  */
 test('`HONOURED` accounts for every flag `parseArgs` accepts, and no others', () => {
+  const acted = FLAGS.filter((flag) => flag !== 'help');
+
   expect(TABLE, 'the `HONOURED` table was not found, so every claim about commands below is vacuous').not.toBe('');
-  expect([...new Set([...HONOURED.values()].flatMap((flags) => [...flags]))].sort()).toStrictEqual([...FLAGS].sort());
+  expect([...new Set([...HONOURED.values()].flatMap((flags) => [...flags]))].sort()).toStrictEqual(acted.sort());
 });
 
 /**
