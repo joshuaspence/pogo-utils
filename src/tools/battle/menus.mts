@@ -29,8 +29,14 @@ export type League = (typeof LEAGUES)[number];
  */
 export type Mode = { mode: 'training'; leader: Leader; league: League } | { mode: 'gbl'; league: string };
 
+/** Each Training league's CP cap, none being Master League's. */
+export const CAPS: Readonly<Record<League, number | null>> = { great: 1500, ultra: 2500, master: null };
+
 export type Menu =
-  | { screen: 'map' | 'main' | 'training' | 'gbl' | 'welcome' | 'intro' | 'league' | 'party' | 'result'; tap: Point }
+  | { screen: 'map' | 'main' | 'training' | 'gbl' | 'welcome' | 'intro' | 'league' | 'result'; tap: Point }
+
+  // The league's CP cap as GO Battle League's party screen states it: `null` for no limit, `undefined` where unread.
+  | { screen: 'party'; tap: Point; cap?: number | null }
   | { screen: 'battle-tab' | 'league'; swipe: readonly [Point, Point] }
   | { screen: 'matchmaking' | 'no-battle' | 'unknown' };
 
@@ -210,10 +216,30 @@ function buttonBelow(image: Image, line: Line): Point | undefined {
  * buttons' green on a white panel, as USE THIS PARTY is, at 0.865 to 0.925 of the height to the party button's 0.87, so
  * only its words tell it from the party. Found under them the way the card's BATTLE is.
  */
-async function welcomeButton(image: Image, read: (image: Image) => Promise<Line[]>): Promise<Point | undefined> {
-  const title = (await read(image)).find((line) => fold(line.text).startsWith('welcome to the go'));
+function welcomeButton(image: Image, lines: readonly Line[]): Point | undefined {
+  const title = lines.find((line) => fold(line.text).startsWith('welcome to the go'));
 
   return title && buttonBelow(image, title);
+}
+
+const MAX_CP = 'max cp per pokemon';
+
+/**
+ * The CP cap GO Battle League's party screen states under the league's name, `Max CP per Pokémon: 2,500` or `No
+ * limit`, which OCR reads as `max cp per pokemon 2 500` and the cup's own title would not give: `fantasy cup` says
+ * nothing of a cap, `Great League Edition` only where the title runs on. `undefined` where the line went unread.
+ */
+function capOf(lines: readonly Line[]): number | null | undefined {
+  const line = lines.map((each) => fold(each.text)).find((text) => text.startsWith(MAX_CP));
+  const stated = line?.slice(MAX_CP.length).trim();
+
+  if (stated === 'no limit') {
+    return null;
+  }
+
+  const cap = Number(stated?.replaceAll(' ', ''));
+
+  return Number.isInteger(cap) && cap > 0 ? cap : undefined;
 }
 
 /** The Battle tab's scroll the other way, back up to GO Battle League's card at its top. */
@@ -264,7 +290,7 @@ function gblLeagues(lines: readonly Line[], image: Image): { title: string; tap:
   const upcoming = folded.find(({ text }) => text.startsWith('see what s coming next'));
 
   const caps = folded.filter(
-    ({ line, text }) => text.startsWith('max cp per pokemon') && (!upcoming || line.top < upcoming.line.top),
+    ({ line, text }) => text.startsWith(MAX_CP) && (!upcoming || line.top < upcoming.line.top),
   );
 
   if (!header && !upcoming && caps.length === 0) {
@@ -312,9 +338,14 @@ export async function readMenu(
   }
 
   if (green(image, party) && panel(image, party[1]) && !teal(image)) {
-    const welcome = training ? undefined : await welcomeButton(image, read);
+    if (training) {
+      return { screen: 'party', tap: party };
+    }
 
-    return welcome ? { screen: 'welcome', tap: welcome } : { screen: 'party', tap: party };
+    const lines = await read(image);
+    const welcome = welcomeButton(image, lines);
+
+    return welcome ? { screen: 'welcome', tap: welcome } : { screen: 'party', tap: party, cap: capOf(lines) };
   }
 
   if (pokeBall(image)) {

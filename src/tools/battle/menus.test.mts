@@ -308,10 +308,26 @@ test('scrolls the league list to its top where it opened part way down', async (
   });
 });
 
-test("taps USE THIS PARTY on GO Battle League's recommended party", async () => {
+// Master League's party says `No limit` where Ultra's says 2,500: read off the same screen, its line rewritten.
+test('reads no cap off a GO Battle League party with no limit', async () => {
+  const unlimited = async (image: Parameters<typeof ocr>[0]) =>
+    (await ocr(image)).map((line) =>
+      fold(line.text).startsWith('max cp') ? { ...line, text: 'Max CP per Pokémon: No limit' } : line,
+    );
+
+  expect(await readMenu(fixture('menu-gbl-party'), { ...GBL, league: 'master' }, unlimited)).toEqual({
+    screen: 'party',
+    tap: [0.5, 0.87],
+    cap: null,
+  });
+});
+
+// Ultra League's `Max CP per Pokémon: 2,500` under its name, which a cup's title does not say.
+test("taps USE THIS PARTY on GO Battle League's recommended party, reading the league's cap", async () => {
   expect(await readMenu(fixture('menu-gbl-party'), { ...GBL, league: 'ultra' })).toEqual({
     screen: 'party',
     tap: [0.5, 0.87],
+    cap: 2500,
   });
 });
 
