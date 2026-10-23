@@ -1,13 +1,14 @@
 /**
- * The decoder and the hand-over between recordings, fed H.264 that `ffmpeg` makes up on the spot rather than a phone.
- * Each clip is one flat colour, so which recording a frame came from is a question of its first pixel.
+ * The shape a phone is set to, then the decoder and the hand-over between recordings, fed H.264 that `ffmpeg` makes up
+ * on the spot rather than a phone. Each clip is one flat colour, so which recording a frame came from is a question of
+ * its first pixel.
  */
 
 import { rgb } from '../inventory/png.mts';
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { expect, test } from 'vitest';
-import { decodeFrames, Screen, STREAM_SIZE, type Recording } from './stream.mts';
+import { decodeFrames, Screen, STREAM_SIZE, streamShaped, type Recording } from './stream.mts';
 
 const { width, height } = STREAM_SIZE;
 
@@ -37,6 +38,23 @@ const clip = (colour: string, seconds: number): Recording =>
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
+
+test.each([
+  [
+    { width: 1440, height: 3040 },
+    { width: 1440, height: 3040 },
+  ],
+  [
+    { width: 1008, height: 2244 },
+    { width: 1008, height: 2128 },
+  ],
+  [
+    { width: 1080, height: 2160 },
+    { width: 1023, height: 2160 },
+  ],
+])('shapes a %o screen as %o', (screen, shaped) => {
+  expect(streamShaped(screen)).toEqual(shaped);
+});
 
 test('decodes every frame of a stream at the stream size', async () => {
   const frames = [];

@@ -596,8 +596,9 @@ type, and swipes along each chain of them, sweeping rows only where none are fou
 move is coming, so it takes a shield unless none of the charged moves the opponent's species can have would be super
 effective — and whenever it does not know both species. Training has no rematch, so between battles it taps its way back
 round — the result's ✓, the leader, BATTLE, the league, then USE THIS PARTY on the game's recommended party. It keeps
-the screen awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20
-seconds it stops rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
+the screen awake while it runs and sets it with `wm size` to the Pixel 4 XL's shape, which every position it reads and
+taps was measured on; both are put back after. Where nothing on screen has been recognised for 20 seconds it stops
+rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
 
 A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
 `screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`
