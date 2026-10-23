@@ -8,8 +8,9 @@
  * An anchor is measured, not guessed: from where one piece sits on two shapes, `(f₂ - f₁ k) / (1 - k)`, with `k` as
  * `down` takes it. Measured that way on a Pixel 8 Pro at 1008×2244 against the Pixel 4 XL: the HUD and its names at 0,
  * the charged-move buttons, their labels, the shield prompt, the map's Poké Ball and the round button at the foot at 1,
- * the leader's BATTLE at 0.507, USE THIS PARTY at 0.90, and the party's cards at their own height, the panel holding
- * them stretching by as much as the screen does.
+ * the leader's BATTLE at 0.507, USE THIS PARTY at 0.90, and the party's cards at 0.69. Measured means by the reader
+ * that uses it, at the pixel: the cards' anchor judged by eye, as their own height, was 5 px out, which took a card's
+ * outline from leading the next species by 0.10 or more to under the margin it is held to.
  *
  * Across needs nothing of this: a fraction of the width is the same fraction on every shape.
  */
