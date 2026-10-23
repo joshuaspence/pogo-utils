@@ -1,0 +1,184 @@
+{
+  "formats": [
+    { "title": "P!P Championship Series", "cup": "championshipseries", "cp": 1500 },
+    { "title": "Mega Great League", "cup": "mega", "cp": 1500 },
+    { "title": "Mega Ultra League", "cup": "mega", "cp": 2500 },
+    { "title": "Mega Master League", "cup": "mega", "cp": 10000 },
+    { "title": "Little Cup", "cup": "little", "cp": 500 },
+    { "title": "Fantasy Cup", "cup": "fantasy", "cp": 1500 },
+    { "title": "LAIC 2027 Championship Series Cup", "cup": "laic2027", "cp": 1500 },
+    { "title": "Battle Frontier (Spectral)", "cup": "spectral", "cp": 1500 },
+    { "title": "Battle Frontier (Cauldron)", "cup": "cauldron", "cp": 2500 },
+    { "title": "Battle Frontier (Master)", "cup": "battlefrontiermaster", "cp": 10000 },
+    { "title": "Devon Trail Cup", "cup": "trail", "cp": 1500 },
+    { "title": "Gymbreakers Invitational Season 7", "cup": "gymbreakers", "cp": 1500 },
+    { "title": "Master Premier Cup", "cup": "premier", "cp": 10000 },
+    { "title": "Little Cup", "cup": "little", "cp": 500 },
+    { "title": "Catch Cup", "cup": "catch", "cp": 1500 },
+    { "title": "Custom", "cup": "custom", "cp": 1500 }
+  ],
+  "pokemon": [
+    { "speciesId": "marowak", "dex": 105 },
+    { "speciesId": "marowak_alolan", "dex": 105 },
+    { "speciesId": "marowak_alolan_shadow", "dex": 105 },
+    { "speciesId": "marowak_shadow", "dex": 105 },
+    { "speciesId": "medicham", "dex": 308 },
+    { "speciesId": "registeel", "dex": 379 },
+    { "speciesId": "stunfisk_galarian", "dex": 618 }
+  ],
+  "moves": [
+    { "moveId": "BONE_CLUB", "name": "Bone Club" },
+    { "moveId": "COUNTER", "name": "Counter" },
+    { "moveId": "DIG", "name": "Dig" },
+    { "moveId": "DYNAMIC_PUNCH", "name": "Dynamic Punch" },
+    { "moveId": "EARTHQUAKE", "name": "Earthquake" },
+    { "moveId": "FIRE_BLAST", "name": "Fire Blast" },
+    { "moveId": "FIRE_SPIN", "name": "Fire Spin" },
+    { "moveId": "FLAME_WHEEL", "name": "Flame Wheel" },
+    { "moveId": "FLASH_CANNON", "name": "Flash Cannon" },
+    { "moveId": "FOCUS_BLAST", "name": "Focus Blast" },
+    { "moveId": "FRUSTRATION", "name": "Frustration" },
+    { "moveId": "HEX", "name": "Hex" },
+    { "moveId": "HIDDEN_POWER_BUG", "name": "Hidden Power (Bug)" },
+    { "moveId": "HYPER_BEAM", "name": "Hyper Beam" },
+    { "moveId": "ICE_PUNCH", "name": "Ice Punch" },
+    { "moveId": "LOCK_ON", "name": "Lock On" },
+    { "moveId": "METAL_CLAW", "name": "Metal Claw" },
+    { "moveId": "MUDDY_WATER", "name": "Muddy Water" },
+    { "moveId": "MUD_SHOT", "name": "Mud Shot" },
+    { "moveId": "MUD_SLAP", "name": "Mud Slap" },
+    { "moveId": "POWER_UP_PUNCH", "name": "Power-Up Punch" },
+    { "moveId": "PSYCHIC", "name": "Psychic" },
+    { "moveId": "PSYCHO_CUT", "name": "Psycho Cut" },
+    { "moveId": "RETURN", "name": "Return" },
+    { "moveId": "ROCK_SLIDE", "name": "Rock Slide" },
+    { "moveId": "ROCK_SMASH", "name": "Rock Smash" },
+    { "moveId": "SHADOW_BALL", "name": "Shadow Ball" },
+    { "moveId": "SHADOW_BONE", "name": "Shadow Bone" },
+    { "moveId": "ZAP_CANNON", "name": "Zap Cannon" }
+  ],
+  "rankings": [
+    {
+      "speciesId": "marowak",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "MUD_SLAP", "uses": 113908 },
+          { "moveId": "ROCK_SMASH", "uses": 24392 }
+        ],
+        "chargedMoves": [
+          { "moveId": "BONE_CLUB", "uses": 62446 },
+          { "moveId": "ROCK_SLIDE", "uses": 39142 },
+          { "moveId": "EARTHQUAKE", "uses": 12269 },
+          { "moveId": "RETURN", "uses": 12196 },
+          { "moveId": "DIG", "uses": 12101 }
+        ]
+      },
+      "moveset": ["MUD_SLAP", "BONE_CLUB", "ROCK_SLIDE"]
+    },
+    {
+      "speciesId": "medicham",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "PSYCHO_CUT", "uses": 80004 },
+          { "moveId": "COUNTER", "uses": 58296 }
+        ],
+        "chargedMoves": [
+          { "moveId": "DYNAMIC_PUNCH", "uses": 59592 },
+          { "moveId": "ICE_PUNCH", "uses": 42520 },
+          { "moveId": "PSYCHIC", "uses": 23030 },
+          { "moveId": "POWER_UP_PUNCH", "uses": 13203 }
+        ]
+      },
+      "moveset": ["PSYCHO_CUT", "ICE_PUNCH", "DYNAMIC_PUNCH"]
+    },
+    {
+      "speciesId": "marowak_shadow",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "MUD_SLAP", "uses": 113813 },
+          { "moveId": "ROCK_SMASH", "uses": 24487 }
+        ],
+        "chargedMoves": [
+          { "moveId": "BONE_CLUB", "uses": 67647 },
+          { "moveId": "ROCK_SLIDE", "uses": 43978 },
+          { "moveId": "EARTHQUAKE", "uses": 13645 },
+          { "moveId": "DIG", "uses": 12913 },
+          { "moveId": "FRUSTRATION", "uses": 0 }
+        ]
+      },
+      "moveset": ["MUD_SLAP", "BONE_CLUB", "ROCK_SLIDE"]
+    },
+    {
+      "speciesId": "registeel",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "LOCK_ON", "uses": 70698 },
+          { "moveId": "METAL_CLAW", "uses": 48141 },
+          { "moveId": "ROCK_SMASH", "uses": 19507 }
+        ],
+        "chargedMoves": [
+          { "moveId": "FLASH_CANNON", "uses": 38710 },
+          { "moveId": "ZAP_CANNON", "uses": 33346 },
+          { "moveId": "FOCUS_BLAST", "uses": 32555 },
+          { "moveId": "RETURN", "uses": 24199 },
+          { "moveId": "HYPER_BEAM", "uses": 9301 }
+        ]
+      },
+      "moveset": ["LOCK_ON", "FLASH_CANNON", "FOCUS_BLAST"]
+    },
+    {
+      "speciesId": "stunfisk_galarian",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "MUD_SHOT", "uses": 80217 },
+          { "moveId": "METAL_CLAW", "uses": 58083 }
+        ],
+        "chargedMoves": [
+          { "moveId": "ROCK_SLIDE", "uses": 47386 },
+          { "moveId": "EARTHQUAKE", "uses": 39062 },
+          { "moveId": "MUDDY_WATER", "uses": 26989 },
+          { "moveId": "FLASH_CANNON", "uses": 24884 }
+        ]
+      },
+      "moveset": ["MUD_SHOT", "ROCK_SLIDE", "EARTHQUAKE"]
+    },
+    {
+      "speciesId": "marowak_alolan",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "HEX", "uses": 68505 },
+          { "moveId": "FIRE_SPIN", "uses": 55715 },
+          { "moveId": "ROCK_SMASH", "uses": 14059 }
+        ],
+        "chargedMoves": [
+          { "moveId": "SHADOW_BONE", "uses": 37394 },
+          { "moveId": "FLAME_WHEEL", "uses": 36145 },
+          { "moveId": "BONE_CLUB", "uses": 35651 },
+          { "moveId": "SHADOW_BALL", "uses": 14039 },
+          { "moveId": "RETURN", "uses": 9600 },
+          { "moveId": "FIRE_BLAST", "uses": 5572 }
+        ]
+      },
+      "moveset": ["FIRE_SPIN", "BONE_CLUB", "SHADOW_BONE"]
+    },
+    {
+      "speciesId": "marowak_alolan_shadow",
+      "moves": {
+        "fastMoves": [
+          { "moveId": "HEX", "uses": 68860 },
+          { "moveId": "FIRE_SPIN", "uses": 55531 },
+          { "moveId": "ROCK_SMASH", "uses": 13837 }
+        ],
+        "chargedMoves": [
+          { "moveId": "SHADOW_BONE", "uses": 40103 },
+          { "moveId": "FLAME_WHEEL", "uses": 39052 },
+          { "moveId": "BONE_CLUB", "uses": 38100 },
+          { "moveId": "SHADOW_BALL", "uses": 15126 },
+          { "moveId": "FIRE_BLAST", "uses": 5982 },
+          { "moveId": "FRUSTRATION", "uses": 0 }
+        ]
+      },
+      "moveset": ["FIRE_SPIN", "SHADOW_BONE", "BONE_CLUB"]
+    }
+  ]
+}

@@ -57,6 +57,12 @@ export interface CombatMove {
 
   /** What the move does to its user's energy: what a fast move gains, and what a charged move costs, as a negative. */
   energy: number;
+
+  /**
+   * How many half-second turns a fast move takes, from one to five: the game master's `durationTurns`, which counts the
+   * turns after the first and is left out where there are none. A charged move is 1, its time being the minigame's.
+   */
+  turns: number;
 }
 
 export interface GameData {

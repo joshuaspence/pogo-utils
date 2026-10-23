@@ -73,11 +73,18 @@ test('the type chart reads in the order the game deals damage', () => {
  * The trainer-battle numbers rather than the raid ones, and the ordinary move where a name is several: the game's
  * battle screen prints only Hydro Pump, which is 130 for everyone but the Blastoise that has its own 90.
  */
-test('a move is read with its trainer-battle power and energy', () => {
-  expect(DATA.combat['Hydro Pump']).toStrictEqual({ type: 'Water', power: 130, energy: -75 });
-  expect(DATA.combat['Avalanche']).toStrictEqual({ type: 'Ice', power: 90, energy: -45 });
-  expect(DATA.combat['Shadow Sneak']).toStrictEqual({ type: 'Ghost', power: 75, energy: -50 });
-  expect(DATA.combat['Mud Shot'], 'a fast move gains energy').toStrictEqual({ type: 'Ground', power: 3, energy: 9 });
+test('a move is read with its trainer-battle power, energy and turns', () => {
+  expect(DATA.combat['Hydro Pump']).toStrictEqual({ type: 'Water', power: 130, energy: -75, turns: 1 });
+  expect(DATA.combat['Avalanche']).toStrictEqual({ type: 'Ice', power: 90, energy: -45, turns: 1 });
+  expect(DATA.combat['Shadow Sneak']).toStrictEqual({ type: 'Ghost', power: 75, energy: -50, turns: 1 });
+  expect(DATA.combat['Mud Shot'], 'a fast move gains energy').toStrictEqual({
+    type: 'Ground',
+    power: 3,
+    energy: 9,
+    turns: 2,
+  });
+  expect(DATA.combat['Lock-On']?.turns, 'one turn, its `durationTurns` left out').toBe(1);
+  expect(DATA.combat['Confusion']?.turns).toBe(4);
 });
 
 /**
