@@ -33,17 +33,6 @@
     "added": "2026-10-19T22:36:12.344Z"
   },
   {
-    "eventID": "dialga-in-5-star-raid-battles-october-2026",
-    "name": "Dialga in 5-star Raid Battles",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/dialga-in-5-star-raid-battles-october-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/dialgaraids.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
     "eventID": "dynamax-trails-2026",
     "name": "Dynamax Trails",
     "eventType": "event",
@@ -286,17 +275,6 @@
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
-    "eventID": "mega-dragonite-in-mega-raids-october-2026",
-    "name": "Mega Dragonite in Mega Raids",
-    "eventType": "raid-battles",
-    "heading": "Raid Battles",
-    "link": "https://leekduck.com/events/mega-dragonite-in-mega-raids-october-2026/",
-    "image": "https://cdn.leekduck.com/assets/img/events/mega-default.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
-  },
-  {
     "eventID": "mega-metagross-in-mega-raids-november-2026",
     "name": "Mega Metagross in Mega Raids",
     "eventType": "raid-battles",
@@ -515,17 +493,6 @@
     "start": "2026-10-25T02:30:00.000Z",
     "end": "2026-10-25T06:59:59.000Z",
     "added": "2026-10-19T22:36:12.344Z"
-  },
-  {
-    "eventID": "pokemon-tcg-30th-celebration",
-    "name": "Pokémon TCG: 30th Celebration",
-    "eventType": "event",
-    "heading": "Event",
-    "link": "https://leekduck.com/events/pokemon-tcg-30th-celebration/",
-    "image": "https://cdn.leekduck.com/assets/img/events/article-images/2026/2026-09-27-pokemon-tcg-30th-celebration/pokemon-tcg-30th-celebration.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
   },
   {
     "eventID": "pokemon-x-adidas-2026",
