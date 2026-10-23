@@ -35,7 +35,7 @@ jobs:
           lfs: true
 
       # Restored from the Actions cache, so a slow Ubuntu mirror only costs the run that misses it.
-      - uses: 'awalsh128/cache-apt-pkgs-action@v1'
+      - uses: 'awalsh128/cache-apt-pkgs-action@v1.6.3'
         with:
           packages: 'ffmpeg tesseract-ocr tesseract-ocr-eng'
 
