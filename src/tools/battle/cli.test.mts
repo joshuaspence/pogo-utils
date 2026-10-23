@@ -33,6 +33,13 @@ test('help prints the usage out of the header', async () => {
   expect(stdout).toContain('pnpm battle record [--seconds N] [--serial SERIAL] OUT');
 });
 
+test.each([[[]], [['run']], [['record', 'out.h264']]])('--help after %j prints the usage', async (args) => {
+  const { code, stdout } = await battle(...args, '--help');
+
+  expect(code).toBe(0);
+  expect(stdout).toContain('pnpm battle record [--seconds N] [--serial SERIAL] OUT');
+});
+
 test('refuses a flag it does not know', async () => {
   const { code, stderr } = await battle('record', '--seconds=5', '--loud', 'out.h264');
 
