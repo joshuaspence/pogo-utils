@@ -121,3 +121,27 @@ test.each(['menu-unknown-medal', 'menu-unknown-loss'])('waits on %s, before the 
     screen: 'unknown',
   });
 });
+
+/**
+ * Off a Pixel 8 Pro, two screens whose OCR missed the word they were told by: the main menu's ITEMS, with PGSharp's
+ * toolbar open down its left edge, and the Battle tab's PARTY, grey on its teal header. The tab's QR code is painted
+ * over, and its Training card is under the ✗, so it is the header alone that says what it is.
+ */
+test('taps BATTLE on a main menu whose ITEMS went unread', async () => {
+  const menu = await readMenu(fixture('menu-pixel8-main'), { leader: 'candela', league: 'great', result: false });
+
+  expect(menu.screen).toBe('main');
+  expect(near(menu, 0.777, 0.62)).toBe(true);
+});
+
+test('scrolls a Battle tab whose PARTY went unread', async () => {
+  expect(
+    await readMenu(fixture('menu-pixel8-battle-tab'), { leader: 'candela', league: 'great', result: false }),
+  ).toEqual({
+    screen: 'battle-tab',
+    swipe: [
+      [0.5, 0.75],
+      [0.5, 0.35],
+    ],
+  });
+});
