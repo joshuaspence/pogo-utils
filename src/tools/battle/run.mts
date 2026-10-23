@@ -7,7 +7,7 @@
 
 import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
-import { readMenu, type Mode } from './menus.mts';
+import { readMenu, type Menu, type Mode } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
@@ -38,7 +38,9 @@ export const LOST_MS = 20_000;
 
 /**
  * How long a screen must read as `other` before it is screenshot as a menu. A battle shows `other` for a second or two
- * at a time — a banner over the HUD, the opponent's charged move — and a screenshot costs one, with OCR on top.
+ * at a time — a banner over the HUD, the opponent's charged move — and a screenshot costs one, with OCR on top. The read
+ * runs beside the battle rather than holding it up: awaited, it left the battle unplayed for as long as the screenshot
+ * and OCR took after every charged move, the loop learning only then that the battle had come back.
  */
 const MENU_AFTER_MS = 1_500;
 
@@ -56,6 +58,11 @@ const READ_MS = 3_000;
 
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
+
+/** A menu read run beside the battle: `done` once its screenshot has been taken and read, or has failed. */
+interface Reading {
+  done?: { screenshot: Image; menu: Menu } | { error: unknown };
+}
 
 export class Lost extends Error {
   readonly frames: readonly Image[];
@@ -95,6 +102,9 @@ export async function run(
   let battling = false;
   let known = clock.now();
   let otherSince: number | undefined;
+
+  // The menu read under way, if any: settled once its screenshot is taken and read, or failed.
+  let reading: Reading | undefined;
   let frames = 0;
   const kept: Image[] = [];
   let party: (string | null)[] = [];
@@ -178,6 +188,9 @@ export async function run(
       prompt = state === 'switch' ? prompt : undefined;
       otherSince = undefined;
 
+      // Whatever the read under way finds, it is of a screen the battle has since come back from.
+      reading = undefined;
+
       // The switch prompt's cards are the slots not fainted bar the one out, in party order.
       if (state === 'switch' && !prompt) {
         const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
@@ -234,9 +247,31 @@ export async function run(
     player.next(state, clock.now());
     otherSince ??= clock.now();
 
-    if (clock.now() - otherSince >= MENU_AFTER_MS) {
-      const screenshot = await phone.screenshot();
-      const read = await readMenu(screenshot, { ...mode, result: battling });
+    if (clock.now() - otherSince >= MENU_AFTER_MS && !reading) {
+      const started: Reading = {};
+      const result = battling;
+      reading = started;
+
+      void (async () => {
+        const screenshot = await phone.screenshot();
+
+        return { screenshot, menu: await readMenu(screenshot, { ...mode, result }) };
+      })().then(
+        (done) => (started.done = done),
+        (error: unknown) => (started.done = { error }),
+      );
+    }
+
+    const done = reading?.done;
+
+    if (done) {
+      reading = undefined;
+
+      if ('error' in done) {
+        throw done.error;
+      }
+
+      const { screenshot, menu: read } = done;
 
       // GO Battle League never comes back to the map of itself once a battle has been played: a Poké Ball there is the
       // reward encounter's, which is left for the player rather than tapped.

@@ -16,7 +16,23 @@ import { silhouetteOfIcon } from './party.mts';
 import { type Point } from './play.mts';
 import { Lost, LOST_MS, run, type Clock, type Phone } from './run.mts';
 
-beforeAll(() => useEngine(tesseractCli));
+/**
+ * OCR under way, which the scripted clock waits on rather than passing: real Tesseract takes real milliseconds, which the
+ * run's loop, no longer awaiting the menu it reads, would otherwise spend as seconds of scripted time.
+ */
+const reading = new Set<Promise<string>>();
+
+beforeAll(() =>
+  useEngine({
+    tsv: (...args) => {
+      const read = tesseractCli.tsv(...args);
+      reading.add(read);
+      void read.finally(() => reading.delete(read)).catch(() => {});
+
+      return read;
+    },
+  }),
+);
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -59,13 +75,26 @@ interface Scene {
 function scripted(
   scenes: Record<string, Scene>,
   start: string,
-): { phone: Phone; clock: Clock; taps: string[]; strokes: { scene: string; from: Point; to: Point }[] } {
+): { phone: Phone; clock: Clock; taps: string[]; strokes: { scene: string; from: Point; to: Point; at: number }[] } {
   let time = 0;
   let current = start;
   let entered = 0;
   let swiped = 0;
   const taps: string[] = [];
-  const strokes: { scene: string; from: Point; to: Point }[] = [];
+  const strokes: { scene: string; from: Point; to: Point; at: number }[] = [];
+
+  // Screenshots taken and not yet handed back: a second's work each, which passes on the run's clock rather than
+  // holding it, as a real screenshot does while the stream goes on.
+  const developing: { due: number; deliver: () => void }[] = [];
+
+  const advance = (ms: number) => {
+    time += ms;
+
+    for (const shot of developing.filter(({ due }) => due <= time)) {
+      developing.splice(developing.indexOf(shot), 1);
+      shot.deliver();
+    }
+  };
 
   const go = (to: string) => {
     current = to;
@@ -91,12 +120,14 @@ function scripted(
   const phone: Phone = {
     frame: () => scene().frame,
     screenshot: () => {
-      time += 1000;
       const { frame, screenshot } = scene();
-      return Promise.resolve(screenshot ?? frame);
+
+      return new Promise((resolve) =>
+        developing.push({ due: time + 1000, deliver: () => resolve(screenshot ?? frame) }),
+      );
     },
     tap: ([x, y]) => {
-      time += 30;
+      advance(30);
       const { tap } = scene();
       taps.push(current);
 
@@ -107,8 +138,8 @@ function scripted(
       return Promise.resolve();
     },
     swipe: (from, to, ms) => {
-      time += ms + 30;
-      strokes.push({ scene: current, from, to });
+      strokes.push({ scene: current, from, to, at: time });
+      advance(ms + 30);
       const { swipes } = scene();
 
       if (swipes && ++swiped >= swipes.count) {
@@ -121,9 +152,12 @@ function scripted(
 
   const clock: Clock = {
     now: () => time,
-    sleep: (ms) => {
-      time += ms;
-      return Promise.resolve();
+    sleep: async (ms) => {
+      while (reading.size > 0) {
+        await Promise.allSettled([...reading]);
+      }
+
+      advance(ms);
     },
   };
 
@@ -298,6 +332,36 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
   ).toBe(1);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
   expect(lines).toContain('sending in Gyarados');
+});
+
+/**
+ * An opponent's charged move takes the battle off the screen for 2.2s: long enough for a menu read to start, its
+ * screenshot due a second later at 3.5s. The battle is back at 3.2s, and is played from then, not from when the read
+ * is done — which, awaited, held the fast moves up after every charged move.
+ */
+test('plays on as soon as the battle is back, without waiting for a menu read', async () => {
+  const { phone, clock, strokes } = scripted(
+    {
+      fight: { frame: fixture('battle-deoxys'), lasts: { ms: 1000, to: 'pause' } },
+      pause: { frame: fixture('other-vs-fade'), lasts: { ms: 2200, to: 'back' } },
+      back: { frame: fixture('battle-deoxys'), lasts: { ms: 1000, to: 'gone' } },
+      gone: { frame: fixture('other-white') },
+    },
+    'fight',
+  );
+
+  await expect(
+    run(
+      phone,
+      { mode: { mode: 'training', leader: 'blanche', league: 'ultra' }, data: DATA, icons: ICONS, colours: COLOURS },
+      clock,
+    ),
+  ).rejects.toBeInstanceOf(Lost);
+
+  const resumed = strokes.find(({ scene }) => scene === 'back');
+
+  expect(resumed?.at).toBeGreaterThanOrEqual(3200);
+  expect(resumed?.at).toBeLessThan(3400);
 });
 
 test('stops on a Battle tab whose Training card never shows, rather than scroll it for ever', async () => {
