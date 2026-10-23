@@ -1,6 +1,6 @@
 /**
- * The names and move labels read off committed stream frames by the real Tesseract, each expectation being what the
- * frame shows. Our own name is a nickname in every one of them, so `own` is null throughout.
+ * The names, CPs and move labels read off committed stream frames by the real Tesseract, each expectation being what
+ * the frame shows. Our own name is a nickname in every one of them, so `own` is null throughout.
  */
 
 import { readFileSync } from 'node:fs';
@@ -9,7 +9,7 @@ import { type GameData } from '../inventory/game-master.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { useEngine } from '../inventory/ocr.mts';
 import { decodePng } from '../inventory/png.mts';
-import { merge, readBattle } from './read.mts';
+import { merge, readBattle, unseen } from './read.mts';
 
 beforeAll(() => useEngine(tesseractCli));
 
@@ -24,34 +24,46 @@ const read = async (name: string) => {
 };
 
 test.each([
-  ['battle-two-unlit', 'Salamence', { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
-  ['charged-two-both', 'Entei', { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
-  ['charged-two-right', 'Entei', { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
-  ['battle-deoxys', 'Sneasel', { 0.499: 'Zap Cannon' }],
-  ['charged-avalanche', 'Empoleon', { 0.499: 'Avalanche' }],
-  ['charged-shadow-sneak', 'Mamoswine', { 0.499: 'Shadow Sneak' }],
+  ['battle-two-unlit', 'Salamence', [3813, 4495], { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
+  ['charged-two-both', 'Entei', [3813, 4163], { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
+  ['charged-two-right', 'Entei', [3813, 4163], { 0.31: 'Hydro Pump', 0.69: 'Avalanche' }],
+  ['battle-deoxys', 'Sneasel', [1434, 1465], { 0.499: 'Zap Cannon' }],
+  ['charged-avalanche', 'Empoleon', [2336, 2486], { 0.499: 'Avalanche' }],
+  ['charged-shadow-sneak', 'Mamoswine', [2392, 2472], { 0.499: 'Shadow Sneak' }],
 
   // Crunch's line runs on to x 0.89 behind Tyranitar, its centre nearer the right button than its own.
-  ['battle-crunch-entei', 'Entei', { 0.499: 'Crunch' }],
-  ['battle-crunch-salamence', 'Salamence', { 0.499: 'Crunch' }],
-])('%s: against %s, with %o', async (name, opponent, moves) => {
-  expect(await read(name)).toEqual({ own: null, opponent, moves });
+  ['battle-crunch-entei', 'Entei', [3796, 4163], { 0.499: 'Crunch' }],
+  ['battle-crunch-salamence', 'Salamence', [3796, 4495], { 0.499: 'Crunch' }],
+
+  // OCR runs the two CPs into one line, `cP 1387 ee CP 1487`, over the Pixel 8 Pro's darker sky.
+  ['battle-pixel8', 'Combusken', [1387, 1487], { 0.499: 'Dark Pulse' }],
+])('%s: against %s, at CPs %j, with %o', async (name, opponent, [ownCp, opponentCp], moves) => {
+  expect(await read(name)).toEqual({ own: null, opponent, ownCp, opponentCp, moves });
 });
 
 test('a frame with no labels reads none, rather than reading its artwork as moves', async () => {
-  expect(await read('battle-minigame-kyogre-great')).toEqual({ own: null, opponent: 'Entei', moves: {} });
-  expect(await read('shield-glaceon')).toEqual({ own: null, opponent: null, moves: {} });
+  expect(await read('battle-minigame-kyogre-great')).toEqual({
+    own: null,
+    opponent: 'Entei',
+    ownCp: 3813,
+    opponentCp: 4163,
+    moves: {},
+  });
+});
+
+test('the shield prompt, which hides the HUD, reads nothing', async () => {
+  expect(await read('shield-glaceon')).toEqual({ own: null, opponent: null, ownCp: null, opponentCp: null, moves: {} });
 });
 
 test('a read keeps what earlier reads found, bar labels of the other layout', () => {
-  const seen = { own: null, opponent: 'Entei', moves: new Map([[0.499, 'Crunch']]) };
+  const seen = { ...unseen(), opponent: 'Entei', opponentCp: 4163, moves: new Map([[0.499, 'Crunch']]) };
 
-  expect(merge(seen, { own: null, opponent: null, moves: new Map([[0.31, 'Crunch']]) })).toEqual({
+  expect(merge(seen, { ...unseen(), ownCp: 3796, moves: new Map([[0.31, 'Crunch']]) })).toEqual({
     own: null,
     opponent: 'Entei',
+    ownCp: 3796,
+    opponentCp: 4163,
     moves: new Map([[0.31, 'Crunch']]),
   });
-  expect(merge(seen, { own: null, opponent: 'Moltres', moves: new Map() }).moves, 'a read of no labels').toEqual(
-    seen.moves,
-  );
+  expect(merge(seen, { ...unseen(), opponent: 'Moltres' }).moves, 'a read of no labels').toEqual(seen.moves);
 });

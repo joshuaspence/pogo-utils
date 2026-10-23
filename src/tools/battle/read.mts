@@ -1,6 +1,6 @@
 /**
- * What a battle's text says: the two names along the top, ours and the opponent's, and the charged move printed under
- * each button. Our name is the species unless the Pokémon has a nickname, and the opponent's always is.
+ * What a battle's text says: the two names along the top, ours and the opponent's, the CP beside each, and the charged
+ * move printed under each button. Our name is the species unless the Pokémon has a nickname, the opponent's always.
  *
  * Read off a stream frame, 360 wide, by cropping each band and scaling it up for Tesseract. Measured on the committed
  * frames, each name and each move comes out whole, lit buttons and unlit alike, where OCR of the whole frame drops
@@ -19,9 +19,16 @@ export interface Sighting {
   own: string | null;
   opponent: string | null;
 
+  /** Each side's CP, or null where it was not read. */
+  ownCp: number | null;
+  opponentCp: number | null;
+
   /** The move under each button whose label was read, by the button's x. */
   moves: Map<number, string>;
 }
+
+/** A sighting of nothing yet, which a battle starts from. */
+export const unseen = (): Sighting => ({ own: null, opponent: null, ownCp: null, opponentCp: null, moves: new Map() });
 
 /**
  * Fractions of a Pixel 4 XL's screen: the HUD's line of names, pinned to the top, and the labels beneath the buttons,
@@ -35,6 +42,13 @@ const LABELS = { left: 0.05, right: 0.95, top: 0.925, bottom: 0.985 } as const;
  * long name centred under one spans about 0.15 either side.
  */
 const LABEL_REACH = 0.12;
+
+/**
+ * A CP as the HUD prints it, `CP 2495`, which OCR can run into the names beside it or into the other side's CP when the
+ * sky between the panels is dark: `cP 4139 ne CP 4163` at night. Read off the names' band of the committed frames, it
+ * gave 52 of the 60 CPs right; three were one digit out, 4143 for 4163 twice and 1397 for 1387, and five were missing.
+ */
+const CP = /c\s*p\s*(\d{2,4})\b/gi;
 
 /**
  * How wide a label's letter is, as a fraction of the screen's width: 0.019 to 0.023 across Hydro Pump, Avalanche,
@@ -70,15 +84,23 @@ export async function readBattle(
   const names = band(image, NAMES, TOP, 2);
   const labels = band(image, LABELS, BOTTOM, 3);
   const charged = data.moves.filter((move) => !move.fast && move.name in data.combat).map((move) => move.name);
-  const sighting: Sighting = { own: null, opponent: null, moves: new Map() };
+  const sighting = unseen();
 
-  // The names share their line with each side's CP, which matches no species and so drops out here.
+  // The names share their line with each side's CP, which matches no species and so drops out of the names here. Each
+  // CP is placed by where it starts in its line, a line that runs both together holding ours first.
   for (const line of await read(names.image)) {
     const species = closest(line.text, data.species, (name) => name);
     const side = across(line, names, image) < 0.5 ? 'own' : 'opponent';
 
     if (species) {
       sighting[side] ??= species;
+    }
+
+    for (const match of line.text.matchAll(CP)) {
+      const at =
+        (names.left + (line.left + (match.index / line.text.length) * line.width) / names.factor) / image.width;
+
+      sighting[at < 0.5 ? 'ownCp' : 'opponentCp'] ??= Number(match[1]);
     }
   }
 
@@ -118,6 +140,8 @@ export function merge(seen: Sighting, read: Sighting): Sighting {
   return {
     own: read.own ?? seen.own,
     opponent: read.opponent ?? seen.opponent,
+    ownCp: read.ownCp ?? seen.ownCp,
+    opponentCp: read.opponentCp ?? seen.opponentCp,
     moves: new Map([...kept, ...read.moves]),
   };
 }

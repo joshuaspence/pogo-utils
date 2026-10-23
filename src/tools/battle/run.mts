@@ -12,8 +12,9 @@ import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
-import { merge, readBattle, type Sighting } from './read.mts';
-import { opponentShields, readyButtons, recognise } from './recognise.mts';
+import { readHealth, type Health } from './health.mts';
+import { merge, readBattle, unseen, type Sighting } from './read.mts';
+import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, shouldShield, typesOf } from './strategy.mts';
 
 export interface Phone {
@@ -116,10 +117,15 @@ export async function run(
   let prompt:
     { fainted: number | undefined; next: number | undefined; card: Point | undefined; answered: boolean } | undefined;
   let theirShields = 2;
+  let ourShields = 2;
+
+  // Each side's HP as last read, a bar not drawn on this frame keeping what an earlier one showed. The opponent's is
+  // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
+  let health: Health = { own: null, opponent: null };
 
   // The colour of the bubbles the minigame now showing draws, that of the move last thrown, where its type is known.
   let bubbleColour: Colour | undefined;
-  let seen: Sighting = { own: null, opponent: null, moves: new Map() };
+  let seen: Sighting = unseen();
   let readAt = -Infinity;
   let said = '';
 
@@ -145,22 +151,34 @@ export async function run(
       if (!battling) {
         log(`battle ${battles + 1} started`);
         player = new Player(frame);
-        seen = { own: null, opponent: null, moves: new Map() };
+        seen = unseen();
         readAt = -Infinity;
         fainted = new Set();
         sent = 0;
         theirShields = 2;
+        ourShields = 2;
+        health = { own: null, opponent: null };
       }
 
-      // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one held.
+      // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one of theirs
+      // held, and leaves ours unread.
       if (state === 'battle' || state === 'charged') {
         theirShields = Math.min(theirShields, opponentShields(frame));
+        ourShields = Math.min(ourShields, ownShields(frame) ?? ourShields);
       }
 
-      // The Pokémon sent in next has moves of its own, and perhaps a name.
+      // The Pokémon sent in next has moves of its own, perhaps a name, and its own CP and HP.
       if (state === 'switch') {
-        seen = { ...seen, own: null, moves: new Map() };
+        seen = { ...seen, own: null, ownCp: null, moves: new Map() };
+        health = { ...health, own: null };
         readAt = -Infinity;
+      }
+
+      // Read at the shield prompt as well as through the fight: the prompt hides the HUD, but not the bars.
+      if (state !== 'switch' && !player.minigame) {
+        const read = readHealth(frame);
+
+        health = { own: read.own ?? health.own, opponent: read.opponent ?? health.opponent };
       }
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
@@ -173,10 +191,12 @@ export async function run(
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
       const bait = theirShields > 0;
       const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
-      const shield = shouldShield(data, own, seen.opponent);
+      const shield = ourShields > 0 && shouldShield(data, own, seen.opponent);
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
-      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding`;
+      const side = (cp: number | null, hp: number | null) =>
+        `CP ${cp ?? '?'} at ${hp === null ? '?' : Math.round(hp * 100)}%`;
+      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding; ${side(seen.ownCp, health.own)} against ${side(seen.opponentCp, health.opponent)}, ${ourShields} of our shields left`;
 
       if (saying !== said) {
         log(saying);

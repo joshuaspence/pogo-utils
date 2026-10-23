@@ -504,9 +504,72 @@ test('names the lead from the party, and the next of it after a faint', async ()
     (line) => lines.push(line),
   );
 
-  const named = lines.filter((line) => line.includes(' against ')).map((line) => line.split(':')[0]);
+  const named = new Set(lines.filter((line) => line.includes(' against ')).map((line) => line.split(':')[0]));
 
-  expect(named).toEqual(['Latias against Glaceon (2 shields)', 'Mamoswine against Glaceon (2 shields)']);
+  expect([...named]).toEqual(['Latias against Glaceon (2 shields)', 'Mamoswine against Glaceon (2 shields)']);
+});
+
+/**
+ * A shield prompt is tapped while we have a shield left, and left to run out once both are spent: tapped, it would be
+ * a tap at a prompt with nothing behind it. Latias leads with both shields up; Charizard has spent both.
+ */
+test.each([
+  ['battle-latias', ['prompt']],
+  ['battle-shields-spent', []],
+])('after %s, the shield prompt is tapped in %j', async (fight, tapped) => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture(fight), swipes: { count: 10, to: 'prompt' } },
+      prompt: { frame: fixture('shield-glaceon'), tap: { at: [0.5, 0.82], to: 'won' }, lasts: { ms: 3000, to: 'won' } },
+    },
+    'fight',
+  );
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+  );
+
+  expect(taps.filter((scene) => scene === 'prompt')).toEqual(tapped);
+});
+
+/** What is read of each side through a battle: its CP off the HUD, its HP off its bar and how many shields we have. */
+test('says each side’s CP and HP, and how many shields we have left', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-one-shield'), swipes: { count: 10, to: 'prompt' } },
+      prompt: { frame: fixture('shield-low'), lasts: { ms: 3000, to: 'won' } },
+    },
+    'fight',
+  );
+  const lines: string[] = [];
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    (line) => lines.push(line),
+  );
+
+  const read = lines.filter((line) => line.includes(' against ')).map((line) => line.split('; ')[1]);
+
+  expect(read).toContain('CP 2495 at 74% against CP 2497 at 51%, 1 of our shields left');
+  expect(read.at(-1)).toBe('CP 2495 at 9% against CP 2497 at 6%, 1 of our shields left');
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {

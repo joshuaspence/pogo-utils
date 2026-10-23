@@ -228,6 +228,28 @@ export function opponentShields(image: Image): number {
   return OPPONENT_SHIELDS.filter((box) => !near(mean(image, box, TOP), SPENT, 25)).length;
 }
 
+/**
+ * Our two shields, at the left of the HUD where the opponent's are at its right, and the right of them going first.
+ * The same two colours, measured on the committed frames and on 92 frames of two GO Battle League runs that read as a
+ * battle: 214–234/156–165/230–245 held and 107–112/78–83/112–121 spent.
+ */
+const OWN_SHIELDS: readonly Box[] = [0.236, 0.281].map((x) => [x - 0.006, 0.096, x + 0.006, 0.102] as const);
+const HELD: Colour = [224, 161, 238];
+
+/**
+ * How many shields we have left, or null where a hexagon reads as neither colour rather than a guess either way, unlike
+ * the opponent's: what this answers is whether a shield prompt can be taken at all.
+ */
+export function ownShields(image: Image): number | null {
+  const colours = OWN_SHIELDS.map((box) => mean(image, box, TOP));
+
+  if (!colours.every((colour) => near(colour, HELD, 20) || near(colour, SPENT, 25))) {
+    return null;
+  }
+
+  return colours.filter((colour) => near(colour, HELD, 20)).length;
+}
+
 export function recognise(image: Image): State {
   if (SWITCH_PANEL.every((box) => near(mean(image, box, BOTTOM), SLATE, 12))) {
     return 'switch';
