@@ -71,6 +71,7 @@ test('the forms of a species are one moveset, recommended by the one ranked high
 });
 
 test('a variant is the move the screen prints, and what the game master lacks goes without', () => {
+  // Medicham is left out rather than counted by Ice Punch, the one of its moves the game master has.
   const rankings: Ranking[] = [
     {
       speciesId: 'registeel',
@@ -84,6 +85,11 @@ test('a variant is the move the screen prints, and what the game master lacks go
       moveset: ['HIDDEN_POWER_BUG', 'FLASH_CANNON', 'NOT_A_MOVE'],
     },
     { speciesId: 'not_a_species', moves: { fastMoves: [], chargedMoves: [] }, moveset: ['LOCK_ON'] },
+    {
+      speciesId: 'medicham',
+      moves: { fastMoves: [{ moveId: 'NOT_A_MOVE', uses: 10 }], chargedMoves: [{ moveId: 'ICE_PUNCH', uses: 10 }] },
+      moveset: ['NOT_A_MOVE', 'ICE_PUNCH'],
+    },
   ];
   const pvpoke = { ...PVPOKE, moves: [...PVPOKE.moves, { moveId: 'NOT_A_MOVE', name: 'Not A Move' }] };
 

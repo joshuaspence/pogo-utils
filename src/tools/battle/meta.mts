@@ -129,7 +129,8 @@ export function formatOf(league: string, formats: readonly Format[]): { cup: str
  * Each species' moveset out of a rankings file, a species PvPoke ranks several forms of — Alolan Marowak beside
  * Kantonian, any shadow beside its ordinary one — allowing for whatever any of them holds, the HUD naming only the
  * species. Its recommended fast move is that of its form ranked highest, the file being in ranked order. A form whose
- * id or moves do not match the game master's, as a move PvPoke ranks ahead of its release can, goes without them.
+ * id or recommended fast move does not match the game master's is left out, its energy having nothing to be counted
+ * by, and any other move that does not, as one PvPoke ranks ahead of its release can, goes without.
  */
 export function movesetsOf(data: GameData, rankings: readonly Ranking[], pvpoke: PvPokeData): Map<string, Moveset> {
   const species = new Map<number, string>();
@@ -164,7 +165,7 @@ export function movesetsOf(data: GameData, rankings: readonly Ranking[], pvpoke:
   for (const ranking of rankings) {
     const dex = dexOf.get(ranking.speciesId);
     const name = dex === undefined ? undefined : species.get(dex);
-    const [recommended] = ranking.moveset.flatMap((id) => names.get(id) ?? []);
+    const recommended = names.get(ranking.moveset[0] ?? '');
 
     if (name === undefined || recommended === undefined) {
       continue;
