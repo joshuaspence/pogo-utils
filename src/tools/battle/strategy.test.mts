@@ -6,11 +6,19 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { type GameData } from '../inventory/game-master.mts';
-import { activeOf, bestButton, damage, nextOut, shouldShield, typesOf } from './strategy.mts';
+import { type Meta } from './meta.mts';
+import { activeOf, bestButton, chargedOf, damage, nextOut, shouldShield, typesOf } from './strategy.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
 ) as GameData;
+
+/** A meta in which `species` is run with `chargedMoves` alone. */
+const metaOf = (species: string, chargedMoves: string[]): Meta => ({
+  cup: 'all',
+  cap: 2500,
+  movesets: new Map([[species, { fast: '', fastMoves: [], chargedMoves }]]),
+});
 
 const KYOGRE = new Map([
   [0.31, 'Hydro Pump'],
@@ -100,4 +108,48 @@ test('no button is best while one of a pair has no move read under it', () => {
   expect(bestButton(DATA, new Map([[0.69, 'Avalanche']]), [], [])).toBe(undefined);
   expect(bestButton(DATA, new Map(), [], [])).toBe(undefined);
   expect(bestButton(DATA, new Map([[0.499, 'Shadow Sneak']]), [], [])).toBe(0.499);
+});
+
+test('an opponent’s form is allowed for what its players run, of what it can hold', () => {
+  const [alolan, kantonian] = ['Alola', null].map((form) =>
+    DATA.forms.find((f) => f.species === 'Marowak' && f.form === form && !f.costume),
+  );
+  const ranked = ['Bone Club', 'Rock Slide', 'Earthquake', 'Shadow Bone', 'Flame Wheel', 'Shadow Ball', 'Return'];
+  const marowak = metaOf('Marowak', ranked).movesets.get('Marowak');
+
+  expect(kantonian && chargedOf(kantonian, marowak), 'Return, which players run').toStrictEqual([
+    'Bone Club',
+    'Earthquake',
+    'Rock Slide',
+    'Return',
+  ]);
+  expect(alolan && chargedOf(alolan, marowak)).toStrictEqual([
+    'Bone Club',
+    'Shadow Ball',
+    'Flame Wheel',
+    'Shadow Bone',
+    'Return',
+  ]);
+  expect(kantonian && chargedOf(kantonian), 'without a meta, every move bar Frustration and Return').toStrictEqual([
+    'Bone Club',
+    'Dig',
+    'Earthquake',
+    'Rock Slide',
+  ]);
+  expect(
+    kantonian && chargedOf(kantonian, metaOf('Marowak', ['Hydro Pump']).movesets.get('Marowak')),
+    'nothing it can hold ranked, so as if unranked',
+  ).toStrictEqual(['Bone Club', 'Dig', 'Earthquake', 'Rock Slide']);
+});
+
+test('a shield and who goes in allow for only what the opponent’s players run', () => {
+  const pulse = metaOf('Glaceon', ['Water Pulse']);
+  const party = ['Latias', 'Mamoswine', 'Giratina'];
+
+  expect(shouldShield(DATA, 'Latias', 'Glaceon', pulse), 'Water Pulse into Dragon').toBe(false);
+  expect(shouldShield(DATA, 'Latias', 'Glaceon', metaOf('Glaceon', ['Avalanche']))).toBe(true);
+  expect(shouldShield(DATA, 'Latias', 'Glaceon', metaOf('Entei', [])), 'a meta without Glaceon').toBe(true);
+  expect(nextOut(DATA, party, new Set([0]), 'Glaceon', pulse), 'Giratina takes Water Pulse; Mamoswine does not').toBe(
+    2,
+  );
 });

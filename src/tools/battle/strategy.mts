@@ -9,10 +9,12 @@
  * against, the HUD showing only the name.
  *
  * And when to shield, which the prompt does not say: it never names the move coming, so a shield is spent unless every
- * charged move the opponent's species can have is known to be no better than neutral against ours.
+ * charged move the opponent's species can have is known to be no better than neutral against ours. Which moves it can
+ * have is narrowed, in a league PvPoke ranks, to those its players run.
  */
 
-import { type GameData } from '../inventory/game-master.mts';
+import { type Form, type GameData } from '../inventory/game-master.mts';
+import { type Meta, type Moveset } from './meta.mts';
 import { BUTTON_XS } from './recognise.mts';
 
 /** What a move sharing a type with the Pokémon using it multiplies its damage by. */
@@ -56,6 +58,20 @@ export function damage(data: GameData, move: string, own: readonly Typing[], opp
 /** What a move of `type` multiplies its damage by against a Pokémon of the `defender`'s types. */
 export function effectiveness(data: GameData, type: string, defender: readonly string[]): number {
   return defender.reduce((product, against) => product * (data.effectiveness[type]?.[against] ?? 1), 1);
+}
+
+/**
+ * The charged moves an opponent's form is allowed for having. Given its species' moveset out of PvPoke's meta, those of
+ * its pool the meta finds plausible, Return among them where players run it. Without one — in Training, or for a
+ * species or a league PvPoke does not rank — every one of its pool bar Frustration and Return, which only a shadow or
+ * a purified one holds. A form holding none of the plausible moves, as one whose builds PvPoke never ranks can, is
+ * allowed for the same as having none.
+ */
+export function chargedOf(form: Form, moveset?: Moveset): string[] {
+  const pool = form.moves.filter((move) => !move.fast).map((move) => move.name);
+  const plausible = moveset ? pool.filter((name) => moveset.chargedMoves.includes(name)) : [];
+
+  return plausible.length > 0 ? plausible : pool.filter((name) => !SHADOW_AND_PURIFIED.has(name));
 }
 
 /** Every charged move any form of a species can hold, by name. */
@@ -105,6 +121,7 @@ export function nextOut(
   party: readonly (string | null)[],
   fainted: ReadonlySet<number>,
   opponent: string | null,
+  meta?: Meta | null,
 ): number | undefined {
   const types = typesOf(data, opponent);
   const scored = party.flatMap((species, slot) => {
@@ -112,7 +129,7 @@ export function nextOut(
       return [];
     }
 
-    const safe = species !== null && !shouldShield(data, species, opponent);
+    const safe = species !== null && !shouldShield(data, species, opponent, meta);
     const own = typesOf(data, species);
     const moves = species === null ? [] : [...chargedMoves(data, species)].filter((m) => !SHADOW_AND_PURIFIED.has(m));
     const hits = moves.map((move) => damage(data, move, own, types));
@@ -128,17 +145,22 @@ export function nextOut(
 
 /**
  * Whether to take a shield offered against `opponent` while `own` is out: unless both species are known and none of
- * the opponent's charged moves would be super effective against any typing ours could have. Every move its species can
- * hold, legacy and elite ones among them, since which two this one has is never shown.
+ * the opponent's charged moves would be super effective against any typing ours could have. Every move its forms are
+ * allowed for by `chargedOf`, since which two this one has is never shown: legacy and elite ones among them, or in a
+ * league PvPoke ranks, those its players run.
  */
-export function shouldShield(data: GameData, own: string | null, opponent: string | null): boolean {
+export function shouldShield(data: GameData, own: string | null, opponent: string | null, meta?: Meta | null): boolean {
   const typings = typesOf(data, own);
 
   if (typings.length === 0 || opponent === null) {
     return true;
   }
 
-  const moves = [...chargedMoves(data, opponent)].flatMap((name) => data.combat[name] ?? []);
+  const moveset = meta?.movesets.get(opponent);
+  const forms = data.forms.filter((form) => form.species === opponent);
+  const moves = [...new Set(forms.flatMap((form) => chargedOf(form, moveset)))].flatMap(
+    (name) => data.combat[name] ?? [],
+  );
 
   return moves.length === 0 || moves.some((move) => typings.some((types) => effectiveness(data, move.type, types) > 1));
 }

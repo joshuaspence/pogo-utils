@@ -27,6 +27,7 @@
 
 import { ICON_BASE, POGO_ASSETS } from '../src/pokedex/icons.ts';
 import { LEADERS, LEAGUES, type Mode } from '../src/tools/battle/menus.mts';
+import { loadMeta } from '../src/tools/battle/meta.mts';
 import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
@@ -192,6 +193,9 @@ if (command === 'run') {
   const icons = await silhouettes(data);
   const colours = await bubbleColours(data);
 
+  // What GO Battle League's players run in the league, out of PvPoke's rankings; Training allows for every move.
+  const meta = mode.mode === 'gbl' ? await loadMeta(CACHE, data, mode.league) : null;
+
   // Awake for as long as it runs: a screen gone dark mid-battle reads as nothing recognised and ends the run. The
   // setting is read first and put back as found on every way out, `restore` and the Ctrl-C handler in place before it
   // is changed, and checked to be the number Android stores, since it goes back through the shell.
@@ -208,6 +212,10 @@ if (command === 'run') {
   });
 
   const say = options.verbose ? (line: string) => console.error(line) : undefined;
+
+  if (meta) {
+    say?.(`opponents' moves as PvPoke ranks ${meta.cup} at ${meta.cap ?? 'any'} CP: ${meta.movesets.size} species`);
+  }
 
   try {
     await transport.shell(['svc', 'power', 'stayon', 'usb']);
@@ -229,7 +237,7 @@ if (command === 'run') {
     await recording.first();
     const battles = await run(
       phone,
-      { mode, data, icons, colours, count },
+      { mode, data, icons, colours, meta, count },
       { now: () => performance.now(), sleep },
       say,
     );
