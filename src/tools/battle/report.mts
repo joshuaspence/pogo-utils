@@ -103,19 +103,26 @@ export function rule(width: number): string {
   return `${'─'.repeat(column)}─┼─${'─'.repeat(Math.max(0, width - column - DIVIDER.length))}`;
 }
 
-/** The status as the panel's lines, `width` wide: the run across the top, then ours at the left and theirs at the right. */
-export function panel({ battles, count, screen, lostIn, lostAfter, fight }: Status, width: number): string {
-  const finished = `${battles}${count === Infinity ? '' : ` of ${count}`} finished`;
-  const lost = lostAfter - lostIn >= QUIET_MS ? `, stopping in ${Math.ceil(Math.max(0, lostIn) / 1000)}s` : '';
-  const head = `${finished}; ${screen}${lost}`;
+/**
+ * The status as the panel's lines, `width` wide: the run across the top, then ours at the left and theirs at the right.
+ * Always as many lines, each thing on its own whatever is known, so nothing on the screen moves as more of it is: the
+ * lines of a battle not yet begun, or of a run not yet told anything, are left empty.
+ */
+export function panel(status: Status | undefined, width: number): string {
+  const { battles, count, screen, lostIn, lostAfter, fight } = status ?? {};
+  const finished = `${battles ?? 0}${count === undefined || count === Infinity ? '' : ` of ${count}`} finished`;
+  const quiet = lostIn !== undefined && lostAfter !== undefined && lostAfter - lostIn >= QUIET_MS;
+  const lost = quiet ? `, stopping in ${Math.ceil(Math.max(0, lostIn) / 1000)}s` : '';
+  const head = `${finished}; ${screen ?? 'starting'}${lost}`;
 
   if (!fight) {
-    return `${head}\nno battle yet`;
+    return [head, beside('no battle yet', '', width), ...Array<string>(4).fill(beside('', '', width))].join('\n');
   }
 
-  // Room beside the bar for its percentage and the shields, ` 100%  ●●`.
-  const long = Math.max(0, Math.min(BAR, columnOf(width) - 9));
-  const name = ({ species, cp }: Side) => `${species ?? '?'}  CP ${cp ?? '?'}`;
+  // Room beside the bar for its percentage and the shields, ` 100%  ●●`, and beside the name for its CP, ` CP 2495`.
+  const column = columnOf(width);
+  const long = Math.max(0, Math.min(BAR, column - 9));
+  const name = ({ species, cp }: Side) => fit(species ?? '?', column - 8) + `CP ${cp ?? '?'}`.padStart(8);
 
   const health = ({ hp, shields }: Side) => {
     const filled = hp === null ? 0 : Math.round(hp * long);
@@ -168,7 +175,7 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
   // The panel, the rule and as many of the latest events as fit under them, `rows` lines in all.
   const screen = (rows: number) => {
     const width = stream.columns;
-    const top = latest ? [...panel(latest, width).split('\n'), rule(width)] : [];
+    const top = [...panel(latest, width).split('\n'), rule(width)];
     const shown = events.slice(-Math.max(1, rows - top.length));
 
     return [
