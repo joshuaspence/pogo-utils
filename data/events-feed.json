@@ -512,8 +512,8 @@
     "heading": "Pokémon Spotlight Hour",
     "link": "https://leekduck.com/events/pokemonspotlighthour2026-10-22/",
     "image": "https://cdn.leekduck.com/assets/img/events/pokemonspotlighthour.jpg",
-    "start": "2026-10-22T18:00:00.000",
-    "end": "2026-10-22T19:00:00.000",
+    "start": null,
+    "end": null,
     "added": "2026-10-12T00:00:00.000Z"
   },
   {
@@ -548,17 +548,6 @@
     "start": "2026-11-26T18:00:00.000",
     "end": "2026-11-26T19:00:00.000",
     "added": "2026-10-19T22:36:12.344Z"
-  },
-  {
-    "eventID": "raidhour20261021",
-    "name": "Palkia Raid Hour",
-    "eventType": "raid-hour",
-    "heading": "Raid Hour",
-    "link": "https://leekduck.com/events/raidhour20261021/",
-    "image": "https://cdn.leekduck.com/assets/img/events/raidhour.jpg",
-    "start": null,
-    "end": null,
-    "added": "2026-10-12T00:00:00.000Z"
   },
   {
     "eventID": "raidhour20261028",
