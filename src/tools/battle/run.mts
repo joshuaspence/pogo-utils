@@ -16,7 +16,7 @@ import { readHealth, type Health } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
-import { wouldFaint } from './damage.mts';
+import { wouldFaint, type Verdict } from './damage.mts';
 import { type Meta } from './meta.mts';
 import { type Fight, type Reporter } from './report.mts';
 
@@ -123,7 +123,7 @@ export async function run(
   clock: Clock,
   report: Reporter = { event: () => {}, status: () => {} },
 ): Promise<number> {
-  const log = (line: string, side?: 'own' | 'opponent') => report.event(line, side);
+  const log = (line: string, side?: 'own' | 'opponent', why?: string) => report.event(line, side, why);
   let player: Player | undefined;
   let battles = 0;
   let battling = false;
@@ -168,6 +168,13 @@ export async function run(
   // The state of the frame before, which the shield prompt's showing is told from: the opponent's charged move.
   let last: State = 'other';
 
+  // The shield prompt showing, if one is, and why its shield is taken or kept: told once it is answered, by a tap or
+  // by the prompt going untapped.
+  let offered: { why: string; taken: boolean } | undefined;
+
+  // Our charged move last thrown, which a shield the opponent takes is taken against.
+  let thrown: string | undefined;
+
   // What the screen was last recognised as, and the battle as last read, for `report.status`.
   let screen = 'other';
   let fight: Fight | undefined;
@@ -206,6 +213,14 @@ export async function run(
 
     last = state;
 
+    if (offered && state !== 'shield') {
+      if (!offered.taken) {
+        log('kept shield', 'own', offered.why);
+      }
+
+      offered = undefined;
+    }
+
     // The move just thrown at us, named once it lands, whether or not the shield was taken: the banner is drawn over the
     // battle and over the frames that read as neither, so it is looked for on both.
     if (state === 'shield') {
@@ -240,6 +255,8 @@ export async function run(
     if (state !== 'other') {
       if (!battling) {
         log(`battle ${battles + 1} started`);
+        offered = undefined;
+        thrown = undefined;
         player = new Player(frame);
         seen = unseen();
         readAt = -Infinity;
@@ -258,7 +275,7 @@ export async function run(
         const held = Math.min(theirShields, opponentShields(frame));
 
         if (held < theirShields) {
-          log(`${theirName()} shielded`, 'opponent');
+          log(`${theirName()} shielded${thrown ? ` our ${thrown}` : ''}`, 'opponent');
         }
 
         theirShields = held;
@@ -297,18 +314,24 @@ export async function run(
 
       // Taken only where the opponent's hardest charged move would faint us: a hit we survive is eaten, the shield kept
       // for one we would not. A league whose cap went unread takes every shield, as anything else unknown does.
-      const shield =
-        ourShields > 0 &&
-        (cap === undefined ||
-          wouldFaint(
-            data,
-            { species: own, cp: seen.ownCp },
-            { species: seen.opponent, cp: seen.opponentCp },
-            health.own,
-            cap,
-            meta,
-            theirMoves.get(seen.opponent ?? ''),
-          ));
+      const verdict: Verdict =
+        cap === undefined
+          ? { faints: true, why: "the league's cap unread" }
+          : wouldFaint(
+              data,
+              { species: own, cp: seen.ownCp },
+              { species: seen.opponent, cp: seen.opponentCp },
+              health.own,
+              cap,
+              meta,
+              theirMoves.get(seen.opponent ?? ''),
+            );
+      const shield = ourShields > 0 && verdict.faints;
+
+      if (state === 'shield' && !offered?.taken) {
+        offered = { why: verdict.why, taken: false };
+      }
+
       fight = {
         own: { species: own, cp: seen.ownCp, hp: health.own, shields: ourShields },
         opponent: { species: seen.opponent, cp: seen.opponentCp, hp: health.opponent, shields: theirShields },
@@ -352,12 +375,20 @@ export async function run(
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
       } else if (action.kind === 'tap') {
-        log(
-          action.what === 'charged'
-            ? `threw ${seen.moves.get(action.at[0]) ?? 'a charged move'}`
-            : `tap ${action.what}`,
-          'own',
-        );
+        if (action.what === 'charged') {
+          thrown = seen.moves.get(action.at[0]);
+          log(`threw ${thrown ?? 'a charged move'}`, 'own');
+        } else if (action.what === 'shield') {
+          // Told once, a retap a second later being the same answer to the same prompt.
+          if (!offered?.taken) {
+            log('took shield', 'own', verdict.why);
+          }
+
+          offered = { why: verdict.why, taken: true };
+        } else {
+          log(`tap ${action.what}`, 'own');
+        }
+
         await phone.tap(action.at);
 
         if (action.what === 'charged') {

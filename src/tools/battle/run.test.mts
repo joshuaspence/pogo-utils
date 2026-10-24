@@ -50,7 +50,7 @@ function recorder(): Reporter & { events: string[]; fights: Fight[] } {
   return {
     events,
     fights,
-    event: (line, side) => events.push(`${side ?? 'run'}: ${line}`),
+    event: (line, side, why) => events.push(`${side ?? 'run'}: ${line}${why ? `: ${why}` : ''}`),
     status: ({ fight }) => fight && fights.push(fight),
   };
 }
@@ -569,12 +569,12 @@ test.each([
 /**
  * Charizard, CP 2495, against Magmar, CP 1826, in the Ultra League, as played live: Magmar's hardest charged move takes
  * about half of Charizard. At 87% the shield is declined, the hit survived; at 9% it is taken, where live it was not
- * and Charizard fainted to it.
+ * and Charizard fainted to it. Either way, it says why.
  */
 test.each([
-  ['shield-charizard-high', []],
-  ['shield-low', ['prompt']],
-])('at %s, the shield is taken only against a hit that would faint us: %j', async (prompt, tapped) => {
+  ['shield-charizard-high', [], 'own: kept shield: Fire Blast would take ~48%, with 86% left'],
+  ['shield-low', ['prompt'], 'own: took shield: Fire Blast would take ~48%, with 9% left'],
+])('at %s, the shield is taken only against a hit that would faint us: %j', async (prompt, tapped, said) => {
   const { phone, clock, taps } = scripted(
     {
       ...battleAndBack(),
@@ -583,6 +583,7 @@ test.each([
     },
     'fight',
   );
+  const report = recorder();
 
   await run(
     phone,
@@ -594,9 +595,11 @@ test.each([
       count: 1,
     },
     clock,
+    report,
   );
 
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(tapped);
+  expect(report.events.filter((line) => line.includes(' shield'))).toEqual([said]);
 });
 
 // Charizard against Quaquaval: the banner after the prompt names Quaquaval's move, which is kept for the battle.

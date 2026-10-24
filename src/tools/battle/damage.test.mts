@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { cpOf, multiplierOf, type Form, type GameData } from '../inventory/game-master.mts';
-import { buildsOf, hit, rankOne, wouldFaint } from './damage.mts';
+import { buildsOf, hit, rankOne, wouldFaint, type Side } from './damage.mts';
 import { type Meta } from './meta.mts';
 
 const DATA = JSON.parse(
@@ -78,13 +78,13 @@ test.each<[number, boolean, string]>([
   [0.6, false, 'nor 71 of 89'],
   [0.9, false, 'still less of 134'],
 ])('a CP 2495 Charizard at %s HP would faint to a CP 1826 Magmar: %s, %s', (hp, faints) => {
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, hp, ULTRA)).toBe(faints);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, hp, ULTRA).faints).toBe(faints);
 });
 
 test('Frustration and Return are left out, which only a shadow or a purified Magmar has', () => {
   // Return, 130 power and neutral on Charizard without STAB, would take floor(0.5 × 130 × 147.626 / 143.723 × 1.3) + 1
   // = 87, past nine tenths of the 89 HP left at 0.6.
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA)).toBe(false);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA).faints).toBe(false);
 });
 
 /** A meta in which `species` is run with `chargedMoves` alone. */
@@ -95,22 +95,50 @@ const metaOf = (species: string, chargedMoves: string[]): Meta => ({
 });
 
 test('in a league PvPoke ranks, only the charged moves the opponent’s players run are allowed for', () => {
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Magmar', ['Fire Punch'])), 'not Fire Blast').toBe(
-    false,
+  expect(
+    wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Magmar', ['Fire Punch'])).faints,
+    'not Fire Blast',
+  ).toBe(false);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.2, ULTRA, metaOf('Magmar', ['Fire Punch'])).faints, 'Fire Punch').toBe(
+    true,
   );
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.2, ULTRA, metaOf('Magmar', ['Fire Punch'])), 'Fire Punch').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA, metaOf('Magmar', ['Return'])), 'Return, run').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Charizard', [])), 'Magmar unranked').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA, metaOf('Magmar', ['Return'])).faints, 'Return, run').toBe(
+    true,
+  );
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Charizard', [])).faints, 'Magmar unranked').toBe(true);
 });
 
 test('anything unknown counts as fainting', () => {
-  expect(wouldFaint(DATA, { species: null, cp: 2495 }, MAGMAR, 0.9, ULTRA), 'our species').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, { species: null, cp: 1826 }, 0.9, ULTRA), 'theirs').toBe(true);
-  expect(wouldFaint(DATA, { species: 'Charizard', cp: null }, MAGMAR, 0.9, ULTRA), 'our CP').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: null }, 0.9, ULTRA), 'theirs').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: 2826 }, 0.9, ULTRA), 'over the cap').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, null, ULTRA), 'the HP left').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, { species: 'Not A Pokémon', cp: 1826 }, 0.9, ULTRA)).toBe(true);
+  expect(wouldFaint(DATA, { species: null, cp: 2495 }, MAGMAR, 0.9, ULTRA).faints, 'our species').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, { species: null, cp: 1826 }, 0.9, ULTRA).faints, 'theirs').toBe(true);
+  expect(wouldFaint(DATA, { species: 'Charizard', cp: null }, MAGMAR, 0.9, ULTRA).faints, 'our CP').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: null }, 0.9, ULTRA).faints, 'theirs').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: 2826 }, 0.9, ULTRA).faints, 'over the cap').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, null, ULTRA).faints, 'the HP left').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, { species: 'Not A Pokémon', cp: 1826 }, 0.9, ULTRA).faints).toBe(true);
+});
+
+test('says which hit it judged by, and how much of us it takes against what is left', () => {
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA)).toEqual({
+    faints: true,
+    why: 'Fire Blast would take ~48%, with 50% left',
+  });
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA).why).toBe('Fire Blast would take ~48%, with 60% left');
+});
+
+test('names what it did not know, where that is why it shields', () => {
+  const why = (own: Side, opponent: Side, hp: number | null = 0.9) => wouldFaint(DATA, own, opponent, hp, ULTRA).why;
+
+  expect(why({ species: null, cp: 2495 }, MAGMAR)).toBe('our species unread');
+  expect(why(CHARIZARD, { species: 'Magmar', cp: null })).toBe('their CP unread');
+  expect(why(CHARIZARD, { species: 'Magmar', cp: 2826 })).toBe('their CP 2826 is over the 2500 cap, so misread');
+  expect(why(CHARIZARD, MAGMAR, null)).toBe('our HP unread');
+  expect(why(CHARIZARD, { species: 'Not A Pokémon', cp: 1826 })).toBe('no Not A Pokémon at CP 1826');
+
+  // Two seen are all it has, which the game data must know to weigh.
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, new Set(['Not A Move', 'Nor This'])).why).toBe(
+    'no charged move known for Magmar',
+  );
 });
 
 /**
@@ -127,5 +155,5 @@ test.each<[string[], boolean]>([
   const own = { species: 'Dialga', cp: 2289 };
   const opponent = { species: 'Tyranitar', cp: 2256 };
 
-  expect(wouldFaint(DATA, own, opponent, 0.58, 2500, null, new Set(seen))).toBe(faints);
+  expect(wouldFaint(DATA, own, opponent, 0.58, 2500, null, new Set(seen)).faints).toBe(faints);
 });
