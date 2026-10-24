@@ -711,6 +711,43 @@ test('names the lead from the party, and the next of it after a faint', async ()
 });
 
 /**
+ * Latias leads and faints with no switch prompt to answer, as where the game's timer picks or the prompt goes
+ * unrecognised: the battle comes back with one of our Poké Balls grey. Counted only off our taps, Latias stayed out to
+ * the end of a live run, the next faint told against it.
+ */
+test('counts a faint off our Poké Balls where no switch prompt is answered for it', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'next' } },
+      next: { frame: fixture('battle-minigame-mamoswine'), swipes: { count: 10, to: 'won' } },
+    },
+    'party',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  const named = new Set(report.fights.map(({ own, opponent }) => `${own.species} against ${opponent.species}`));
+
+  expect(report.events.filter((line) => line.startsWith('own: ') && line.includes('fainted'))).toEqual([
+    'own: Latias fainted: one fewer of our Poké Balls',
+  ]);
+  expect([...named]).toEqual(['Latias against Glaceon', 'Mamoswine against Glaceon']);
+});
+
+/**
  * A shield prompt is tapped while we have a shield left, and left to run out once both are spent: tapped, it would be
  * a tap at a prompt with nothing behind it. Latias leads with both shields up; Charizard has spent both.
  */
