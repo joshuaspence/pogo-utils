@@ -5,8 +5,6 @@ League against other trainers. How to run it is in the [root README](../../../RE
 usage at the top of [`scripts/battle.mts`](../../../scripts/battle.mts). This page is for working on it: how it is put
 together, and the strategy it plays by.
 
-Automating input breaks Niantic's terms of service. Run it only on an account whose loss you would accept.
-
 ## How it works
 
 A battle turns every half second, and a screenshot over `adb` takes 0.8–1.9s, so the bot cannot look at the game the way
