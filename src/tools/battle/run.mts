@@ -100,6 +100,12 @@ const THROWN = 3;
 const KEPT_FRAMES = 10;
 
 /**
+ * How long either side of a faint or a shield prompt its frames are handed to `keep`, in milliseconds: long enough for
+ * the prompt sliding in and how it was answered, or the HUD before and after the faint.
+ */
+const AROUND_MS = 1_000;
+
+/**
  * A menu read run beside the battle: `done` once its screenshot has been taken and read, or has failed. The result's
  * screenshot is read for the battle's outcome too.
  */
@@ -139,6 +145,12 @@ export interface Options {
    */
   meta?: Meta | null;
   count?: number;
+
+  /**
+   * Handed each frame from `AROUND_MS` before a faint or a shield prompt to `AROUND_MS` after it, once, with the time
+   * on the run's clock it was first seen and what happened: `shield`, `faint-own` or `faint-opponent`.
+   */
+  keep?: (frame: Image, at: number, event: string) => void;
 }
 
 /**
@@ -149,7 +161,7 @@ export interface Options {
  */
 export async function run(
   phone: Phone,
-  { mode, data, icons, colours, meta, count = Infinity }: Options,
+  { mode, data, icons, colours, meta, count = Infinity, keep }: Options,
   clock: Clock,
   report: Reporter = { event: () => {}, status: () => {} },
 ): Promise<Tally> {
@@ -167,6 +179,29 @@ export async function run(
   let reading: Reading | undefined;
   let frames = 0;
   const kept: Image[] = [];
+
+  // For `keep`: the last `AROUND_MS` of frames, each with when it was first seen, so an event can hand over what led up
+  // to it, and the event still handing over what follows it, until when. A frame goes once, to the first event it is
+  // near, however many it is near.
+  const recent: { frame: Image; at: number }[] = [];
+  const handed = new WeakSet<Image>();
+  let keeping: { event: string; until: number } | undefined;
+
+  const hand = (frame: Image, at: number, event: string) => {
+    if (keep && !handed.has(frame)) {
+      handed.add(frame);
+      keep(frame, at, event);
+    }
+  };
+
+  const around = (event: string) => {
+    for (const { frame, at } of recent) {
+      hand(frame, at, event);
+    }
+
+    keeping = { event, until: clock.now() + AROUND_MS };
+  };
+
   let party: (string | null)[] = [];
   let fainted = new Set<number>();
   let sent = 0;
@@ -266,11 +301,30 @@ export async function run(
       kept.splice(0, kept.length - KEPT_FRAMES);
     }
 
+    if (keep && recent.at(-1)?.frame !== frame) {
+      const at = clock.now();
+      recent.push({ frame, at });
+
+      while ((recent[0]?.at ?? at) < at - AROUND_MS) {
+        recent.shift();
+      }
+
+      if (keeping && at <= keeping.until) {
+        hand(frame, at, keeping.event);
+      }
+    }
+
     const state = recognise(frame);
     const theirName = () => seen.opponent ?? 'the opponent';
 
     if (state === 'shield' && last !== 'shield') {
       log(`${theirName()} threw a charged move`, 'opponent');
+      around('shield');
+    }
+
+    // The switch prompt is our faint as surely as a Poké Ball gone, and may show where the HUD's are not read.
+    if (state === 'switch' && last !== 'switch') {
+      around('faint-own');
     }
 
     last = state;
@@ -368,7 +422,15 @@ export async function run(
         const fewer = (was: number | null, read: number | null) =>
           read === null ? was : was === null ? read : Math.min(was, read);
 
-        left = { own: fewer(left.own, balls.own), opponent: fewer(left.opponent, balls.opponent) };
+        const counted = { own: fewer(left.own, balls.own), opponent: fewer(left.opponent, balls.opponent) };
+
+        for (const side of ['own', 'opponent'] as const) {
+          if ((counted[side] ?? Infinity) < (left[side] ?? -Infinity)) {
+            around(`faint-${side}`);
+          }
+        }
+
+        left = counted;
       }
 
       // The Pokémon sent in next has moves of its own, perhaps a name, its own CP and HP, and no stages moved: the

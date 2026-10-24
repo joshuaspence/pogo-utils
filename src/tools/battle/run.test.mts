@@ -402,6 +402,7 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
     'party',
   );
   const report = recorder();
+  const kept: string[] = [];
 
   expect(
     await run(
@@ -412,11 +413,13 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
         icons: ICONS,
         colours: COLOURS,
         count: 1,
+        keep: (_frame, _at, event) => kept.push(event),
       },
       clock,
       report,
     ),
   ).toEqual({ battles: 1, won: 1, lost: 0 });
+  expect(kept).toEqual(['faint-own', 'faint-own', 'faint-own']);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
   expect(report.events.filter((line) => line.includes('sending in'))).toEqual([
     "own: Zeraora fainted; sending in Gyarados: the only one safe from Glaceon's moves",
@@ -822,6 +825,44 @@ test('takes the cap from the league named until the party screen gives it', asyn
   expect(taps.filter((scene) => scene === 'prompt')).toEqual([]);
   expect(report.events.filter((line) => line.includes(' shield'))).toEqual([
     'own: kept shield: Fire Blast would take ~48%, with 86% left',
+  ]);
+});
+
+/**
+ * A second either side of the shield prompt is handed to `keep`, each frame once, with when it was first seen: the
+ * fight before it and the prompt and the frame after it, but not the lead's three seconds earlier nor a frame first
+ * shown past the second.
+ */
+test('keeps the frames a second either side of a shield prompt', async () => {
+  const scenes: Record<string, Scene> = {
+    ...battleAndBack(),
+    lead: { frame: fixture('battle-latias'), lasts: { ms: 3000, to: 'fight' } },
+    fight: { frame: fixture('battle-charizard-magmar'), lasts: { ms: 500, to: 'prompt' } },
+    prompt: { frame: fixture('shield-charizard-high'), lasts: { ms: 400, to: 'after' } },
+    after: { frame: fixture('battle-charizard-magmar'), lasts: { ms: 800, to: 'later' } },
+    later: { frame: fixture('battle-charizard-magmar'), lasts: { ms: 2000, to: 'won' } },
+  };
+  const { phone, clock } = scripted(scenes, 'lead');
+  const sceneOf = (frame: Image) => Object.keys(scenes).find((name) => scenes[name]?.frame === frame);
+  const kept: [string | undefined, number, string][] = [];
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+      keep: (frame, at, event) => kept.push([sceneOf(frame), at, event]),
+    },
+    clock,
+  );
+
+  expect(kept).toEqual([
+    ['fight', 3080, 'shield'],
+    ['prompt', 3630, 'shield'],
+    ['after', 4030, 'shield'],
   ]);
 });
 
