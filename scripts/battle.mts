@@ -20,8 +20,9 @@
  *                       on; one not saved stops the run.
  *                       On a terminal, which it takes over until it stops, a table shows the battle, ours at the
  *                       left and the opponent's at the right, and what each side does under it, with how the run
- *                       stands above it and the menus it taps through below; `--verbose` writes the same as lines
- *                       where stderr is not a terminal
+ *                       stands above it and the menus it taps through below, and the phone's screen down the left
+ *                       where the terminal draws Kitty graphics and is wide enough; `--verbose` writes the same as
+ *                       lines where stderr is not a terminal
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
@@ -37,6 +38,7 @@ import { LEADERS, LEAGUES, type Mode } from '../src/tools/battle/menus.mts';
 import { loadMeta } from '../src/tools/battle/meta.mts';
 import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
+import { pictures } from '../src/tools/battle/kitty.mts';
 import { live, plain } from '../src/tools/battle/report.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord, streamSize } from '../src/tools/battle/stream.mts';
@@ -223,7 +225,20 @@ if (command === 'run') {
   let screen: Screen | undefined;
 
   // A terminal is drawn the panel whether or not `--verbose` asks; anything else is written lines, and only if it does.
-  const panel = process.stderr.isTTY ? live(process.stderr) : undefined;
+  // The phone goes beside it where the terminal can draw it, asked over stdin, the terminal's own answers coming there.
+  const drawn = process.stderr.isTTY && process.stdin.isTTY ? await pictures(process.stdin, process.stderr) : undefined;
+
+  // The frame, or none once the recording has failed: `run` hears of that from `phone.frame` and stops, where thrown
+  // from a redraw it would be uncaught and leave the phone's setting unrestored.
+  const frame = () => {
+    try {
+      return screen?.latest()?.image;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const panel = process.stderr.isTTY ? live(process.stderr, drawn && { pictures: drawn, frame }) : undefined;
   const report = panel ?? (options.verbose ? plain((line) => console.error(line)) : undefined);
 
   process.once('SIGINT', () => {
@@ -231,12 +246,6 @@ if (command === 'run') {
     screen?.close();
     void restore().finally(() => process.exit(130));
   });
-
-  if (meta) {
-    report?.event(
-      `opponents' moves as PvPoke ranks ${meta.cup} at ${meta.cap ?? 'any'} CP: ${meta.movesets.size} species`,
-    );
-  }
 
   try {
     await transport.shell(['svc', 'power', 'stayon', 'usb']);
@@ -256,6 +265,14 @@ if (command === 'run') {
     };
 
     await recording.first();
+
+    // Told once the phone has a frame to draw, so the panel's first draw already has the phone beside it.
+    if (meta) {
+      report?.event(
+        `opponents' moves as PvPoke ranks ${meta.cup} at ${meta.cap ?? 'any'} CP: ${meta.movesets.size} species`,
+      );
+    }
+
     const battles = await run(
       phone,
       { mode, data, icons, colours, meta, count },
