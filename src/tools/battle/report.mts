@@ -1,3 +1,6 @@
+import { type Image } from '../inventory/png.mts';
+import { columnsFor, ERASE, type Pictures } from './kitty.mts';
+
 /**
  * What `run` tells of itself: each `event` something done once, as a tap or a battle's start, and its `status`, how the
  * run and the battle stand, sent again on every frame. `plain` writes them as lines, for a log or a pipe; `live` takes
@@ -192,6 +195,10 @@ const BEGIN = '\x1b[?2026h\x1b[H';
 const END = '\x1b[J\x1b[?2026l';
 const CLEAR_LINE = '\x1b[K';
 
+/** How wide the table must still be with the phone beside it, or the phone is left out; and the gap between them. */
+const TABLE_MIN = 80;
+const GAP = 1;
+
 /** Drawn faint, for what is told outside the two sides' table. */
 const faded = (line: string) => `\x1b[2m${line}\x1b[22m`;
 
@@ -266,14 +273,18 @@ function last(lines: readonly string[], rows: number, blank: string): string[] {
 }
 
 /**
- * `stream`, a terminal, taken over whole and kept in fixed parts, so nothing moves as the run goes on: how the run
+ * `stream`, a terminal, taken over whole and kept in fixed parts, so nothing moves as the run goes on: the phone's
+ * `frame` down the left edge, where the terminal draws `pictures` and is wide enough for it, then how the run
  * stands at the top, then a table of the two sides, ours at the left and theirs at the right, of the panel above and
  * what each side did below it, then the run's own events at the foot. What is outside the table is drawn faint, as
  * less to watch. Redrawn as anything changes, or the terminal is resized, but no more than every `DRAW_MS`; every line
  * is cut to the terminal's width, as one wrapped would push the rest down. `done` gives the terminal back and writes
  * the last screen into it, so a run that stopped can still be read once it has.
  */
-export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
+export function live(
+  stream: NodeJS.WriteStream,
+  phone?: { pictures: Pictures; frame: () => Image | undefined },
+): Reporter & { done(): void } {
   const sides: { line: string; side: 'own' | 'opponent'; why: string | undefined }[] = [];
   const runs: string[] = [];
   let latest: Status | undefined;
@@ -282,9 +293,11 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
   let drawnAt = -Infinity;
   let pending: NodeJS.Timeout | undefined;
 
-  // The screen's `rows` lines, each cut to the width and faint where it is outside the table.
-  const screen = (rows: number) => {
-    const width = stream.columns;
+  // The frame last drawn and how tall, which is drawn again only once either has changed.
+  let pictured: { image: Image; rows: number } | undefined;
+
+  // The screen's `rows` lines, `width` wide, each cut to the width and faint where it is outside the table.
+  const screen = (rows: number, width: number) => {
     const cut = (line: string) => [...line].slice(0, width).join('');
 
     // What the sides did fills what the summary and a blank line, the table's rules and panel, and a blank line and
@@ -325,10 +338,28 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
       entered = true;
     }
 
+    const { columns, rows } = stream;
+    const image = phone?.frame();
+    const beside = phone && image ? columnsFor(image, rows, phone.pictures.cell) + GAP : 0;
+    const shown = beside > 0 && columns - beside >= TABLE_MIN ? image : undefined;
+    let picture = '';
+
+    if (phone && shown && (shown !== pictured?.image || rows !== pictured.rows)) {
+      picture = phone.pictures.picture(shown, rows);
+      pictured = { image: shown, rows };
+    } else if (!shown && pictured) {
+      picture = ERASE;
+      pictured = undefined;
+    }
+
+    // Each line set in past the phone by moving the cursor rather than by spaces, which would draw over it.
+    const indent = shown ? `\x1b[${beside + 1}G` : '';
+
     stream.write(
       BEGIN +
-        screen(stream.rows)
-          .map((line) => line + CLEAR_LINE)
+        picture +
+        screen(rows, shown ? columns - beside : columns)
+          .map((line) => indent + line + CLEAR_LINE)
           .join('\r\n') +
         END,
     );
@@ -368,8 +399,10 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
       stream.off('resize', draw);
 
       if (entered && !finished) {
-        stream.write(`${LEAVE}${screen(stream.rows - 1).join('\n')}\n`);
+        stream.write(`${pictured ? ERASE : ''}${LEAVE}${screen(stream.rows - 1, stream.columns).join('\n')}\n`);
       }
+
+      phone?.pictures.close();
 
       finished = true;
     },
