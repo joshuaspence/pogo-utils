@@ -159,8 +159,16 @@ export async function run(
         why: string | undefined;
         card: Point | undefined;
         answered: boolean;
+
+        /** Whether its faint has been told already, as the Poké Balls caught it before the prompt showed. */
+        told: boolean;
       }
     | undefined;
+
+  // The slot whose faint the Poké Balls caught, until a switch prompt shows for it, and whether that was told: the slot
+  // out by then is the next one, so the prompt is for this one instead. The balls go grey as it faints, by the prompt's
+  // first frame at the latest, so a later faint's replaces this one even where the prompt for it never showed.
+  let caught: { slot: number; told: boolean } | undefined;
   let theirShields = 2;
   let ourShields = 2;
 
@@ -319,6 +327,7 @@ export async function run(
         readAt = -Infinity;
         fainted = new Set();
         sent = 0;
+        caught = undefined;
         theirShields = 2;
         ourShields = 2;
         left = { own: null, opponent: null };
@@ -342,7 +351,10 @@ export async function run(
 
         theirShields = held;
         ourShields = Math.min(ourShields, ownShields(frame) ?? ourShields);
+      }
 
+      // The switch prompt leaves the Poké Balls in view, ours already showing the faint it follows.
+      if (state !== 'shield') {
         const balls = pokemonLeft(frame);
         const fewer = (was: number | null, read: number | null) =>
           read === null ? was : was === null ? read : Math.min(was, read);
@@ -396,6 +408,36 @@ export async function run(
 
           leftAtName = left.opponent;
           departed = null;
+        }
+      }
+
+      // A prompt gone unanswered, the game's timer having picked, still owes the faint the Poké Balls caught on it.
+      if (
+        state !== 'switch' &&
+        prompt?.fainted !== undefined &&
+        !prompt.answered &&
+        !prompt.told &&
+        fainted.has(prompt.fainted)
+      ) {
+        log(`${party[prompt.fainted] ?? '?'} fainted`, 'own', 'the switch prompt went unanswered');
+      }
+
+      prompt = state === 'switch' ? prompt : undefined;
+
+      // One fewer of ours by the Poké Balls than the faints counted is the one out fainting, counted whether or not a
+      // switch prompt is answered for it: the game's timer picks when one is not, or it goes unrecognised, and counted
+      // only off our taps, every slot named after it was the one before. Told here unless a prompt is showing, whose
+      // answer tells it, and kept for the prompt only where none has shown yet.
+      if (left.own !== null && left.own < party.length - fainted.size) {
+        const gone = activeOf(data, party, fainted, seen.moves.values(), sent);
+
+        if (gone !== undefined) {
+          fainted.add(gone);
+          caught = prompt ? caught : { slot: gone, told: state !== 'switch' };
+
+          if (state !== 'switch') {
+            log(`${seen.own ?? party[gone] ?? '?'} fainted`, 'own', 'one fewer of our Poké Balls');
+          }
         }
       }
 
@@ -473,7 +515,6 @@ export async function run(
       known = clock.now();
       screen = state;
       status();
-      prompt = state === 'switch' ? prompt : undefined;
       otherSince = undefined;
 
       // Whatever the read under way finds, it is of a screen the battle has since come back from.
@@ -481,26 +522,33 @@ export async function run(
 
       // The switch prompt's cards are the slots not fainted bar the one out, in party order.
       if (state === 'switch' && !prompt) {
-        const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
+        const gone = caught?.slot ?? slot;
+        const out = new Set([...fainted, ...(gone === undefined ? [] : [gone])]);
         const chosen = nextOut(data, party, out, seen.opponent, meta);
         const next = chosen?.slot;
         const measured =
           next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
         const card = measured && place(measured, BOTTOM, frame);
 
-        prompt = { fainted: slot, next, why: chosen?.why, card, answered: false };
+        prompt = { fainted: gone, next, why: chosen?.why, card, answered: false, told: caught?.told ?? false };
+        caught = undefined;
       }
 
       const ready = state === 'charged' ? readyButtons(frame) : [];
       const card = prompt?.card;
       const bubbles = player.minigame && bubbleColour ? bubbleSwipes(frame, bubbleColour) : undefined;
-      const action = player.next(state, clock.now(), {
+      const played = player.next(state, clock.now(), {
         ready,
         best,
         shield,
         ...(card && { card }),
         ...(bubbles && { bubbles }),
       });
+
+      // With none of ours left to send in, by the Poké Balls or the faints counted, what reads as the switch prompt is
+      // not one: after the last faint, a run took the result coming in for one and tapped it.
+      const nobody = state === 'switch' && (left.own === 0 || (party.length > 0 && prompt?.next === undefined));
+      const action = nobody ? ({ kind: 'wait' } as const) : played;
 
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
@@ -538,7 +586,7 @@ export async function run(
 
           if (prompt.next !== undefined) {
             sent = prompt.next;
-            const gone = prompt.fainted === undefined ? '' : `${party[prompt.fainted] ?? '?'} fainted; `;
+            const gone = prompt.fainted === undefined || prompt.told ? '' : `${party[prompt.fainted] ?? '?'} fainted; `;
 
             log(`${gone}sending in ${party[prompt.next] ?? '?'}`, 'own', prompt.why);
           }
