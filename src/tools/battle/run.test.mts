@@ -586,6 +586,7 @@ test('reads the opponent again the moment a fuller bar says it was switched', as
   expect(new Set(report.fights.map(({ opponent }) => opponent.species))).toEqual(new Set(['Entei', 'Salamence']));
   expect(newcomer.length).toBeGreaterThan(0);
   expect(new Set(newcomer.map(({ opponent }) => opponent.species))).toEqual(new Set(['Salamence']));
+  expect(report.events, 'told, as a switch read the slow way is').toContain('opponent: sent in Salamence');
 });
 
 /**

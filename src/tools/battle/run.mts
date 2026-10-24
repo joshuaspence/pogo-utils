@@ -179,6 +179,9 @@ export async function run(
   let matchup: Matchup | undefined;
   let prompted = 0;
 
+  // The opponent a fuller bar said was switched out, until its newcomer's name has been read, which is told against it.
+  let departed: string | null = null;
+
   // The colour of the bubbles the minigame now showing draws, that of the move last thrown, where its type is known.
   let bubbleColour: Colour | undefined;
   let seen: Sighting = unseen();
@@ -300,6 +303,7 @@ export async function run(
         ourShields = 2;
         health = { own: null, opponent: null };
         energy = new Energy(data, meta);
+        departed = null;
         theirMoves = new Map();
         bannerUntil = -Infinity;
       }
@@ -333,6 +337,7 @@ export async function run(
       const opponentBar = bars?.opponent ?? null;
 
       if (opponentBar !== null && health.opponent !== null && opponentBar - health.opponent >= NEWCOMER) {
+        departed = seen.opponent ?? departed;
         seen = { ...seen, opponent: null, opponentCp: null };
         readAt = -Infinity;
         energy.pause();
@@ -344,11 +349,15 @@ export async function run(
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
-        const before = seen.opponent;
+        const before = seen.opponent ?? departed;
         seen = merge(seen, await readBattle(frame, data));
 
-        if (before !== null && seen.opponent !== before) {
-          log(`sent in ${seen.opponent}`, 'opponent');
+        if (seen.opponent !== null) {
+          departed = null;
+
+          if (before !== null && seen.opponent !== before) {
+            log(`sent in ${seen.opponent}`, 'opponent');
+          }
         }
       }
 
