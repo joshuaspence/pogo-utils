@@ -17,6 +17,10 @@
 - **An unresolved conversation can block the merge.** When the rulesets require review threads resolved, green checks
   are not enough, and clearing an open thread falls to the pull request's author: fix what it raises or reply with why
   not, then resolve it.
+- **A change to an LFS file alone is never approved.** The review's checkout holds only the pointer, a hash and a size,
+  so for a pull request that changes nothing but a fixture image it comments that a person must look rather than
+  approving, and running it again changes nothing (#453). Say so when opening one, check the image yourself and leave
+  the merge to the user.
 - **A pull request is not done when it is opened.** It is reviewed automatically, and again on every push, so each fix
   can draw new feedback. Watch it after submitting, and keep addressing the reviews and failing checks until it merges.
 - **Ask whether a pull request should merge itself.** `gh pr merge --auto --squash` hands it to GitHub, which merges the
@@ -35,3 +39,10 @@
   first and the one place that can always show the current state: when a later push changes what the page draws, take
   the screenshots again and replace them there, rather than leaving the old set in place or posting a new set in a
   comment.
+- **Cover the account in every capture of the phone.** A fixture, a PR screenshot or a recording hides each of the
+  account's trainer names — on the VS screen, under the avatar on the map and as the partner under "OBTAINED IN A TRADE"
+  on a detail screen — and the Nearby Battle QR code on the Battle tab, which is tied to the account. Fill them solid,
+  since text can be read back out of a mosaic, and check every frame before the first push: the repository is public,
+  and a pushed LFS object outlives a force-push. Rewrite an edited capture with `encodePng` from
+  `src/tools/inventory/png.mts`, because other tools drop the `Viewport` `tEXt` chunk a stitched capture carries. The
+  map needs nothing, since the in-game location is spoofed.
