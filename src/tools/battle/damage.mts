@@ -145,12 +145,35 @@ export function hit(data: GameData, move: CombatMove, attacker: Battler, defende
 /** How many charged moves a Pokémon holds at most: its own and one unlocked with a second. */
 export const MOVES_HELD = 2;
 
+/** Whether a hit would faint us, and why that is the answer: the hardest hit and how much it takes, or what is unknown. */
+export interface Verdict {
+  faints: boolean;
+  why: string;
+}
+
+/** Why `whose` side, as `our` or `their`, has no build: what of it went unread, or a CP over `cap` and so misread. */
+function unbuilt({ species, cp }: Side, cap: number | null, whose: string): string {
+  if (species === null) {
+    return `${whose} species unread`;
+  }
+
+  if (cp === null) {
+    return `${whose} CP unread`;
+  }
+
+  return cap !== null && cp > cap
+    ? `${whose} CP ${cp} is over the ${cap} cap, so misread`
+    : `no ${species} at CP ${cp}`;
+}
+
+const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
+
 /**
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the
- * fraction of our maximum the bar shows. Hardest of every charged move `chargedOf` allows any of its forms — those its
- * players run, where `meta` ranks its species, and otherwise every one bar Frustration and Return — against whichever
- * of our forms it hurts most. Anything not known — either species or CP, a CP over `cap`, the HP left or a move of
- * theirs — counts as fainting, a shield being the safe side to err on.
+ * fraction of our maximum the bar shows, and why. Hardest of every charged move `chargedOf` allows any of its forms —
+ * those its players run, where `meta` ranks its species, and otherwise every one bar Frustration and Return — against
+ * whichever of our forms it hurts most. Anything not known — either species or CP, a CP over `cap`, the HP left or a
+ * move of theirs — counts as fainting, a shield being the safe side to err on, and is what `why` names.
  *
  * `seen` is the charged moves this opponent has been seen to use, which outweighs what its players run. Both of them
  * seen, they are all it has, whatever its form. One seen narrows nothing: the other could be any allowed it, the
@@ -168,27 +191,54 @@ export function wouldFaint(
   meta?: Meta | null,
   seen: ReadonlySet<string> = new Set(),
   affordable?: number,
-): boolean {
+): Verdict {
   const ours = buildsOf(data, own, cap);
   const theirs = buildsOf(data, opponent, cap);
 
-  if (hp === null || ours.length === 0 || theirs.length === 0) {
-    return true;
+  if (hp === null) {
+    return { faints: true, why: 'our HP unread' };
+  }
+
+  if (ours.length === 0) {
+    return { faints: true, why: unbuilt(own, cap, 'our') };
+  }
+
+  if (theirs.length === 0) {
+    return { faints: true, why: unbuilt(opponent, cap, 'their') };
   }
 
   const moveset = opponent.species === null ? undefined : meta?.movesets.get(opponent.species);
 
-  return theirs.some((attacker) => {
+  // The hardest hit of all, as a share of our maximum HP: past `FAINTS` of what is left on any of our forms is past it
+  // on the form it hurts most.
+  let hardest = { name: '', share: 0 };
+  let narrowed = false;
+
+  for (const attacker of theirs) {
     const names = seen.size >= MOVES_HELD ? [...seen] : chargedOf(attacker.form, moveset);
-    const allowed = names.flatMap((name) => data.combat[name] ?? []);
-    const afforded = allowed.filter((move) => affordable === undefined || -move.energy <= affordable);
+    const allowed = names.flatMap((name) => (data.combat[name] ? [{ name, move: data.combat[name] }] : []));
+    const afforded = allowed.filter(({ move }) => affordable === undefined || -move.energy <= affordable);
     const moves = afforded.length > 0 ? afforded : allowed;
 
-    return (
-      moves.length === 0 ||
-      ours.some((defender) =>
-        moves.some((move) => hit(data, move, attacker, defender) >= FAINTS * hp * defender.build.hp),
-      )
-    );
-  });
+    narrowed ||= moves.length < allowed.length;
+
+    if (moves.length === 0) {
+      return { faints: true, why: `no charged move known for ${attacker.form.species}` };
+    }
+
+    for (const defender of ours) {
+      for (const { name, move } of moves) {
+        const share = hit(data, move, attacker, defender) / defender.build.hp;
+
+        if (share > hardest.share) {
+          hardest = { name, share };
+        }
+      }
+    }
+  }
+
+  return {
+    faints: hardest.share >= FAINTS * hp,
+    why: `${hardest.name} would take ~${percent(hardest.share)}, with ${percent(hp)} left${narrowed ? `, the hardest ${affordable ?? 0} energy affords` : ''}`,
+  };
 }

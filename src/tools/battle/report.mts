@@ -44,8 +44,11 @@ export interface Status {
 }
 
 export interface Reporter {
-  /** Something done once: by one `side`, or by the run where none is given, as a battle's start or a menu's tap. */
-  event(line: string, side?: 'own' | 'opponent'): void;
+  /**
+   * Something done once: by one `side`, or by the run where none is given, as a battle's start or a menu's tap. `why`
+   * is the reasoning behind it, where there is any, which is told after it but drawn as less to read.
+   */
+  event(line: string, side?: 'own' | 'opponent', why?: string): void;
   status(status: Status): void;
 }
 
@@ -65,7 +68,7 @@ export function plain(write: (line: string) => void): Reporter {
   let said = '';
 
   return {
-    event: (line) => write(line),
+    event: (line, _side, why) => write(why ? `${line}: ${why}` : line),
     status({ fight }) {
       const saying = fight && describe(fight);
 
@@ -183,6 +186,69 @@ const CLEAR_LINE = '\x1b[K';
 /** Drawn faint, for what is told outside the two sides' table. */
 const faded = (line: string) => `\x1b[2m${line}\x1b[22m`;
 
+/** How far a line an event wraps onto is set in, so it reads as the one before it carried on. */
+const HANGING = '  ';
+
+/**
+ * `line`, and after it `why` drawn faint, as rows `width` wide, padded out to it where `pad`: wrapped at spaces, so a
+ * reason too long for its column carries on below rather than losing its end, and a word longer than the row is cut.
+ * Laid out before anything is drawn faint, so each row's width counts only what shows.
+ */
+function told(line: string, why: string | undefined, width: number, pad = true): string[] {
+  const plain = [...line].length;
+  const words: { text: string[]; faint: boolean }[] = [];
+  let at = 0;
+
+  for (const word of (why ? `${line}: ${why}` : line).split(' ')) {
+    words.push({ text: [...word], faint: at >= plain });
+    at += [...word].length + 1;
+  }
+
+  // Each row as its words, the first of a row after the first set in by `HANGING`.
+  const rows: { text: string[]; faint: boolean }[][] = [[]];
+
+  for (const word of words) {
+    const row = rows.at(-1) ?? [];
+    const used = row.reduce((sum, { text }) => sum + text.length + 1, rows.length > 1 ? HANGING.length : 0);
+
+    if (row.length > 0 && used + word.text.length > width) {
+      rows.push([word]);
+    } else {
+      row.push(word);
+    }
+  }
+
+  return rows.map((row, i) => {
+    const start = i === 0 ? '' : HANGING;
+    const room = Math.max(0, width - start.length);
+
+    // The row's characters, each faint or not, cut to the room, then drawn a run of either at a time.
+    const shown = row
+      .flatMap(({ text, faint }, j) => [...(j === 0 ? [] : [' ']), ...text].map((char) => ({ char, faint })))
+      .slice(0, room);
+    let drawn = start;
+
+    for (let from = 0; from < shown.length;) {
+      const faint = shown[from]?.faint;
+      let to = from;
+
+      while (to < shown.length && shown[to]?.faint === faint) {
+        to++;
+      }
+
+      const run = shown
+        .slice(from, to)
+        .map(({ char }) => char)
+        .join('');
+
+      drawn += faint ? faded(run) : run;
+      from = to;
+    }
+
+    return drawn + (pad ? ' '.repeat(room - shown.length) : '');
+  });
+}
+
 /** The last `rows` of `lines`, and `blank` lines after them to make up `rows` while there are fewer. */
 function last(lines: readonly string[], rows: number, blank: string): string[] {
   const kept = lines.slice(-rows);
@@ -199,7 +265,7 @@ function last(lines: readonly string[], rows: number, blank: string): string[] {
  * the last screen into it, so a run that stopped can still be read once it has.
  */
 export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
-  const sides: { line: string; side: 'own' | 'opponent' }[] = [];
+  const sides: { line: string; side: 'own' | 'opponent'; why: string | undefined }[] = [];
   const runs: string[] = [];
   let latest: Status | undefined;
   let entered = false;
@@ -213,9 +279,14 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
     const cut = (line: string) => [...line].slice(0, width).join('');
 
     // What the sides did fills what the summary and a blank line, the table's rules and panel, and a blank line and
-    // the run's events leave.
+    // the run's events leave. Each is already its column's width, so is not cut again.
     const logged = Math.max(1, rows - (2 + 3 + PANEL_ROWS + 1 + RUN_ROWS));
-    const done = sides.map(({ line, side }) => (side === 'own' ? beside(line, '', width) : beside('', line, width)));
+    const column = columnOf(width);
+    const done = sides.flatMap(({ line, side, why }) =>
+      side === 'own'
+        ? told(line, why, column).map((row) => `${row}${DIVIDER.trimEnd()}`)
+        : told(line, why, width - column - DIVIDER.length, false).map((row) => `${' '.repeat(column)}${DIVIDER}${row}`),
+    );
 
     return [
       faded(cut(summary(latest))),
@@ -223,7 +294,7 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
       rule(width, '┬'),
       ...panel(latest?.fight, width).split('\n').map(cut),
       rule(width),
-      ...last(done, logged, beside('', '', width)).map(cut),
+      ...last(done, logged, beside('', '', width)),
       rule(width, '┴'),
       '',
       ...last(runs, RUN_ROWS, '').map((line) => (line ? faded(cut(line)) : line)),
@@ -267,12 +338,13 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
   stream.on('resize', draw);
 
   return {
-    event(line, side) {
+    event(line, side, why) {
       if (side) {
-        sides.push({ line, side });
+        sides.push({ line, side, why });
         sides.splice(0, sides.length - KEPT_EVENTS);
       } else {
-        runs.push(line);
+        // All of the run's own events are faint already.
+        runs.push(why ? `${line}: ${why}` : line);
         runs.splice(0, runs.length - KEPT_EVENTS);
       }
 
