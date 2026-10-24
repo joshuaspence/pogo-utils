@@ -741,6 +741,34 @@ test('takes every shield in GO Battle League until the party screen has given th
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(['prompt']);
 });
 
+// The same, but with the league's meta loaded: `--league ultra` gives the cap the party screen would have, so Charizard
+// at 86% eats the hit as it does in Training.
+test('takes the cap from the league named until the party screen gives it', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...league(),
+      fight: { frame: fixture('battle-charizard-magmar'), swipes: { count: 10, to: 'prompt' } },
+      prompt: {
+        frame: fixture('shield-charizard-high'),
+        tap: { at: [0.5, 0.82], to: 'won' },
+        lasts: { ms: 3000, to: 'won' },
+      },
+      result: { frame: fixture('menu-gbl-result-last'), tap: { at: [0.5, 0.935], to: 'collect' } },
+      collect: { frame: fixture('menu-gbl-collect') },
+    },
+    'fight',
+  );
+  const report = recorder();
+  const meta = { cup: 'all', cap: 2500, movesets: new Map() };
+
+  await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, meta, count: 1 }, clock, report);
+
+  expect(taps.filter((scene) => scene === 'prompt')).toEqual([]);
+  expect(report.events.filter((line) => line.includes(' shield'))).toEqual([
+    'own: kept shield: Fire Blast would take ~48%, with 86% left',
+  ]);
+});
+
 /**
  * What is read of each side through a battle: its CP off the HUD, its HP off its bar, how many shields we have, and the
  * opponent's energy counted off ours.

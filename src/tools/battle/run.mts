@@ -165,8 +165,9 @@ export async function run(
   let ourShields = 2;
 
   // The league's CP cap, which a CP read over it is a misread of: Training's by its league, GO Battle League's as its
-  // party screen states it. `undefined` until known, and then every shield is taken.
-  let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : undefined;
+  // party screen states it, and until then as PvPoke has the league named. `undefined` until known, and then every
+  // shield is taken.
+  let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : meta?.cap;
 
   // Each side's HP as last read, a bar not drawn on this frame keeping what an earlier one showed. The opponent's is
   // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
@@ -537,7 +538,11 @@ export async function run(
 
       if (menu.screen === 'party' && 'tap' in menu) {
         party = readParty(screenshot, icons);
-        cap = mode.mode === 'training' ? CAPS[mode.league] : menu.cap;
+
+        if (mode.mode === 'gbl' && menu.cap !== undefined) {
+          cap = menu.cap;
+        }
+
         log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
       }
 
