@@ -138,12 +138,13 @@ test('its energy is kept while it is out, and a drop across our switch is not a 
 test('nothing is counted for an opponent not named, nor HP lost that nothing says how many hits held', () => {
   const energy = new Energy(DATA);
   const unnamed: Matchup = { ...MATCHUP, opponent: { species: null, cp: 1497 } };
-  const uncapped: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: null } };
+  const uncapped: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: null }, cap: null };
 
   energy.read(0, 1, unnamed);
   expect(energy.estimate(unnamed)).toBe(null);
 
-  // Read 2.5s apart, so no clean step, and with Medicham's CP unread, no build to say what a hit takes.
+  // Read 2.5s apart, so no clean step, and with Medicham's CP unread and no cap to take it as, no build to say what a
+  // hit takes.
   energy.read(0, 1, uncapped);
   energy.read(2500, 0.9, uncapped);
   expect(energy.estimate(uncapped)).toBe(null);
@@ -181,6 +182,24 @@ test('once both of its moves have been seen, a throw is the cheaper of them', ()
   energy.threw(MATCHUP, new Set(['Ice Punch', 'Psychic']));
 
   expect(energy.estimate(MATCHUP)?.energy, '90 less Ice Punch’s 40').toBe(50);
+});
+
+test('an opponent CP unread is counted as the cap', () => {
+  const unread: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: null } };
+  const atCap: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: 1500 } };
+
+  const estimate = (matchup: Matchup) => {
+    const energy = new Energy(DATA);
+
+    // Read 2.5s apart, so no clean step: what a hit takes is the model's, built at the cap.
+    energy.read(0, 1, matchup);
+    energy.read(2500, 0.9, matchup);
+
+    return energy.estimate(matchup);
+  };
+
+  expect(estimate(unread)).not.toBe(null);
+  expect(estimate(unread)).toStrictEqual(estimate(atCap));
 });
 
 test('steps measured before a CP was read do not stop later ones from telling the fast move', () => {

@@ -16,7 +16,7 @@
  */
 
 import { type GameData } from '../inventory/game-master.mts';
-import { buildsOf, hit, MOVES_HELD, type Side } from './damage.mts';
+import { buildsOf, capped, hit, MOVES_HELD, type Side } from './damage.mts';
 import { type Meta } from './meta.mts';
 import { chargedOf } from './strategy.mts';
 
@@ -260,8 +260,8 @@ export class Energy {
     const plausible = moveset ? pool.filter((name) => moveset.fastMoves.includes(name)) : [];
     const candidates = plausible.length > 0 ? plausible : pool;
 
-    // Only stretches the model can check: one read before either side's CP has no build to say what a hit takes, and
-    // would rule out every move alike rather than any one.
+    // Only stretches the model can check: one read before our CP, or theirs with no cap to take it as, has no build to
+    // say what a hit takes, and would rule out every move alike rather than any one.
     const measured = tally.stretches.filter((stretch) => stretch.steps.length > 0 && this.#modelled(stretch));
 
     if (measured.length > 0) {
@@ -295,7 +295,7 @@ export class Energy {
   /** Whether both sides of a stretch have a build, which what a hit takes is modelled from. */
   #modelled({ matchup }: Stretch): boolean {
     return (
-      buildsOf(this.#data, matchup.opponent, matchup.cap).length > 0 &&
+      buildsOf(this.#data, capped(matchup.opponent, matchup.cap), matchup.cap).length > 0 &&
       buildsOf(this.#data, matchup.own, matchup.cap).length > 0
     );
   }
@@ -303,7 +303,7 @@ export class Energy {
   /** What one hit of `fast` takes of our bar in a stretch, for every pairing of builds whose attacker can hold it. */
   #fractions(fast: string, { matchup }: Stretch): number[] {
     const move = this.#data.combat[fast];
-    const attackers = buildsOf(this.#data, matchup.opponent, matchup.cap).filter((attacker) =>
+    const attackers = buildsOf(this.#data, capped(matchup.opponent, matchup.cap), matchup.cap).filter((attacker) =>
       attacker.form.moves.some((m) => m.name === fast),
     );
     const defenders = buildsOf(this.#data, matchup.own, matchup.cap);

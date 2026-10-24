@@ -162,6 +162,16 @@ export function buildsOf(data: GameData, side: Side, cap: number | null): Battle
 }
 
 /**
+ * The opponent as it is built: a CP not read taken as the league's cap, where there is one, and so built rank 1 for it
+ * as most of what a league fields is. Left unknown, it would take every shield for as long as the CP goes unread — a
+ * minute of an Ultra League battle in one run — on hits that mostly would not faint us. Ours is never taken so, being
+ * ours to read, where a guess would only hide the misread.
+ */
+export function capped(opponent: Side, cap: number | null): Side {
+  return opponent.cp === null && cap !== null ? { ...opponent, cp: cap } : opponent;
+}
+
+/**
  * The HP a charged move takes, `floor(0.5 × power × attack / defense × STAB × effectiveness × 1.3) + 1`, which is
  * PvPoke's `DamageCalculator.damage` (pvpoke/pvpoke@415436c, `src/js/battle/DamageCalculator.js`), its
  * `DamageMultiplier.BONUS` of 1.3 and `STAB` of 1.2 being the game master's `chargeAttackBonusMultiplier` and
@@ -230,7 +240,8 @@ function staged(attack: number, defense: number): string {
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the
  * fraction of our maximum the bar shows, and why. Hardest of every charged move `chargedOf` allows any of its forms —
  * those its players run, where `meta` ranks its species, and otherwise every one bar Frustration and Return — against
- * whichever of our forms it hurts most. Anything not known — either species or CP, a CP over `cap`, the HP left or a
+ * whichever of our forms it hurts most. Their CP unread is taken as `cap`, as `capped` takes it, and `why` says so.
+ * Anything else not known — either species, our CP, theirs where there is no cap, a CP over `cap`, the HP left or a
  * move of theirs — counts as fainting, a shield being the safe side to err on, and is what `why` names.
  *
  * `seen` is the charged moves this opponent has been seen to use, which outweighs what its players run. Both of them
@@ -255,7 +266,7 @@ export function wouldFaint(
   stages: { own: Stages; their: Stages } = { own: NO_STAGES, their: NO_STAGES },
 ): Verdict {
   const ours = buildsOf(data, own, cap);
-  const theirs = buildsOf(data, opponent, cap);
+  const theirs = buildsOf(data, capped(opponent, cap), cap);
 
   if (hp === null) {
     return { faints: true, why: 'our HP unread' };
@@ -301,9 +312,10 @@ export function wouldFaint(
 
   const taken = `${hardest.name} would take ~${percent(hardest.share)}, with ${percent(hp)} left`;
   const afforded = narrowed ? `, the hardest ${affordable ?? 0} energy affords` : '';
+  const assumed = opponent.cp === null ? ` (their CP unread, taken as the ${cap} cap)` : '';
 
   return {
     faints: hardest.share >= FAINTS * hp,
-    why: taken + afforded + staged(stages.their.attack, stages.own.defense),
+    why: taken + afforded + staged(stages.their.attack, stages.own.defense) + assumed,
   };
 }
