@@ -23,17 +23,18 @@ export interface Icon {
 }
 
 /**
- * Where the cards are, as fractions of a Pixel 4 XL's screen: each one's centre across it and down it, and half its side
- * across. The cards are square, so the side is measured across for both, and the screen's width is the unit throughout.
+ * Where the cards are, in the screen's widths: each one's centre across it and down from its anchor, and half its side.
+ * The cards are square, so the side is measured across for both.
  *
  * Down, they are pinned at 0.69 of the height, inside a panel that stretches with the screen, as `layout.mts` places
- * them, which on a Pixel 8 Pro is 5 px above where 0.7345 itself would put them. Measured on two of its party screens:
- * at 0.7345 Gengar's outline led the next species by 0.03 to 0.04, under `MARGIN`, and Stunfisk's card read as Durant;
- * from 0.685 to 0.69 all six cards lead by 0.087 or more. Either side the window is a cliff: at 0.70 Stunfisk falls
- * under `MARGIN`, and at 0.68 Absol, white on the card's white, reads at 0.35.
+ * them: on a Pixel 4 XL at 0.7345 of its height, and on a Pixel 8 Pro 5 px above where pinning them at that fraction on
+ * every shape would. Measured on two of the Pixel 8 Pro's party screens: pinned at 0.7345, Gengar's outline led the
+ * next species by 0.03 to 0.04, under `MARGIN`, and Stunfisk's card read as Durant; from 0.685 to 0.69 all six cards
+ * lead by 0.087 or more. Either side the window is a cliff: at 0.70 Stunfisk falls under `MARGIN`, and at 0.68 Absol,
+ * white on the card's white, reads at 0.35.
  */
 const CARD_XS = [0.231, 0.5, 0.769];
-const CARD_Y = 0.7345;
+const CARD_Y = 0.0939;
 const CARD_ANCHOR = 0.69;
 const HALF = 0.088;
 

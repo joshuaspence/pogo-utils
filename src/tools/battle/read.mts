@@ -31,11 +31,11 @@ export interface Sighting {
 export const unseen = (): Sighting => ({ own: null, opponent: null, ownCp: null, opponentCp: null, moves: new Map() });
 
 /**
- * Fractions of a Pixel 4 XL's screen: the HUD's line of names, pinned to the top, and the labels beneath the buttons,
- * lit or not, pinned to the foot.
+ * The HUD's line of names, pinned to the top, and the labels beneath the buttons, lit or not, pinned to the foot: across
+ * as fractions of the screen's width, and down as widths from the edge each is pinned to.
  */
-const NAMES = { top: 0.066, bottom: 0.09 } as const;
-const LABELS = { left: 0.05, right: 0.95, top: 0.925, bottom: 0.985 } as const;
+const NAMES = { top: 0.1393, bottom: 0.19 } as const;
+const LABELS = { left: 0.05, right: 0.95, top: -0.1583, bottom: -0.0317 } as const;
 
 /**
  * How far a label's centre may sit from a button's and still be its label. Two buttons' labels are 0.38 apart, and a
@@ -143,12 +143,13 @@ export async function readBattle(
 
 /**
  * The banner a charged move puts up once it is thrown, `Quaquaval used Aqua Jet!`, in a pill across the sky. Read as one
- * line, the band 0.30 to 0.34 down a Pixel 4 XL's screen cropped and scaled up three times: of six banners in the GO
- * Battle League screenshots, four read whole — `a Swampert used Hydro Cannon! at`, `ae Quaquaval used Aqua Jet! .` —
- * and Golem's Stone Edge as `Golem usedlistras`, which names no move; on a Pixel 8 Pro at night, `Groudon used Solar
- * Beam!` whole once fully drawn. OCR of the whole frame read one of them.
+ * line, the band 0.232 to 0.317 widths below its anchor cropped and scaled up three times: of six banners in the GO
+ * Battle League screenshots off a Pixel 4 XL, where the band is 0.30 to 0.34 of the height, four read whole — `a
+ * Swampert used Hydro Cannon! at`, `ae Quaquaval used Aqua Jet! .` — and Golem's Stone Edge as `Golem usedlistras`,
+ * which names no move; on a Pixel 8 Pro at night, `Groudon used Solar Beam!` whole once fully drawn. OCR of the whole
+ * frame read one of them.
  */
-const BANNER = { top: 0.3, bottom: 0.34 } as const;
+const BANNER = { top: 0.2322, bottom: 0.3167 } as const;
 
 /**
  * Where the banner is pinned, as `layout.mts` measures anchors: its line centred at 0.323 of a Pixel 4 XL's height and

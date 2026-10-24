@@ -611,10 +611,11 @@ beside `adb`, and Tesseract for the league screen and the names and moves. The f
 icons for the party screen, some 40 MB, kept for a week like the game master.
 [`src/tools/battle/recognise.mts`](src/tools/battle/recognise.mts) reads which part of a battle a frame shows from
 colour samples alone, cheap enough for every frame; [`src/tools/battle/menus.mts`](src/tools/battle/menus.mts) reads the
-screens between battles off full screenshots. Their positions were measured on a Pixel 4 XL and are placed on a phone of
-any other shape by where the game pins each piece — the top edge, the foot, or a fraction of the height between — which
-[`src/tools/battle/layout.mts`](src/tools/battle/layout.mts) records. A position added needs its anchor too, measured on
-both the Pixel 4 XL's fixtures and the Pixel 8 Pro's, which the tests read alike. `pnpm battle record` saves what the
+screens between battles off full screenshots. No phone's shape is the reference: a position down the screen is written
+as where the game pins the piece — the top edge, the foot, or a fraction of the height between — and how many of the
+screen's widths it sits from there, a number every phone agrees on, as
+[`src/tools/battle/layout.mts`](src/tools/battle/layout.mts) explains. A position added needs its anchor too, measured
+on both the Pixel 8 Pro's fixtures and the Pixel 4 XL's, which the tests read alike. `pnpm battle record` saves what the
 recognisers are tuned against, at the phone's own shape:
 
 ```sh

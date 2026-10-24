@@ -46,7 +46,7 @@ test.each(['menu-intro', 'menu-intro-spark'])('taps BATTLE on %s without reading
     read,
   );
 
-  expect(menu).toEqual({ screen: 'intro', tap: [0.5, 0.733] });
+  expect(menu).toEqual({ screen: 'intro', tap: [0.5, expect.closeTo(0.733, 3)] });
   expect(read).not.toHaveBeenCalled();
 });
 
@@ -70,7 +70,7 @@ test.each(['menu-party', 'menu-party-full'])('taps USE THIS PARTY on %s without 
     read,
   );
 
-  expect(menu).toEqual({ screen: 'party', tap: [0.5, 0.87] });
+  expect(menu).toEqual({ screen: 'party', tap: [0.5, expect.closeTo(0.87, 3)] });
   expect(read).not.toHaveBeenCalled();
 });
 
@@ -79,7 +79,7 @@ test('taps the ✓ on the result once a battle has ended', async () => {
     await readMenu(fixture('menu-result'), { mode: 'training', leader: 'blanche', league: 'ultra', result: true }),
   ).toEqual({
     screen: 'result',
-    tap: [0.5, 0.935],
+    tap: [0.5, expect.closeTo(0.935, 3)],
   });
 });
 
@@ -109,7 +109,7 @@ test('still finds the leader with a result due', async () => {
  * match; neither is ever read as either button, with a result due or not. The map's friend-gift banner is painted over.
  */
 test.each([
-  ['menu-map', { screen: 'map', tap: [0.5, 0.932] }],
+  ['menu-map', { screen: 'map', tap: [0.5, expect.closeTo(0.932, 3)] }],
   [
     'menu-battle-league',
     {
@@ -183,10 +183,10 @@ test('scrolls a Battle tab whose PARTY went unread', async () => {
 });
 
 /**
- * The rest of the way round off that Pixel 8 Pro, at 1008×2244 rather than the Pixel 4 XL's shape, where a piece pinned to the
- * wrong edge lands 0.005 to 0.02 of the height from where it is drawn: so its taps are held to 0.01 of where each was
- * measured on the screenshot. One scroll down its Battle tab leaves the Training card under the ✗. The QR code and the
- * trainer's name are painted over.
+ * The rest of the way round off that Pixel 8 Pro, at 1008×2244, where a piece pinned to the wrong edge lands 0.005 to
+ * 0.02 of the height from where it is drawn: so its taps are held to 0.01 of where each was measured on the screenshot.
+ * One scroll down its Battle tab leaves the Training card under the ✗. The QR code and the trainer's name are painted
+ * over.
  */
 const pixel8 = (name: string) => fixture(`menu-pixel8-${name}`);
 
@@ -317,7 +317,7 @@ test('reads no cap off a GO Battle League party with no limit', async () => {
 
   expect(await readMenu(fixture('menu-gbl-party'), { ...GBL, league: 'master' }, unlimited)).toEqual({
     screen: 'party',
-    tap: [0.5, 0.87],
+    tap: [0.5, expect.closeTo(0.87, 3)],
     cap: null,
     title: 'recommended battle party i7',
   });
@@ -327,7 +327,7 @@ test('reads no cap off a GO Battle League party with no limit', async () => {
 test("taps USE THIS PARTY on GO Battle League's recommended party, reading the league's cap", async () => {
   expect(await readMenu(fixture('menu-gbl-party'), { ...GBL, league: 'ultra' })).toEqual({
     screen: 'party',
-    tap: [0.5, 0.87],
+    tap: [0.5, expect.closeTo(0.87, 3)],
     cap: 2500,
     title: 'recommended battle party i7',
   });
@@ -350,14 +350,14 @@ test("taps NEXT BATTLE on GO Battle League's result, and the ✓ in Training", a
 
   expect(gbl.screen).toBe('result');
   expect(near(gbl, 0.5, 0.854)).toBe(true);
-  expect(training).toEqual({ screen: 'result', tap: [0.5, 0.935] });
+  expect(training).toEqual({ screen: 'result', tap: [0.5, expect.closeTo(0.935, 3)] });
 });
 
 // A set's last battle has no NEXT BATTLE, only the ✓.
 test("taps the ✓ on the result of a GO Battle League set's last battle", async () => {
   expect(await readMenu(fixture('menu-gbl-result-last'), { ...GBL, league: 'ultra', result: true })).toEqual({
     screen: 'result',
-    tap: [0.5, 0.935],
+    tap: [0.5, expect.closeTo(0.935, 3)],
   });
 });
 
