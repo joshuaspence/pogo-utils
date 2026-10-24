@@ -26,7 +26,7 @@ import { readHealth, Steady } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, pokemonLeft, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, bestLit, counterOf, nextOut, typesOf, type Pick } from './strategy.mts';
-import { afterThrow, NO_STAGES, wouldFaint, type Stages, type Verdict } from './damage.mts';
+import { afterThrow, finisher, NO_STAGES, wouldFaint, type Stages, type Verdict } from './damage.mts';
 import { Energy, type Matchup } from './energy.mts';
 import { type Meta } from './meta.mts';
 import { type Fight, type Reporter } from './report.mts';
@@ -675,25 +675,47 @@ export async function run(
       const theirTypes = typesOf(data, seen.opponent);
       const pick = bestButton(data, seen.moves, ownTypes, theirTypes, { bait: theirShields > 0, lastHit });
       const ready = state === 'charged' ? readyButtons(frame) : [];
+      const lit = ready.map(([x]) => x);
+
+      // A lit move that would finish the opponent goes now, whatever is held for: a turn waited is a hit taken. Live, a
+      // Swampert held for Earthquake while Hydro Cannon could have finished a Giratina at 12%, and fainted first. Not
+      // while the league's cap is unread, which would leave a CP misread over it to be built as if it were read.
+      const finish =
+        cap === undefined
+          ? undefined
+          : finisher(
+              data,
+              seen.moves,
+              lit,
+              { species: own, cp: seen.ownCp },
+              { species: seen.opponent, cp: seen.opponentCp },
+              health.opponent,
+              theirShields,
+              cap,
+              stages,
+            );
 
       // No shield to be taken against a move the opponent's counted energy already affords and that would faint us, and
       // there may be no time left to hold energy for the move chosen: the lit button worth the most goes now, a shield
       // drawn or damage dealt being better than fainting with the energy stored. Only on the count's word, a faint feared
       // for something unknown being no sign that one is coming.
-      const lit = ready.map(([x]) => x);
       const now =
         pick && !shield && verdict.faints && verdict.afforded !== undefined
           ? bestLit(data, seen.moves, lit, ownTypes, theirTypes, { lastHit })
           : undefined;
       const held = pick && seen.moves.get(pick.x);
+
+      // A finish before a throw for fear of fainting: the opponent gone, its hit that would faint us never comes, where
+      // the move worth the most could leave it standing to land it.
       const throwing: Pick | undefined =
-        pick && now !== undefined && now !== pick.x
+        finish ??
+        (pick && now !== undefined && now !== pick.x
           ? {
               x: now,
               bait: false,
               why: `${verdict.afforded} would faint us, ${affordable} energy affords it; not holding for ${held}`,
             }
-          : pick;
+          : pick);
       const best = throwing?.x;
 
       if (state === 'shield' && !offered?.taken) {
