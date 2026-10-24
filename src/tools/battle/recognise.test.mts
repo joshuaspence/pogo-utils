@@ -13,7 +13,7 @@ import { decodePng } from '../inventory/png.mts';
 import { createReadStream, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
+import { opponentShields, ownShields, pokemonLeft, readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames, streamSize } from './stream.mts';
 
 const FIXTURES = fileURLToPath(new URL('fixtures/', import.meta.url));
@@ -102,4 +102,18 @@ test.each([
 
 test('our shields go unread where the shield prompt hides the HUD', () => {
   expect(ownShields(decodePng(readFileSync(`${FIXTURES}shield-glaceon.png`)))).toBeNull();
+});
+
+test.each<[string, number | null, number | null]>([
+  ['battle-latias', 3, 3],
+  ['battle-one-shield', 2, 3],
+  ['battle-crunch-salamence', 3, 2],
+  ['charged-shadow-sneak', 2, 1],
+  ['battle-pixel8', 3, 3],
+  ['switch-pixel8', 2, 3],
+  ['battle-banner-pixel8-groudon', 3, 3],
+  ['shield-glaceon', null, null],
+  ['shield-pixel8', null, null],
+])('%s: we have %s Pokémon left and the opponent %s', (name, own, opponent) => {
+  expect(pokemonLeft(decodePng(readFileSync(`${FIXTURES}${name}.png`)))).toEqual({ own, opponent });
 });
