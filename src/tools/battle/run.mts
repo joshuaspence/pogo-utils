@@ -60,10 +60,11 @@ const READ_MS = 3_000;
 
 /**
  * How long after a shield prompt the banner naming the move is looked for, and how often, in milliseconds. The banner
- * follows the prompt, up for a second or two once the hit lands; a read holds the loop up for 100–200ms, and the
- * opponent's charged move is playing out meanwhile, so no fast move is lost to it.
+ * follows the move's animation, a shield's included: 2.4s after a prompt for Groudon's Solar Beam, past 3.9s for a
+ * Rhyperior's, the wall still up at the last of twelve reads. Read beside the battle rather than holding it up, as the
+ * menu is, the battle having often come back by then.
  */
-const BANNER_MS = 4_000;
+const BANNER_MS = 8_000;
 const BANNER_EVERY_MS = 300;
 
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
@@ -145,6 +146,7 @@ export async function run(
   let theirMoves = new Map<string, Set<string>>();
   let bannerUntil = -Infinity;
   let bannerAt = -Infinity;
+  let bannerReading = false;
   let said = '';
 
   while (battles < count) {
@@ -171,19 +173,29 @@ export async function run(
       bannerUntil = clock.now() + BANNER_MS;
     } else if (
       seen.opponent &&
+      !bannerReading &&
       !player.minigame &&
       clock.now() < bannerUntil &&
       clock.now() - bannerAt >= BANNER_EVERY_MS
     ) {
       bannerAt = clock.now();
-      const move = await readBanner(frame, data, seen);
+      bannerReading = true;
 
-      if (move) {
-        const known = theirMoves.get(seen.opponent) ?? new Set();
-        theirMoves.set(seen.opponent, known.add(move));
-        bannerUntil = -Infinity;
-        log(`${seen.opponent} has ${[...known].join(' and ')}`);
-      }
+      // Kept in the battle's own record, which a read finishing after the next battle has begun leaves alone.
+      const { opponent } = seen;
+      const moves = theirMoves;
+
+      void readBanner(frame, data, seen)
+        .then((move) => {
+          if (move) {
+            const known = moves.get(opponent) ?? new Set();
+            moves.set(opponent, known.add(move));
+            bannerUntil = -Infinity;
+            log(`${opponent} has ${[...known].join(' and ')}`);
+          }
+        })
+        .catch((error: unknown) => log(`banner not read: ${error instanceof Error ? error.message : String(error)}`))
+        .finally(() => (bannerReading = false));
     }
 
     if (state !== 'other') {
