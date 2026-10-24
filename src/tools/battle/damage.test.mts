@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { cpOf, multiplierOf, type Form, type GameData } from '../inventory/game-master.mts';
-import { buildsOf, hit, rankOne, wouldFaint, type Side } from './damage.mts';
+import { afterThrow, buildsOf, hit, NO_STAGES, rankOne, wouldFaint, type Side, type Stages } from './damage.mts';
 import { type Meta } from './meta.mts';
 
 const DATA = JSON.parse(
@@ -156,4 +156,71 @@ test.each<[string[], boolean]>([
   const opponent = { species: 'Tyranitar', cp: 2256 };
 
   expect(wouldFaint(DATA, own, opponent, 0.58, 2500, null, new Set(seen)).faints).toBe(faints);
+});
+
+test('a stage up on the attacker’s attack or down on the defender’s defense moves the hit by `stage`', () => {
+  const [charizard] = buildsOf(DATA, CHARIZARD, ULTRA);
+  const [magmar] = buildsOf(DATA, MAGMAR, ULTRA);
+  const fireBlast = DATA.combat['Fire Blast'];
+  const fire = (attack?: number, defense?: number) =>
+    magmar && charizard && fireBlast && hit(DATA, fireBlast, magmar, charizard, attack, defense);
+
+  // The 70.10 under the 71 above, ×1.25 for +1 attack, ×1.5 for −2 defense and ×0.8 for −1 attack.
+  expect(fire(1)).toBe(88);
+  expect(fire(0, -2)).toBe(106);
+  expect(fire(-1)).toBe(57);
+  expect(fire(4, -4), 'twice over on each side').toBe(281);
+});
+
+/** Both sides' stages, theirs and ours, as `wouldFaint` takes them. */
+const staged = (their: Partial<Stages>, own: Partial<Stages> = {}) => ({
+  own: { ...NO_STAGES, ...own },
+  their: { ...NO_STAGES, ...their },
+});
+
+test.each<[string, number, ReturnType<typeof staged>, boolean, string]>([
+  [
+    'Magmar a stage up on attack',
+    0.6,
+    staged({ attack: 1 }),
+    true,
+    'Fire Blast would take ~59%, with 60% left (their attack +1)',
+  ],
+  [
+    'our defense down two after our Close Combat',
+    0.75,
+    staged({}, { defense: -2 }),
+    true,
+    'Fire Blast would take ~71%, with 75% left (our defense -2)',
+  ],
+  [
+    'Magmar a stage down on attack after our Icy Wind',
+    0.5,
+    staged({ attack: -1 }),
+    false,
+    'Fire Blast would take ~38%, with 50% left (their attack -1)',
+  ],
+  [
+    'our attack and their defense, which do not move its hit',
+    0.6,
+    staged({ defense: -2 }, { attack: 2 }),
+    false,
+    'Fire Blast would take ~48%, with 60% left',
+  ],
+])('with %s, at %s HP a CP 2495 Charizard would faint: %s', (_, hp, stages, faints, why) => {
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, hp, ULTRA, null, new Set(), stages)).toEqual({ faints, why });
+});
+
+test('only a stat change that always happens moves a stage, and no further than ±4', () => {
+  const after = (name: string, user: Stages = NO_STAGES) => afterThrow(DATA.combat[name], user, NO_STAGES);
+
+  expect(after('Close Combat')).toEqual([{ attack: 0, defense: -2 }, NO_STAGES]);
+  expect(after('Superpower')).toEqual([{ attack: -1, defense: -1 }, NO_STAGES]);
+  expect(after('Icy Wind')).toEqual([NO_STAGES, { attack: -1, defense: 0 }]);
+  expect(after('Power-Up Punch', { attack: 1, defense: -3 })).toEqual([{ attack: 2, defense: -3 }, NO_STAGES]);
+  expect(after('Ancient Power'), 'a tenth of a chance').toEqual([NO_STAGES, NO_STAGES]);
+  expect(after('Fire Blast'), 'none at all').toEqual([NO_STAGES, NO_STAGES]);
+  expect(afterThrow(undefined, NO_STAGES, NO_STAGES), 'a move not known').toEqual([NO_STAGES, NO_STAGES]);
+  expect(after('Close Combat', { attack: 0, defense: -3 })).toEqual([{ attack: 0, defense: -4 }, NO_STAGES]);
+  expect(after('Power-Up Punch', { attack: 4, defense: 0 })).toEqual([{ attack: 4, defense: 0 }, NO_STAGES]);
 });

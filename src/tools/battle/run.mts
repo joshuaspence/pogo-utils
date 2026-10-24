@@ -16,7 +16,7 @@ import { readHealth, type Health } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
-import { wouldFaint, type Verdict } from './damage.mts';
+import { afterThrow, NO_STAGES, wouldFaint, type Stages, type Verdict } from './damage.mts';
 import { type Meta } from './meta.mts';
 import { type Fight, type Reporter } from './report.mts';
 
@@ -183,6 +183,11 @@ export async function run(
   // Our charged move last thrown, which a shield the opponent takes is taken against.
   let thrown: string | undefined;
 
+  // The attack and defense stages of the Pokémon out on each side, as the charged moves thrown have moved them: ours
+  // from each we throw, theirs off the banner after each prompt. A move of theirs thrown while we hold no shields shows
+  // no prompt and so goes uncounted, which costs nothing, there being no shield left to decide on.
+  let stages: { own: Stages; their: Stages } = { own: NO_STAGES, their: NO_STAGES };
+
   // What the screen was last recognised as, and the battle as last read, for `report.status`.
   let screen = 'other';
   let fight: Fight | undefined;
@@ -247,6 +252,8 @@ export async function run(
       const { opponent } = seen;
       const moves = theirMoves;
 
+      // One banner a prompt, the read stopping at the first that names a move: so each is one throw of theirs, its
+      // stages moved unless the thrower has since gone.
       void readBanner(frame, data, seen)
         .then((move) => {
           if (move) {
@@ -254,6 +261,11 @@ export async function run(
             moves.set(opponent, known.add(move));
             bannerUntil = -Infinity;
             log(`${opponent} has ${[...known].join(' and ')}`, 'opponent');
+
+            if (moves === theirMoves && seen.opponent === opponent) {
+              const [user, target] = afterThrow(data.combat[move], stages.their, stages.own);
+              stages = { own: target, their: user };
+            }
           }
         })
         .catch((error: unknown) => log(`banner not read: ${error instanceof Error ? error.message : String(error)}`))
@@ -275,6 +287,7 @@ export async function run(
         health = { own: null, opponent: null };
         theirMoves = new Map();
         bannerUntil = -Infinity;
+        stages = { own: NO_STAGES, their: NO_STAGES };
       }
 
       // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one of theirs
@@ -290,10 +303,12 @@ export async function run(
         ourShields = Math.min(ourShields, ownShields(frame) ?? ourShields);
       }
 
-      // The Pokémon sent in next has moves of its own, perhaps a name, and its own CP and HP.
+      // The Pokémon sent in next has moves of its own, perhaps a name, its own CP and HP, and no stages moved: the
+      // switch prompt comes up only on a faint, the run never switching of its own accord.
       if (state === 'switch') {
         seen = { ...seen, own: null, ownCp: null, moves: new Map() };
         health = { ...health, own: null };
+        stages = { ...stages, own: NO_STAGES };
         readAt = -Infinity;
       }
 
@@ -311,6 +326,7 @@ export async function run(
 
         if (before !== null && seen.opponent !== before) {
           log(`sent in ${seen.opponent}`, 'opponent');
+          stages = { ...stages, their: NO_STAGES };
         }
       }
 
@@ -333,6 +349,7 @@ export async function run(
               cap,
               meta,
               theirMoves.get(seen.opponent ?? ''),
+              stages,
             );
       const shield = ourShields > 0 && verdict.faints;
 
@@ -386,6 +403,8 @@ export async function run(
       } else if (action.kind === 'tap') {
         if (action.what === 'charged') {
           thrown = seen.moves.get(action.at[0]);
+          const [user, target] = afterThrow(data.combat[thrown ?? ''], stages.own, stages.their);
+          stages = { own: user, their: target };
           log(`threw ${thrown ?? 'a charged move'}`, 'own');
         } else if (action.what === 'shield') {
           // Told once, a retap a second later being the same answer to the same prompt.
