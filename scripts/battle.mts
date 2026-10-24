@@ -257,6 +257,9 @@ if (command === 'run') {
       console.log('GO Battle League has no battle to offer until its reward is collected');
     }
   } catch (error) {
+    // The terminal back first, from a run that failed before it began as from one that failed in it: the reason written
+    // into the screen taken over would go with it.
+    panel?.done();
     process.exitCode = 1;
     console.error(error instanceof Error ? error.message : String(error));
 
