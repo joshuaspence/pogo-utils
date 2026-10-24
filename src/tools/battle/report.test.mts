@@ -67,12 +67,14 @@ test('writes the battle as a line each time it changes, and each event', () => {
   report.status(STATUS);
   report.status({ ...STATUS, screen: 'charged' });
   report.event('threw Dragon Claw', 'own');
+  report.event('took shield', 'own', 'Fire Blast would take ~48%, with 9% left');
   report.status({ ...STATUS, fight: { ...FIGHT, shield: true } });
   report.status({ ...STATUS, fight: undefined });
 
   expect(lines).toEqual([
     'Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, not shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
     'threw Dragon Claw',
+    'took shield: Fire Blast would take ~48%, with 9% left',
     'Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
   ]);
 });
@@ -178,7 +180,7 @@ test('gives the run’s events at the foot their last eight, and what the sides 
   expect(shown().slice(22)).toEqual(Array.from({ length: 8 }, (_, i) => faded(`tap ${i + 12}`)));
 });
 
-test('cuts each line to the width of the terminal, so none wraps', () => {
+test('keeps each line within the width of the terminal, wrapping what a side did within its column', () => {
   const { stream, shown } = terminal(20, 24);
   const report = live(stream);
 
@@ -191,8 +193,31 @@ test('cuts each line to the width of the terminal, so none wraps', () => {
 
   expect(shown().every((line) => [...unfaded(line)].length <= 20)).toBe(true);
   expect(shown()[3]).toBe(' CP 2495 │  CP 1826');
-  expect(shown()[9]).toBe('         │ Magmar th');
+  expect(shown().slice(9, 13)).toEqual([
+    '         │ Magmar',
+    '         │   threw a',
+    '         │   charged',
+    '         │   move',
+  ]);
   expect(shown()[16]).toBe(faded('party: Charizard, Gy'));
+});
+
+test('draws why a side did something faint after it, carrying on below where it is too long', () => {
+  const { stream, shown } = terminal(80, 24);
+  const report = live(stream);
+
+  report.status(STATUS);
+  report.event('took shield', 'own', 'Fire Blast would take ~48%, with 9% left');
+  report.event('Magmar shielded our Blast Burn', 'opponent', 'a guess');
+  report.event('threw Dragon Claw', 'own');
+  vi.advanceTimersByTime(100);
+
+  expect(shown().slice(9, 13)).toEqual([
+    `took shield:${faded(' Fire Blast would take')}     │`,
+    `  ${faded('~48%, with 9% left')}                   │`,
+    `${' '.repeat(38)} │ Magmar shielded our Blast Burn:${faded(' a guess')}`,
+    'threw Dragon Claw                      │',
+  ]);
 });
 
 test('redraws at most every 100ms, drawing the last status it was sent', () => {
