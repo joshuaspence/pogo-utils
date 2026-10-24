@@ -120,6 +120,10 @@ const KEPT_FRAMES = 10;
  */
 const AROUND_MS = 1_000;
 
+/** Pokémon left by the Poké Balls, a faint being for good: the lower of the count before and a read, either if null. */
+const fewer = (was: number | null, read: number | null) =>
+  read === null ? was : was === null ? read : Math.min(was, read);
+
 /**
  * A menu read run beside the battle: `done` once its screenshot has been taken and read, or has failed. The result's
  * screenshot is read for the battle's outcome too.
@@ -259,6 +263,9 @@ export async function run(
   let left: { own: number | null; opponent: number | null } = { own: null, opponent: null };
   let leftAtName: number | null = null;
 
+  // How many of ours the Poké Balls showed left when the last switch prompt showed: three, before any has.
+  let promptedAt = 3;
+
   // The opponent a fuller bar said was replaced, its name cleared to be read again, until the newcomer's is: what the
   // newcomer is told as having replaced.
   let departed: string | null = null;
@@ -352,7 +359,15 @@ export async function run(
       }
     }
 
-    const state = recognise(frame);
+    // A switch prompt follows a faint of ours, which the Poké Balls show by its first frame: one more of them grey than
+    // when the last prompt showed. Anything else matching it is another dark screen, taken as `other` so nothing is
+    // tapped: a charged move's burst over a night field matched with all three red, and answering it had Mewtwo fainted
+    // while it fought on for 26s. A frame whose balls go unread is judged by the count last read, which shows a faint by
+    // then; with none read this battle, nothing has shown one.
+    const recognised = recognise(frame);
+    const ours = battling ? fewer(left.own, pokemonLeft(frame).own) : null;
+    const owed = prompt !== undefined || (ours !== null && ours < promptedAt);
+    const state = recognised === 'switch' && !owed ? 'other' : recognised;
     const theirName = () => seen.opponent ?? 'the opponent';
 
     if (state === 'shield' && last !== 'shield') {
@@ -479,6 +494,7 @@ export async function run(
         switching = undefined;
         left = { own: null, opponent: null };
         leftAtName = null;
+        promptedAt = 3;
         departed = null;
         steady = new Steady();
         energy = new Energy(data, meta);
@@ -503,9 +519,6 @@ export async function run(
       // The switch prompt leaves the Poké Balls in view, ours already showing the faint it follows.
       if (state !== 'shield') {
         const balls = pokemonLeft(frame);
-        const fewer = (was: number | null, read: number | null) =>
-          read === null ? was : was === null ? read : Math.min(was, read);
-
         const counted = { own: fewer(left.own, balls.own), opponent: fewer(left.opponent, balls.opponent) };
 
         for (const side of ['own', 'opponent'] as const) {
@@ -748,6 +761,7 @@ export async function run(
 
       // The switch prompt's cards are the slots not fainted bar the one out, in party order.
       if (state === 'switch' && !prompt) {
+        promptedAt = left.own ?? promptedAt;
         const gone = caught?.slot ?? slot;
         const out = new Set([...fainted, ...(gone === undefined ? [] : [gone])]);
         const chosen = nextOut(data, party, out, seen.opponent, meta);
