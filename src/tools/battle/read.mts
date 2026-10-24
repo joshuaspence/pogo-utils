@@ -9,7 +9,7 @@
  */
 
 import { closest, type GameData } from '../inventory/game-master.mts';
-import { centre, ocr, type Line } from '../inventory/ocr.mts';
+import { centre, fold, ocr, ocrLine, type Line } from '../inventory/ocr.mts';
 import { crop, scale, type Image } from '../inventory/png.mts';
 import { BOTTOM, down, TOP } from './layout.mts';
 import { BUTTON_XS } from './recognise.mts';
@@ -125,6 +125,55 @@ export async function readBattle(
   }
 
   return sighting;
+}
+
+/**
+ * The banner a charged move puts up once it is thrown, `Quaquaval used Aqua Jet!`, in a pill across the sky. Read as one
+ * line, the band 0.30 to 0.34 down a Pixel 4 XL's screen cropped and scaled up three times: of six banners in the GO
+ * Battle League screenshots, four read whole — `a Swampert used Hydro Cannon! at`, `ae Quaquaval used Aqua Jet! .` —
+ * and Golem's Stone Edge as `Golem usedlistras`, which names no move; on a Pixel 8 Pro at night, `Groudon used Solar
+ * Beam!` whole once fully drawn. OCR of the whole frame read one of them.
+ */
+const BANNER = { top: 0.3, bottom: 0.34 } as const;
+
+/**
+ * Where the banner is pinned, as `layout.mts` measures anchors: its line centred at 0.323 of a Pixel 4 XL's height and
+ * at 0.316 of a Pixel 8 Pro's, the middle of the bands a line read finds `used` in, two banners on one and three on the
+ * other. The two shapes differ little, so the anchor is good to about 0.1 either way; what it has to get right is the
+ * band, which pinned to the top missed the Pixel 8 Pro's lettering, rows 250 to 261 of 802, from row 258 down.
+ */
+const BANNER_ANCHOR = 0.19;
+const USED = /^(.*?)\s*used\s*([^!]*)/i;
+
+/**
+ * The charged move the banner says `opponent` used, matched to one its species can hold, or null where no banner is up,
+ * it names another Pokémon — ours, each side's moves having one — or the move is not one of its. A mirror match, both
+ * sides the same species, says nothing of whose move it was, and so is not read.
+ */
+export async function readBanner(
+  image: Image,
+  data: GameData,
+  { own, opponent }: { own: string | null; opponent: string | null },
+  readLine: (image: Image) => Promise<string | null> = ocrLine,
+): Promise<string | null> {
+  if (opponent === null || own === opponent) {
+    return null;
+  }
+
+  const [, who = '', what = ''] = USED.exec((await readLine(band(image, BANNER, BANNER_ANCHOR, 3).image)) ?? '') ?? [];
+
+  // Whatever the pill's edge read as runs on before the name, so the name is the words at the end, as many as it has.
+  const words = fold(who).split(' ').slice(-fold(opponent).split(' ').length).join(' ');
+
+  if (!closest(words, [opponent], (name) => name)) {
+    return null;
+  }
+
+  const charged = data.forms
+    .filter((form) => form.species === opponent)
+    .flatMap((form) => form.moves.filter((move) => !move.fast).map((move) => move.name));
+
+  return closest(what, [...new Set(charged)], (name) => name);
 }
 
 /**

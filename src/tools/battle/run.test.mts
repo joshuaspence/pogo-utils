@@ -291,6 +291,17 @@ test('stops at the end of a GO Battle League set, leaving its reward to be colle
   expect(taps).toEqual(['party', 'charged', 'result']);
 });
 
+// The Battle tab sliding in, its BATTLE caught not yet green by the first read: the second finds it lit, and plays.
+test('plays on where GO Battle League shows BATTLE greyed for one read only', async () => {
+  const { phone, clock, taps } = scripted(
+    { ...league(), opening: { frame: fixture('menu-gbl-collect'), lasts: { ms: 3000, to: 'tab' } } },
+    'opening',
+  );
+
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock)).toBe(1);
+  expect(taps[0]).toBe('tab');
+});
+
 /**
  * Zeraora leads and faints to Glaceon. Of Latias and Gyarados, Glaceon hits Latias super effectively and not Gyarados,
  * so Gyarados goes in, off the prompt's second card. The first tap does not land, and the retap a second later goes to
@@ -572,6 +583,35 @@ test.each([
   );
 
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(tapped);
+});
+
+// Charizard against Quaquaval: the banner after the prompt names Quaquaval's move, which is kept for the battle.
+test('learns the move the banner after a shield prompt names', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-one-shield'), swipes: { count: 10, to: 'prompt' } },
+      prompt: { frame: fixture('shield-low'), lasts: { ms: 3000, to: 'banner' } },
+      banner: { frame: fixture('battle-banner-quaquaval'), lasts: { ms: 2000, to: 'won' } },
+    },
+    'fight',
+  );
+  const lines: string[] = [];
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    (line) => lines.push(line),
+  );
+
+  expect(lines).toContain('Quaquaval has Aqua Jet');
 });
 
 // Started mid-battle in GO Battle League, the party screen that states the league's cap never seen: every shield taken.

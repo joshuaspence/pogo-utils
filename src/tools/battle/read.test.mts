@@ -9,7 +9,7 @@ import { type GameData } from '../inventory/game-master.mts';
 import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { useEngine } from '../inventory/ocr.mts';
 import { decodePng } from '../inventory/png.mts';
-import { merge, readBattle, unseen } from './read.mts';
+import { merge, readBanner, readBattle, unseen } from './read.mts';
 
 beforeAll(() => useEngine(tesseractCli));
 
@@ -66,4 +66,21 @@ test('a read keeps what earlier reads found, bar labels of the other layout', ()
     moves: new Map([[0.31, 'Crunch']]),
   });
   expect(merge(seen, { ...unseen(), opponent: 'Moltres' }).moves, 'a read of no labels').toEqual(seen.moves);
+});
+
+const banner = (name: string, sides: { own: string | null; opponent: string | null }) =>
+  readBanner(decodePng(readFileSync(new URL(`fixtures/${name}.png`, import.meta.url))), DATA, sides);
+
+// Swampert against Quaquaval: Quaquaval's banner names its move, Swampert's is our own, and a mirror says nothing of
+// whose it was. Golem's Stone Edge read as `Golem usedlistras`, which is no move of Golem's. Groudon's is on a Pixel 8
+// Pro at night, its band placed by the banner's own anchor: pinned to the top, it missed the lettering.
+test.each([
+  ['battle-banner-quaquaval', { own: 'Swampert', opponent: 'Quaquaval' }, 'Aqua Jet'],
+  ['battle-banner-swampert', { own: 'Swampert', opponent: 'Quaquaval' }, null],
+  ['battle-banner-quaquaval', { own: 'Quaquaval', opponent: 'Quaquaval' }, null],
+  ['battle-banner-quaquaval', { own: 'Swampert', opponent: null }, null],
+  ['other-banner-golem', { own: 'Gengar', opponent: 'Golem' }, null],
+  ['battle-banner-pixel8-groudon', { own: 'Moltres', opponent: 'Groudon' }, 'Solar Beam'],
+])('reads the move %s names, against %j', async (name, sides, move) => {
+  expect(await banner(name, sides)).toBe(move);
 });

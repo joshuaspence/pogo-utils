@@ -13,7 +13,7 @@ import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
 import { readHealth, type Health } from './health.mts';
-import { merge, readBattle, unseen, type Sighting } from './read.mts';
+import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint } from './damage.mts';
@@ -51,6 +51,13 @@ const MENU_AFTER_MS = 1_500;
 /** How long a menu's tap is given to animate into the next screen before that is screenshot. */
 const MENU_SETTLE_MS = 1_500;
 
+/**
+ * How many reads in a row GO Battle League's card has to show BATTLE greyed out before the run stops for its reward.
+ * One was taken on a Pixel 8 Pro as the Battle tab slid in, 1.5s after the main menu's tap, its BATTLE not yet green:
+ * the run stopped with a set there to play. A read a settle later finds it lit, where a reward is waiting it does not.
+ */
+const NO_BATTLE_READS = 2;
+
 /** How long the Battle tab's scroll takes, in milliseconds: long enough to be a drag rather than a tap. */
 const SCROLL_MS = 400;
 
@@ -59,6 +66,15 @@ const SCROLL_MS = 400;
  * 220ms, a fast move's worth, and what it reads changes only when a Pokémon on either side does.
  */
 const READ_MS = 3_000;
+
+/**
+ * How long after a shield prompt the banner naming the move is looked for, and how often, in milliseconds. The banner
+ * follows the move's animation, a shield's included: 2.4s after a prompt for Groudon's Solar Beam, past 3.9s for a
+ * Rhyperior's, the wall still up at the last of twelve reads. Read beside the battle rather than holding it up, as the
+ * menu is, the battle having often come back by then.
+ */
+const BANNER_MS = 8_000;
+const BANNER_EVERY_MS = 300;
 
 /** How many frames the shield prompt must show for to be counted as the opponent's throw, as `Player` settles on it. */
 const THROWN = 3;
@@ -115,6 +131,7 @@ export async function run(
   let battling = false;
   let known = clock.now();
   let otherSince: number | undefined;
+  let noBattle = 0;
 
   // The menu read under way, if any: settled once its screenshot is taken and read, or failed.
   let reading: Reading | undefined;
@@ -150,6 +167,12 @@ export async function run(
   let bubbleColour: Colour | undefined;
   let seen: Sighting = unseen();
   let readAt = -Infinity;
+
+  // The charged moves each opponent has been seen to use this battle, by species, off the banner after each prompt.
+  let theirMoves = new Map<string, Set<string>>();
+  let bannerUntil = -Infinity;
+  let bannerAt = -Infinity;
+  let bannerReading = false;
   let said = '';
 
   while (battles < count) {
@@ -176,6 +199,37 @@ export async function run(
 
     prompted = state === 'shield' ? prompted + 1 : 0;
 
+    // The move just thrown at us, named once it lands, whether or not the shield was taken: the banner is drawn over the
+    // battle and over the frames that read as neither, so it is looked for on both.
+    if (state === 'shield') {
+      bannerUntil = clock.now() + BANNER_MS;
+    } else if (
+      seen.opponent &&
+      !bannerReading &&
+      !player.minigame &&
+      clock.now() < bannerUntil &&
+      clock.now() - bannerAt >= BANNER_EVERY_MS
+    ) {
+      bannerAt = clock.now();
+      bannerReading = true;
+
+      // Kept in the battle's own record, which a read finishing after the next battle has begun leaves alone.
+      const { opponent } = seen;
+      const moves = theirMoves;
+
+      void readBanner(frame, data, seen)
+        .then((move) => {
+          if (move) {
+            const known = moves.get(opponent) ?? new Set();
+            moves.set(opponent, known.add(move));
+            bannerUntil = -Infinity;
+            log(`${opponent} has ${[...known].join(' and ')}`);
+          }
+        })
+        .catch((error: unknown) => log(`banner not read: ${error instanceof Error ? error.message : String(error)}`))
+        .finally(() => (bannerReading = false));
+    }
+
     if (state !== 'other') {
       if (!battling) {
         log(`battle ${battles + 1} started`);
@@ -188,6 +242,8 @@ export async function run(
         ourShields = 2;
         health = { own: null, opponent: null };
         energy = new Energy(data, meta);
+        theirMoves = new Map();
+        bannerUntil = -Infinity;
       }
 
       // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one of theirs
@@ -255,6 +311,7 @@ export async function run(
             health.own,
             cap,
             meta,
+            theirMoves.get(seen.opponent ?? ''),
             estimate ? estimate.energy + estimate.gain : undefined,
           ));
       const moves = [...seen.moves.values()].join(', ') || '?';
@@ -363,6 +420,11 @@ export async function run(
       // reward encounter's, which is left for the player rather than tapped.
       const menu = read.screen === 'map' && mode.mode === 'gbl' && battles > 0 ? { screen: 'unknown' as const } : read;
 
+      // Greyed out read after read, not once among others.
+      if (menu.screen !== 'no-battle') {
+        noBattle = 0;
+      }
+
       if (menu.screen === 'party') {
         party = readParty(screenshot, icons);
         cap = mode.mode === 'training' ? CAPS[mode.league] : menu.cap;
@@ -381,7 +443,7 @@ export async function run(
         await phone.swipe(...menu.swipe, SCROLL_MS);
       } else if (menu.screen === 'matchmaking') {
         known = clock.now();
-      } else if (menu.screen === 'no-battle') {
+      } else if (menu.screen === 'no-battle' && ++noBattle >= NO_BATTLE_READS) {
         log('no-battle: a reward to collect');
         return battles;
       } else if ('tap' in menu) {

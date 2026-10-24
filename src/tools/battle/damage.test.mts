@@ -105,11 +105,12 @@ test('in a league PvPoke ranks, only the charged moves the opponent’s players 
 
 test('only the charged moves the opponent can afford are allowed for, where its energy is counted', () => {
   // At 50%, Fire Blast's 71 of the 74 left faints; Flamethrower, Scorching Sands and Fire Punch do not.
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, 60), 'short of Fire Blast’s 80').toBe(false);
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, 80)).toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, 10), 'too little for anything: the count is short').toBe(
-    true,
-  );
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 60), 'short of Fire Blast’s 80').toBe(false);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 80)).toBe(true);
+  expect(
+    wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 10),
+    'too little for anything: the count is short',
+  ).toBe(true);
 });
 
 test('anything unknown counts as fainting', () => {
@@ -120,4 +121,21 @@ test('anything unknown counts as fainting', () => {
   expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: 2826 }, 0.9, ULTRA), 'over the cap').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, null, ULTRA), 'the HP left').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: 'Not A Pokémon', cp: 1826 }, 0.9, ULTRA)).toBe(true);
+});
+
+/**
+ * Dialga, CP 2289, at 58% against Tyranitar, CP 2256, as in a live GO Battle League battle: Tyranitar's Fire Blast takes
+ * about 80% of Dialga, Crunch about 48% and Stone Edge 43%. One move seen leaves Fire Blast possible as the other; both
+ * seen, it is not.
+ */
+test.each<[string[], boolean]>([
+  [[], true],
+  [['Crunch'], true],
+  [['Crunch', 'Stone Edge'], false],
+  [['Crunch', 'Fire Blast'], true],
+])('with %j seen, Tyranitar would faint Dialga at 58%: %s', (seen, faints) => {
+  const own = { species: 'Dialga', cp: 2289 };
+  const opponent = { species: 'Tyranitar', cp: 2256 };
+
+  expect(wouldFaint(DATA, own, opponent, 0.58, 2500, null, new Set(seen))).toBe(faints);
 });
