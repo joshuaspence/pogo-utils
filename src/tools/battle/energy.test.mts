@@ -204,9 +204,10 @@ test('an opponent CP unread is counted as the cap', () => {
 
 test('steps measured before a CP was read do not stop later ones from telling the fast move', () => {
   const energy = new Energy(DATA);
-  const unread: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: null } };
+  const unread: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: null }, cap: null };
 
-  // Counter's steps with Medicham's CP not yet read, which no build can check, and then with it read.
+  // Counter's steps with Medicham's CP not yet read and no cap to take it as, which no build can check, and then with
+  // it read.
   const hp = fight(energy, { step: COUNTER, hits: 3 }, unread);
   fight(energy, { from: hp, step: COUNTER, hits: 3, start: 5000 });
 
