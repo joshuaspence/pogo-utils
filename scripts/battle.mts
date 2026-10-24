@@ -284,10 +284,14 @@ if (command === 'run') {
       );
     }
 
-    const battles = await run(phone, { mode, data, icons, colours, meta, count }, clock, report).finally(() =>
-      panel?.done(),
+    const { battles, won, lost } = await run(phone, { mode, data, icons, colours, meta, count }, clock, report).finally(
+      () => panel?.done(),
     );
-    console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
+    const unread = battles - won - lost;
+    const outcomes = [`${won} won`, `${lost} lost`, ...(unread > 0 ? [`${unread} unread`] : [])];
+    const tally = `${outcomes.slice(0, -1).join(', ')} and ${outcomes.at(-1)}`;
+
+    console.log(`${battles} battle${battles === 1 ? '' : 's'} finished: ${tally}`);
 
     if (battles < count) {
       console.log('GO Battle League has no battle to offer until its reward is collected');

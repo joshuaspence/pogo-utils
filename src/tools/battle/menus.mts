@@ -13,7 +13,7 @@
  */
 
 import { fold, ocr, type Line } from '../inventory/ocr.mts';
-import { rgb, type Image } from '../inventory/png.mts';
+import { crop, rgb, type Image } from '../inventory/png.mts';
 import { BOTTOM, down, place, tall, TOP } from './layout.mts';
 import { type Point } from './play.mts';
 
@@ -542,4 +542,37 @@ export async function readMenu(
   }
 
   return { screen: 'unknown' };
+}
+
+/**
+ * The band the result's verdict is lettered across, mid-screen, as fractions of the screen's height: `YOU WIN!` on one
+ * line or `GOOD EFFORT!` on two, from 0.43 to 0.61 at most across a Pixel 4 XL's frames and screenshots and a Pixel 8
+ * Pro's frame.
+ */
+const VERDICT = { top: 0.38, bottom: 0.65 } as const;
+
+/**
+ * How bright each channel of the verdict's white lettering is at least. OCR reads none of the six committed results as
+ * they are, the letters lost in the trees and the avatar behind them; kept to only what is this white, it reads all six
+ * at any threshold from 215 to 250.
+ */
+const LETTERING = 235;
+
+export type Outcome = 'won' | 'lost';
+
+/** What the result on `image` says of the battle: won for `YOU WIN!`, lost for `GOOD EFFORT!`, or neither. */
+export async function readOutcome(image: Image): Promise<Outcome | undefined> {
+  const top = Math.round(VERDICT.top * image.height);
+  const band = crop(image, 0, top, image.width, Math.round(VERDICT.bottom * image.height) - top);
+
+  // Black on white, as Tesseract reads best: the lettering's white, and nothing else.
+  for (let i = 0; i < band.data.length; i += 4) {
+    const white = Math.min(band.data[i] ?? 0, band.data[i + 1] ?? 0, band.data[i + 2] ?? 0) >= LETTERING;
+    band.data.fill(white ? 0 : 255, i, i + 4);
+    band.data[i + 3] = 255;
+  }
+
+  const text = (await ocr(band)).map((line) => fold(line.text)).join(' ');
+
+  return /\bwin\b/.test(text) ? 'won' : /\beffort\b/.test(text) ? 'lost' : undefined;
 }
