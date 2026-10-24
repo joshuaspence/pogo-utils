@@ -63,6 +63,22 @@ export interface CombatMove {
    * turns after the first and is left out where there are none. A charged move is 1, its time being the minigame's.
    */
   turns: number;
+
+  /** The stat stages the move changes, and the chance it does: the game master's `buffs`. Absent where it changes none. */
+  buffs?: Buffs;
+}
+
+/**
+ * Stat stages a move moves, from −4 to +4, on its user (`own`) and on its target (`their`), each left out where it
+ * stays put, and the chance that all of them happen at once: Ancient Power raises both of its user's by 1 a tenth of
+ * the time, Close Combat drops its user's defense by 2 every time.
+ */
+export interface Buffs {
+  chance: number;
+  ownAttack?: number;
+  ownDefense?: number;
+  theirAttack?: number;
+  theirDefense?: number;
 }
 
 export interface GameData {
