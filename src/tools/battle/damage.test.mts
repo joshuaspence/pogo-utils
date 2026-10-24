@@ -111,6 +111,15 @@ test('only the charged moves the opponent can afford are allowed for, where its 
     wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 10),
     'too little for anything: the count is short',
   ).toBe(true);
+
+  // Both of its moves seen, Fire Blast among them, and 60 energy: only Fire Punch is left to fear.
+  const both = new Set(['Fire Blast', 'Fire Punch']);
+
+  expect(
+    wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, both, 60),
+    'the moves seen, then what it can afford',
+  ).toBe(false);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, both, 80)).toBe(true);
 });
 
 test('anything unknown counts as fainting', () => {
