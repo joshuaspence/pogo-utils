@@ -14,6 +14,7 @@ import { beforeAll, expect, test } from 'vitest';
 import { typeColour } from './minigame.mts';
 import { silhouetteOfIcon } from './party.mts';
 import { type Point } from './play.mts';
+import { type Fight, type Reporter } from './report.mts';
 import { Lost, LOST_MS, run, type Clock, type Phone } from './run.mts';
 
 /**
@@ -40,6 +41,19 @@ const DATA = JSON.parse(
 
 const fixture = (name: string) =>
   decodePng(readFileSync(fileURLToPath(new URL(`fixtures/${name}.png`, import.meta.url))));
+
+/** A reporter keeping what a run tells it: each event after the side it is of, and the battle as each status had it. */
+function recorder(): Reporter & { events: string[]; fights: Fight[] } {
+  const events: string[] = [];
+  const fights: Fight[] = [];
+
+  return {
+    events,
+    fights,
+    event: (line, side) => events.push(`${side ?? 'run'}: ${line}`),
+    status: ({ fight }) => fight && fights.push(fight),
+  };
+}
 
 /** The icons `party.test.mts` reads the party screens against. */
 const ICONS = readdirSync(new URL('fixtures/icons/', import.meta.url)).map((icon) => ({
@@ -325,7 +339,7 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
     },
     'party',
   );
-  const lines: string[] = [];
+  const report = recorder();
 
   expect(
     await run(
@@ -338,11 +352,11 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
         count: 1,
       },
       clock,
-      (line) => lines.push(line),
+      report,
     ),
   ).toBe(1);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
-  expect(lines).toContain('sending in Gyarados');
+  expect(report.events).toContain('own: sending in Gyarados');
 });
 
 /**
@@ -500,7 +514,7 @@ test('names the lead from the party, and the next of it after a faint', async ()
     },
     'party',
   );
-  const lines: string[] = [];
+  const report = recorder();
 
   await run(
     phone,
@@ -512,12 +526,12 @@ test('names the lead from the party, and the next of it after a faint', async ()
       count: 1,
     },
     clock,
-    (line) => lines.push(line),
+    report,
   );
 
-  const named = new Set(lines.filter((line) => line.includes(' against ')).map((line) => line.split(':')[0]));
+  const named = new Set(report.fights.map(({ own, opponent }) => `${own.species} against ${opponent.species}`));
 
-  expect([...named]).toEqual(['Latias against Glaceon (2 shields)', 'Mamoswine against Glaceon (2 shields)']);
+  expect([...named]).toEqual(['Latias against Glaceon', 'Mamoswine against Glaceon']);
 });
 
 /**
@@ -596,7 +610,7 @@ test('learns the move the banner after a shield prompt names', async () => {
     },
     'fight',
   );
-  const lines: string[] = [];
+  const report = recorder();
 
   await run(
     phone,
@@ -608,10 +622,10 @@ test('learns the move the banner after a shield prompt names', async () => {
       count: 1,
     },
     clock,
-    (line) => lines.push(line),
+    report,
   );
 
-  expect(lines).toContain('Quaquaval has Aqua Jet');
+  expect(report.events).toContain('opponent: Quaquaval has Aqua Jet');
 });
 
 // Started mid-battle in GO Battle League, the party screen that states the league's cap never seen: every shield taken.
@@ -646,7 +660,7 @@ test('says each side’s CP and HP, and how many shields we have left', async ()
     },
     'fight',
   );
-  const lines: string[] = [];
+  const report = recorder();
 
   await run(
     phone,
@@ -658,13 +672,25 @@ test('says each side’s CP and HP, and how many shields we have left', async ()
       count: 1,
     },
     clock,
-    (line) => lines.push(line),
+    report,
   );
 
-  const read = lines.filter((line) => line.includes(' against ')).map((line) => line.split('; ')[1]);
+  const percent = (hp: number | null) => (hp === null ? null : Math.round(hp * 100));
+  const read = report.fights.map(({ own, opponent }) => [
+    own.cp,
+    percent(own.hp),
+    opponent.cp,
+    percent(opponent.hp),
+    own.shields,
+  ]);
 
-  expect(read).toContain('CP 2495 at 74% against CP 2497 at 51%, 1 of our shields left');
-  expect(read.at(-1)).toBe('CP 2495 at 9% against CP 2497 at 6%, 1 of our shields left');
+  expect(read).toContainEqual([2495, 74, 2497, 51, 1]);
+  expect(read.at(-1)).toEqual([2495, 9, 2497, 6, 1]);
+
+  // The shield prompt is the opponent's charged move, told once however long it shows.
+  expect(report.events.filter((line) => line.endsWith('threw a charged move'))).toEqual([
+    `opponent: ${report.fights.at(-1)?.opponent.species ?? 'the opponent'} threw a charged move`,
+  ]);
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {
