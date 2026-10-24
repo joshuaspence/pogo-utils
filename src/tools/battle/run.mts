@@ -386,8 +386,6 @@ export async function run(
       // A nickname in the HUD leaves the species to the party: whichever slot is out.
       const slot = activeOf(data, party, fainted, seen.moves.values(), sent);
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
-      const bait = theirShields > 0;
-      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
       const facing: Matchup = {
         own: { species: own, cp: seen.ownCp },
         opponent: { species: seen.opponent, cp: seen.opponentCp },
@@ -426,6 +424,14 @@ export async function run(
               estimate ? estimate.energy + estimate.gain : undefined,
             );
       const shield = ourShields > 0 && verdict.faints;
+
+      // With no shield left, a hit that would faint us makes this throw our last, so what it does to our own stats is
+      // past mattering. The shield's verdict, unknowns and an unread cap counting as fainting here too: guessed wrong,
+      // either way it costs no more than the stages of one move, where telling a guess from a read would take `Verdict`
+      // saying which it is.
+      const bait = theirShields > 0;
+      const lastHit = ourShields === 0 && verdict.faints;
+      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), { bait, lastHit });
 
       if (state === 'shield' && !offered?.taken) {
         offered = { why: verdict.why, taken: false };

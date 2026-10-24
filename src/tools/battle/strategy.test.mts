@@ -77,6 +77,19 @@ test('the best button counts what a move does to either side’s stats as well a
   ).toBe(0.69);
 });
 
+test('on our last hit, a move’s stages on our side count for nothing, and those on theirs still count', () => {
+  const lastHit = { lastHit: true };
+  const combat = new Map([
+    [0.31, 'Close Combat'],
+    [0.69, 'Rock Slide'],
+  ]);
+
+  expect(worth(DATA, 'Close Combat', [], [], lastHit), 'no next hit for our defense −2 to cost').toBe(100);
+  expect(worth(DATA, 'Ancient Power', [], [], lastHit), 'nor a next throw for our attack +1 to help').toBe(60);
+  expect(worth(DATA, 'Rock Tomb', [], [], lastHit), 'their attack −1 lasts on them').toBeCloseTo(75 * 1.2);
+  expect(bestButton(DATA, combat, typesOf(DATA, 'Machamp'), [], lastHit), 'Close Combat, 120 to 75').toBe(0.31);
+});
+
 test('the slot out is the first not fainted whose species can hold the moves read', () => {
   const party = ['Latias', 'Mamoswine', 'Giratina'];
   const none = new Set<number>();
@@ -106,10 +119,13 @@ test('while baiting, the cheapest move is best whatever it hits for', () => {
   const entei = typesOf(DATA, 'Entei');
 
   expect(bestButton(DATA, KYOGRE, kyogre, entei), 'Hydro Pump into Entei once its shields are gone').toBe(0.31);
-  expect(bestButton(DATA, KYOGRE, kyogre, entei, true), 'Avalanche, 45 to Hydro Pump’s 75, while they are up').toBe(
-    0.69,
+  expect(
+    bestButton(DATA, KYOGRE, kyogre, entei, { bait: true }),
+    'Avalanche, 45 to Hydro Pump’s 75, while they are up',
+  ).toBe(0.69);
+  expect(bestButton(DATA, new Map([[0.499, 'Hydro Pump']]), kyogre, entei, { bait: true }), 'one move baits too').toBe(
+    0.499,
   );
-  expect(bestButton(DATA, new Map([[0.499, 'Hydro Pump']]), kyogre, entei, true), 'one move baits too').toBe(0.499);
 });
 
 test.each<[(string | null)[], number[], string, number | undefined, string]>([
