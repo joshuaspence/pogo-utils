@@ -143,7 +143,7 @@ export function hit(data: GameData, move: CombatMove, attacker: Battler, defende
 }
 
 /** How many charged moves a Pokémon holds at most: its own and one unlocked with a second. */
-const MOVES_HELD = 2;
+export const MOVES_HELD = 2;
 
 /**
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the

@@ -194,7 +194,7 @@ export async function run(
     const state = recognise(frame);
 
     if (state !== 'shield' && prompted >= THROWN && matchup) {
-      energy.threw(matchup);
+      energy.threw(matchup, theirMoves.get(matchup.opponent.species ?? ''));
     }
 
     prompted = state === 'shield' ? prompted + 1 : 0;
@@ -213,15 +213,18 @@ export async function run(
       bannerAt = clock.now();
       bannerReading = true;
 
-      // Kept in the battle's own record, which a read finishing after the next battle has begun leaves alone.
+      // Kept in the battle's own record, which a read finishing after the next battle has begun leaves alone. The move
+      // named settles what the throw cost the opponent, which until now was counted as its cheapest.
       const { opponent } = seen;
       const moves = theirMoves;
+      const counting = energy;
 
       void readBanner(frame, data, seen)
         .then((move) => {
           if (move) {
             const known = moves.get(opponent) ?? new Set();
             moves.set(opponent, known.add(move));
+            counting.named(opponent, move);
             bannerUntil = -Infinity;
             log(`${opponent} has ${[...known].join(' and ')}`);
           }

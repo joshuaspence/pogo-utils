@@ -16,7 +16,7 @@
  */
 
 import { type GameData } from '../inventory/game-master.mts';
-import { buildsOf, hit, type Side } from './damage.mts';
+import { buildsOf, hit, MOVES_HELD, type Side } from './damage.mts';
 import { type Meta } from './meta.mts';
 import { chargedOf } from './strategy.mts';
 
@@ -63,6 +63,9 @@ interface Tally {
 
   /** Its energy when it last threw, what was left after the throw. */
   carried: number;
+
+  /** What it had when it last threw, until the banner names the move and so what the throw cost. */
+  had?: number;
 }
 
 export interface Estimate {
@@ -147,30 +150,50 @@ export class Energy {
   }
 
   /**
-   * The opponent threw a charged move, which is the cheapest it is allowed for until the banner naming the move is read:
-   * the cheapest leaves it the most energy, the safe side to err on. What it had is settled there, at no more than
-   * `FULL`, the fast moves it spent at full energy gaining it nothing.
+   * The opponent threw a charged move, which until the banner names it with `named` is the cheapest it is allowed for —
+   * of the two `seen`, once both have been — the cheapest leaving it the most energy, the safe side to err on. What it
+   * had is settled there, at no more than `FULL`, the fast moves it spent at full energy gaining it nothing.
    */
-  threw(matchup: Matchup): void {
+  threw(matchup: Matchup, seen: ReadonlySet<string> = new Set()): void {
     const species = matchup.opponent.species;
 
     if (species === null) {
       return;
     }
 
-    const estimate = this.estimate(matchup);
+    const had = this.estimate(matchup)?.energy ?? 0;
     const tally = this.#tallyOf(species);
-    const costs = this.#data.forms
-      .filter((form) => form.species === species)
-      .flatMap((form) => chargedOf(form, this.#meta?.movesets.get(species)))
-      .flatMap((name) => this.#data.combat[name]?.energy ?? []);
-    const cheapest = Math.min(...costs.map((energy) => -energy));
+    const names =
+      seen.size >= MOVES_HELD
+        ? [...seen]
+        : this.#data.forms
+            .filter((form) => form.species === species)
+            .flatMap((form) => chargedOf(form, this.#meta?.movesets.get(species)));
+    const cheapest = Math.min(...names.map((name) => this.#costOf(name)).filter((cost) => cost > 0));
 
-    tally.carried = Math.max(0, (estimate?.energy ?? 0) - (Number.isFinite(cheapest) ? cheapest : 0));
+    tally.had = had;
+    tally.carried = Math.max(0, had - (Number.isFinite(cheapest) ? cheapest : 0));
 
     for (const stretch of tally.stretches) {
       stretch.lost = 0;
     }
+  }
+
+  /**
+   * The banner named the charged move `species` threw last, which settles what the throw cost: what it had then, less
+   * the move's own cost rather than the cheapest it could have been. Had it less than the move costs, the count was
+   * short, and nothing is left. A banner for a throw not counted, or already settled, changes nothing.
+   */
+  named(species: string, move: string): void {
+    const tally = this.#tallies.get(species);
+    const cost = this.#costOf(move);
+
+    if (tally?.had === undefined || cost <= 0) {
+      return;
+    }
+
+    tally.carried = Math.max(0, tally.had - cost);
+    tally.had = undefined;
   }
 
   /**
@@ -209,6 +232,11 @@ export class Energy {
     }
 
     return { energy: Math.min(FULL, tally.carried + hits * gain), fast, gain };
+  }
+
+  /** What a charged move costs, as a positive energy, or 0 for a move not known to cost any. */
+  #costOf(move: string): number {
+    return -(this.#data.combat[move]?.energy ?? 0);
   }
 
   #tallyOf(species: string): Tally {

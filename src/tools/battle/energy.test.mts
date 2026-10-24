@@ -148,3 +148,37 @@ test('nothing is counted for an opponent not named, nor HP lost that nothing say
   energy.read(2500, 0.9, uncapped);
   expect(energy.estimate(uncapped)).toBe(null);
 });
+
+test('the banner settles what a throw cost: the move named rather than the cheapest', () => {
+  const energy = new Energy(DATA);
+  const hp = fight(energy, { step: PSYCHO_CUT, hits: 10 });
+
+  energy.threw(MATCHUP);
+  fight(energy, { from: hp, step: PSYCHO_CUT, hits: 2, start: 20_000 });
+
+  // 90 less Dynamic Punch's 45 rather than Power-Up Punch's 35, and the two hits since.
+  energy.named('Medicham', 'Dynamic Punch');
+  expect(energy.estimate(MATCHUP)?.energy).toBe(63);
+
+  energy.named('Medicham', 'Psychic');
+  expect(energy.estimate(MATCHUP)?.energy, 'a throw is settled once').toBe(63);
+});
+
+test('a move named that cost more than was counted leaves nothing: the count was short', () => {
+  const energy = new Energy(DATA);
+
+  fight(energy, { step: PSYCHO_CUT, hits: 4 });
+  energy.threw(MATCHUP);
+  energy.named('Medicham', 'Psychic');
+
+  expect(energy.estimate(MATCHUP)?.energy).toBe(0);
+});
+
+test('once both of its moves have been seen, a throw is the cheaper of them', () => {
+  const energy = new Energy(DATA);
+
+  fight(energy, { step: PSYCHO_CUT, hits: 10 });
+  energy.threw(MATCHUP, new Set(['Ice Punch', 'Psychic']));
+
+  expect(energy.estimate(MATCHUP)?.energy, '90 less Ice Punch’s 40').toBe(50);
+});
