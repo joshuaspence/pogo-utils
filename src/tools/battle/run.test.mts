@@ -383,26 +383,29 @@ test('plays on where GO Battle League shows BATTLE greyed for one read only', as
  * so Gyarados goes in, off the prompt's second card. The first tap does not land, and the retap a second later goes to
  * the same card: decided again, with Gyarados already taken to be out, it went to Latias's. A retap that misses runs on
  * into a screen nothing recognises, so a regression ends `Lost` rather than tapping at the prompt for ever.
+ *
+ * The faint is caught once, on the prompt's first frame, by the prompt and by the Poké Balls it leaves in view, so the
+ * frames kept are the prompt's two: the fight's was first seen more than a second before it, and Mamoswine's more than
+ * a second after.
  */
 test('retaps the card it chose when the first tap on the switch prompt does not land', async () => {
-  const { phone, clock, taps } = scripted(
-    {
-      ...battleAndBack(),
-      party: { frame: fixture('menu-party-full'), tap: { at: [0.5, 0.87], to: 'loading' } },
-      fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'fainted' } },
-      fainted: { frame: fixture('switch-glaceon'), lasts: { ms: 600, to: 'again' } },
-      again: {
-        frame: fixture('switch-glaceon'),
-        tap: { at: [0.67, 0.87], to: 'next' },
-        lasts: { ms: 3000, to: 'stuck' },
-      },
-      stuck: { frame: fixture('other-loss') },
-      next: { frame: fixture('battle-minigame-mamoswine'), swipes: { count: 10, to: 'won' } },
+  const scenes: Record<string, Scene> = {
+    ...battleAndBack(),
+    party: { frame: fixture('menu-party-full'), tap: { at: [0.5, 0.87], to: 'loading' } },
+    fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'fainted' } },
+    fainted: { frame: fixture('switch-glaceon'), lasts: { ms: 600, to: 'again' } },
+    again: {
+      frame: fixture('switch-glaceon'),
+      tap: { at: [0.67, 0.87], to: 'next' },
+      lasts: { ms: 3000, to: 'stuck' },
     },
-    'party',
-  );
+    stuck: { frame: fixture('other-loss') },
+    next: { frame: fixture('battle-minigame-mamoswine'), swipes: { count: 10, to: 'won' } },
+  };
+  const { phone, clock, taps } = scripted(scenes, 'party');
+  const sceneOf = (frame: Image) => Object.keys(scenes).find((name) => scenes[name]?.frame === frame);
   const report = recorder();
-  const kept: string[] = [];
+  const kept: [string | undefined, number, string][] = [];
 
   expect(
     await run(
@@ -413,13 +416,16 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
         icons: ICONS,
         colours: COLOURS,
         count: 1,
-        keep: (_frame, _at, event) => kept.push(event),
+        keep: (frame, at, event) => kept.push([sceneOf(frame), at, event]),
       },
       clock,
       report,
     ),
   ).toEqual({ battles: 1, won: 1, lost: 0 });
-  expect(kept).toEqual(['faint-own', 'faint-own', 'faint-own']);
+  expect(kept).toEqual([
+    ['fainted', 7730, 'faint-own'],
+    ['again', 8340, 'faint-own'],
+  ]);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
   expect(report.events.filter((line) => line.includes('sending in'))).toEqual([
     "own: Zeraora fainted; sending in Gyarados: the only one safe from Glaceon's moves",
