@@ -72,10 +72,11 @@ const near = (colour: Colour, target: Colour, within: number) =>
  * Strips of the two panels across the top of a battle, beside each player's CP, and the line above them that holds
  * each side's name and CP.
  *
- * The panels are white at about 80% opacity, so each takes a fifth of its colour from the sky behind it: 244/251/251
+ * The panels are white at about 80% opacity, so each takes a fifth of its colour from what is behind it: 244/251/251
  * under cloud, 229/244/252 under a deep blue sky and 207/216/230 under a night one, which a 19/59/140 gap between them
- * predicts. So no channel falls below 195 and the chroma stays under 52 — a fifth of the most a sky could have — and
- * the sky being blue keeps them no more than a rounding error redder than blue.
+ * predicts. So no channel falls below 195 and the chroma stays under 52 — a fifth of the most anything behind could
+ * have. Not always a sky: a Galarian Moltres's magenta wing behind ours drew it to 237/215/230 and 251/210/225 on a
+ * Pixel 8 Pro, redder than blue, the battle read as none for seconds at a time while it flew.
  *
  * That is a range bare sky falls in too: the sky the shield prompt leaves where it hides them measured 210/238/250. The
  * names are what tell the two apart. Their slate-grey text, and the blur the encoder gives it, is 13–18% of their line
@@ -105,7 +106,7 @@ const HUD_NAMES: readonly Box[] = [
 const HUD_GAP: Box = [0.44, 0.085, 0.56, 0.095];
 const TEXT = { dark: 180, least: 0.08, most: 0.3 } as const;
 
-const panel = (colour: Colour) => Math.min(...colour) >= 195 && colour[2] >= colour[0] - 4 && chroma(...colour) <= 52;
+const panel = (colour: Colour) => Math.min(...colour) >= 195 && chroma(...colour) <= 52;
 
 /** The share of a box darker than `TEXT.dark`. */
 function darkIn(image: Image, box: Box): number {
