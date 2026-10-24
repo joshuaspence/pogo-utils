@@ -16,10 +16,10 @@ const STATUS: Status = { battles: 1, count: 3, screen: 'battle', lostIn: 20_000,
 /** A line of the table with nothing in either column, 80 wide. */
 const EMPTY = `${' '.repeat(38)} │`;
 
-test('draws ours at the left and the opponent at the right', () => {
+test('draws ours at the left and the opponent at the right, how strong each is at its right', () => {
   expect(panel(FIGHT, 80).split('\n')).toEqual([
-    'Charizard                      CP 2495 │ Magmar                         CP 1826',
-    '███████████████░░░░░  74%  ●○          │ ██████████░░░░░░░░░░  50%  ●●',
+    'Charizard           74% │ ●○ │ CP 2495 │ Magmar              50% │ ●● │ CP 1826',
+    '                  ███████████████░░░░░ │                   ██████████░░░░░░░░░░',
     'Blast Burn, Dragon Claw                │',
     'baiting with Dragon Claw               │',
     'not shielding                          │',
@@ -28,19 +28,20 @@ test('draws ours at the left and the opponent at the right', () => {
   expect(rule(80, '┬')).toBe(`${'─'.repeat(39)}┬${'─'.repeat(40)}`);
 });
 
-test('shortens the bars to fit a narrower terminal', () => {
+test('gives the name what a narrower terminal leaves, and the bar what it can', () => {
   expect(panel(FIGHT, 50).split('\n').slice(0, 2)).toEqual([
-    'Charizard       CP 2495 │ Magmar          CP 1826',
-    '██████████░░░░  74%  ●○ │ ███████░░░░░░░  50%  ●●',
+    'Cha  74% │ ●○ │ CP 2495 │ Mag  50% │ ●● │ CP 1826',
+    '   ███████████████░░░░░ │    ██████████░░░░░░░░░░',
   ]);
+  expect(panel(FIGHT, 20).split('\n').slice(0, 2)).toEqual([' CP 2495 │  CP 1826', '██████░░ │ ████░░░░']);
 });
 
 test('marks what has not been read, each thing still in its place', () => {
   const unread = { species: null, cp: null, hp: null, shields: 2 };
 
   expect(panel({ ...FIGHT, own: unread, moves: [], throwing: undefined }, 80).split('\n')).toEqual([
-    '?                                 CP ? │ Magmar                         CP 1826',
-    '????????????????????   ?%  ●●          │ ██████████░░░░░░░░░░  50%  ●●',
+    '?                    ?% │ ●● │ CP    ? │ Magmar              50% │ ●● │ CP 1826',
+    '                  ???????????????????? │                   ██████████░░░░░░░░░░',
     '?                                      │',
     'baiting with the first ready           │',
     'not shielding                          │',

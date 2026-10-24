@@ -128,17 +128,22 @@ export function panel(fight: Fight | undefined, width: number): string {
     );
   }
 
-  // Room beside the bar for its percentage and the shields, ` 100%  ●●`, and beside the name for its CP, ` CP 2495`.
+  // How strong each side is sits at its column's right, the same width whatever is known, `100% │ ●● │ CP 2495`, and
+  // the name gets what is left of the line; the HP bar has the line under them to itself, set at the right too.
   const column = columnOf(width);
-  const long = Math.max(0, Math.min(BAR, column - 9));
-  const name = ({ species, cp }: Side) => fit(species ?? '?', column - 8) + `CP ${cp ?? '?'}`.padStart(8);
+  const long = Math.max(0, Math.min(BAR, column));
 
-  const health = ({ hp, shields }: Side) => {
-    const filled = hp === null ? 0 : Math.round(hp * long);
-    const bar = hp === null ? '?'.repeat(long) : '█'.repeat(filled) + '░'.repeat(long - filled);
+  const name = ({ species, cp, hp, shields }: Side) => {
     const percent = hp === null ? '  ?' : `${Math.round(hp * 100)}`.padStart(3);
+    const strength = `${percent}% │ ${'●'.repeat(shields)}${'○'.repeat(2 - shields)} │ CP ${`${cp ?? '?'}`.padStart(4)}`;
 
-    return `${bar} ${percent}%  ${'●'.repeat(shields)}${'○'.repeat(2 - shields)}`;
+    return (fit(species ?? '?', column - strength.length - 1) + ' ' + strength).slice(-column);
+  };
+
+  const health = ({ hp }: Side) => {
+    const filled = hp === null ? 0 : Math.round(hp * long);
+
+    return (hp === null ? '?'.repeat(long) : '█'.repeat(filled) + '░'.repeat(long - filled)).padStart(column);
   };
 
   return [
