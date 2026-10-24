@@ -72,17 +72,22 @@ export function describe({ own, opponent, moves, throwing, bait, shield, energy 
 /** The opponent's energy as counted, `40 by Counter`. */
 const energyOf = ({ energy, fast }: NonNullable<Fight['energy']>) => `${energy} by ${fast}`;
 
-/** Each event as a line, and the battle's line again each time it changes. */
-export function plain(write: (line: string) => void): Reporter {
+/**
+ * Each event as a line, and the battle's line again each time it changes, each after how long the run has gone on,
+ * `elapsed` in milliseconds, as `  12.4s`: how long a charged move was held, or a prompt went unanswered, is the gap
+ * between two lines.
+ */
+export function plain(write: (line: string) => void, elapsed: () => number): Reporter {
   let said = '';
+  const stamped = (line: string) => write(`${(elapsed() / 1000).toFixed(1).padStart(6)}s ${line}`);
 
   return {
-    event: (line, _side, why) => write(why ? `${line}: ${why}` : line),
+    event: (line, _side, why) => stamped(why ? `${line}: ${why}` : line),
     status({ fight }) {
       const saying = fight && describe(fight);
 
       if (saying && saying !== said) {
-        write(saying);
+        stamped(saying);
         said = saying;
       }
     },

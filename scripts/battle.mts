@@ -22,7 +22,7 @@
  *                       left and the opponent's at the right, and what each side does under it, with how the run
  *                       stands above it and the menus it taps through below, and the phone's screen down the left
  *                       where the terminal draws Kitty graphics and is wide enough; `--verbose` writes the same as
- *                       lines where stderr is not a terminal
+ *                       lines where stderr is not a terminal, each after how long the run has gone on
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
@@ -40,7 +40,7 @@ import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { pictures } from '../src/tools/battle/kitty.mts';
 import { live, plain } from '../src/tools/battle/report.mts';
-import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
+import { Lost, run, type Clock, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord, streamSize } from '../src/tools/battle/stream.mts';
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device } from '../src/tools/inventory/adb.mts';
@@ -238,8 +238,19 @@ if (command === 'run') {
     }
   };
 
+  // The run's clock, which the written lines are timed by too, from here.
+  const clock: Clock = { now: () => performance.now(), sleep };
+  const started = clock.now();
+
   const panel = process.stderr.isTTY ? live(process.stderr, drawn && { pictures: drawn, frame }) : undefined;
-  const report = panel ?? (options.verbose ? plain((line) => console.error(line)) : undefined);
+  const report =
+    panel ??
+    (options.verbose
+      ? plain(
+          (line) => console.error(line),
+          () => clock.now() - started,
+        )
+      : undefined);
 
   process.once('SIGINT', () => {
     panel?.done();
@@ -273,12 +284,9 @@ if (command === 'run') {
       );
     }
 
-    const battles = await run(
-      phone,
-      { mode, data, icons, colours, meta, count },
-      { now: () => performance.now(), sleep },
-      report,
-    ).finally(() => panel?.done());
+    const battles = await run(phone, { mode, data, icons, colours, meta, count }, clock, report).finally(() =>
+      panel?.done(),
+    );
     console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
 
     if (battles < count) {
