@@ -127,7 +127,17 @@ test.each<[(string | null)[], number[], string, number | undefined, string]>([
   ],
   [['Kyogre', 'Tyranitar', 'Giratina'], [0, 1, 2], 'Entei', undefined, 'nobody left'],
 ])('after a faint, %o less %o against %s sends in slot %s: %s', (party, fainted, opponent, slot) => {
-  expect(nextOut(DATA, party, new Set(fainted), opponent)).toBe(slot);
+  expect(nextOut(DATA, party, new Set(fainted), opponent)?.slot).toBe(slot);
+});
+
+test.each<[(string | null)[], number[], string, string]>([
+  [['Kyogre', 'Tyranitar', 'Giratina'], [0, 1], 'Entei', 'the last left'],
+  [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Salamence', "the only one safe from Salamence's moves"],
+  [['Tyranitar', 'Giratina', 'Kyogre'], [0], 'Entei', "safe from Entei's moves, and hits hardest (Hydro Pump)"],
+  [['Latias', 'Mamoswine', 'Giratina'], [0], 'Glaceon', "none safe from Glaceon's moves; hits hardest (Stone Edge)"],
+  [['Tyranitar', 'Kyogre', 'Tyranitar'], [1], 'Moltres', 'first card, nothing to choose between them'],
+])('after a faint, %o less %o against %s says why it sends in whom it does: %s', (party, fainted, opponent, why) => {
+  expect(nextOut(DATA, party, new Set(fainted), opponent)?.why).toBe(why);
 });
 
 test('no button is best while one of a pair has no move read under it', () => {
@@ -175,7 +185,8 @@ test('a shield and who goes in allow for only what the opponent’s players run'
   expect(shouldShield(DATA, 'Latias', 'Glaceon', pulse), 'Water Pulse into Dragon').toBe(false);
   expect(shouldShield(DATA, 'Latias', 'Glaceon', metaOf('Glaceon', ['Avalanche']))).toBe(true);
   expect(shouldShield(DATA, 'Latias', 'Glaceon', metaOf('Entei', [])), 'a meta without Glaceon').toBe(true);
-  expect(nextOut(DATA, party, new Set([0]), 'Glaceon', pulse), 'Giratina takes Water Pulse; Mamoswine does not').toBe(
-    2,
-  );
+  expect(
+    nextOut(DATA, party, new Set([0]), 'Glaceon', pulse)?.slot,
+    'Giratina takes Water Pulse; Mamoswine does not',
+  ).toBe(2);
 });
