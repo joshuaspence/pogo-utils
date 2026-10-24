@@ -396,6 +396,13 @@ export async function run(
       if (menu.screen === 'party' && 'tap' in menu && mode.mode === 'gbl' && mode.party !== undefined) {
         const step = searchParty(search, menu.title, mode.party);
 
+        // A step along the carousel is progress, as a scroll of the Battle tab is not: the search ends of itself, at the
+        // party or at both ends without it, where a scroll could go on for ever. Each step is a swipe, a settle and a
+        // read, some 3s, so a search turning back past a few parties would otherwise run out `LOST_MS` and end lost.
+        if (step === 'next' || step === 'back') {
+          known = clock.now();
+        }
+
         log(`party: ${menu.title ?? '?'} in front, looking for ${mode.party}`);
         menu =
           step === 'use'

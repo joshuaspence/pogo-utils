@@ -261,9 +261,16 @@ export interface Carousel {
   way: 'next' | 'back';
   turned: boolean;
   seen: string[];
+  steps: number;
 }
 
-export const carousel = (): Carousel => ({ way: 'next', turned: false, seen: [] });
+export const carousel = (): Carousel => ({ way: 'next', turned: false, seen: [], steps: 0 });
+
+/**
+ * How many swipes a search of the carousel takes at most: there and back across a dozen parties. Its ends are what
+ * stop it otherwise, and a title misread differently swipe after swipe would never show one.
+ */
+const CAROUSEL_STEPS = 24;
 
 /**
  * What to do next about the party carousel showing `title`, to use the party named `name`: use it, swipe on, or wait for
@@ -284,16 +291,16 @@ export function searchParty(
     return 'use';
   }
 
-  if (search.seen.at(-1) === title) {
-    if (search.turned) {
-      throw new Error(`no party named ${name} saved for this league: ${search.seen.join(', ')}`);
-    }
-
-    search.turned = true;
-    search.way = search.way === 'next' ? 'back' : 'next';
+  if ((search.seen.at(-1) === title && search.turned) || search.steps >= CAROUSEL_STEPS) {
+    throw new Error(`no party named ${name} saved for this league: ${search.seen.join(', ')}`);
   }
 
-  if (search.seen.at(-1) !== title) {
+  search.steps++;
+
+  if (search.seen.at(-1) === title) {
+    search.turned = true;
+    search.way = search.way === 'next' ? 'back' : 'next';
+  } else {
     search.seen.push(title);
   }
 

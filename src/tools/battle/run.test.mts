@@ -277,6 +277,24 @@ test('swipes the party carousel to the party named before using it', async () =>
   expect(taps.slice(0, 1)).toEqual(['gbl']);
 });
 
+// Eight swipes before the party, some 25s of swipes, settles and reads: longer than `LOST_MS`, and not lost for it.
+test('searches a carousel for longer than the run takes to give up as lost', async () => {
+  const cards = ['menu-pixel8-party-test4', 'menu-pixel8-party-test3'];
+  const walk = Object.fromEntries(
+    Array.from({ length: 8 }, (_, i) => [
+      `card${i}`,
+      { frame: fixture(cards[i % 2] ?? ''), swipes: { count: 1, to: i === 7 ? 'gbl' : `card${i + 1}` } },
+    ]),
+  );
+  const { phone, clock, taps } = scripted({ ...parties(), ...walk }, 'card0');
+
+  expect(
+    await run(phone, { mode: { ...GBL, party: 'GBL' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
+  ).toBe(1);
+  expect(taps[0]).toBe('gbl');
+  expect(clock.now()).toBeGreaterThan(LOST_MS);
+});
+
 test('stops rather than battle where no party has the name', async () => {
   const { phone, clock, taps } = scripted(parties(), 'party');
 

@@ -418,3 +418,15 @@ test('stops at the second end without the party, naming those it passed', () => 
     'no party named Great saved for this league: test 4, test 3, gbl, test 3, test 4',
   );
 });
+
+// A title misread one way and then another never shows an end, so the search is held to a number of swipes instead.
+test('stops after so many swipes where the carousel never shows an end', () => {
+  const search = carousel();
+  const swipe = (n: number) => searchParty(search, n % 2 === 0 ? 'test 4' : 'test 3', 'GBL');
+
+  for (let n = 0; n < 24; n++) {
+    swipe(n);
+  }
+
+  expect(() => swipe(24)).toThrow('no party named GBL saved for this league');
+});
