@@ -12,7 +12,7 @@ import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
-import { readHealth, type Health } from './health.mts';
+import { readHealth, Steady } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, pokemonLeft, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
@@ -179,9 +179,10 @@ export async function run(
   // shield is taken.
   let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : meta?.cap;
 
-  // Each side's HP as last read, a bar not drawn on this frame keeping what an earlier one showed. The opponent's is
-  // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
-  let health: Health = { own: null, opponent: null };
+  // Each side's HP as decided on from the bars read, a misread held back, and a bar not drawn on this frame keeping what
+  // an earlier one showed. The opponent's is the last one's until a newcomer's bar is drawn, which the camera does on
+  // most frames.
+  let steady = new Steady();
 
   // The opponent's energy, counted off the hits on our bar, and the matchup as last read and how many frames the shield
   // prompt has shown for: a prompt gone is their charged move thrown, once it held as long as `Player` waits to answer
@@ -324,7 +325,7 @@ export async function run(
         left = { own: null, opponent: null };
         leftAtName = null;
         departed = null;
-        health = { own: null, opponent: null };
+        steady = new Steady();
         energy = new Energy(data, meta);
         theirMoves = new Map();
         bannerUntil = -Infinity;
@@ -354,28 +355,30 @@ export async function run(
       // switch prompt comes up only on a faint, the run never switching of its own accord.
       if (state === 'switch') {
         seen = { ...seen, own: null, ownCp: null, moves: new Map() };
-        health = { ...health, own: null };
+        steady.forget('own');
         stages = { ...stages, own: NO_STAGES };
         readAt = -Infinity;
       }
 
       // Read at the shield prompt as well as through the fight: the prompt hides the HUD, but not the bars.
       const bars = state !== 'switch' && !player.minigame ? readHealth(frame) : undefined;
+      const theirs = steady.health.opponent;
+
+      if (bars) {
+        steady.read(bars);
+      }
+
+      const health = steady.health;
 
       // A bar of theirs fuller than the last is a newcomer's, HP never coming back, sent in with the HUD up throughout:
       // what was read of the one before is not its, and is read again at once rather than standing for up to `READ_MS`,
-      // the newcomer's hits counted to the energy of the one it replaced.
-      const opponentBar = bars?.opponent ?? null;
-
-      if (opponentBar !== null && health.opponent !== null && opponentBar - health.opponent >= NEWCOMER) {
+      // the newcomer's hits counted to the energy of the one it replaced. Measured on the HP decided on, a misread low
+      // being no HP for the next steady reading to rise from.
+      if (theirs !== null && health.opponent !== null && health.opponent - theirs >= NEWCOMER) {
         departed = seen.opponent ?? departed;
         seen = { ...seen, opponent: null, opponentCp: null };
         readAt = -Infinity;
         energy.pause();
-      }
-
-      if (bars) {
-        health = { own: bars.own ?? health.own, opponent: bars.opponent ?? health.opponent };
       }
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
@@ -411,8 +414,9 @@ export async function run(
       matchup = facing;
 
       // Only the fight's own frames count hits: the shield prompt, the minigame and a switch pause it. A frame of the
-      // fight with our bar not found does neither, the drop across it still the fight's.
-      const bar = bars?.own ?? null;
+      // fight with our bar not found does neither, the drop across it still the fight's. A frame that did find it counts
+      // the HP decided on, a misread's drop and the rise back from it being no hits.
+      const bar = bars && bars.own !== null ? health.own : null;
 
       if ((state !== 'battle' && state !== 'charged') || player.minigame) {
         energy.pause();

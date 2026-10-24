@@ -201,3 +201,52 @@ export function readHealth(image: Image): Health {
 
   return health;
 }
+
+/**
+ * How far a bar may move from the HP held before a second reading must agree with it, as a fraction of the bar. A
+ * steady bar reads to within 2 points of itself frame to frame, Entei's at 98–100% and Charizard's at 76–78% in a live
+ * Ultra League run, while the misreads in that run were 62–85 points out: Entei at 14% once among 98–100%, Dialga at 2%
+ * between readings of 64% and Charizard at 4% between readings of 80%. A charged move's hit is as large, so size alone
+ * cannot tell them apart; what does is that a real hit stays and a misread snaps back.
+ */
+const JUMP = 0.1;
+
+/**
+ * Each side's HP as decided on from the bars read frame by frame: a reading within `JUMP` of the HP held replaces it at
+ * once, and one further out only once the next reading of that bar agrees with it. A misread flickering out between
+ * steady readings so never moves what a shield or the opponent's energy is decided on, at the cost of a real hit as
+ * large as one waiting a frame to count. A bar not drawn keeps both what is held and what awaits a second reading.
+ */
+export class Steady {
+  #held: Health = { own: null, opponent: null };
+  #pending: Health = { own: null, opponent: null };
+
+  get health(): Health {
+    return this.#held;
+  }
+
+  read(bars: Health): void {
+    for (const side of ['own', 'opponent'] as const) {
+      const read = bars[side];
+
+      if (read === null) {
+        continue;
+      }
+
+      const near = (hp: number | null) => hp !== null && Math.abs(read - hp) <= JUMP;
+
+      if (this.#held[side] === null || near(this.#held[side]) || near(this.#pending[side])) {
+        this.#held[side] = read;
+        this.#pending[side] = null;
+      } else {
+        this.#pending[side] = read;
+      }
+    }
+  }
+
+  /** A side's Pokémon replaced, its bar a new one: the next reading of it is taken as it comes. */
+  forget(side: keyof Health): void {
+    this.#held[side] = null;
+    this.#pending[side] = null;
+  }
+}
