@@ -338,6 +338,37 @@ test('draws the phone down the left edge, the table beside it at the width it le
   expect(pictures.close).toHaveBeenCalled();
 });
 
+test('draws each new frame alone as it comes, with no status to redraw the rest, and the rest once one first comes', () => {
+  const { stream, written } = terminal(130, 24);
+  const { pictures, image, drawn } = phone();
+  let frame: typeof image | undefined;
+  const report = live(stream, { pictures, frame: () => frame });
+
+  report.status(STATUS);
+  frame = image;
+  vi.advanceTimersByTime(20);
+
+  expect(drawn).toEqual([24]);
+  expect(written().split('\x1b[?2026h').at(-1)).toContain('\x1b[25G');
+
+  const before = written().length;
+
+  for (let i = 0; i < 30; i++) {
+    frame = { ...image };
+    vi.advanceTimersByTime(1000 / 30);
+  }
+
+  expect(drawn).toHaveLength(31);
+  expect(written().slice(before).split('\x1b[?2026h').slice(1)).toEqual(
+    Array<string>(30).fill('\x1b[H[picture 24 rows]\x1b[?2026l'),
+  );
+
+  report.done();
+  vi.advanceTimersByTime(1000);
+
+  expect(drawn).toHaveLength(31);
+});
+
 test('leaves the phone out where the table would be narrower than 80 beside it, or there is no frame yet', () => {
   const { stream, shown } = terminal(103, 24);
   const { pictures, drawn } = phone();
