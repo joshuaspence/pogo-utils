@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { live, panel, plain, rule, type Fight, type Status } from './report.mts';
+import { live, panel, plain, rule, summary, type Fight, type Status } from './report.mts';
 
 const FIGHT: Fight = {
   own: { species: 'Charizard', cp: 2495, hp: 0.74, shields: 1 },
@@ -13,9 +13,11 @@ const FIGHT: Fight = {
 
 const STATUS: Status = { battles: 1, count: 3, screen: 'battle', lostIn: 20_000, lostAfter: 20_000, fight: FIGHT };
 
-test('draws the run across the top, then ours at the left and the opponent at the right', () => {
-  expect(panel(STATUS, 80).split('\n')).toEqual([
-    '1 of 3 finished; battle',
+/** A line of the table with nothing in either column, 80 wide. */
+const EMPTY = `${' '.repeat(38)} │`;
+
+test('draws ours at the left and the opponent at the right', () => {
+  expect(panel(FIGHT, 80).split('\n')).toEqual([
     'Charizard                      CP 2495 │ Magmar                         CP 1826',
     '███████████████░░░░░  74%  ●○          │ ██████████░░░░░░░░░░  50%  ●●',
     'Blast Burn, Dragon Claw                │',
@@ -23,22 +25,20 @@ test('draws the run across the top, then ours at the left and the opponent at th
     'not shielding                          │',
   ]);
   expect(rule(80)).toBe(`${'─'.repeat(39)}┼${'─'.repeat(40)}`);
+  expect(rule(80, '┬')).toBe(`${'─'.repeat(39)}┬${'─'.repeat(40)}`);
 });
 
 test('shortens the bars to fit a narrower terminal', () => {
-  expect(panel(STATUS, 50).split('\n').slice(1, 3)).toEqual([
+  expect(panel(FIGHT, 50).split('\n').slice(0, 2)).toEqual([
     'Charizard       CP 2495 │ Magmar          CP 1826',
     '██████████░░░░  74%  ●○ │ ███████░░░░░░░  50%  ●●',
   ]);
 });
 
-test('marks what has not been read, and a run with no battle yet', () => {
+test('marks what has not been read, each thing still in its place', () => {
   const unread = { species: null, cp: null, hp: null, shields: 2 };
 
-  expect(
-    panel({ ...STATUS, fight: { ...FIGHT, own: unread, moves: [], throwing: undefined } }, 80).split('\n'),
-  ).toEqual([
-    '1 of 3 finished; battle',
+  expect(panel({ ...FIGHT, own: unread, moves: [], throwing: undefined }, 80).split('\n')).toEqual([
     '?                                 CP ? │ Magmar                         CP 1826',
     '????????????????????   ?%  ●●          │ ██████████░░░░░░░░░░  50%  ●●',
     '?                                      │',
@@ -47,26 +47,16 @@ test('marks what has not been read, and a run with no battle yet', () => {
   ]);
 });
 
-test('keeps every line of the panel in its place before a battle, and before the run has told it anything', () => {
-  const empty = Array<string>(4).fill(`${' '.repeat(38)} │`);
-
-  expect(panel({ ...STATUS, count: Infinity, screen: 'party', fight: undefined }, 80).split('\n')).toEqual([
-    '1 finished; party',
-    `${'no battle yet'.padEnd(38)} │`,
-    ...empty,
-  ]);
-  expect(panel(undefined, 80).split('\n')).toEqual([
-    '0 finished; starting',
-    `${'no battle yet'.padEnd(38)} │`,
-    ...empty,
-  ]);
+test('keeps every line of the panel before a battle', () => {
+  expect(panel(undefined, 80).split('\n')).toEqual([`${'no battle yet'.padEnd(38)} │`, EMPTY, EMPTY, EMPTY, EMPTY]);
 });
 
-test('counts down to the run stopping once nothing has been recognised for a second', () => {
-  expect(panel({ ...STATUS, screen: 'other', lostIn: 19_500 }, 80).split('\n')[0]).toBe('1 of 3 finished; other');
-  expect(panel({ ...STATUS, screen: 'other', lostIn: 12_300 }, 80).split('\n')[0]).toBe(
-    '1 of 3 finished; other, stopping in 13s',
-  );
+test('says how the run stands, counting down to its stopping once nothing has been recognised for a second', () => {
+  expect(summary(STATUS)).toBe('1 of 3 finished; battle');
+  expect(summary({ ...STATUS, count: Infinity, screen: 'party' })).toBe('1 finished; party');
+  expect(summary(undefined)).toBe('0 finished; starting');
+  expect(summary({ ...STATUS, screen: 'other', lostIn: 19_500 })).toBe('1 of 3 finished; other');
+  expect(summary({ ...STATUS, screen: 'other', lostIn: 12_300 })).toBe('1 of 3 finished; other, stopping in 13s');
 });
 
 test('writes the battle as a line each time it changes, and each event', () => {
@@ -75,13 +65,13 @@ test('writes the battle as a line each time it changes, and each event', () => {
 
   report.status(STATUS);
   report.status({ ...STATUS, screen: 'charged' });
-  report.event('tap charged');
+  report.event('threw Dragon Claw', 'own');
   report.status({ ...STATUS, fight: { ...FIGHT, shield: true } });
   report.status({ ...STATUS, fight: undefined });
 
   expect(lines).toEqual([
     'Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, not shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
-    'tap charged',
+    'threw Dragon Claw',
     'Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
   ]);
 });
@@ -109,11 +99,13 @@ function terminal(columns = 80, rows = 24) {
   return { stream, written: () => written, shown };
 }
 
+const faded = (line: string) => `\x1b[2m${line}\x1b[22m`;
+
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
-test('takes the terminal over, the panel at the top and the latest events under it, each in its column', () => {
-  const { stream, written, shown } = terminal(80, 11);
+test('keeps the terminal in fixed parts: the run, the two sides and what each did, then the run’s own events', () => {
+  const { stream, written, shown } = terminal(80, 24);
   const report = live(stream);
 
   report.status(STATUS);
@@ -126,29 +118,63 @@ test('takes the terminal over, the panel at the top and the latest events under 
 
   expect(written().startsWith('\x1b[?1049h')).toBe(true);
   expect(shown()).toEqual([
-    ...panel(STATUS, 80).split('\n'),
+    faded('1 of 3 finished; battle'),
+    '',
+    rule(80, '┬'),
+    ...panel(FIGHT, 80).split('\n'),
     rule(80),
-    'battle 2 started',
     'threw Dragon Claw                      │',
     '                                       │ Magmar threw a charged move',
     'tap shield                             │',
+    EMPTY,
+    EMPTY,
+    rule(80, '┴'),
+    '',
+    faded('party: Charizard, Gyarados, Mamoswine'),
+    faded('battle 2 started'),
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
   ]);
 });
 
-test('writes the events under the panel from the first draw, whether or not a status has come yet', () => {
+test('keeps each part where it is from the first draw, whether or not a status or event has come', () => {
   const { stream, shown } = terminal(80, 24);
   const report = live(stream);
 
-  report.event('party: Charizard, Gyarados, Mamoswine');
+  report.event('map: tap');
 
   const before = shown();
 
   vi.advanceTimersByTime(100);
   report.status(STATUS);
+  vi.advanceTimersByTime(100);
+  report.event('threw Dragon Claw', 'own');
 
-  expect(before.indexOf('party: Charizard, Gyarados, Mamoswine')).toBe(7);
-  expect(shown().indexOf('party: Charizard, Gyarados, Mamoswine')).toBe(7);
-  expect(shown().indexOf(rule(80))).toBe(6);
+  expect(before).toHaveLength(24);
+  expect(shown()).toHaveLength(24);
+
+  for (const screen of [before, shown()]) {
+    expect(screen.indexOf(rule(80))).toBe(8);
+    expect(screen.indexOf(rule(80, '┴'))).toBe(14);
+    expect(screen[16]).toBe(faded('map: tap'));
+  }
+});
+
+test('gives the run’s events at the foot their last eight, and what the sides did the rest of the height', () => {
+  const { stream, shown } = terminal(80, 30);
+  const report = live(stream);
+
+  report.status(STATUS);
+  Array.from({ length: 20 }, (_, i) => report.event(`tap ${i}`));
+  Array.from({ length: 20 }, (_, i) => report.event(`tap shield ${i}`, 'own'));
+  vi.advanceTimersByTime(100);
+
+  expect(shown().slice(9, 20)).toEqual(Array.from({ length: 11 }, (_, i) => `tap shield ${i + 9}`.padEnd(38) + ' │'));
+  expect(shown().slice(22)).toEqual(Array.from({ length: 8 }, (_, i) => faded(`tap ${i + 12}`)));
 });
 
 test('cuts each line to the width of the terminal, so none wraps', () => {
@@ -160,9 +186,12 @@ test('cuts each line to the width of the terminal, so none wraps', () => {
   report.event('Magmar threw a charged move', 'opponent');
   vi.advanceTimersByTime(100);
 
-  expect(shown().every((line) => [...line].length <= 20)).toBe(true);
-  expect(shown().slice(1, 2)).toEqual([' CP 2495 │  CP 1826']);
-  expect(shown().slice(-2)).toEqual(['party: Charizard, Gy', '         │ Magmar th']);
+  const unfaded = (line: string) => line.replace('\x1b[2m', '').replace('\x1b[22m', '');
+
+  expect(shown().every((line) => [...unfaded(line)].length <= 20)).toBe(true);
+  expect(shown()[3]).toBe(' CP 2495 │  CP 1826');
+  expect(shown()[9]).toBe('         │ Magmar th');
+  expect(shown()[16]).toBe(faded('party: Charizard, Gy'));
 });
 
 test('redraws at most every 100ms, drawing the last status it was sent', () => {
@@ -182,7 +211,7 @@ test('redraws at most every 100ms, drawing the last status it was sent', () => {
   expect(written()).toContain('switch');
 });
 
-test('gives the terminal back when done, writing the last screen into it', () => {
+test('gives the terminal back when done, writing the last screen into it a line short, for the prompt', () => {
   const { stream, written } = terminal(80, 24);
   const report = live(stream);
 
@@ -194,9 +223,18 @@ test('gives the terminal back when done, writing the last screen into it', () =>
   const left = written().split('\x1b[?25h\x1b[?1049l');
 
   expect(left).toHaveLength(2);
-  expect(left[1]).toBe(
-    `${panel({ ...STATUS, battles: 2 }, 80)}\n${rule(80)}\ntap shield                             │\n`,
-  );
+
+  const lines = left[1]?.split('\n') ?? [];
+
+  expect(lines).toHaveLength(24);
+  expect(lines.slice(0, 10)).toEqual([
+    faded('2 of 3 finished; battle'),
+    '',
+    rule(80, '┬'),
+    ...panel(FIGHT, 80).split('\n'),
+    rule(80),
+    'tap shield                             │',
+  ]);
 
   report.status(STATUS);
   report.done();

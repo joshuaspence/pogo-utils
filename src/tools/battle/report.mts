@@ -1,7 +1,7 @@
 /**
  * What `run` tells of itself: each `event` something done once, as a tap or a battle's start, and its `status`, how the
  * run and the battle stand, sent again on every frame. `plain` writes them as lines, for a log or a pipe; `live` takes
- * over a terminal, the status a panel pinned to its top and the events scrolling up below it.
+ * over a terminal, laid out in fixed parts.
  */
 
 /** One side of the battle as last read, `null` for what has not been. */
@@ -96,27 +96,36 @@ function beside(own: string, opponent: string, width: number): string {
   return `${fit(own, column)}${DIVIDER}${fit(opponent, width - column - DIVIDER.length, false)}`.trimEnd();
 }
 
-/** The rule under the panel, crossed where the columns divide. */
-export function rule(width: number): string {
+/** A rule across a line `width` wide, met where the columns divide by `join`: `┬` above them, `┼` between, `┴` below. */
+export function rule(width: number, join = '┼'): string {
   const column = columnOf(width);
 
-  return `${'─'.repeat(column)}─┼─${'─'.repeat(Math.max(0, width - column - DIVIDER.length))}`;
+  return `${'─'.repeat(column)}─${join}─${'─'.repeat(Math.max(0, width - column - DIVIDER.length))}`;
 }
 
-/**
- * The status as the panel's lines, `width` wide: the run across the top, then ours at the left and theirs at the right.
- * Always as many lines, each thing on its own whatever is known, so nothing on the screen moves as more of it is: the
- * lines of a battle not yet begun, or of a run not yet told anything, are left empty.
- */
-export function panel(status: Status | undefined, width: number): string {
-  const { battles, count, screen, lostIn, lostAfter, fight } = status ?? {};
+/** How the run stands, for the line above the table. */
+export function summary(status: Status | undefined): string {
+  const { battles, count, screen, lostIn, lostAfter } = status ?? {};
   const finished = `${battles ?? 0}${count === undefined || count === Infinity ? '' : ` of ${count}`} finished`;
   const quiet = lostIn !== undefined && lostAfter !== undefined && lostAfter - lostIn >= QUIET_MS;
   const lost = quiet ? `, stopping in ${Math.ceil(Math.max(0, lostIn) / 1000)}s` : '';
-  const head = `${finished}; ${screen ?? 'starting'}${lost}`;
 
+  return `${finished}; ${screen ?? 'starting'}${lost}`;
+}
+
+/** How many lines the panel is, whatever is known. */
+const PANEL_ROWS = 5;
+
+/**
+ * The battle as the panel's lines, `width` wide, ours at the left and theirs at the right. Always `PANEL_ROWS` of them,
+ * each thing on its own whatever is known, so nothing on the screen moves as more of it is: the lines of a battle not
+ * yet begun are left empty.
+ */
+export function panel(fight: Fight | undefined, width: number): string {
   if (!fight) {
-    return [head, beside('no battle yet', '', width), ...Array<string>(4).fill(beside('', '', width))].join('\n');
+    return [beside('no battle yet', '', width), ...Array<string>(PANEL_ROWS - 1).fill(beside('', '', width))].join(
+      '\n',
+    );
   }
 
   // Room beside the bar for its percentage and the shields, ` 100%  ●●`, and beside the name for its CP, ` CP 2495`.
@@ -133,7 +142,6 @@ export function panel(status: Status | undefined, width: number): string {
   };
 
   return [
-    head,
     beside(name(fight.own), name(fight.opponent), width),
     beside(health(fight.own), health(fight.opponent), width),
     beside(fight.moves.join(', ') || '?', '', width),
@@ -145,8 +153,11 @@ export function panel(status: Status | undefined, width: number): string {
 /** How often the screen may be redrawn, in milliseconds: a status comes with every frame, 30 a second. */
 const DRAW_MS = 100;
 
-/** Events kept for the log under the panel: more than any terminal is tall. */
+/** Events kept of each kind: more than any terminal is tall. */
 const KEPT_EVENTS = 1_000;
+
+/** How many lines the run's own events are given at the foot of the screen: a way round the menus is seven. */
+const RUN_ROWS = 8;
 
 /** Entering the alternate screen with the cursor hidden, and leaving it with the cursor shown again. */
 const ENTER = '\x1b[?1049h\x1b[?25l';
@@ -157,36 +168,55 @@ const BEGIN = '\x1b[?2026h\x1b[H';
 const END = '\x1b[J\x1b[?2026l';
 const CLEAR_LINE = '\x1b[K';
 
+/** Drawn faint, for what is told outside the two sides' table. */
+const faded = (line: string) => `\x1b[2m${line}\x1b[22m`;
+
+/** The last `rows` of `lines`, and `blank` lines after them to make up `rows` while there are fewer. */
+function last(lines: readonly string[], rows: number, blank: string): string[] {
+  const kept = lines.slice(-rows);
+
+  return [...kept, ...Array<string>(Math.max(0, rows - kept.length)).fill(blank)];
+}
+
 /**
- * The status as a panel pinned to the top of `stream`, a terminal taken over whole, and the latest events filling the
- * rest of it below a rule, each side's in its column and the run's across both. Redrawn as either changes, or the
- * terminal is resized, but no more than every `DRAW_MS`; every line is cut to the terminal's width, as one wrapped would
- * push the rest down. `done` gives the terminal back and writes the last screen into it, so a run that stopped can
- * still be read once it has.
+ * `stream`, a terminal, taken over whole and kept in fixed parts, so nothing moves as the run goes on: how the run
+ * stands at the top, then a table of the two sides, ours at the left and theirs at the right, of the panel above and
+ * what each side did below it, then the run's own events at the foot. What is outside the table is drawn faint, as
+ * less to watch. Redrawn as anything changes, or the terminal is resized, but no more than every `DRAW_MS`; every line
+ * is cut to the terminal's width, as one wrapped would push the rest down. `done` gives the terminal back and writes
+ * the last screen into it, so a run that stopped can still be read once it has.
  */
 export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
-  const events: { line: string; side?: 'own' | 'opponent' | undefined }[] = [];
+  const sides: { line: string; side: 'own' | 'opponent' }[] = [];
+  const runs: string[] = [];
   let latest: Status | undefined;
   let entered = false;
   let finished = false;
   let drawnAt = -Infinity;
   let pending: NodeJS.Timeout | undefined;
 
-  // The panel, the rule and as many of the latest events as fit under them, `rows` lines in all.
+  // The screen's `rows` lines, each cut to the width and faint where it is outside the table.
   const screen = (rows: number) => {
     const width = stream.columns;
-    const top = [...panel(latest, width).split('\n'), rule(width)];
-    const shown = events.slice(-Math.max(1, rows - top.length));
+    const cut = (line: string) => [...line].slice(0, width).join('');
+
+    // What the sides did fills what the summary and a blank line, the table's rules and panel, and a blank line and
+    // the run's events leave.
+    const logged = Math.max(1, rows - (2 + 3 + PANEL_ROWS + 1 + RUN_ROWS));
+    const done = sides.map(({ line, side }) => (side === 'own' ? beside(line, '', width) : beside('', line, width)));
 
     return [
-      ...top,
-      ...shown.map(({ line, side }) =>
-        side === undefined ? line : side === 'own' ? beside(line, '', width) : beside('', line, width),
-      ),
-    ];
+      faded(cut(summary(latest))),
+      '',
+      rule(width, '┬'),
+      ...panel(latest?.fight, width).split('\n').map(cut),
+      rule(width),
+      ...last(done, logged, beside('', '', width)).map(cut),
+      rule(width, '┴'),
+      '',
+      ...last(runs, RUN_ROWS, '').map((line) => (line ? faded(cut(line)) : line)),
+    ].slice(0, rows);
   };
-
-  const cut = (line: string) => [...line].slice(0, stream.columns).join('');
 
   const draw = () => {
     clearTimeout(pending);
@@ -203,9 +233,13 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
       entered = true;
     }
 
-    const rows = screen(stream.rows).slice(0, stream.rows);
-
-    stream.write(BEGIN + rows.map((line) => cut(line) + CLEAR_LINE).join('\r\n') + END);
+    stream.write(
+      BEGIN +
+        screen(stream.rows)
+          .map((line) => line + CLEAR_LINE)
+          .join('\r\n') +
+        END,
+    );
   };
 
   const request = () => {
@@ -222,8 +256,14 @@ export function live(stream: NodeJS.WriteStream): Reporter & { done(): void } {
 
   return {
     event(line, side) {
-      events.push({ line, side });
-      events.splice(0, events.length - KEPT_EVENTS);
+      if (side) {
+        sides.push({ line, side });
+        sides.splice(0, sides.length - KEPT_EVENTS);
+      } else {
+        runs.push(line);
+        runs.splice(0, runs.length - KEPT_EVENTS);
+      }
+
       request();
     },
     status(status) {

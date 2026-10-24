@@ -15,9 +15,10 @@
  *                       for 20s. GO Battle League stops at the end of a set with a reward to collect, the
  *                       encounter among them, which is left to be caught by hand.
  *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`.
- *                       On a terminal, which it takes over until it stops, a panel at the top shows how the run and
- *                       the battle stand, ours at the left and the opponent's at the right, what each side does
- *                       scrolling past below; `--verbose` writes the same as lines where stderr is not a terminal
+ *                       On a terminal, which it takes over until it stops, a table shows the battle, ours at the
+ *                       left and the opponent's at the right, and what each side does under it, with how the run
+ *                       stands above it and the menus it taps through below; `--verbose` writes the same as lines
+ *                       where stderr is not a terminal
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
