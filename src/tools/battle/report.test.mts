@@ -3,8 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { describe, live, panel, plain, rule, summary, type Fight, type Status } from './report.mts';
 
 const FIGHT: Fight = {
-  own: { species: 'Charizard', cp: 2495, hp: 0.74, shields: 1 },
-  opponent: { species: 'Magmar', cp: 1826, hp: 0.5, shields: 2 },
+  own: { species: 'Charizard', cp: 2495, hp: 0.74, shields: 1, left: 2 },
+  opponent: { species: 'Magmar', cp: 1826, hp: 0.5, shields: 2, left: 3 },
   moves: ['Blast Burn', 'Dragon Claw'],
   throwing: 'Dragon Claw',
   bait: true,
@@ -16,10 +16,10 @@ const STATUS: Status = { battles: 1, count: 3, screen: 'battle', lostIn: 20_000,
 /** A line of the table with nothing in either column, 80 wide. */
 const EMPTY = `${' '.repeat(38)} │`;
 
-test('draws ours at the left and the opponent at the right, how strong each is at its right', () => {
+test('draws ours at the left and the opponent at the right, how strong each is at its right and how many left', () => {
   expect(panel(FIGHT, 80).split('\n')).toEqual([
     'Charizard           74% │ ●○ │ CP 2495 │ Magmar              50% │ ●● │ CP 1826',
-    '                  ███████████████░░░░░ │                   ██████████░░░░░░░░░░',
+    '◓◓○               ███████████████░░░░░ │ ◓◓◓               ██████████░░░░░░░░░░',
     'Blast Burn, Dragon Claw                │',
     'baiting with Dragon Claw               │',
     'not shielding                          │',
@@ -31,17 +31,17 @@ test('draws ours at the left and the opponent at the right, how strong each is a
 test('gives the name what a narrower terminal leaves, and the bar what it can', () => {
   expect(panel(FIGHT, 50).split('\n').slice(0, 2)).toEqual([
     'Cha  74% │ ●○ │ CP 2495 │ Mag  50% │ ●● │ CP 1826',
-    '   ███████████████░░░░░ │    ██████████░░░░░░░░░░',
+    '◓◓○ ██████████████░░░░░ │ ◓◓◓ ██████████░░░░░░░░░',
   ]);
-  expect(panel(FIGHT, 20).split('\n').slice(0, 2)).toEqual([' CP 2495 │  CP 1826', '██████░░ │ ████░░░░']);
+  expect(panel(FIGHT, 20).split('\n').slice(0, 2)).toEqual([' CP 2495 │  CP 1826', '◓◓○ ███░ │ ◓◓◓ ██░░']);
 });
 
 test('marks what has not been read, each thing still in its place', () => {
-  const unread = { species: null, cp: null, hp: null, shields: 2 };
+  const unread = { species: null, cp: null, hp: null, shields: 2, left: null };
 
   expect(panel({ ...FIGHT, own: unread, moves: [], throwing: undefined }, 80).split('\n')).toEqual([
     '?                    ?% │ ●● │ CP    ? │ Magmar              50% │ ●● │ CP 1826',
-    '                  ???????????????????? │                   ██████████░░░░░░░░░░',
+    '???               ???????????????????? │ ◓◓◓               ██████████░░░░░░░░░░',
     '?                                      │',
     'baiting with the first ready           │',
     'not shielding                          │',

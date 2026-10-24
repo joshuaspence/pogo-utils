@@ -14,7 +14,7 @@ import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
 import { readHealth, type Health } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
-import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
+import { opponentShields, ownShields, pokemonLeft, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint, type Verdict } from './damage.mts';
 import { Energy, type Matchup } from './energy.mts';
@@ -164,6 +164,16 @@ export async function run(
   let theirShields = 2;
   let ourShields = 2;
 
+  // How many Pokémon each side has left as the HUD's Poké Balls last showed it, never more than the last count, a faint
+  // being for good; null until read. `leftAtName` is the opponent's count when its name was first read, which a lower
+  // count when the name changes says it fainted rather than switched out.
+  let left: { own: number | null; opponent: number | null } = { own: null, opponent: null };
+  let leftAtName: number | null = null;
+
+  // The opponent a fuller bar said was replaced, its name cleared to be read again, until the newcomer's is: what the
+  // newcomer is told as having replaced.
+  let departed: string | null = null;
+
   // The league's CP cap, which a CP read over it is a misread of: Training's by its league, GO Battle League's as its
   // party screen states it. `undefined` until known, and then every shield is taken.
   let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : undefined;
@@ -178,9 +188,6 @@ export async function run(
   let energy = new Energy(data, meta);
   let matchup: Matchup | undefined;
   let prompted = 0;
-
-  // The opponent a fuller bar said was switched out, until its newcomer's name has been read, which is told against it.
-  let departed: string | null = null;
 
   // The colour of the bubbles the minigame now showing draws, that of the move last thrown, where its type is known.
   let bubbleColour: Colour | undefined;
@@ -301,9 +308,11 @@ export async function run(
         sent = 0;
         theirShields = 2;
         ourShields = 2;
+        left = { own: null, opponent: null };
+        leftAtName = null;
+        departed = null;
         health = { own: null, opponent: null };
         energy = new Energy(data, meta);
-        departed = null;
         theirMoves = new Map();
         bannerUntil = -Infinity;
       }
@@ -319,6 +328,12 @@ export async function run(
 
         theirShields = held;
         ourShields = Math.min(ourShields, ownShields(frame) ?? ourShields);
+
+        const balls = pokemonLeft(frame);
+        const fewer = (was: number | null, read: number | null) =>
+          read === null ? was : was === null ? read : Math.min(was, read);
+
+        left = { own: fewer(left.own, balls.own), opponent: fewer(left.opponent, balls.opponent) };
       }
 
       // The Pokémon sent in next has moves of its own, perhaps a name, and its own CP and HP.
@@ -350,14 +365,20 @@ export async function run(
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
         const before = seen.opponent ?? departed;
-        seen = merge(seen, await readBattle(frame, data));
 
-        if (seen.opponent !== null) {
-          departed = null;
+        // Only a species the HUD has named narrows the labels: the party's guess at a nicknamed one is what the labels
+        // correct, through `activeOf`, and narrowed to it they could never show it wrong.
+        seen = merge(seen, await readBattle(frame, data, undefined, seen.own));
 
-          if (before !== null && seen.opponent !== before) {
-            log(`sent in ${seen.opponent}`, 'opponent');
+        if (seen.opponent !== null && seen.opponent !== before) {
+          if (before !== null) {
+            const gone = leftAtName !== null && left.opponent !== null && left.opponent < leftAtName;
+
+            log(gone ? `${before} fainted; sent in ${seen.opponent}` : `switched to ${seen.opponent}`, 'opponent');
           }
+
+          leftAtName = left.opponent;
+          departed = null;
         }
       }
 
@@ -410,8 +431,14 @@ export async function run(
       }
 
       fight = {
-        own: { species: own, cp: seen.ownCp, hp: health.own, shields: ourShields },
-        opponent: { species: seen.opponent, cp: seen.opponentCp, hp: health.opponent, shields: theirShields },
+        own: { species: own, cp: seen.ownCp, hp: health.own, shields: ourShields, left: left.own },
+        opponent: {
+          species: seen.opponent,
+          cp: seen.opponentCp,
+          hp: health.opponent,
+          shields: theirShields,
+          left: left.opponent,
+        },
         moves: [...seen.moves.values()],
         throwing: (best !== undefined && seen.moves.get(best)) || undefined,
         bait,

@@ -35,3 +35,10 @@
   first and the one place that can always show the current state: when a later push changes what the page draws, take
   the screenshots again and replace them there, rather than leaving the old set in place or posting a new set in a
   comment.
+- **Cover the account in every capture of the phone.** A fixture, a PR screenshot or a recording hides each of the
+  account's trainer names — on the VS screen, under the avatar on the map and as the partner under "OBTAINED IN A TRADE"
+  on a detail screen — and the Nearby Battle QR code on the Battle tab, which is tied to the account. Fill them solid,
+  since text can be read back out of a mosaic, and check every frame before the first push: the repository is public,
+  and a pushed LFS object outlives a force-push. Rewrite an edited capture with `encodePng` from
+  `src/tools/inventory/png.mts`, because other tools drop the `Viewport` `tEXt` chunk a stitched capture carries. The
+  map's location needs nothing, since the in-game location is spoofed.

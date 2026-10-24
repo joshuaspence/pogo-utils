@@ -252,6 +252,35 @@ export function ownShields(image: Image): number | null {
   return colours.filter((colour) => near(colour, HELD, 20)).length;
 }
 
+/**
+ * Each side's three Poké Balls along the top, beside its shields: ours at the far left, the opponent's at the far
+ * right, centres measured at 21, 40 and 58 and at 303, 321 and 340 of 360 on the committed frames. One still able to
+ * battle is red, 174–245/36–98/35–98 across the Pixel 4 XL's frames and the Pixel 8's darker ones; one fainted is grey,
+ * 85–115/66–88/69–89, and the leftmost goes first.
+ */
+const BALLS = {
+  own: [0.058, 0.111, 0.161],
+  opponent: [0.842, 0.892, 0.944],
+} as const;
+
+const ball = (x: number): Box => [x - 0.006, 0.093, x + 0.006, 0.099];
+const red = ([r, g, b]: Colour) => r > 150 && r - g > 60 && r - b > 60;
+const grey = ([r, g, b]: Colour) => r < 130 && Math.abs(r - g) < 45 && Math.abs(g - b) < 20;
+
+/**
+ * How many Pokémon each side has left able to battle, or null for a side where a ball reads as neither colour, as
+ * where the shield prompt hides the HUD.
+ */
+export function pokemonLeft(image: Image): { own: number | null; opponent: number | null } {
+  const left = (xs: readonly number[]) => {
+    const colours = xs.map((x) => mean(image, ball(x), TOP));
+
+    return colours.every((colour) => red(colour) || grey(colour)) ? colours.filter(red).length : null;
+  };
+
+  return { own: left(BALLS.own), opponent: left(BALLS.opponent) };
+}
+
 export function recognise(image: Image): State {
   if (SWITCH_PANEL.every((box) => near(mean(image, box, BOTTOM), SLATE, 12))) {
     return 'switch';
