@@ -27,14 +27,15 @@ export type Action =
  * switch prompt's two cards, centred at x 0.32 and 0.67 in `switch-glaceon`. When one Pokémon is left the card is
  * centred instead and the first card's tap misses it, which costs nothing — the game sends that one in when its
  * countdown runs out. A charged move is thrown wherever its lit button was found, there being one or two of them.
- * Both prompts are pinned to the foot, so a `Player` places them for the screen it is given.
+ * Both prompts are pinned to the foot, so each is down as widths from it, which a `Player` places for the screen it is
+ * given.
  */
 export const TAPS = {
-  shield: [0.5, 0.82],
-  switch: [0.33, 0.87],
+  shield: [0.5, -0.38],
+  switch: [0.33, -0.2744],
 } as const satisfies Record<string, Point>;
 
-export const SWITCH_CARDS: readonly Point[] = [TAPS.switch, [0.67, 0.87]];
+export const SWITCH_CARDS: readonly Point[] = [TAPS.switch, [0.67, -0.2744]];
 
 /** What the caller has decided about a frame, which `next` acts on. */
 export interface Choices {

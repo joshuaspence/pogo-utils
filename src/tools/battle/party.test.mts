@@ -6,8 +6,8 @@
  *
  * Two more off a Pixel 8 Pro, out of all 1,312: Golem, Electrode and Pangoro beside three Gengars, two in their witch's
  * hat; Meowth and Nidorina beside Absol, Spinarak and Joltik beside a Stunfisk nicknamed `89% MS/MW/D`, Crocalor and
- * Gastrodon beside Wartortle. Its cards sit 5 px above where the Pixel 4 XL's fractions alone put them, where all six
- * were declined, Stunfisk's nearest there being Durant.
+ * Gastrodon beside Wartortle. Its cards sit 5 px above the fraction of the height they take on a Pixel 4 XL, where all
+ * six were declined, Stunfisk's nearest there being Durant.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';

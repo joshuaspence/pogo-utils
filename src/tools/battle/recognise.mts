@@ -1,8 +1,9 @@
 /**
  * Which part of a battle a frame shows, out of colour samples alone: cheap enough to ask of every frame at 30 a second,
- * which OCR is not. Every position is a fraction of a Pixel 4 XL's frame, placed on a frame of any size or shape by its
- * anchor as `layout.mts` places it, and every threshold was measured on 935 frames of Team Leader battles recorded off
- * a Pixel 4 XL — quoted beside it, so that a threshold that stops working can be checked against what it was set from.
+ * which OCR is not. Every position across is a fraction of the frame's width and every position down is widths of it
+ * from an anchor, placed on a frame of any size or shape as `layout.mts` places it. Every threshold was measured on 935
+ * frames of Team Leader battles recorded off a Pixel 4 XL — quoted beside it, so that a threshold that stops working
+ * can be checked against what it was set from.
  *
  * Screens that are not a battle — the result, the menus between battles, the fades — are all `other`, for a caller to
  * read with OCR once the screen has settled.
@@ -20,12 +21,13 @@ import { BOTTOM, down, TOP } from './layout.mts';
  */
 export type State = 'battle' | 'charged' | 'shield' | 'switch' | 'other';
 
+/** A box, its left and right as fractions of the frame's width and its top and bottom as widths from an anchor. */
 type Box = readonly [left: number, top: number, right: number, bottom: number];
 
-/** The mean colour of a box given as fractions of the frame. */
+/** A colour, as its three channels. */
 type Colour = [r: number, g: number, b: number];
 
-/** Where a box pinned at `anchor` runs down `image`, in pixels, out of where the Pixel 4 XL drew it. */
+/** Where a box `top` to `bottom` widths from `anchor` runs down `image`, in pixels. */
 const rows = (image: Image, top: number, bottom: number, anchor: number) =>
   [down(top, anchor, image), down(bottom, anchor, image)].map((y) => Math.round(y * image.height)) as [number, number];
 
@@ -97,14 +99,14 @@ const near = (colour: Colour, target: Colour, within: number) =>
  * be is no more than 8% of a strip on any committed frame, so the median never sees it, however many balls are left.
  */
 const HUD: readonly Box[] = [
-  [0.03, 0.085, 0.2, 0.095],
-  [0.62, 0.085, 0.8, 0.095],
+  [0.03, 0.1794, 0.2, 0.2006],
+  [0.62, 0.1794, 0.8, 0.2006],
 ];
 const HUD_NAMES: readonly Box[] = [
-  [0.03, 0.07, 0.4, 0.086],
-  [0.6, 0.07, 0.97, 0.086],
+  [0.03, 0.1478, 0.4, 0.1816],
+  [0.6, 0.1478, 0.97, 0.1816],
 ];
-const HUD_GAP: Box = [0.44, 0.085, 0.56, 0.095];
+const HUD_GAP: Box = [0.44, 0.1794, 0.56, 0.2006];
 const TEXT = { dark: 180, least: 0.08, most: 0.3 } as const;
 
 const panel = (colour: Colour) => Math.min(...colour) >= 195 && chroma(...colour) <= 52;
@@ -140,7 +142,7 @@ function showsHud(image: Image): boolean {
  * The prompt's own panel would not do: it is translucent, and measured 77 by luminance over a bright field against 95
  * for the shield going up.
  */
-const SHIELD: Box = [0.46, 0.8, 0.54, 0.84];
+const SHIELD: Box = [0.46, -0.4222, 0.54, -0.3378];
 const SHIELD_PINK: Colour = [226, 159, 240];
 
 /**
@@ -148,9 +150,9 @@ const SHIELD_PINK: Colour = [226, 159, 240];
  * a fight shows the field and the shield prompt shows the shield.
  */
 const SWITCH_PANEL: readonly Box[] = [
-  [0.45, 0.72, 0.55, 0.74],
-  [0.46, 0.8, 0.54, 0.84],
-  [0.08, 0.92, 0.14, 0.95],
+  [0.45, -0.5911, 0.55, -0.5489],
+  [0.46, -0.4222, 0.54, -0.3378],
+  [0.08, -0.1689, 0.14, -0.1056],
 ];
 const SLATE: Colour = [35, 44, 58];
 
@@ -166,7 +168,7 @@ const SLATE: Colour = [35, 44, 58];
  * than 16% within and 13% beyond.
  */
 export const BUTTON_XS = [0.31, 0.499, 0.69] as const;
-const BUTTON = { y: 0.889, radius: 0.094 } as const;
+const BUTTON = { y: -0.2343, radius: 0.094 } as const;
 const RIM_POINTS = 32;
 const RIM_READY = 0.6;
 const AROUND_RIM = 0.3;
@@ -218,7 +220,7 @@ export function readyButtons(image: Image): [x: number, y: number][] {
  * measured 223–233/159–167/235–248 on the committed frames, under day and night skies alike; one spent is a dark
  * purple, 108–116/79–82/113–123, and the left goes first.
  */
-const OPPONENT_SHIELDS: readonly Box[] = [0.718, 0.764].map((x) => [x - 0.006, 0.096, x + 0.006, 0.102] as const);
+const OPPONENT_SHIELDS: readonly Box[] = [0.718, 0.764].map((x) => [x - 0.006, 0.2027, x + 0.006, 0.2153] as const);
 const SPENT: Colour = [111, 81, 118];
 
 /**
@@ -235,7 +237,7 @@ export function opponentShields(image: Image): number {
  * The same two colours, measured on the committed frames and on 92 frames of two GO Battle League runs that read as a
  * battle: 214–234/156–165/230–245 held and 107–112/78–83/112–121 spent.
  */
-const OWN_SHIELDS: readonly Box[] = [0.236, 0.281].map((x) => [x - 0.006, 0.096, x + 0.006, 0.102] as const);
+const OWN_SHIELDS: readonly Box[] = [0.236, 0.281].map((x) => [x - 0.006, 0.2027, x + 0.006, 0.2153] as const);
 const HELD: Colour = [224, 161, 238];
 
 /**
@@ -263,7 +265,7 @@ const BALLS = {
   opponent: [0.842, 0.892, 0.944],
 } as const;
 
-const ball = (x: number): Box => [x - 0.006, 0.093, x + 0.006, 0.099];
+const ball = (x: number): Box => [x - 0.006, 0.1963, x + 0.006, 0.209];
 const red = ([r, g, b]: Colour) => r > 150 && r - g > 60 && r - b > 60;
 const grey = ([r, g, b]: Colour) => r < 130 && Math.abs(r - g) < 45 && Math.abs(g - b) < 20;
 

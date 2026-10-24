@@ -1,17 +1,19 @@
 import { createReadStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { Player, SWITCH_CARDS, TAPS, type Action, type Point } from './play.mts';
-import { readyButtons, recognise, type State } from './recognise.mts';
+import { BOTTOM, place } from './layout.mts';
+import { Player, TAPS, type Action, type Point } from './play.mts';
+import { BUTTON_XS, readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames, streamSize } from './stream.mts';
 
 /** The size of the committed frames, a Pixel 4 XL's stream. */
 const SIZE = streamSize({ width: 1440, height: 3040 });
 
 /** Where the charged-move buttons sit: one move's centred, two moves' either side, as `readyButtons` reports them. */
-const LEFT: Point = [0.31, 0.889];
-const CENTRE: Point = [0.499, 0.889];
-const RIGHT: Point = [0.69, 0.889];
+const button = (x: number): Point => place([x, -0.2343], BOTTOM, SIZE);
+const LEFT = button(BUTTON_XS[0]);
+const CENTRE = button(BUTTON_XS[1]);
+const RIGHT = button(BUTTON_XS[2]);
 
 /**
  * The actions for a run of states, a frame every 33ms — 30 a second, as the stream sends them — with the one button of
@@ -155,14 +157,15 @@ test.each([
   const actions = play(Array(20).fill(state));
 
   expect(actions.slice(0, frames - 1).every((action) => action.kind === 'wait')).toBe(true);
-  expect(taps(actions)).toEqual([{ kind: 'tap', at: TAPS[state], what: state }]);
+  expect(taps(actions)).toEqual([{ kind: 'tap', at: place(TAPS[state], BOTTOM, SIZE), what: state }]);
 });
 
 test('sends in the card it is told to', () => {
   const player = new Player(SIZE);
-  const actions = Array.from({ length: 5 }, (_, i) => player.next('switch', i * 33, { card: SWITCH_CARDS[1] }));
+  const card: Point = [0.67, 0.87];
+  const actions = Array.from({ length: 5 }, (_, i) => player.next('switch', i * 33, { card }));
 
-  expect(taps(actions)).toEqual([{ kind: 'tap', at: [0.67, 0.87], what: 'switch' }]);
+  expect(taps(actions)).toEqual([{ kind: 'tap', at: card, what: 'switch' }]);
 });
 
 test('leaves a declined shield prompt to run out, and does not swipe at it', () => {
