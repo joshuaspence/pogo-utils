@@ -170,6 +170,10 @@ export async function run(
   let left: { own: number | null; opponent: number | null } = { own: null, opponent: null };
   let leftAtName: number | null = null;
 
+  // The opponent a fuller bar said was replaced, its name cleared to be read again, until the newcomer's is: what the
+  // newcomer is told as having replaced.
+  let departed: string | null = null;
+
   // The league's CP cap, which a CP read over it is a misread of: Training's by its league, GO Battle League's as its
   // party screen states it. `undefined` until known, and then every shield is taken.
   let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : undefined;
@@ -306,6 +310,7 @@ export async function run(
         ourShields = 2;
         left = { own: null, opponent: null };
         leftAtName = null;
+        departed = null;
         health = { own: null, opponent: null };
         energy = new Energy(data, meta);
         theirMoves = new Map();
@@ -347,6 +352,7 @@ export async function run(
       const opponentBar = bars?.opponent ?? null;
 
       if (opponentBar !== null && health.opponent !== null && opponentBar - health.opponent >= NEWCOMER) {
+        departed = seen.opponent ?? departed;
         seen = { ...seen, opponent: null, opponentCp: null };
         readAt = -Infinity;
         energy.pause();
@@ -358,20 +364,21 @@ export async function run(
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
-        const before = seen.opponent;
+        const before = seen.opponent ?? departed;
 
         // Only a species the HUD has named narrows the labels: the party's guess at a nicknamed one is what the labels
         // correct, through `activeOf`, and narrowed to it they could never show it wrong.
         seen = merge(seen, await readBattle(frame, data, undefined, seen.own));
 
-        if (before !== null && seen.opponent !== before) {
-          const gone = leftAtName !== null && left.opponent !== null && left.opponent < leftAtName;
+        if (seen.opponent !== null && seen.opponent !== before) {
+          if (before !== null) {
+            const gone = leftAtName !== null && left.opponent !== null && left.opponent < leftAtName;
 
-          log(gone ? `${before} fainted; sent in ${seen.opponent}` : `switched to ${seen.opponent}`, 'opponent');
-        }
+            log(gone ? `${before} fainted; sent in ${seen.opponent}` : `switched to ${seen.opponent}`, 'opponent');
+          }
 
-        if (seen.opponent !== before) {
           leftAtName = left.opponent;
+          departed = null;
         }
       }
 

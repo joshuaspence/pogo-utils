@@ -590,16 +590,18 @@ test('reads the opponent again the moment a fuller bar says it was switched', as
 
 /**
  * Glaceon, with all three of the opponent's Poké Balls red, gives way to another species: with one gone grey, Salamence
- * after it fainted; with all three still red, Sneasel switched in.
+ * after it fainted; with all three still red, Sneasel switched in. Entei giving way to Salamence's fuller bar is read
+ * again at once, its name cleared for the newcomer's, and is still told as the one Salamence replaced.
  */
 test.each([
-  ['battle-crunch-salamence', 'opponent: Glaceon fainted; sent in Salamence'],
-  ['battle-deoxys', 'opponent: switched to Sneasel'],
-])('tells the opponent fainting from its switching out, by its Poké Balls: %s', async (after, said) => {
+  ['battle-latias', 'battle-crunch-salamence', 'opponent: Glaceon fainted; sent in Salamence'],
+  ['battle-latias', 'battle-deoxys', 'opponent: switched to Sneasel'],
+  ['battle-crunch-entei', 'battle-crunch-salamence', 'opponent: Entei fainted; sent in Salamence'],
+])('tells the opponent fainting from its switching out, by its Poké Balls: %s to %s', async (before, after, said) => {
   const { phone, clock } = scripted(
     {
       ...battleAndBack(),
-      fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'after' } },
+      fight: { frame: fixture(before), swipes: { count: 10, to: 'after' } },
       after: { frame: fixture(after), lasts: { ms: 4000, to: 'won' } },
     },
     'fight',
