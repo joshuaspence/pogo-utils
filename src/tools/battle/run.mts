@@ -140,9 +140,16 @@ export async function run(
   let sent = 0;
 
   // What the switch prompt showing was decided to be answered with, once, on its first frame: who fainted and who goes
-  // in. Decided again on a later frame, the first tap having moved `sent`, a retap would go to another card.
+  // in, and why. Decided again on a later frame, the first tap having moved `sent`, a retap would go to another card.
   let prompt:
-    { fainted: number | undefined; next: number | undefined; card: Point | undefined; answered: boolean } | undefined;
+    | {
+        fainted: number | undefined;
+        next: number | undefined;
+        why: string | undefined;
+        card: Point | undefined;
+        answered: boolean;
+      }
+    | undefined;
   let theirShields = 2;
   let ourShields = 2;
 
@@ -353,12 +360,13 @@ export async function run(
       // The switch prompt's cards are the slots not fainted bar the one out, in party order.
       if (state === 'switch' && !prompt) {
         const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
-        const next = nextOut(data, party, out, seen.opponent, meta);
+        const chosen = nextOut(data, party, out, seen.opponent, meta);
+        const next = chosen?.slot;
         const measured =
           next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
         const card = measured && place(measured, BOTTOM, frame);
 
-        prompt = { fainted: slot, next, card, answered: false };
+        prompt = { fainted: slot, next, why: chosen?.why, card, answered: false };
       }
 
       const ready = state === 'charged' ? readyButtons(frame) : [];
@@ -406,7 +414,9 @@ export async function run(
 
           if (prompt.next !== undefined) {
             sent = prompt.next;
-            log(`sending in ${party[prompt.next] ?? '?'}`, 'own');
+            const gone = prompt.fainted === undefined ? '' : `${party[prompt.fainted] ?? '?'} fainted; `;
+
+            log(`${gone}sending in ${party[prompt.next] ?? '?'}`, 'own', prompt.why);
           }
         }
       } else {

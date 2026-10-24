@@ -137,11 +137,12 @@ export function activeOf(
 }
 
 /**
- * Which slot to send in after a faint, of those not fainted: first one the opponent cannot hit super effectively, then
- * the one with the hardest hit on it, then the first. Hardest out of every charged move its species can hold, which of
- * them it has being shown only once it is out, bar Frustration and Return: Return's 130 would otherwise tie every
- * species that has a shadow form, few of ours being purified. A card that was not read is neither safe nor known to
- * hit, so it goes in only where nothing named is left, or where it is first and nothing named is safe or hits at all.
+ * Which slot to send in after a faint, of those not fainted, and why it over the next best: first one the opponent
+ * cannot hit super effectively, then the one with the hardest hit on it, then the first. Hardest out of every charged
+ * move its species can hold, which of them it has being shown only once it is out, bar Frustration and Return:
+ * Return's 130 would otherwise tie every species that has a shadow form, few of ours being purified. A card that was
+ * not read is neither safe nor known to hit, so it goes in only where nothing named is left, or where it is first and
+ * nothing named is safe or hits at all.
  */
 export function nextOut(
   data: GameData,
@@ -149,7 +150,7 @@ export function nextOut(
   fainted: ReadonlySet<number>,
   opponent: string | null,
   meta?: Meta | null,
-): number | undefined {
+): { slot: number; why: string } | undefined {
   const types = typesOf(data, opponent);
   const scored = party.flatMap((species, slot) => {
     if (fainted.has(slot)) {
@@ -159,15 +160,40 @@ export function nextOut(
     const safe = species !== null && !shouldShield(data, species, opponent, meta);
     const own = typesOf(data, species);
     const moves = species === null ? [] : [...chargedMoves(data, species)].filter((m) => !SHADOW_AND_PURIFIED.has(m));
-    const hits = moves.map((move) => damage(data, move, own, types));
-    const hardest = Math.max(0, ...hits);
+    let hardest = 0;
+    let move: string | undefined;
 
-    return [{ slot, safe, hardest }];
+    for (const name of moves) {
+      const hit = damage(data, name, own, types);
+
+      if (hit > hardest) {
+        hardest = hit;
+        move = name;
+      }
+    }
+
+    return [{ slot, safe, hardest, move }];
   });
 
   scored.sort((a, b) => Number(b.safe) - Number(a.safe) || b.hardest - a.hardest || a.slot - b.slot);
 
-  return scored[0]?.slot;
+  const [best, next] = scored;
+
+  if (!best) {
+    return undefined;
+  }
+
+  // What set it before the next best, which the order of the sort says.
+  const safety = `safe from ${opponent ?? 'the opponent'}'s moves`;
+  const why = !next
+    ? 'the last left'
+    : best.safe !== next.safe
+      ? `the only one ${safety}`
+      : best.hardest !== next.hardest
+        ? `${best.safe ? `${safety}, and` : `none ${safety};`} hits hardest (${best.move})`
+        : 'first card, nothing to choose between them';
+
+  return { slot: best.slot, why };
 }
 
 /**

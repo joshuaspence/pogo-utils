@@ -356,7 +356,9 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
     ),
   ).toBe(1);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
-  expect(report.events).toContain('own: sending in Gyarados');
+  expect(report.events.filter((line) => line.includes('sending in'))).toEqual([
+    "own: Zeraora fainted; sending in Gyarados: the only one safe from Glaceon's moves",
+  ]);
 });
 
 /**
