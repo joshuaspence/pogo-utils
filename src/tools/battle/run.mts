@@ -7,7 +7,7 @@
 
 import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
-import { CAPS, readMenu, type Menu, type Mode } from './menus.mts';
+import { CAPS, carousel, CAROUSEL, readMenu, searchParty, type Menu, type Mode } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
@@ -140,6 +140,7 @@ export async function run(
   let known = clock.now();
   let otherSince: number | undefined;
   let noBattle = 0;
+  let search = carousel();
 
   // The menu read under way, if any: settled once its screenshot is taken and read, or failed.
   let reading: Reading | undefined;
@@ -513,7 +514,7 @@ export async function run(
 
       // GO Battle League never comes back to the map of itself once a battle has been played: a Poké Ball there is the
       // reward encounter's, which is left for the player rather than tapped.
-      const menu = read.screen === 'map' && mode.mode === 'gbl' && battles > 0 ? { screen: 'unknown' as const } : read;
+      let menu: Menu = read.screen === 'map' && mode.mode === 'gbl' && battles > 0 ? { screen: 'unknown' } : read;
       screen = menu.screen;
 
       // Greyed out read after read, not once among others.
@@ -521,10 +522,33 @@ export async function run(
         noBattle = 0;
       }
 
-      if (menu.screen === 'party') {
+      if (menu.screen === 'party' && 'tap' in menu) {
         party = readParty(screenshot, icons);
         cap = mode.mode === 'training' ? CAPS[mode.league] : menu.cap;
         log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
+      }
+
+      // A party named is looked for along the carousel before its party is used, the search starting afresh each time the
+      // party screen comes round.
+      if (menu.screen === 'party' && 'tap' in menu && mode.mode === 'gbl' && mode.party !== undefined) {
+        const step = searchParty(search, menu.title, mode.party);
+
+        // A step along the carousel is progress, as a scroll of the Battle tab is not: the search ends of itself, at the
+        // party or at both ends without it, where a scroll could go on for ever. Each step is a swipe, a settle and a
+        // read, some 3s, so a search turning back past a few parties would otherwise run out `LOST_MS` and end lost.
+        if (step === 'next' || step === 'back') {
+          known = clock.now();
+        }
+
+        log(`party: ${menu.title ?? '?'} in front, looking for ${mode.party}`);
+        menu =
+          step === 'use'
+            ? menu
+            : step === 'unread'
+              ? { screen: 'unknown' }
+              : { screen: 'party', swipe: CAROUSEL[step] };
+      } else if (menu.screen !== 'party') {
+        search = carousel();
       }
 
       // A scroll is not progress: a tab already at its foot whose portraits go unmatched would be scrolled for ever, so
