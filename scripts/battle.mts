@@ -8,13 +8,16 @@
  *
  *   pnpm battle run --leader blanche|candela|spark --league great|ultra|master [--count N] [--serial SERIAL]
  *                   [--keep-frames DIR] [--verbose]
- *   pnpm battle run --mode gbl --league LEAGUE [--count N] [--serial SERIAL] [--keep-frames DIR] [--verbose]
+ *   pnpm battle run --mode gbl --league LEAGUE [--party NAME] [--count N] [--serial SERIAL] [--keep-frames DIR]
+ *                   [--verbose]
  *                       play Team Leader or GO Battle League battles one after another, from the map or anywhere
  *                       between the result of one battle and the start of the next, until `N` have finished or
  *                       Ctrl-C; stops, saving its last frames to `DIR`, where nothing on screen has been recognised
  *                       for 20s. GO Battle League stops at the end of a set with a reward to collect, the
  *                       encounter among them, which is left to be caught by hand.
- *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`
+ *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`, and
+ *                       `NAME` a party saved for it, which is battled with rather than whichever the screen opens
+ *                       on; one not saved stops the run
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
@@ -51,6 +54,7 @@ const { values: options, positionals } = parseArgs({
     'mode': { type: 'string', default: 'training' },
     'leader': { type: 'string' },
     'league': { type: 'string' },
+    'party': { type: 'string' },
     'count': { type: 'string' },
     'keep-frames': { type: 'string' },
     'verbose': { type: 'boolean', default: false },
@@ -71,7 +75,7 @@ const USAGE = readFileSync(new URL(import.meta.url), 'utf8')
 
 /** Which flags each command acts on, for the reason `inventory.mts` gives beside its own. */
 const HONOURED: Record<string, readonly string[]> = {
-  run: ['mode', 'leader', 'league', 'count', 'serial', 'keep-frames', 'verbose'],
+  run: ['mode', 'leader', 'league', 'party', 'count', 'serial', 'keep-frames', 'verbose'],
   record: ['seconds', 'serial'],
 };
 
@@ -171,10 +175,17 @@ if (command === 'run') {
       : {
           mode: 'gbl',
           league: options.league?.trim() || fail('--mode gbl takes --league, as `ultra` or `fantasy cup`'),
+          ...(options.party !== undefined && {
+            party: options.party.trim() || fail('--party takes the name of a party saved for the league'),
+          }),
         };
 
   if (mode.mode === 'gbl' && options.leader !== undefined) {
     fail('--leader is for training; GO Battle League has no leader');
+  }
+
+  if (mode.mode === 'training' && options.party !== undefined) {
+    fail('--party is for GO Battle League; Training battles with the recommended party');
   }
 
   const count = options.count === undefined ? Infinity : Number(options.count);

@@ -66,6 +66,8 @@ test.each([
   [['--mode', 'gbl'], '--mode gbl takes --league'],
   [['--mode', 'gbl', '--league', ' '], '--mode gbl takes --league'],
   [['--mode', 'gbl', '--league', 'ultra', '--leader', 'spark'], '--leader is for training'],
+  [['--leader', 'spark', '--league', 'great', '--party', 'GBL'], '--party is for GO Battle League'],
+  [['--mode', 'gbl', '--league', 'ultra', '--party', ' '], '--party takes the name of a party'],
 ])('refuses run %j', async (args, message) => {
   const { code, stderr } = await battle('run', ...args);
 

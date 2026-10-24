@@ -27,7 +27,11 @@ export type League = (typeof LEAGUES)[number];
  * Which battles a run plays: Training against a leader in one of the three leagues, or GO Battle League in whichever of
  * its leagues and cups is on now, named by how its title starts — `ultra`, `master league: mega`, `fantasy cup`.
  */
-export type Mode = { mode: 'training'; leader: Leader; league: League } | { mode: 'gbl'; league: string };
+export type Mode =
+  | { mode: 'training'; leader: Leader; league: League }
+
+  // `party` is the name of a party saved for the league, as its card is titled; none is whichever the screen opens on.
+  | { mode: 'gbl'; league: string; party?: string };
 
 /** Each Training league's CP cap, none being Master League's. */
 export const CAPS: Readonly<Record<League, number | null>> = { great: 1500, ultra: 2500, master: null };
@@ -36,8 +40,8 @@ export type Menu =
   | { screen: 'map' | 'main' | 'training' | 'gbl' | 'welcome' | 'intro' | 'league' | 'result'; tap: Point }
 
   // The league's CP cap as GO Battle League's party screen states it: `null` for no limit, `undefined` where unread.
-  | { screen: 'party'; tap: Point; cap?: number | null }
-  | { screen: 'battle-tab' | 'league'; swipe: readonly [Point, Point] }
+  | { screen: 'party'; tap: Point; cap?: number | null; title?: string }
+  | { screen: 'battle-tab' | 'league' | 'party'; swipe: readonly [Point, Point] }
   | { screen: 'matchmaking' | 'no-battle' | 'unknown' };
 
 /**
@@ -225,6 +229,93 @@ function welcomeButton(image: Image, lines: readonly Line[]): Point | undefined 
 const MAX_CP = 'max cp per pokemon';
 
 /**
+ * The title of the party in front on GO Battle League's party screen, a carousel of the league's saved parties: its
+ * name, centred on the card a line or two under `CHOOSE YOUR PARTY` — `test 4` 0.068 under it on a Pixel 8 Pro, `gbl`
+ * 0.070. Folded as OCR read it, the league's badge beside it sometimes run on, `pgs recommended battle party v`, so it is
+ * matched by its words rather than whole. `undefined` where the heading or the title went unread.
+ */
+const TITLE_BELOW = { least: 0.03, most: 0.1 } as const;
+
+function partyTitle(lines: readonly Line[], image: Image): string | undefined {
+  const heading = lines.find((line) => fold(line.text) === 'choose your party');
+
+  if (!heading) {
+    return undefined;
+  }
+
+  const title = lines.find((line) => {
+    const below = (line.top - heading.top) / image.height;
+    const [x] = centre(line, image);
+
+    return below >= TITLE_BELOW.least && below <= TITLE_BELOW.most && x > 0.35 && x < 0.65;
+  });
+
+  return title && fold(title.text);
+}
+
+/** Whether the party titled `title`, as `partyTitle` read it, is the one named `name`: its words, whole, in order. */
+export const isParty = (title: string, name: string) => ` ${title} `.includes(` ${fold(name)} `);
+
+/** Where a search of the party carousel has got to: the way it is going, and the titles it has passed. */
+export interface Carousel {
+  way: 'next' | 'back';
+  turned: boolean;
+  seen: string[];
+}
+
+export const carousel = (): Carousel => ({ way: 'next', turned: false, seen: [] });
+
+/**
+ * What to do next about the party carousel showing `title`, to use the party named `name`: use it, swipe on, or wait for
+ * a read that names it. The search goes one way until a swipe leaves the same party in front — that end of the carousel
+ * — then the other, and throws, naming the parties it passed, once both ends are reached without it: a party the run
+ * was told to use and cannot find is no reason to battle with another.
+ */
+export function searchParty(
+  search: Carousel,
+  title: string | undefined,
+  name: string,
+): 'use' | 'next' | 'back' | 'unread' {
+  if (title === undefined) {
+    return 'unread';
+  }
+
+  if (isParty(title, name)) {
+    return 'use';
+  }
+
+  if (search.seen.at(-1) === title) {
+    if (search.turned) {
+      throw new Error(`no party named ${name} saved for this league: ${search.seen.join(', ')}`);
+    }
+
+    search.turned = true;
+    search.way = search.way === 'next' ? 'back' : 'next';
+  }
+
+  if (search.seen.at(-1) !== title) {
+    search.seen.push(title);
+  }
+
+  return search.way;
+}
+
+/**
+ * Swipes along the party carousel, a card at a time across the cards, which are pinned at 0.69 of the height: towards
+ * the parties after the one in front, and back towards those before it.
+ */
+export const CAROUSEL: Readonly<Record<'next' | 'back', readonly [Point, Point]>> = {
+  next: [
+    [0.85, 0.72],
+    [0.15, 0.72],
+  ],
+  back: [
+    [0.15, 0.72],
+    [0.85, 0.72],
+  ],
+};
+
+/**
  * The CP cap GO Battle League's party screen states under the league's name, `Max CP per Pokémon: 2,500` or `No
  * limit`, which OCR reads as `max cp per pokemon 2 500` and the cup's own title would not give: `fantasy cup` says
  * nothing of a cap, `Great League Edition` only where the title runs on. `undefined` where the line went unread.
@@ -345,7 +436,13 @@ export async function readMenu(
     const lines = await read(image);
     const welcome = welcomeButton(image, lines);
 
-    return welcome ? { screen: 'welcome', tap: welcome } : { screen: 'party', tap: party, cap: capOf(lines) };
+    if (welcome) {
+      return { screen: 'welcome', tap: welcome };
+    }
+
+    const title = partyTitle(lines, image);
+
+    return { screen: 'party', tap: party, cap: capOf(lines), ...(title && { title }) };
   }
 
   if (pokeBall(image)) {

@@ -10,7 +10,7 @@ import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, expect, test, vi } from 'vitest';
-import { readMenu, type Menu } from './menus.mts';
+import { carousel, isParty, readMenu, searchParty, type Menu } from './menus.mts';
 
 beforeAll(() => useEngine(tesseractCli));
 
@@ -319,6 +319,7 @@ test('reads no cap off a GO Battle League party with no limit', async () => {
     screen: 'party',
     tap: [0.5, 0.87],
     cap: null,
+    title: 'recommended battle party i7',
   });
 });
 
@@ -328,6 +329,7 @@ test("taps USE THIS PARTY on GO Battle League's recommended party, reading the l
     screen: 'party',
     tap: [0.5, 0.87],
     cap: 2500,
+    title: 'recommended battle party i7',
   });
 });
 
@@ -361,4 +363,58 @@ test("taps the ✓ on the result of a GO Battle League set's last battle", async
 
 test('finds no battle on the GO Battle League card while its reward waits to be collected', async () => {
   expect(await readMenu(fixture('menu-gbl-collect'), { ...GBL, league: 'ultra' })).toEqual({ screen: 'no-battle' });
+});
+
+// The carousel of Ultra League's three saved parties on a Pixel 8 Pro, each read by the title of the one in front.
+test.each([
+  ['party-test4', 'test 4'],
+  ['party-test3', 'test 3'],
+  ['party-gbl', 'gbl'],
+])('reads the title of the party in front off %s', async (name, title) => {
+  const menu = await readMenu(pixel8(name), { mode: 'gbl', league: 'ultra', result: false });
+
+  expect(menu).toMatchObject({ screen: 'party', title });
+});
+
+// Its words whole and in order: one letter from another party's name is another party, not a misreading of it.
+test.each([
+  ['test 4', 'Test 4', true],
+  ['test 4', 'Test 3', false],
+  ['gbl', 'GBL', true],
+  ['pgs recommended battle party v', 'Recommended Battle Party', true],
+  ['test 40', 'Test 4', false],
+])('takes %j for the party named %j: %s', (title, name, is) => {
+  expect(isParty(title, name)).toBe(is);
+});
+
+/** The steps a search takes, the carousel being Test 4, Test 3 and GBL, from the title in front at each. */
+function walk(titles: readonly (string | undefined)[], name: string): string[] {
+  const search = carousel();
+
+  return titles.map((title) => searchParty(search, title, name));
+}
+
+test('searches the carousel on from the party it opens on', () => {
+  expect(walk(['test 4', 'test 3', 'gbl'], 'GBL')).toEqual(['next', 'next', 'use']);
+});
+
+// A swipe that leaves the same party in front is the end of the carousel, and the search turns back from it.
+test('turns back at the end of the carousel to find a party before it', () => {
+  expect(walk(['gbl', 'gbl', 'test 3', 'test 4'], 'Test 4')).toEqual(['next', 'back', 'back', 'use']);
+});
+
+test('waits for a read of the title rather than swipe past what it could not read', () => {
+  expect(walk([undefined, 'test 4'], 'Test 4')).toEqual(['unread', 'use']);
+});
+
+test('stops at the second end without the party, naming those it passed', () => {
+  const search = carousel();
+
+  for (const title of ['test 4', 'test 3', 'gbl', 'gbl', 'test 3', 'test 4']) {
+    searchParty(search, title, 'Great');
+  }
+
+  expect(() => searchParty(search, 'test 4', 'Great')).toThrow(
+    'no party named Great saved for this league: test 4, test 3, gbl, test 3, test 4',
+  );
 });

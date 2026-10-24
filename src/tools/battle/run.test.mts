@@ -254,6 +254,38 @@ function league(): Record<string, Scene> {
 
 const GBL = { mode: 'gbl', league: 'ultra' } as const;
 
+/**
+ * Ultra League's carousel on a Pixel 8 Pro, opening on Test 4 with Test 3 and GBL after it: the party named is swiped
+ * to, and only then used, and one not saved stops the run rather than battle with another.
+ */
+function parties(): Record<string, Scene> {
+  return {
+    ...league(),
+    party: { frame: fixture('menu-pixel8-party-test4'), swipes: { count: 1, to: 'test3' } },
+    test3: { frame: fixture('menu-pixel8-party-test3'), swipes: { count: 1, to: 'gbl' } },
+    gbl: { frame: fixture('menu-pixel8-party-gbl'), tap: { at: [0.5, 0.87], to: 'matching' } },
+  };
+}
+
+test('swipes the party carousel to the party named before using it', async () => {
+  const { phone, clock, taps, strokes } = scripted(parties(), 'party');
+
+  expect(
+    await run(phone, { mode: { ...GBL, party: 'GBL' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
+  ).toBe(1);
+  expect(strokes.filter(({ scene }) => scene === 'party' || scene === 'test3')).toHaveLength(2);
+  expect(taps.slice(0, 1)).toEqual(['gbl']);
+});
+
+test('stops rather than battle where no party has the name', async () => {
+  const { phone, clock, taps } = scripted(parties(), 'party');
+
+  await expect(
+    run(phone, { mode: { ...GBL, party: 'Great' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
+  ).rejects.toThrow('no party named Great saved for this league: test 4, test 3, gbl');
+  expect(taps).toEqual([]);
+});
+
 test('plays GO Battle League battles from the map, waiting out matchmaking', async () => {
   const { phone, clock, taps } = scripted(league(), 'map');
 
