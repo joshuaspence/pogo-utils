@@ -487,6 +487,47 @@ test('baits with the cheaper move while the opponent has shields', async () => {
 });
 
 /**
+ * The opponent sends in another Pokémon with the HUD up throughout: Entei at 28% gives way to Salamence at 43%. A bar of
+ * theirs fuller than before is a newcomer's, HP never coming back, so its name is read again at once rather than the
+ * departed Entei's standing for up to `READ_MS`, its hits counted to Entei's energy.
+ */
+test('reads the opponent again the moment a fuller bar says it was switched', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-crunch-entei'), swipes: { count: 3, to: 'newcomer' } },
+      newcomer: { frame: fixture('battle-crunch-salamence'), swipes: { count: 10, to: 'won' } },
+    },
+    'fight',
+  );
+  const lines: string[] = [];
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    (line) => lines.push(line),
+  );
+
+  const said = lines.filter((line) => line.includes(' against CP'));
+  const opponents = said.map((line) => /^\S+ against (\S+)/.exec(line)?.[1]);
+  const newcomer = said.filter((line) => line.includes('at 43%')).map((line) => line.split(':')[0] ?? line);
+
+  expect(new Set(opponents)).toEqual(new Set(['Entei', 'Salamence']));
+  expect(newcomer.length).toBeGreaterThan(0);
+  expect(
+    newcomer.every((line) => line.includes('against Salamence')),
+    newcomer.join('; '),
+  ).toBe(true);
+});
+
+/**
  * Latias leads, from the party screen, and faints to Glaceon; the switch prompt's first card sends in Mamoswine, the
  * next of the party. No frame here shows a move label or our species, so the party is all that names either.
  */

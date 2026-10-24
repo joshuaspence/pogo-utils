@@ -76,6 +76,12 @@ const READ_MS = 3_000;
 const BANNER_MS = 8_000;
 const BANNER_EVERY_MS = 300;
 
+/**
+ * How much fuller than before the opponent's bar must read to be a newcomer's, as a fraction of it: ten times the pixel
+ * the bar is read to, so a misread does not pass for one.
+ */
+const NEWCOMER = 0.1;
+
 /** How many frames the shield prompt must show for to be counted as the opponent's throw, as `Player` settles on it. */
 const THROWN = 3;
 
@@ -265,6 +271,17 @@ export async function run(
 
       // Read at the shield prompt as well as through the fight: the prompt hides the HUD, but not the bars.
       const bars = state !== 'switch' && !player.minigame ? readHealth(frame) : undefined;
+
+      // A bar of theirs fuller than the last is a newcomer's, HP never coming back, sent in with the HUD up throughout:
+      // what was read of the one before is not its, and is read again at once rather than standing for up to `READ_MS`,
+      // the newcomer's hits counted to the energy of the one it replaced.
+      const opponentBar = bars?.opponent ?? null;
+
+      if (opponentBar !== null && health.opponent !== null && opponentBar - health.opponent >= NEWCOMER) {
+        seen = { ...seen, opponent: null, opponentCp: null };
+        readAt = -Infinity;
+        energy.pause();
+      }
 
       if (bars) {
         health = { own: bars.own ?? health.own, opponent: bars.opponent ?? health.opponent };
