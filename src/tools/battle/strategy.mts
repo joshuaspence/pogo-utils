@@ -1,7 +1,7 @@
 /**
- * Which charged move to throw: the one that does the most damage, as power × STAB × type effectiveness. Attack, defense,
- * level and the trainer-battle bonus are the same for both of one Pokémon's moves against one opponent, so they cancel
- * out of the comparison and nothing here needs a stat.
+ * Which charged move to throw: the one worth the most, as power × STAB × type effectiveness, adjusted for the stat stages
+ * it may move. Attack, defense, level and the trainer-battle bonus are the same for both of one Pokémon's moves against
+ * one opponent, so they cancel out of the comparison and nothing here needs a stat.
  *
  * Whatever is not known counts as neutral rather than holding anything up: an opponent whose name was not read is hit
  * for 1×, and a Pokémon of ours whose species is not known gets no STAB. A name its forms give different types — a
@@ -53,6 +53,33 @@ export function damage(data: GameData, move: string, own: readonly Typing[], opp
   );
 
   return combat.power * stab * worst;
+}
+
+/**
+ * What a move's damage is worth once the stat stages it may move are counted: each stage priced as if it touched one
+ * more hit the size of this one, by the share that hit grows or shrinks in our favour, and weighted by the chance the
+ * stages move at all. So Ancient Power's tenth of a chance at +1 attack and +1 defense makes 60 worth 62.7, and Close
+ * Combat's certain −2 to its user's defense, half again on the next hit taken, makes 100 worth 50.
+ */
+export function worth(data: GameData, move: string, own: readonly Typing[], opponent: readonly Typing[]): number {
+  const hit = damage(data, move, own, opponent);
+  const buffs = data.combat[move]?.buffs;
+
+  if (!buffs) {
+    return hit;
+  }
+
+  const ours = stage(buffs.ownAttack) - 1;
+  const taken = 1 - 1 / stage(buffs.ownDefense);
+  const dealt = 1 / stage(buffs.theirDefense) - 1;
+  const theirs = 1 - stage(buffs.theirAttack);
+
+  return hit * (1 + buffs.chance * (ours + taken + dealt + theirs));
+}
+
+/** What `stages` up or down multiply an attack or defense stat by in a trainer battle: ×1.25 for +1, ×0.8 for −1. */
+function stage(stages = 0): number {
+  return stages >= 0 ? (4 + stages) / 4 : 4 / (4 - stages);
 }
 
 /** What a move of `type` multiplies its damage by against a Pokémon of the `defender`'s types. */
@@ -166,9 +193,9 @@ export function shouldShield(data: GameData, own: string | null, opponent: strin
 }
 
 /**
- * Which button to throw, by its x, given the move read under each button: the one doing the most damage, or undefined
- * where a button of the pair has no move read under it yet and so could be either. While `bait`, the cheapest instead,
- * to draw a shield the strongest would otherwise be thrown into; the more damaging of two that cost the same.
+ * Which button to throw, by its x, given the move read under each button: the one worth the most, or undefined where a
+ * button of the pair has no move read under it yet and so could be either. While `bait`, the cheapest instead, to draw
+ * a shield the strongest would otherwise be thrown into; the one worth more of two that cost the same.
  */
 export function bestButton(
   data: GameData,
@@ -179,7 +206,7 @@ export function bestButton(
 ): number | undefined {
   const [left, centre, right] = BUTTON_XS;
   const buttons = moves.has(left) || moves.has(right) ? [left, right] : [centre];
-  let best: { x: number; cost: number; damage: number } | undefined;
+  let best: { x: number; cost: number; worth: number } | undefined;
 
   for (const x of buttons) {
     const move = moves.get(x);
@@ -188,9 +215,9 @@ export function bestButton(
       return undefined;
     }
 
-    const hit = { x, cost: -(data.combat[move]?.energy ?? 0), damage: damage(data, move, own, opponent) };
+    const hit = { x, cost: -(data.combat[move]?.energy ?? 0), worth: worth(data, move, own, opponent) };
     const better =
-      bait && best?.cost !== hit.cost ? hit.cost < (best?.cost ?? Infinity) : hit.damage > (best?.damage ?? -1);
+      bait && best?.cost !== hit.cost ? hit.cost < (best?.cost ?? Infinity) : hit.worth > (best?.worth ?? -1);
 
     if (!best || better) {
       best = hit;

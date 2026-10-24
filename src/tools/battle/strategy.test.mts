@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { type GameData } from '../inventory/game-master.mts';
 import { type Meta } from './meta.mts';
-import { activeOf, bestButton, chargedOf, damage, nextOut, shouldShield, typesOf } from './strategy.mts';
+import { activeOf, bestButton, chargedOf, damage, nextOut, shouldShield, typesOf, worth } from './strategy.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -49,6 +49,32 @@ test('the best button is the move that hits hardest against this opponent', () =
   expect(bestButton(DATA, KYOGRE, kyogre, typesOf(DATA, 'Entei')), 'Hydro Pump into Entei').toBe(0.31);
   expect(bestButton(DATA, KYOGRE, kyogre, typesOf(DATA, 'Salamence')), 'Avalanche into Salamence').toBe(0.69);
   expect(bestButton(DATA, KYOGRE, [], []), 'Hydro Pump on power alone').toBe(0.31);
+});
+
+test('a move is worth its damage, moved by the stat stages it may change as if each touched one more hit', () => {
+  expect(worth(DATA, 'Rock Slide', [], []), 'no stages').toBe(75);
+  expect(worth(DATA, 'Ancient Power', [], []), 'a tenth of a chance at +1 attack and defense').toBeCloseTo(60 * 1.045);
+  expect(worth(DATA, 'Rock Tomb', [], []), 'their attack −1 every time').toBeCloseTo(75 * 1.2);
+  expect(worth(DATA, 'Close Combat', [], []), 'our defense −2 every time').toBeCloseTo(100 * 0.5);
+  expect(worth(DATA, 'Close Combat', typesOf(DATA, 'Machamp'), []), 'on top of STAB').toBeCloseTo(100 * 1.2 * 0.5);
+  expect(worth(DATA, 'Not A Move', [], [])).toBe(0);
+});
+
+test('the best button counts what a move does to either side’s stats as well as the damage', () => {
+  const tomb = new Map([
+    [0.31, 'Rock Tomb'],
+    [0.69, 'Power Gem'],
+  ]);
+  const combat = new Map([
+    [0.31, 'Close Combat'],
+    [0.69, 'Rock Slide'],
+  ]);
+
+  expect(bestButton(DATA, tomb, [], []), 'Rock Tomb, 75 and their attack −1, over Power Gem’s 85').toBe(0.31);
+  expect(
+    bestButton(DATA, combat, typesOf(DATA, 'Machamp'), []),
+    'Rock Slide over a Close Combat that leaves Machamp taking half again',
+  ).toBe(0.69);
 });
 
 test('the slot out is the first not fainted whose species can hold the moves read', () => {

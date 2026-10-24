@@ -14,7 +14,11 @@
  *                       Ctrl-C; stops, saving its last frames to `DIR`, where nothing on screen has been recognised
  *                       for 20s. GO Battle League stops at the end of a set with a reward to collect, the
  *                       encounter among them, which is left to be caught by hand.
- *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`
+ *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`.
+ *                       On a terminal, which it takes over until it stops, a table shows the battle, ours at the
+ *                       left and the opponent's at the right, and what each side does under it, with how the run
+ *                       stands above it and the menus it taps through below; `--verbose` writes the same as lines
+ *                       where stderr is not a terminal
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
@@ -30,6 +34,7 @@ import { LEADERS, LEAGUES, type Mode } from '../src/tools/battle/menus.mts';
 import { loadMeta } from '../src/tools/battle/meta.mts';
 import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
+import { live, plain } from '../src/tools/battle/report.mts';
 import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord, streamSize } from '../src/tools/battle/stream.mts';
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
@@ -188,7 +193,7 @@ if (command === 'run') {
   await device.check();
   useEngine(tesseractCli);
 
-  // Which move does the most damage, out of the game master `pnpm inventory` downloads and caches for a week.
+  // Which move is worth the most, out of the game master `pnpm inventory` downloads and caches for a week.
   const data = await loadGameData(CACHE);
   const icons = await silhouettes(data);
   const colours = await bubbleColours(data);
@@ -206,15 +211,20 @@ if (command === 'run') {
   const restore = () => transport.shell(['settings', 'put', 'global', 'stay_on_while_plugged_in', before]);
   let screen: Screen | undefined;
 
+  // A terminal is drawn the panel whether or not `--verbose` asks; anything else is written lines, and only if it does.
+  const panel = process.stderr.isTTY ? live(process.stderr) : undefined;
+  const report = panel ?? (options.verbose ? plain((line) => console.error(line)) : undefined);
+
   process.once('SIGINT', () => {
+    panel?.done();
     screen?.close();
     void restore().finally(() => process.exit(130));
   });
 
-  const say = options.verbose ? (line: string) => console.error(line) : undefined;
-
   if (meta) {
-    say?.(`opponents' moves as PvPoke ranks ${meta.cup} at ${meta.cap ?? 'any'} CP: ${meta.movesets.size} species`);
+    report?.event(
+      `opponents' moves as PvPoke ranks ${meta.cup} at ${meta.cap ?? 'any'} CP: ${meta.movesets.size} species`,
+    );
   }
 
   try {
@@ -239,14 +249,17 @@ if (command === 'run') {
       phone,
       { mode, data, icons, colours, meta, count },
       { now: () => performance.now(), sleep },
-      say,
-    );
+      report,
+    ).finally(() => panel?.done());
     console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
 
     if (battles < count) {
       console.log('GO Battle League has no battle to offer until its reward is collected');
     }
   } catch (error) {
+    // The terminal back first, from a run that failed before it began as from one that failed in it: the reason written
+    // into the screen taken over would go with it.
+    panel?.done();
     process.exitCode = 1;
     console.error(error instanceof Error ? error.message : String(error));
 

@@ -67,7 +67,19 @@ interface Template {
       forms?: { form: string; isCostume?: boolean }[];
     };
     moveSettings?: object;
-    combatMove?: { type: string; power?: number; energyDelta?: number; durationTurns?: number };
+    combatMove?: {
+      type: string;
+      power?: number;
+      energyDelta?: number;
+      durationTurns?: number;
+      buffs?: {
+        buffActivationChance?: number;
+        attackerAttackStatStageChange?: number;
+        attackerDefenseStatStageChange?: number;
+        targetAttackStatStageChange?: number;
+        targetDefenseStatStageChange?: number;
+      };
+    };
     typeEffective?: { attackType: string; attackScalar: number[] };
     playerLevel?: { cpMultiplier: number[] };
   };
@@ -205,11 +217,24 @@ export async function loadGameData(cacheDir: string, refresh = false): Promise<G
     // per type — and the screen shows only the name, so the first-numbered stands for it: the ordinary move, or for a
     // move varying by type, its first type. Splash and Transform have no power at all rather than a power of 0.
     if (data.combatMove && name && !(name in combat)) {
+      const { buffs } = data.combatMove;
+
       combat[name] = {
         type: typeName(data.combatMove.type),
         power: data.combatMove.power ?? 0,
         energy: data.combatMove.energyDelta ?? 0,
         turns: (data.combatMove.durationTurns ?? 0) + 1,
+
+        // Secret Sword carries an empty `buffs`, which changes nothing.
+        ...(buffs?.buffActivationChance && {
+          buffs: {
+            chance: buffs.buffActivationChance,
+            ownAttack: buffs.attackerAttackStatStageChange,
+            ownDefense: buffs.attackerDefenseStatStageChange,
+            theirAttack: buffs.targetAttackStatStageChange,
+            theirDefense: buffs.targetDefenseStatStageChange,
+          },
+        }),
       };
     }
   }
