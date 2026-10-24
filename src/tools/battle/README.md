@@ -167,7 +167,9 @@ Ancient Power's one-in-ten buff adds about 5%.
 stats count for nothing, since there's no next hit for them to matter on.
 
 **Baiting.** While the opponent still has shields, it throws its _cheapest_ move, to draw a shield that the strongest
-move would otherwise be wasted into. Once their shields are gone, it throws the move worth the most.
+move would otherwise be wasted into. Once their shields are gone, it throws the move worth the most. A bait costing no
+more than **10** energy less than the move worth the most isn't worth the shield it might not draw, so that move goes
+instead, logged as `threw Flamethrower: not baiting: Ancient Power costs only 10 less than Flamethrower`.
 
 **Holding energy.** Once it has picked a move, it waits for that button to light, even while a weaker move is already
 ready. ([What's next](#whats-next) covers when that should give way.)

@@ -615,9 +615,12 @@ export async function run(
       // past mattering. The shield's verdict, unknowns and an unread cap counting as fainting here too: guessed wrong,
       // either way it costs no more than the stages of one move, where telling a guess from a read would take `Verdict`
       // saying which it is.
-      const bait = theirShields > 0;
       const lastHit = ourShields === 0 && verdict.faints;
-      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), { bait, lastHit });
+      const pick = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), {
+        bait: theirShields > 0,
+        lastHit,
+      });
+      const best = pick?.x;
 
       if (state === 'shield' && !offered?.taken) {
         offered = { why: verdict.why, taken: false };
@@ -634,7 +637,7 @@ export async function run(
         },
         moves: [...seen.moves.values()],
         throwing: (best !== undefined && seen.moves.get(best)) || undefined,
-        bait,
+        bait: pick?.bait ?? theirShields > 0,
         shield,
         ...(estimate && { energy: { energy: estimate.energy, fast: estimate.fast } }),
       };
@@ -696,7 +699,7 @@ export async function run(
           thrown = seen.moves.get(action.at[0]);
           const [user, target] = afterThrow(data.combat[thrown ?? ''], stages.own, stages.their);
           stages = { own: user, their: target };
-          log(`threw ${thrown ?? 'a charged move'}`, 'own');
+          log(`threw ${thrown ?? 'a charged move'}`, 'own', action.at[0] === best ? pick?.why : undefined);
         } else if (action.what === 'shield') {
           // Told once, a retap a second later being the same answer to the same prompt.
           if (!offered?.taken) {
