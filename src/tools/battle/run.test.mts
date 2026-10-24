@@ -268,6 +268,56 @@ function league(): Record<string, Scene> {
 
 const GBL = { mode: 'gbl', league: 'ultra' } as const;
 
+/**
+ * Ultra League's carousel on a Pixel 8 Pro, opening on Test 4 with Test 3 and GBL after it: the party named is swiped
+ * to, and only then used, and one not saved stops the run rather than battle with another.
+ */
+function parties(): Record<string, Scene> {
+  return {
+    ...league(),
+    party: { frame: fixture('menu-pixel8-party-test4'), swipes: { count: 1, to: 'test3' } },
+    test3: { frame: fixture('menu-pixel8-party-test3'), swipes: { count: 1, to: 'gbl' } },
+    gbl: { frame: fixture('menu-pixel8-party-gbl'), tap: { at: [0.5, 0.87], to: 'matching' } },
+  };
+}
+
+test('swipes the party carousel to the party named before using it', async () => {
+  const { phone, clock, taps, strokes } = scripted(parties(), 'party');
+
+  expect(
+    await run(phone, { mode: { ...GBL, party: 'GBL' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
+  ).toBe(1);
+  expect(strokes.filter(({ scene }) => scene === 'party' || scene === 'test3')).toHaveLength(2);
+  expect(taps.slice(0, 1)).toEqual(['gbl']);
+});
+
+// Eight swipes before the party, some 25s of swipes, settles and reads: longer than `LOST_MS`, and not lost for it.
+test('searches a carousel for longer than the run takes to give up as lost', async () => {
+  const cards = ['menu-pixel8-party-test4', 'menu-pixel8-party-test3'];
+  const walk = Object.fromEntries(
+    Array.from({ length: 8 }, (_, i) => [
+      `card${i}`,
+      { frame: fixture(cards[i % 2] ?? ''), swipes: { count: 1, to: i === 7 ? 'gbl' : `card${i + 1}` } },
+    ]),
+  );
+  const { phone, clock, taps } = scripted({ ...parties(), ...walk }, 'card0');
+
+  expect(
+    await run(phone, { mode: { ...GBL, party: 'GBL' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
+  ).toBe(1);
+  expect(taps[0]).toBe('gbl');
+  expect(clock.now()).toBeGreaterThan(LOST_MS);
+});
+
+test('stops rather than battle where no party has the name', async () => {
+  const { phone, clock, taps } = scripted(parties(), 'party');
+
+  await expect(
+    run(phone, { mode: { ...GBL, party: 'Great' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
+  ).rejects.toThrow('no party named Great saved for this league: test 4, test 3, gbl');
+  expect(taps).toEqual([]);
+});
+
 test('plays GO Battle League battles from the map, waiting out matchmaking', async () => {
   const { phone, clock, taps } = scripted(league(), 'map');
 
