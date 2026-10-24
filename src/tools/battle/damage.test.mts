@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { cpOf, multiplierOf, type Form, type GameData } from '../inventory/game-master.mts';
 import { buildsOf, hit, rankOne, wouldFaint } from './damage.mts';
+import { type Meta } from './meta.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -84,6 +85,22 @@ test('Frustration and Return are left out, which only a shadow or a purified Mag
   // Return, 130 power and neutral on Charizard without STAB, would take floor(0.5 × 130 × 147.626 / 143.723 × 1.3) + 1
   // = 87, past nine tenths of the 89 HP left at 0.6.
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA)).toBe(false);
+});
+
+/** A meta in which `species` is run with `chargedMoves` alone. */
+const metaOf = (species: string, chargedMoves: string[]): Meta => ({
+  cup: 'all',
+  cap: 2500,
+  movesets: new Map([[species, { fast: '', fastMoves: [], chargedMoves }]]),
+});
+
+test('in a league PvPoke ranks, only the charged moves the opponent’s players run are allowed for', () => {
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Magmar', ['Fire Punch'])), 'not Fire Blast').toBe(
+    false,
+  );
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.2, ULTRA, metaOf('Magmar', ['Fire Punch'])), 'Fire Punch').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA, metaOf('Magmar', ['Return'])), 'Return, run').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Charizard', [])), 'Magmar unranked').toBe(true);
 });
 
 test('anything unknown counts as fainting', () => {
