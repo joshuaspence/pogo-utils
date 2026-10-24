@@ -345,7 +345,10 @@ export async function run(
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
         const before = seen.opponent;
-        seen = merge(seen, await readBattle(frame, data));
+
+        // Only a species the HUD has named narrows the labels: the party's guess at a nicknamed one is what the labels
+        // correct, through `activeOf`, and narrowed to it they could never show it wrong.
+        seen = merge(seen, await readBattle(frame, data, undefined, seen.own));
 
         if (before !== null && seen.opponent !== before) {
           log(`sent in ${seen.opponent}`, 'opponent');
