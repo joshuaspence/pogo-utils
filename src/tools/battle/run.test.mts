@@ -574,6 +574,35 @@ test.each([
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(tapped);
 });
 
+// Charizard against Quaquaval: the banner after the prompt names Quaquaval's move, which is kept for the battle.
+test('learns the move the banner after a shield prompt names', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-one-shield'), swipes: { count: 10, to: 'prompt' } },
+      prompt: { frame: fixture('shield-low'), lasts: { ms: 3000, to: 'banner' } },
+      banner: { frame: fixture('battle-banner-quaquaval'), lasts: { ms: 2000, to: 'won' } },
+    },
+    'fight',
+  );
+  const lines: string[] = [];
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    (line) => lines.push(line),
+  );
+
+  expect(lines).toContain('Quaquaval has Aqua Jet');
+});
+
 // Started mid-battle in GO Battle League, the party screen that states the league's cap never seen: every shield taken.
 test('takes every shield in GO Battle League until the party screen has given the cap', async () => {
   const { phone, clock, taps } = scripted(
