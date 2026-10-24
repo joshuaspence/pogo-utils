@@ -140,13 +140,26 @@ export function hit(data: GameData, move: CombatMove, attacker: Battler, defende
   );
 }
 
+/** How many charged moves a Pokémon holds at most: its own and one unlocked with a second. */
+const MOVES_HELD = 2;
+
 /**
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the
  * fraction of our maximum the bar shows. Hardest of every charged move any of its forms can hold, bar Frustration and
  * Return as `nextOut` has it, against whichever of our forms it hurts most. Anything not known — either species or CP,
  * a CP over `cap`, the HP left or a move of theirs — counts as fainting, a shield being the safe side to err on.
+ *
+ * `seen` is the charged moves this opponent has been seen to use. Both of them seen, they are all it has, whatever its
+ * form. One seen narrows nothing: the other could be any it can hold, the hardest among them.
  */
-export function wouldFaint(data: GameData, own: Side, opponent: Side, hp: number | null, cap: number | null): boolean {
+export function wouldFaint(
+  data: GameData,
+  own: Side,
+  opponent: Side,
+  hp: number | null,
+  cap: number | null,
+  seen: ReadonlySet<string> = new Set(),
+): boolean {
   const ours = buildsOf(data, own, cap);
   const theirs = buildsOf(data, opponent, cap);
 
@@ -156,7 +169,8 @@ export function wouldFaint(data: GameData, own: Side, opponent: Side, hp: number
 
   return theirs.some((attacker) => {
     const charged = attacker.form.moves.filter((move) => !move.fast && !SHADOW_AND_PURIFIED.has(move.name));
-    const moves = charged.flatMap((move) => data.combat[move.name] ?? []);
+    const names = seen.size >= MOVES_HELD ? [...seen] : charged.map((move) => move.name);
+    const moves = names.flatMap((name) => data.combat[name] ?? []);
 
     return (
       moves.length === 0 ||

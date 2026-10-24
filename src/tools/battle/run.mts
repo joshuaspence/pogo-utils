@@ -13,7 +13,7 @@ import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
 import { readHealth, type Health } from './health.mts';
-import { merge, readBattle, unseen, type Sighting } from './read.mts';
+import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint } from './damage.mts';
@@ -57,6 +57,14 @@ const SCROLL_MS = 400;
  * 220ms, a fast move's worth, and what it reads changes only when a Pokémon on either side does.
  */
 const READ_MS = 3_000;
+
+/**
+ * How long after a shield prompt the banner naming the move is looked for, and how often, in milliseconds. The banner
+ * follows the prompt, up for a second or two once the hit lands; a read holds the loop up for 100–200ms, and the
+ * opponent's charged move is playing out meanwhile, so no fast move is lost to it.
+ */
+const BANNER_MS = 4_000;
+const BANNER_EVERY_MS = 300;
 
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
@@ -132,6 +140,11 @@ export async function run(
   let bubbleColour: Colour | undefined;
   let seen: Sighting = unseen();
   let readAt = -Infinity;
+
+  // The charged moves each opponent has been seen to use this battle, by species, off the banner after each prompt.
+  let theirMoves = new Map<string, Set<string>>();
+  let bannerUntil = -Infinity;
+  let bannerAt = -Infinity;
   let said = '';
 
   while (battles < count) {
@@ -152,6 +165,27 @@ export async function run(
 
     const state = recognise(frame);
 
+    // The move just thrown at us, named once it lands, whether or not the shield was taken: the banner is drawn over the
+    // battle and over the frames that read as neither, so it is looked for on both.
+    if (state === 'shield') {
+      bannerUntil = clock.now() + BANNER_MS;
+    } else if (
+      seen.opponent &&
+      !player.minigame &&
+      clock.now() < bannerUntil &&
+      clock.now() - bannerAt >= BANNER_EVERY_MS
+    ) {
+      bannerAt = clock.now();
+      const move = await readBanner(frame, data, seen);
+
+      if (move) {
+        const known = theirMoves.get(seen.opponent) ?? new Set();
+        theirMoves.set(seen.opponent, known.add(move));
+        bannerUntil = -Infinity;
+        log(`${seen.opponent} has ${[...known].join(' and ')}`);
+      }
+    }
+
     if (state !== 'other') {
       if (!battling) {
         log(`battle ${battles + 1} started`);
@@ -163,6 +197,8 @@ export async function run(
         theirShields = 2;
         ourShields = 2;
         health = { own: null, opponent: null };
+        theirMoves = new Map();
+        bannerUntil = -Infinity;
       }
 
       // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one of theirs
@@ -208,6 +244,7 @@ export async function run(
             { species: seen.opponent, cp: seen.opponentCp },
             health.own,
             cap,
+            theirMoves.get(seen.opponent ?? ''),
           ));
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';

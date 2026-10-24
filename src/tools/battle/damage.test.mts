@@ -95,3 +95,20 @@ test('anything unknown counts as fainting', () => {
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, null, ULTRA), 'the HP left').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: 'Not A Pokémon', cp: 1826 }, 0.9, ULTRA)).toBe(true);
 });
+
+/**
+ * Dialga, CP 2289, at 58% against Tyranitar, CP 2256, as in a live GO Battle League battle: Tyranitar's Fire Blast takes
+ * about 80% of Dialga, Crunch about 48% and Stone Edge 43%. One move seen leaves Fire Blast possible as the other; both
+ * seen, it is not.
+ */
+test.each<[string[], boolean]>([
+  [[], true],
+  [['Crunch'], true],
+  [['Crunch', 'Stone Edge'], false],
+  [['Crunch', 'Fire Blast'], true],
+])('with %j seen, Tyranitar would faint Dialga at 58%: %s', (seen, faints) => {
+  const own = { species: 'Dialga', cp: 2289 };
+  const opponent = { species: 'Tyranitar', cp: 2256 };
+
+  expect(wouldFaint(DATA, own, opponent, 0.58, 2500, new Set(seen))).toBe(faints);
+});
