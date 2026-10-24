@@ -13,12 +13,20 @@ A battle turns every half second, and a screenshot over `adb` takes 0.8–1.9s, 
 `pnpm inventory` does. It watches the screen as video instead, decides something about every frame, and acts with taps
 and swipes. The menus between battles are slower and change rarely, so those are read off full screenshots.
 
-```text
-phone ──screenrecord──▶ stream.mts ──frame──▶ run.mts ──▶ recognise / health / read ──▶ strategy / damage / energy
-  ▲                     (H.264, ffmpeg)         │                                                │
-  └────────── adb tap / swipe ◀── play.mts ◀────┴──────────── choices: which move, shield, card ◀┘
-                                                │
-                                                └──▶ report.mts (terminal panel or log lines)
+```mermaid
+flowchart LR
+    phone(["Phone"])
+    stream["<b>stream.mts</b><br/>decodes H.264 with ffmpeg"]
+    run["<b>run.mts</b>"]
+    read["<b>recognise / health / read</b><br/>what the frame shows"]
+    decide["<b>strategy / damage / energy</b><br/>which move, shield, card"]
+    play["<b>play.mts</b>"]
+    report["<b>report.mts</b><br/>terminal panel or log lines"]
+
+    phone -- screenrecord --> stream -- frame --> run
+    run --> read --> decide -- choices --> run
+    run --> play -- "adb tap / swipe" --> phone
+    run --> report
 ```
 
 ### Watching the screen
