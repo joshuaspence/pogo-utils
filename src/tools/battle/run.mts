@@ -300,7 +300,9 @@ export async function run(
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
         const before = seen.opponent;
-        seen = merge(seen, await readBattle(frame, data));
+        const known = activeOf(data, party, fainted, seen.moves.values(), sent);
+        const species = seen.own ?? (known === undefined ? null : (party[known] ?? null));
+        seen = merge(seen, await readBattle(frame, data, undefined, species));
 
         if (before !== null && seen.opponent !== before) {
           log(`sent in ${seen.opponent}`, 'opponent');

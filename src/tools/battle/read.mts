@@ -76,14 +76,20 @@ const band = (
 const across = (line: Line, { left, factor }: { left: number; factor: number }, image: Image) =>
   (left + centre(line)[0] / factor) / image.width;
 
+/**
+ * What the battle's text says on `image`. `species` is ours where it is known from before, off an earlier frame's HUD
+ * or, nicknamed, off the party, which the labels are matched among, as the name on this frame is: Gengar's `SLUDGE
+ * BOMB` read short as `SLUDGE B` was nearer Sludge, which Gengar cannot hold, than Sludge Bomb, and the move thrown
+ * flipped between them read to read. Unknown, every charged move is a label it could be.
+ */
 export async function readBattle(
   image: Image,
   data: GameData,
   read: (image: Image) => Promise<Line[]> = ocr,
+  species: string | null = null,
 ): Promise<Sighting> {
   const names = band(image, NAMES, TOP, 2);
   const labels = band(image, LABELS, BOTTOM, 3);
-  const charged = data.moves.filter((move) => !move.fast && move.name in data.combat).map((move) => move.name);
   const sighting = unseen();
 
   // The names share their line with each side's CP, which matches no species and so drops out of the names here. Each
@@ -103,6 +109,13 @@ export async function readBattle(
       sighting[at < 0.5 ? 'ownCp' : 'opponentCp'] ??= Number(match[1]);
     }
   }
+
+  const own = sighting.own ?? species;
+  const charged = (
+    own === null ? data.moves : data.forms.filter((form) => form.species === own).flatMap((f) => f.moves)
+  )
+    .filter((move) => !move.fast && move.name in data.combat)
+    .map((move) => move.name);
 
   // Beneath each move is how effective it is, which matches no move and so drops out here.
   for (const line of await read(labels.image)) {
