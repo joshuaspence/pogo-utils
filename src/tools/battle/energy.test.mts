@@ -182,3 +182,14 @@ test('once both of its moves have been seen, a throw is the cheaper of them', ()
 
   expect(energy.estimate(MATCHUP)?.energy, '90 less Ice Punch’s 40').toBe(50);
 });
+
+test('steps measured before a CP was read do not stop later ones from telling the fast move', () => {
+  const energy = new Energy(DATA);
+  const unread: Matchup = { ...MATCHUP, opponent: { species: 'Medicham', cp: null } };
+
+  // Counter's steps with Medicham's CP not yet read, which no build can check, and then with it read.
+  const hp = fight(energy, { step: COUNTER, hits: 3 }, unread);
+  fight(energy, { from: hp, step: COUNTER, hits: 3, start: 5000 });
+
+  expect(energy.estimate(MATCHUP)?.fast).toBe('Counter');
+});

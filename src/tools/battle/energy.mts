@@ -259,7 +259,10 @@ export class Energy {
     const moveset = this.#meta?.movesets.get(species);
     const plausible = moveset ? pool.filter((name) => moveset.fastMoves.includes(name)) : [];
     const candidates = plausible.length > 0 ? plausible : pool;
-    const measured = tally.stretches.filter((stretch) => stretch.steps.length > 0);
+
+    // Only stretches the model can check: one read before either side's CP has no build to say what a hit takes, and
+    // would rule out every move alike rather than any one.
+    const measured = tally.stretches.filter((stretch) => stretch.steps.length > 0 && this.#modelled(stretch));
 
     if (measured.length > 0) {
       const misfit = (fast: string) =>
@@ -287,6 +290,14 @@ export class Energy {
     };
 
     return [...candidates].sort((a, b) => rate(b) - rate(a))[0];
+  }
+
+  /** Whether both sides of a stretch have a build, which what a hit takes is modelled from. */
+  #modelled({ matchup }: Stretch): boolean {
+    return (
+      buildsOf(this.#data, matchup.opponent, matchup.cap).length > 0 &&
+      buildsOf(this.#data, matchup.own, matchup.cap).length > 0
+    );
   }
 
   /** What one hit of `fast` takes of our bar in a stretch, for every pairing of builds whose attacker can hold it. */
