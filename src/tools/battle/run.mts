@@ -380,13 +380,22 @@ export async function run(
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
-        const before = seen.opponent ?? departed;
+        const named = seen.opponent;
+        const before = named ?? departed;
 
         // Only a species the HUD has named narrows the labels: the party's guess at a nicknamed one is what the labels
         // correct, through `activeOf`, and narrowed to it they could never show it wrong.
-        seen = merge(seen, await readBattle(frame, data, undefined, seen.own));
+        const read = await readBattle(frame, data, undefined, seen.own);
+
+        seen = merge(seen, read);
 
         if (seen.opponent !== null && seen.opponent !== before) {
+          // A CP kept from while another species was named is that one's, which a switch the bar did not catch leaves
+          // standing: Gengar went on at Charizard's CP 2285 for fifteen reads. One read alongside the new name is its.
+          if (named !== null) {
+            seen = { ...seen, opponentCp: read.opponentCp };
+          }
+
           if (before !== null) {
             const gone = leftAtName !== null && left.opponent !== null && left.opponent < leftAtName;
 

@@ -629,6 +629,54 @@ test.each([
 });
 
 /**
+ * Sneasel, CP 1465, switches to Glaceon, whose CP is painted over so that no read finds it and whose bar, emptier than
+ * Sneasel's, clears nothing. Live, Gengar went on at Charizard's CP 2285 for fifteen reads after the switch.
+ */
+test('reads a switched-in opponent’s CP afresh rather than keeping the one before’s', async () => {
+  const glaceon = fixture('battle-latias');
+
+  // The `CP` of `CP 2412`, from x 218, under the panel beside it: its digits are left, which the HUD is told from by
+  // the text along it, and which match no CP without the letters before them.
+  for (let y = 49; y < 69; y++) {
+    const row = y * glaceon.width;
+
+    for (let x = 216; x < 234; x++) {
+      glaceon.data.copyWithin((row + x) * 4, (row + 214) * 4, (row + 215) * 4);
+    }
+  }
+
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-deoxys'), swipes: { count: 10, to: 'after' } },
+      after: { frame: glaceon, lasts: { ms: 4000, to: 'won' } },
+    },
+    'fight',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  const cps = (species: string) =>
+    new Set(report.fights.filter(({ opponent }) => opponent.species === species).map(({ opponent }) => opponent.cp));
+
+  expect(report.events).toContain('opponent: switched to Glaceon');
+  expect(cps('Sneasel')).toEqual(new Set([1465]));
+  expect(cps('Glaceon')).toEqual(new Set([null]));
+});
+
+/**
  * Latias leads, from the party screen, and faints to Glaceon; the switch prompt's first card sends in Mamoswine, the
  * next of the party. No frame here shows a move label or our species, so the party is all that names either.
  */
