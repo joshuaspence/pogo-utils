@@ -954,6 +954,50 @@ test('names the lead from the party, and the next of it after a faint', async ()
 });
 
 /**
+ * What matches the switch prompt with all three of our Poké Balls red follows no faint, and is not answered as one: live,
+ * a charged move's burst over a night field was, and Mewtwo was told as fainted for a battle it fought on in. Here the
+ * prompt itself, its grey ball painted red, stands in for it, `recognise` no longer reading that burst as the prompt.
+ */
+test('answers no switch prompt while all three of our Poké Balls are red', async () => {
+  const prompt = fixture('switch-glaceon');
+  const ball = { x: Math.round(0.058 * prompt.width), y: Math.round(0.2026 * prompt.width) };
+  const painted = { ...prompt, data: prompt.data.slice() };
+
+  for (let y = ball.y - 4; y <= ball.y + 4; y++) {
+    for (let x = ball.x - 4; x <= ball.x + 4; x++) {
+      painted.data.set([220, 40, 40, 255], (y * painted.width + x) * 4);
+    }
+  }
+
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'slate' } },
+      slate: { frame: painted, tap: { at: [0.33, 0.87], to: 'stuck' }, lasts: { ms: 3000, to: 'won' } },
+      stuck: { frame: fixture('other-loss') },
+    },
+    'party',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  expect(taps).not.toContain('slate');
+  expect(report.events.filter((line) => line.includes('fainted'))).toEqual([]);
+});
+
+/**
  * Latias leads and faints with no switch prompt to answer, as where the game's timer picks or the prompt goes
  * unrecognised: the battle comes back with one of our Poké Balls grey. Counted only off our taps, Latias stayed out to
  * the end of a live run, the next faint told against it.

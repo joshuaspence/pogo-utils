@@ -269,7 +269,8 @@ reads our HUD again 2s after the tap: a CP unchanged means the tap was refused, 
 
 - **Ours:** a nicknamed Pokémon's species comes from the party screen: the lead, then whichever card was sent in. If the
   moves read under the buttons can't belong to that species, which a misread card would cause, it moves on to the next
-  card that fits.
+  card that fits. A switch prompt is answered only once our Poké Balls show a faint since the last one: a dark field at
+  night can match its slate panel, and was once answered with all three of ours still red.
 - **Theirs:** a switch made with the HUD up shows as their HP bar reading fuller than before. Fewer Poké Balls left than
   when the last name was read means the old one fainted, logged as `Entei fainted; sent in Salamence`; otherwise it
   switched out, `switched to Sneasel`.
