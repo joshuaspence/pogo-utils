@@ -76,7 +76,8 @@ const near = (colour: Colour, target: Colour, within: number) =>
  * under cloud, 229/244/252 under a deep blue sky and 207/216/230 under a night one, which a 19/59/140 gap between them
  * predicts. So no channel falls below 195 and the chroma stays under 52 — a fifth of the most anything behind could
  * have. Not always a sky: a Galarian Moltres's magenta wing behind ours drew it to 237/215/230 and 251/210/225 on a
- * Pixel 8 Pro, redder than blue, the battle read as none for seconds at a time while it flew.
+ * Pixel 8 Pro, redder than blue. Held to blue at least as strong as red, the battle read as `other` for seconds at a
+ * time while it flew.
  *
  * That is a range bare sky falls in too: the sky the shield prompt leaves where it hides them measured 210/238/250. The
  * names are what tell the two apart. Their slate-grey text, and the blur the encoder gives it, is 13–18% of their line
