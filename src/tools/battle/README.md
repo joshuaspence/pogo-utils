@@ -32,10 +32,11 @@ flowchart LR
 - **[`stream.mts`](stream.mts)** runs `screenrecord` on the phone, which sends H.264 at about 30 frames a second, and
   decodes it with `ffmpeg` into the same `Image` the inventory readers take. `Screen` keeps one recording going after
   another, since `screenrecord` stops after 180s, and always answers the latest frame.
-- **[`layout.mts`](layout.mts)** places a position measured on a Pixel 4 XL onto a phone of any other shape. The game
-  sizes things by the screen's width and pins each piece at a fraction of the height, its _anchor_: 0 for the top, 1 for
-  the foot, something in between for a piece inside a panel. Every position in the readers carries its anchor, measured
-  on both a Pixel 4 XL and a Pixel 8 Pro.
+- **[`layout.mts`](layout.mts)** places a position on a phone of any shape. The game sizes things by the screen's width
+  and pins each piece at a fraction of the height, its _anchor_: 0 for the top, 1 for the foot, something in between for
+  a piece inside a panel. So a position down the screen is written as its anchor and a number of the screen's widths
+  from it, which is the same on every phone, and no phone's shape is the reference. Anchors are measured on both a Pixel
+  8 Pro and a Pixel 4 XL.
 
 ### Reading a frame
 
@@ -104,7 +105,11 @@ stand in a scripted phone that plays committed frames as scenes.
 
 **[`report.mts`](report.mts)** is how a run tells of itself: events (a tap, a throw, a shield taken and why, a faint)
 and a status sent every frame. On a terminal, `live` draws a fixed full-screen panel with our side on the left and the
-opponent's on the right. Otherwise `plain` writes lines, which is what `--verbose` gives where stderr isn't a terminal.
+opponent's on the right. Where the terminal speaks the Kitty graphics protocol, as Kitty, Ghostty and WezTerm do, the
+phone's latest frame is drawn down the panel's left edge at full height, so long as the table beside it still has 80
+columns. [`kitty.mts`](kitty.mts) draws it, passing each frame as a temporary file the terminal reads, and asks the
+terminal first, so one that can't read the file, such as a remote one, draws no picture rather than a broken one. Where
+stderr isn't a terminal, `plain` writes lines instead, which is what `--verbose` gives there.
 
 ### Game data
 
