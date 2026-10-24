@@ -6,11 +6,14 @@
  * not which charged moves the opponent has. So the moves are the worst its forms can hold, or in a league PvPoke ranks
  * the worst its players run, and the IVs are the ones a player would have picked for a league — the rank-1 spread,
  * whose attack × defense × HP is the highest the CP allows.
+ *
+ * What it does see is the charged moves thrown, ours as we throw them and theirs off the banner after each shield
+ * prompt, and so the stat stages those move: their attack and our defense, as they stand, go into the hit.
  */
 
 import { cpOf, type CombatMove, type Form, type GameData, type IVs } from '../inventory/game-master.mts';
 import { type Meta } from './meta.mts';
-import { chargedOf, effectiveness, STAB } from './strategy.mts';
+import { chargedOf, effectiveness, STAB, stage } from './strategy.mts';
 
 /**
  * What a charged move's damage is multiplied by in a trainer battle and not in a raid: the game master's
@@ -43,6 +46,41 @@ export interface Battler {
 export interface Side {
   species: string | null;
   cp: number | null;
+}
+
+/** One side's attack and defense stages, each from −4 to +4. */
+export interface Stages {
+  attack: number;
+  defense: number;
+}
+
+export const NO_STAGES: Stages = { attack: 0, defense: 0 };
+
+/** How far a stage can go either way. */
+const MAX_STAGE = 4;
+
+const clamp = (stages: number) => Math.max(-MAX_STAGE, Math.min(MAX_STAGE, stages));
+
+/**
+ * The stages of a move's `user` and of its `target` once it is thrown, shielded or not: a shield stops the damage and
+ * not the stat change, so a shielded Superpower still drops its user and a shielded Icy Wind still drops its target.
+ * Only a change that always happens counts. One left to chance — Ancient Power's tenth, Crunch's fifth — is taken not
+ * to have, nothing on screen saying whether it did.
+ */
+export function afterThrow(move: CombatMove | undefined, user: Stages, target: Stages): [user: Stages, target: Stages] {
+  const buffs = move?.buffs;
+
+  if (buffs?.chance !== 1) {
+    return [user, target];
+  }
+
+  return [
+    { attack: clamp(user.attack + (buffs.ownAttack ?? 0)), defense: clamp(user.defense + (buffs.ownDefense ?? 0)) },
+    {
+      attack: clamp(target.attack + (buffs.theirAttack ?? 0)),
+      defense: clamp(target.defense + (buffs.theirDefense ?? 0)),
+    },
+  ];
 }
 
 const BUILDS = new WeakMap<Form, Map<number, Build | null>>();
@@ -132,10 +170,20 @@ export function buildsOf(data: GameData, side: Side, cap: number | null): Battle
  *
  * Neither side counts as a shadow, which nothing read yet tells apart: a shadow opponent hits a fifth harder than this
  * (`shadowPokemonAttackBonusMultiplier`), and a shadow of ours takes a fifth more.
+ *
+ * `attack` is the attacker's attack stage and `defense` the defender's defense stage, each scaling its stat by `stage`,
+ * as PvPoke's `Pokemon.getEffectiveStat` does.
  */
-export function hit(data: GameData, move: CombatMove, attacker: Battler, defender: Battler): number {
+export function hit(
+  data: GameData,
+  move: CombatMove,
+  attacker: Battler,
+  defender: Battler,
+  attack = 0,
+  defense = 0,
+): number {
   const stab = attacker.form.types.includes(move.type) ? STAB : 1;
-  const ratio = attacker.build.attack / defender.build.defense;
+  const ratio = (attacker.build.attack * stage(attack)) / (defender.build.defense * stage(defense));
 
   return (
     Math.floor(0.5 * move.power * ratio * stab * effectiveness(data, move.type, defender.form.types) * PVP_BONUS) + 1
@@ -168,6 +216,16 @@ function unbuilt({ species, cp }: Side, cap: number | null, whose: string): stri
 
 const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
 
+/** The stages that moved a hit, as `their attack +1, our defense -2`, or nothing where none did. */
+function staged(attack: number, defense: number): string {
+  const moved = [
+    ...(attack === 0 ? [] : [`their attack ${attack > 0 ? '+' : ''}${attack}`]),
+    ...(defense === 0 ? [] : [`our defense ${defense > 0 ? '+' : ''}${defense}`]),
+  ];
+
+  return moved.length > 0 ? ` (${moved.join(', ')})` : '';
+}
+
 /**
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the
  * fraction of our maximum the bar shows, and why. Hardest of every charged move `chargedOf` allows any of its forms —
@@ -181,6 +239,9 @@ const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
  *
  * Of those, only the ones costing no more than `affordable` where it is given, the energy the opponent is counted as
  * having, unless that leaves none, which says the count is short rather than that nothing was thrown.
+ *
+ * `stages` is each side's stat stages as the moves thrown have left them, `afterThrow`'s: their attack and our defense
+ * move the hit, and `why` names them where they do.
  */
 export function wouldFaint(
   data: GameData,
@@ -191,6 +252,7 @@ export function wouldFaint(
   meta?: Meta | null,
   seen: ReadonlySet<string> = new Set(),
   affordable?: number,
+  stages: { own: Stages; their: Stages } = { own: NO_STAGES, their: NO_STAGES },
 ): Verdict {
   const ours = buildsOf(data, own, cap);
   const theirs = buildsOf(data, opponent, cap);
@@ -228,7 +290,7 @@ export function wouldFaint(
 
     for (const defender of ours) {
       for (const { name, move } of moves) {
-        const share = hit(data, move, attacker, defender) / defender.build.hp;
+        const share = hit(data, move, attacker, defender, stages.their.attack, stages.own.defense) / defender.build.hp;
 
         if (share > hardest.share) {
           hardest = { name, share };
@@ -237,8 +299,11 @@ export function wouldFaint(
     }
   }
 
+  const taken = `${hardest.name} would take ~${percent(hardest.share)}, with ${percent(hp)} left`;
+  const afforded = narrowed ? `, the hardest ${affordable ?? 0} energy affords` : '';
+
   return {
     faints: hardest.share >= FAINTS * hp,
-    why: `${hardest.name} would take ~${percent(hardest.share)}, with ${percent(hp)} left${narrowed ? `, the hardest ${affordable ?? 0} energy affords` : ''}`,
+    why: taken + afforded + staged(stages.their.attack, stages.own.defense),
   };
 }

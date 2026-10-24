@@ -88,7 +88,7 @@ export function worth(
 }
 
 /** What `stages` up or down multiply an attack or defense stat by in a trainer battle: ×1.25 for +1, ×0.8 for −1. */
-function stage(stages = 0): number {
+export function stage(stages = 0): number {
   return stages >= 0 ? (4 + stages) / 4 : 4 / (4 - stages);
 }
 
