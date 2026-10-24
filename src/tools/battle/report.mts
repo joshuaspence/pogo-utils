@@ -307,8 +307,8 @@ export function live(
   let drawnAt = -Infinity;
   let pending: NodeJS.Timeout | undefined;
 
-  // The frame last drawn and how tall, which is drawn again only once either has changed.
-  let pictured: { image: Image; rows: number } | undefined;
+  // The frame last drawn, how tall and the columns it took, which is drawn again only once any has changed.
+  let pictured: { image: Image; rows: number; beside: number } | undefined;
 
   // The frame to draw down the left edge and the columns it takes with the gap, or none where there is no frame yet or
   // the table would be narrower than `TABLE_MIN` beside it.
@@ -367,7 +367,7 @@ export function live(
 
     if (phone && shown && (shown !== pictured?.image || rows !== pictured.rows)) {
       picture = phone.pictures.picture(shown, rows);
-      pictured = { image: shown, rows };
+      pictured = { image: shown, rows, beside };
     } else if (!shown && pictured) {
       picture = ERASE;
       pictured = undefined;
@@ -403,14 +403,14 @@ export function live(
       return;
     }
 
-    const shown = fit(stream.columns, stream.rows)?.image;
+    const fitted = fit(stream.columns, stream.rows);
 
-    if (shown && pictured && stream.rows === pictured.rows) {
-      if (shown !== pictured.image) {
-        stream.write(`${SYNC}\x1b[H${phone.pictures.picture(shown, stream.rows)}${UNSYNC}`);
-        pictured = { image: shown, rows: stream.rows };
+    if (fitted && pictured && stream.rows === pictured.rows && fitted.beside === pictured.beside) {
+      if (fitted.image !== pictured.image) {
+        stream.write(`${SYNC}\x1b[H${phone.pictures.picture(fitted.image, stream.rows)}${UNSYNC}`);
+        pictured = { image: fitted.image, rows: stream.rows, beside: fitted.beside };
       }
-    } else if (shown || pictured) {
+    } else if (fitted || pictured) {
       draw();
     }
   };

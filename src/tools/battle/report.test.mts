@@ -363,10 +363,17 @@ test('draws each new frame alone as it comes, with no status to redraw the rest,
     Array<string>(30).fill('\x1b[H[picture 24 rows]\x1b[?2026l'),
   );
 
+  // Twice as wide is 46 columns, which moves the table over, so is drawn with the rest.
+  frame = { ...image, width: 720 };
+  vi.advanceTimersByTime(20);
+
+  expect(drawn).toHaveLength(32);
+  expect(written().split('\x1b[?2026h').at(-1)).toContain('\x1b[48G');
+
   report.done();
   vi.advanceTimersByTime(1000);
 
-  expect(drawn).toHaveLength(31);
+  expect(drawn).toHaveLength(32);
 });
 
 test('leaves the phone out where the table would be narrower than 80 beside it, or there is no frame yet', () => {
