@@ -60,8 +60,18 @@ export function damage(data: GameData, move: string, own: readonly Typing[], opp
  * more hit the size of this one, by the share that hit grows or shrinks in our favour, and weighted by the chance the
  * stages move at all. So Ancient Power's tenth of a chance at +1 attack and +1 defense makes 60 worth 62.7, and Close
  * Combat's certain −2 to its user's defense, half again on the next hit taken, makes 100 worth 50.
+ *
+ * On our `lastHit`, the stages it moves on ours count for nothing either way: there is no next hit for Close Combat's
+ * defense to cost, nor a next throw for Ancient Power's attack to help. Those it moves on theirs still count, lasting
+ * on the opponent into whichever of ours goes in next.
  */
-export function worth(data: GameData, move: string, own: readonly Typing[], opponent: readonly Typing[]): number {
+export function worth(
+  data: GameData,
+  move: string,
+  own: readonly Typing[],
+  opponent: readonly Typing[],
+  { lastHit = false } = {},
+): number {
   const hit = damage(data, move, own, opponent);
   const buffs = data.combat[move]?.buffs;
 
@@ -69,8 +79,8 @@ export function worth(data: GameData, move: string, own: readonly Typing[], oppo
     return hit;
   }
 
-  const ours = stage(buffs.ownAttack) - 1;
-  const taken = 1 - 1 / stage(buffs.ownDefense);
+  const ours = lastHit ? 0 : stage(buffs.ownAttack) - 1;
+  const taken = lastHit ? 0 : 1 - 1 / stage(buffs.ownDefense);
   const dealt = 1 / stage(buffs.theirDefense) - 1;
   const theirs = 1 - stage(buffs.theirAttack);
 
@@ -221,14 +231,15 @@ export function shouldShield(data: GameData, own: string | null, opponent: strin
 /**
  * Which button to throw, by its x, given the move read under each button: the one worth the most, or undefined where a
  * button of the pair has no move read under it yet and so could be either. While `bait`, the cheapest instead, to draw
- * a shield the strongest would otherwise be thrown into; the one worth more of two that cost the same.
+ * a shield the strongest would otherwise be thrown into; the one worth more of two that cost the same. Worth as `worth`
+ * prices it on our `lastHit` or otherwise.
  */
 export function bestButton(
   data: GameData,
   moves: ReadonlyMap<number, string>,
   own: readonly Typing[],
   opponent: readonly Typing[],
-  bait = false,
+  { bait = false, lastHit = false } = {},
 ): number | undefined {
   const [left, centre, right] = BUTTON_XS;
   const buttons = moves.has(left) || moves.has(right) ? [left, right] : [centre];
@@ -241,7 +252,7 @@ export function bestButton(
       return undefined;
     }
 
-    const hit = { x, cost: -(data.combat[move]?.energy ?? 0), worth: worth(data, move, own, opponent) };
+    const hit = { x, cost: -(data.combat[move]?.energy ?? 0), worth: worth(data, move, own, opponent, { lastHit }) };
     const better =
       bait && best?.cost !== hit.cost ? hit.cost < (best?.cost ?? Infinity) : hit.worth > (best?.worth ?? -1);
 

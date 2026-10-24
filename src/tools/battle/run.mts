@@ -175,8 +175,9 @@ export async function run(
   let departed: string | null = null;
 
   // The league's CP cap, which a CP read over it is a misread of: Training's by its league, GO Battle League's as its
-  // party screen states it. `undefined` until known, and then every shield is taken.
-  let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : undefined;
+  // party screen states it, and until then as PvPoke has the league named. `undefined` until known, and then every
+  // shield is taken.
+  let cap: number | null | undefined = mode.mode === 'training' ? CAPS[mode.league] : meta?.cap;
 
   // Each side's HP as last read, a bar not drawn on this frame keeping what an earlier one showed. The opponent's is
   // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
@@ -401,8 +402,6 @@ export async function run(
       // A nickname in the HUD leaves the species to the party: whichever slot is out.
       const slot = activeOf(data, party, fainted, seen.moves.values(), sent);
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
-      const bait = theirShields > 0;
-      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
       const facing: Matchup = {
         own: { species: own, cp: seen.ownCp },
         opponent: { species: seen.opponent, cp: seen.opponentCp },
@@ -442,6 +441,14 @@ export async function run(
               stages,
             );
       const shield = ourShields > 0 && verdict.faints;
+
+      // With no shield left, a hit that would faint us makes this throw our last, so what it does to our own stats is
+      // past mattering. The shield's verdict, unknowns and an unread cap counting as fainting here too: guessed wrong,
+      // either way it costs no more than the stages of one move, where telling a guess from a read would take `Verdict`
+      // saying which it is.
+      const bait = theirShields > 0;
+      const lastHit = ourShields === 0 && verdict.faints;
+      const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), { bait, lastHit });
 
       if (state === 'shield' && !offered?.taken) {
         offered = { why: verdict.why, taken: false };
@@ -589,7 +596,11 @@ export async function run(
 
       if (menu.screen === 'party' && 'tap' in menu) {
         party = readParty(screenshot, icons);
-        cap = mode.mode === 'training' ? CAPS[mode.league] : menu.cap;
+
+        if (mode.mode === 'gbl' && menu.cap !== undefined) {
+          cap = menu.cap;
+        }
+
         log(`party: ${party.map((species) => species ?? '?').join(', ')}`);
       }
 
