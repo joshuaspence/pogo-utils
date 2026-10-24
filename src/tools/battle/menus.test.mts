@@ -10,7 +10,7 @@ import { tesseractCli } from '../inventory/ocr-cli.mts';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, expect, test, vi } from 'vitest';
-import { carousel, isParty, readMenu, searchParty, type Menu } from './menus.mts';
+import { carousel, isParty, readMenu, readOutcome, searchParty, type Menu } from './menus.mts';
 
 beforeAll(() => useEngine(tesseractCli));
 
@@ -429,4 +429,18 @@ test('stops after so many swipes where the carousel never shows an end', () => {
   }
 
   expect(() => swipe(24)).toThrow('no party named GBL saved for this league');
+});
+
+// Stream frames from a Pixel 4 XL and a Pixel 8 Pro, and the full-size screenshots of the result a run reads it off.
+test.each([
+  ['other-win', 'won'],
+  ['menu-result', 'won'],
+  ['menu-gbl-result-last', 'won'],
+  ['other-loss', 'lost'],
+  ['other-pixel8-loss', 'lost'],
+  ['menu-gbl-result', 'lost'],
+  ['menu-unknown-medal', undefined],
+  ['battle-deoxys', undefined],
+] as const)('reads %s as %s', async (name, outcome) => {
+  expect(await readOutcome(fixture(name))).toBe(outcome);
 });

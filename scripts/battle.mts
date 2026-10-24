@@ -12,9 +12,12 @@
  *                   [--verbose]
  *                       play Team Leader or GO Battle League battles one after another, from the map or anywhere
  *                       between the result of one battle and the start of the next, until `N` have finished or
- *                       Ctrl-C; stops, saving its last frames to `DIR`, where nothing on screen has been recognised
- *                       for 20s. GO Battle League stops at the end of a set with a reward to collect, the
- *                       encounter among them, which is left to be caught by hand.
+ *                       Ctrl-C; stops where nothing on screen has been recognised for 20s. GO Battle League stops at
+ *                       the end of a set with a reward to collect, the encounter among them, which is left to be
+ *                       caught by hand.
+ *                       `DIR` is given the frames from a second before each faint, ours or theirs, and each shield
+ *                       prompt to a second after it, named by when they were seen and for what, as
+ *                       `0012.437s-shield.png`, and the last frames before a run stops for nothing recognised.
  *                       `LEAGUE` is how the title of one league on now starts, as `ultra` or `fantasy cup`, and
  *                       `NAME` a party saved for it, which is battled with rather than whichever the screen opens
  *                       on; one not saved stops the run.
@@ -22,7 +25,7 @@
  *                       left and the opponent's at the right, and what each side does under it, with how the run
  *                       stands above it and the menus it taps through below, and the phone's screen down the left
  *                       where the terminal draws Kitty graphics and is wide enough; `--verbose` writes the same as
- *                       lines where stderr is not a terminal
+ *                       lines where stderr is not a terminal, each after how long the run has gone on
  *   pnpm battle record [--seconds N] [--serial SERIAL] OUT
  *                       save `N` seconds (30 unless given, at most 180) of the screen to `OUT` as the raw H.264
  *                       a battle decodes, which is what the recognition fixtures are cut from
@@ -40,7 +43,7 @@ import { typeColour, type Colour } from '../src/tools/battle/minigame.mts';
 import { silhouetteOfIcon, type Icon } from '../src/tools/battle/party.mts';
 import { pictures } from '../src/tools/battle/kitty.mts';
 import { live, plain } from '../src/tools/battle/report.mts';
-import { Lost, run, type Phone } from '../src/tools/battle/run.mts';
+import { Lost, run, type Clock, type Phone } from '../src/tools/battle/run.mts';
 import { RECORD_LIMIT_S, Screen, screenrecord, streamSize } from '../src/tools/battle/stream.mts';
 import { adbCli } from '../src/tools/inventory/adb-cli.mts';
 import { Device } from '../src/tools/inventory/adb.mts';
@@ -48,7 +51,7 @@ import { CACHE, cachedAs, loadGameData } from '../src/tools/inventory/download.m
 import { type GameData } from '../src/tools/inventory/game-master.mts';
 import { tesseractCli } from '../src/tools/inventory/ocr-cli.mts';
 import { useEngine } from '../src/tools/inventory/ocr.mts';
-import { decodePng, encodePng } from '../src/tools/inventory/png.mts';
+import { decodePng, encodePng, type Image } from '../src/tools/inventory/png.mts';
 import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -238,11 +241,71 @@ if (command === 'run') {
     }
   };
 
+  // The run's clock, which the written lines are timed by too, from here.
+  const clock: Clock = { now: () => performance.now(), sleep };
+  const started = clock.now();
+
   const panel = process.stderr.isTTY ? live(process.stderr, drawn && { pictures: drawn, frame }) : undefined;
-  const report = panel ?? (options.verbose ? plain((line) => console.error(line)) : undefined);
+  const report =
+    panel ??
+    (options.verbose
+      ? plain(
+          (line) => console.error(line),
+          () => clock.now() - started,
+        )
+      : undefined);
+
+  // The frames `run` keeps around each faint and shield prompt, named by when they were seen on the same clock the
+  // lines are timed by, `0012.437s-shield.png`, so they sort into the log. Written one a turn of the event loop rather
+  // than as they are handed over: an encode takes 10ms to 40ms and a second's frames come at once, which would hold up
+  // the answer to the very prompt they show. Whatever is still queued when the run ends is written then.
+  const dir = options['keep-frames'];
+  const queued: { frame: Image; at: number; event: string }[] = [];
+  let written = 0;
+
+  const write =
+    dir === undefined
+      ? undefined
+      : ({ frame, at, event }: (typeof queued)[number]) => {
+          const name = `${((at - started) / 1000).toFixed(3).padStart(8, '0')}s-${event}.png`;
+          writeFileSync(join(dir, name), encodePng(frame));
+          written++;
+        };
+
+  const writeNext = () => {
+    const next = queued.shift();
+
+    if (next && write) {
+      write(next);
+      setImmediate(writeNext);
+    }
+  };
+
+  const keep =
+    write &&
+    ((frame: Image, at: number, event: string) => {
+      if (queued.push({ frame, at, event }) === 1) {
+        setImmediate(writeNext);
+      }
+    });
+
+  const flush = () => {
+    if (write) {
+      queued.splice(0).forEach(write);
+    }
+
+    if (written > 0) {
+      console.error(`kept ${written} frames around faints and shield prompts in ${dir}`);
+    }
+  };
+
+  if (dir !== undefined) {
+    mkdirSync(dir, { recursive: true });
+  }
 
   process.once('SIGINT', () => {
     panel?.done();
+    flush();
     screen?.close();
     void restore().finally(() => process.exit(130));
   });
@@ -273,13 +336,17 @@ if (command === 'run') {
       );
     }
 
-    const battles = await run(
+    const { battles, won, lost } = await run(
       phone,
-      { mode, data, icons, colours, meta, count },
-      { now: () => performance.now(), sleep },
+      { mode, data, icons, colours, meta, count, ...(keep && { keep }) },
+      clock,
       report,
     ).finally(() => panel?.done());
-    console.log(`${battles} battle${battles === 1 ? '' : 's'} finished`);
+    const unread = battles - won - lost;
+    const outcomes = [`${won} won`, `${lost} lost`, ...(unread > 0 ? [`${unread} unread`] : [])];
+    const tally = `${outcomes.slice(0, -1).join(', ')} and ${outcomes.at(-1)}`;
+
+    console.log(`${battles} battle${battles === 1 ? '' : 's'} finished: ${tally}`);
 
     if (battles < count) {
       console.log('GO Battle League has no battle to offer until its reward is collected');
@@ -291,16 +358,14 @@ if (command === 'run') {
     process.exitCode = 1;
     console.error(error instanceof Error ? error.message : String(error));
 
-    const dir = options['keep-frames'];
-
     if (error instanceof Lost && dir) {
-      mkdirSync(dir, { recursive: true });
       error.frames.forEach((frame, i) =>
         writeFileSync(join(dir, `${String(i).padStart(2, '0')}.png`), encodePng(frame)),
       );
       console.error(`kept the last ${error.frames.length} frames in ${dir}`);
     }
   } finally {
+    flush();
     screen?.close();
     await restore();
   }

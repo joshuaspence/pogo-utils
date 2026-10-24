@@ -215,7 +215,7 @@ test('plays a battle from the Battle tab and taps its way back round', async () 
     clock,
   );
 
-  expect(battles).toBe(1);
+  expect(battles).toEqual({ battles: 1, won: 1, lost: 0 });
   expect(taps).toEqual(['training', 'intro', 'league', 'party', 'charged', 'result']);
 });
 
@@ -243,7 +243,7 @@ test('finds its way to the leader from the map', async () => {
       },
       clock,
     ),
-  ).toBe(1);
+  ).toEqual({ battles: 1, won: 1, lost: 0 });
   expect(taps.slice(0, 3)).toEqual(['map', 'main', 'training']);
 });
 
@@ -286,7 +286,7 @@ test('swipes the party carousel to the party named before using it', async () =>
 
   expect(
     await run(phone, { mode: { ...GBL, party: 'GBL' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
-  ).toBe(1);
+  ).toEqual({ battles: 1, won: 0, lost: 1 });
   expect(strokes.filter(({ scene }) => scene === 'party' || scene === 'test3')).toHaveLength(2);
   expect(taps.slice(0, 1)).toEqual(['gbl']);
 });
@@ -304,7 +304,7 @@ test('searches a carousel for longer than the run takes to give up as lost', asy
 
   expect(
     await run(phone, { mode: { ...GBL, party: 'GBL' }, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock),
-  ).toBe(1);
+  ).toEqual({ battles: 1, won: 0, lost: 1 });
   expect(taps[0]).toBe('gbl');
   expect(clock.now()).toBeGreaterThan(LOST_MS);
 });
@@ -321,7 +321,11 @@ test('stops rather than battle where no party has the name', async () => {
 test('plays GO Battle League battles from the map, waiting out matchmaking', async () => {
   const { phone, clock, taps } = scripted(league(), 'map');
 
-  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 2 }, clock)).toBe(2);
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 2 }, clock)).toEqual({
+    battles: 2,
+    won: 0,
+    lost: 2,
+  });
   expect(taps).toEqual([
     ...['map', 'main', 'tab', 'welcome', 'league', 'party', 'charged', 'result'],
     ...['league', 'party', 'charged', 'result'],
@@ -351,7 +355,11 @@ test('stops at the end of a GO Battle League set, leaving its reward to be colle
     'party',
   );
 
-  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 3 }, clock)).toBe(1);
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 3 }, clock)).toEqual({
+    battles: 1,
+    won: 1,
+    lost: 0,
+  });
   expect(taps).toEqual(['party', 'charged', 'result']);
 });
 
@@ -362,7 +370,11 @@ test('plays on where GO Battle League shows BATTLE greyed for one read only', as
     'opening',
   );
 
-  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock)).toBe(1);
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock)).toEqual({
+    battles: 1,
+    won: 0,
+    lost: 1,
+  });
   expect(taps[0]).toBe('tab');
 });
 
@@ -390,6 +402,7 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
     'party',
   );
   const report = recorder();
+  const kept: string[] = [];
 
   expect(
     await run(
@@ -400,14 +413,20 @@ test('retaps the card it chose when the first tap on the switch prompt does not 
         icons: ICONS,
         colours: COLOURS,
         count: 1,
+        keep: (_frame, _at, event) => kept.push(event),
       },
       clock,
       report,
     ),
-  ).toBe(1);
+  ).toEqual({ battles: 1, won: 1, lost: 0 });
+  expect(kept).toEqual(['faint-own', 'faint-own', 'faint-own']);
   expect(taps.filter((scene) => scene === 'fainted' || scene === 'again')).toEqual(['fainted', 'again']);
   expect(report.events.filter((line) => line.includes('sending in'))).toEqual([
     "own: Zeraora fainted; sending in Gyarados: the only one safe from Glaceon's moves",
+  ]);
+  expect(report.events.filter((line) => line.startsWith('run: battle 1'))).toEqual([
+    'run: battle 1 started',
+    'run: battle 1 won',
   ]);
 });
 
@@ -486,7 +505,7 @@ test('aims the minigame’s swipes at its bubbles', async () => {
       },
       clock,
     ),
-  ).toBe(1);
+  ).toEqual({ battles: 1, won: 1, lost: 0 });
 
   const minigame = strokes.filter(({ scene }) => scene === 'minigame');
 
@@ -514,7 +533,7 @@ test('carries on into the next battle until the count is reached', async () => {
       },
       clock,
     ),
-  ).toBe(2);
+  ).toEqual({ battles: 2, won: 2, lost: 0 });
   expect(taps.filter((scene) => scene === 'result')).toHaveLength(2);
 });
 
@@ -548,7 +567,7 @@ test('baits with the cheaper move while the opponent has shields', async () => {
       },
       clock,
     ),
-  ).toBe(1);
+  ).toEqual({ battles: 1, won: 1, lost: 0 });
   expect(taps).toEqual(['fight', 'result']);
 });
 
@@ -936,6 +955,44 @@ test('takes the cap from the league named until the party screen gives it', asyn
   expect(taps.filter((scene) => scene === 'prompt')).toEqual([]);
   expect(report.events.filter((line) => line.includes(' shield'))).toEqual([
     'own: kept shield: Fire Blast would take ~48%, with 86% left',
+  ]);
+});
+
+/**
+ * A second either side of the shield prompt is handed to `keep`, each frame once, with when it was first seen: the
+ * fight before it and the prompt and the frame after it, but not the lead's three seconds earlier nor a frame first
+ * shown past the second.
+ */
+test('keeps the frames a second either side of a shield prompt', async () => {
+  const scenes: Record<string, Scene> = {
+    ...battleAndBack(),
+    lead: { frame: fixture('battle-latias'), lasts: { ms: 3000, to: 'fight' } },
+    fight: { frame: fixture('battle-charizard-magmar'), lasts: { ms: 500, to: 'prompt' } },
+    prompt: { frame: fixture('shield-charizard-high'), lasts: { ms: 400, to: 'after' } },
+    after: { frame: fixture('battle-charizard-magmar'), lasts: { ms: 800, to: 'later' } },
+    later: { frame: fixture('battle-charizard-magmar'), lasts: { ms: 2000, to: 'won' } },
+  };
+  const { phone, clock } = scripted(scenes, 'lead');
+  const sceneOf = (frame: Image) => Object.keys(scenes).find((name) => scenes[name]?.frame === frame);
+  const kept: [string | undefined, number, string][] = [];
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+      keep: (frame, at, event) => kept.push([sceneOf(frame), at, event]),
+    },
+    clock,
+  );
+
+  expect(kept).toEqual([
+    ['fight', 3080, 'shield'],
+    ['prompt', 3630, 'shield'],
+    ['after', 4030, 'shield'],
   ]);
 });
 

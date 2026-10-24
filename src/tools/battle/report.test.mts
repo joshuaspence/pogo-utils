@@ -68,22 +68,31 @@ test('says how the run stands, counting down to its stopping once nothing has be
   expect(summary({ ...STATUS, screen: 'other', lostIn: 12_300 })).toBe('1 of 3 finished; other, stopping in 13s');
 });
 
-test('writes the battle as a line each time it changes, and each event', () => {
+test('writes the battle as a line each time it changes, and each event, after how long the run has gone on', () => {
   const lines: string[] = [];
-  const report = plain((line) => lines.push(line));
+  let now = 0;
+  const report = plain(
+    (line) => lines.push(line),
+    () => now,
+  );
 
   report.status(STATUS);
+  now = 12_437;
   report.status({ ...STATUS, screen: 'charged' });
   report.event('threw Dragon Claw', 'own');
+  now = 14_960;
   report.event('took shield', 'own', 'Fire Blast would take ~48%, with 9% left');
   report.status({ ...STATUS, fight: { ...FIGHT, shield: true } });
+  now = 1_234_567;
   report.status({ ...STATUS, fight: undefined });
+  report.event('battle 1 finished');
 
   expect(lines).toEqual([
-    'Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, not shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
-    'threw Dragon Claw',
-    'took shield: Fire Blast would take ~48%, with 9% left',
-    'Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
+    '   0.0s Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, not shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
+    '  12.4s threw Dragon Claw',
+    '  15.0s took shield: Fire Blast would take ~48%, with 9% left',
+    '  15.0s Charizard against Magmar (2 shields): Blast Burn, Dragon Claw, baiting with Dragon Claw, shielding; CP 2495 at 74% against CP 1826 at 50%, 1 of our shields left',
+    '1234.6s battle 1 finished',
   ]);
 });
 

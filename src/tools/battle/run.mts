@@ -7,7 +7,17 @@
 
 import { type GameData } from '../inventory/game-master.mts';
 import { type Image } from '../inventory/png.mts';
-import { CAPS, carousel, CAROUSEL, readMenu, searchParty, type Menu, type Mode } from './menus.mts';
+import {
+  CAPS,
+  carousel,
+  CAROUSEL,
+  readMenu,
+  readOutcome,
+  searchParty,
+  type Menu,
+  type Mode,
+  type Outcome,
+} from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
 import { Player, SWITCH_CARDS, type Point } from './play.mts';
@@ -89,9 +99,25 @@ const THROWN = 3;
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
 
-/** A menu read run beside the battle: `done` once its screenshot has been taken and read, or has failed. */
+/**
+ * How long either side of a faint or a shield prompt its frames are handed to `keep`, in milliseconds: long enough for
+ * the prompt sliding in and how it was answered, or the HUD before and after the faint.
+ */
+const AROUND_MS = 1_000;
+
+/**
+ * A menu read run beside the battle: `done` once its screenshot has been taken and read, or has failed. The result's
+ * screenshot is read for the battle's outcome too.
+ */
 interface Reading {
-  done?: { screenshot: Image; menu: Menu } | { error: unknown };
+  done?: { screenshot: Image; menu: Menu; outcome: Outcome | undefined } | { error: unknown };
+}
+
+/** How many battles finished, and of those how many the result said were won and lost; the rest went unread. */
+export interface Tally {
+  battles: number;
+  won: number;
+  lost: number;
 }
 
 export class Lost extends Error {
@@ -119,23 +145,30 @@ export interface Options {
    */
   meta?: Meta | null;
   count?: number;
+
+  /**
+   * Handed each frame from `AROUND_MS` before a faint or a shield prompt to `AROUND_MS` after it, once, with the time
+   * on the run's clock it was first seen and what happened: `shield`, `faint-own` or `faint-opponent`.
+   */
+  keep?: (frame: Image, at: number, event: string) => void;
 }
 
 /**
  * Plays `count` battles, or until stopped, starting from the map or anywhere between the result of one battle and the
  * start of the next. Answers how many battles finished, fewer than `count` where GO Battle League has no battle to
- * offer until its reward is collected by hand. Throws `Lost` with the last few frames when nothing has been
- * recognised for `LOST_MS`.
+ * offer until its reward is collected by hand, and how many were won and lost. Throws `Lost` with the last few frames
+ * when nothing has been recognised for `LOST_MS`.
  */
 export async function run(
   phone: Phone,
-  { mode, data, icons, colours, meta, count = Infinity }: Options,
+  { mode, data, icons, colours, meta, count = Infinity, keep }: Options,
   clock: Clock,
   report: Reporter = { event: () => {}, status: () => {} },
-): Promise<number> {
+): Promise<Tally> {
   const log = (line: string, side?: 'own' | 'opponent', why?: string) => report.event(line, side, why);
   let player: Player | undefined;
   let battles = 0;
+  const outcomes: Record<Outcome, number> = { won: 0, lost: 0 };
   let battling = false;
   let known = clock.now();
   let otherSince: number | undefined;
@@ -146,6 +179,29 @@ export async function run(
   let reading: Reading | undefined;
   let frames = 0;
   const kept: Image[] = [];
+
+  // For `keep`: the last `AROUND_MS` of frames, each with when it was first seen, so an event can hand over what led up
+  // to it, and the event still handing over what follows it, until when. A frame goes once, to the first event it is
+  // near, however many it is near.
+  const recent: { frame: Image; at: number }[] = [];
+  const handed = new WeakSet<Image>();
+  let keeping: { event: string; until: number } | undefined;
+
+  const hand = (frame: Image, at: number, event: string) => {
+    if (keep && !handed.has(frame)) {
+      handed.add(frame);
+      keep(frame, at, event);
+    }
+  };
+
+  const around = (event: string) => {
+    for (const { frame, at } of recent) {
+      hand(frame, at, event);
+    }
+
+    keeping = { event, until: clock.now() + AROUND_MS };
+  };
+
   let party: (string | null)[] = [];
   let fainted = new Set<number>();
   let sent = 0;
@@ -254,11 +310,30 @@ export async function run(
       kept.splice(0, kept.length - KEPT_FRAMES);
     }
 
+    if (keep && recent.at(-1)?.frame !== frame) {
+      const at = clock.now();
+      recent.push({ frame, at });
+
+      while ((recent[0]?.at ?? at) < at - AROUND_MS) {
+        recent.shift();
+      }
+
+      if (keeping && at <= keeping.until) {
+        hand(frame, at, keeping.event);
+      }
+    }
+
     const state = recognise(frame);
     const theirName = () => seen.opponent ?? 'the opponent';
 
     if (state === 'shield' && last !== 'shield') {
       log(`${theirName()} threw a charged move`, 'opponent');
+      around('shield');
+    }
+
+    // The switch prompt is our faint as surely as a Poké Ball gone, and may show where the HUD's are not read.
+    if (state === 'switch' && last !== 'switch') {
+      around('faint-own');
     }
 
     last = state;
@@ -360,7 +435,15 @@ export async function run(
         const fewer = (was: number | null, read: number | null) =>
           read === null ? was : was === null ? read : Math.min(was, read);
 
-        left = { own: fewer(left.own, balls.own), opponent: fewer(left.opponent, balls.opponent) };
+        const counted = { own: fewer(left.own, balls.own), opponent: fewer(left.opponent, balls.opponent) };
+
+        for (const side of ['own', 'opponent'] as const) {
+          if ((counted[side] ?? Infinity) < (left[side] ?? -Infinity)) {
+            around(`faint-${side}`);
+          }
+        }
+
+        left = counted;
       }
 
       // The Pokémon sent in next has moves of its own, perhaps a name, its own CP and HP, and no stages moved: the
@@ -627,7 +710,9 @@ export async function run(
       void (async () => {
         const screenshot = await phone.screenshot();
 
-        return { screenshot, menu: await readMenu(screenshot, { ...mode, result }) };
+        const menu = await readMenu(screenshot, { ...mode, result });
+
+        return { screenshot, menu, outcome: menu.screen === 'result' ? await readOutcome(screenshot) : undefined };
       })().then(
         (done) => (started.done = done),
         (error: unknown) => (started.done = { error }),
@@ -702,7 +787,7 @@ export async function run(
         known = clock.now();
       } else if (menu.screen === 'no-battle' && ++noBattle >= NO_BATTLE_READS) {
         log('no-battle: a reward to collect');
-        return battles;
+        return { battles, ...outcomes };
       } else if ('tap' in menu) {
         log(`${menu.screen}: tap`);
         await phone.tap(menu.tap);
@@ -713,7 +798,12 @@ export async function run(
         if (menu.screen === 'result') {
           battles++;
           battling = false;
-          log(`battle ${battles} finished`);
+
+          if (done.outcome) {
+            outcomes[done.outcome]++;
+          }
+
+          log(`battle ${battles} ${done.outcome ?? 'finished, its result unread'}`);
         }
 
         await clock.sleep(MENU_SETTLE_MS);
@@ -729,5 +819,5 @@ export async function run(
     await clock.sleep(50);
   }
 
-  return battles;
+  return { battles, ...outcomes };
 }
