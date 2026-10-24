@@ -381,3 +381,31 @@ export function bestButton(
         why: `not baiting: ${cheapest.move} costs only ${saves} less than ${strongest.move}`,
       };
 }
+
+/**
+ * Which of the `lit` buttons is worth the most to throw now, by its x, rather than hold for the one chosen: of those
+ * with a move read under them, a lit button whose move is not known having nothing to weigh. Undefined where none is.
+ * Worth as `worth` prices it on our `lastHit` or otherwise, and with no bait: a throw that may be our last is worth what
+ * it hits for.
+ */
+export function bestLit(
+  data: GameData,
+  moves: ReadonlyMap<number, string>,
+  lit: Iterable<number>,
+  own: readonly Typing[],
+  opponent: readonly Typing[],
+  { lastHit = false } = {},
+): number | undefined {
+  let best: Weighed | undefined;
+
+  for (const x of lit) {
+    const move = moves.get(x);
+    const hit = move === undefined ? undefined : weigh(data, x, move, own, opponent, lastHit);
+
+    if (hit && (!best || hit.worth > best.worth)) {
+      best = hit;
+    }
+  }
+
+  return best?.x;
+}

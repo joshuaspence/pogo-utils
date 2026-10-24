@@ -10,6 +10,7 @@ import { type Meta } from './meta.mts';
 import {
   activeOf,
   bestButton,
+  bestLit,
   chargedOf,
   counterOf,
   damage,
@@ -232,6 +233,27 @@ test('no button is best while one of a pair has no move read under it', () => {
   expect(bestButton(DATA, new Map([[0.69, 'Avalanche']]), [], [])?.x).toBe(undefined);
   expect(bestButton(DATA, new Map(), [], [])?.x).toBe(undefined);
   expect(bestButton(DATA, new Map([[0.499, 'Shadow Sneak']]), [], [])?.x).toBe(0.499);
+});
+
+test('of the lit buttons, the one worth the most is thrown now', () => {
+  const kyogre = typesOf(DATA, 'Kyogre');
+  const entei = typesOf(DATA, 'Entei');
+  const combat = new Map([
+    [0.31, 'Close Combat'],
+    [0.69, 'Rock Slide'],
+  ]);
+
+  expect(bestLit(DATA, KYOGRE, [0.69], kyogre, entei), 'Avalanche, the only one lit').toBe(0.69);
+  expect(bestLit(DATA, KYOGRE, [0.31, 0.69], kyogre, entei), 'Hydro Pump, both lit').toBe(0.31);
+  expect(bestLit(DATA, KYOGRE, [], kyogre, entei), 'none lit').toBe(undefined);
+  expect(bestLit(DATA, new Map([[0.31, 'Hydro Pump']]), [0.69], kyogre, entei), 'no move read under it').toBe(
+    undefined,
+  );
+  expect(bestLit(DATA, combat, [0.31, 0.69], typesOf(DATA, 'Machamp'), []), 'Rock Slide').toBe(0.69);
+  expect(
+    bestLit(DATA, combat, [0.31, 0.69], typesOf(DATA, 'Machamp'), [], { lastHit: true }),
+    'Close Combat, on our last hit',
+  ).toBe(0.31);
 });
 
 test('an opponent’s form is allowed for what its players run, of what it can hold', () => {
