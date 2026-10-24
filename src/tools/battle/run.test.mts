@@ -596,7 +596,10 @@ test('takes every shield in GO Battle League until the party screen has given th
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(['prompt']);
 });
 
-/** What is read of each side through a battle: its CP off the HUD, its HP off its bar and how many shields we have. */
+/**
+ * What is read of each side through a battle: its CP off the HUD, its HP off its bar, how many shields we have, and the
+ * opponent's energy counted off ours.
+ */
 test('says each side’s CP and HP, and how many shields we have left', async () => {
   const { phone, clock } = scripted(
     {
@@ -625,6 +628,12 @@ test('says each side’s CP and HP, and how many shields we have left', async ()
 
   expect(read).toContain('CP 2495 at 74% against CP 2497 at 51%, 1 of our shields left');
   expect(read.at(-1)).toBe('CP 2495 at 9% against CP 2497 at 6%, 1 of our shields left');
+
+  // One frame of the fight shown throughout lands no hit, and the drop to 9% comes across the prompt, which pauses it.
+  expect(lines.filter((line) => line.includes(' against ')).map((line) => line.split('; ')[2])).toEqual([
+    'their energy 0 by Wing Attack',
+    'their energy 0 by Wing Attack',
+  ]);
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {

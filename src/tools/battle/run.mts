@@ -17,6 +17,7 @@ import { merge, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint } from './damage.mts';
+import { Energy, type Matchup } from './energy.mts';
 import { type Meta } from './meta.mts';
 
 export interface Phone {
@@ -58,6 +59,9 @@ const SCROLL_MS = 400;
  * 220ms, a fast move's worth, and what it reads changes only when a Pokémon on either side does.
  */
 const READ_MS = 3_000;
+
+/** How many frames the shield prompt must show for to be counted as the opponent's throw, as `Player` settles on it. */
+const THROWN = 3;
 
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
@@ -135,6 +139,13 @@ export async function run(
   // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
   let health: Health = { own: null, opponent: null };
 
+  // The opponent's energy, counted off the hits on our bar, and the matchup as last read and how many frames the shield
+  // prompt has shown for: a prompt gone is their charged move thrown, once it held as long as `Player` waits to answer
+  // one, a prompt sliding past matching for a frame or two on its own.
+  let energy = new Energy(data, meta);
+  let matchup: Matchup | undefined;
+  let prompted = 0;
+
   // The colour of the bubbles the minigame now showing draws, that of the move last thrown, where its type is known.
   let bubbleColour: Colour | undefined;
   let seen: Sighting = unseen();
@@ -159,6 +170,12 @@ export async function run(
 
     const state = recognise(frame);
 
+    if (state !== 'shield' && prompted >= THROWN && matchup) {
+      energy.threw(matchup);
+    }
+
+    prompted = state === 'shield' ? prompted + 1 : 0;
+
     if (state !== 'other') {
       if (!battling) {
         log(`battle ${battles + 1} started`);
@@ -170,6 +187,7 @@ export async function run(
         theirShields = 2;
         ourShields = 2;
         health = { own: null, opponent: null };
+        energy = new Energy(data, meta);
       }
 
       // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one of theirs
@@ -187,10 +205,10 @@ export async function run(
       }
 
       // Read at the shield prompt as well as through the fight: the prompt hides the HUD, but not the bars.
-      if (state !== 'switch' && !player.minigame) {
-        const read = readHealth(frame);
+      const bars = state !== 'switch' && !player.minigame ? readHealth(frame) : undefined;
 
-        health = { own: read.own ?? health.own, opponent: read.opponent ?? health.opponent };
+      if (bars) {
+        health = { own: bars.own ?? health.own, opponent: bars.opponent ?? health.opponent };
       }
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
@@ -203,9 +221,30 @@ export async function run(
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
       const bait = theirShields > 0;
       const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
+      const facing: Matchup = {
+        own: { species: own, cp: seen.ownCp },
+        opponent: { species: seen.opponent, cp: seen.opponentCp },
+        cap: cap ?? null,
+      };
+
+      matchup = facing;
+
+      // Only the fight's own frames count hits: the shield prompt, the minigame and a switch pause it. A frame of the
+      // fight with our bar not found does neither, the drop across it still the fight's.
+      const bar = bars?.own ?? null;
+
+      if ((state !== 'battle' && state !== 'charged') || player.minigame) {
+        energy.pause();
+      } else if (bar !== null) {
+        energy.read(clock.now(), bar, facing);
+      }
+
+      // What the opponent can afford: the energy counted, and a fast move's more for a hit the count missed.
+      const estimate = energy.estimate(facing);
 
       // Taken only where the opponent's hardest charged move would faint us: a hit we survive is eaten, the shield kept
-      // for one we would not. A league whose cap went unread takes every shield, as anything else unknown does.
+      // for one we would not. Hardest of those it can afford, where its energy is counted. A league whose cap went
+      // unread takes every shield, as anything else unknown does.
       const shield =
         ourShields > 0 &&
         (cap === undefined ||
@@ -216,12 +255,13 @@ export async function run(
             health.own,
             cap,
             meta,
+            estimate ? estimate.energy + estimate.gain : undefined,
           ));
       const moves = [...seen.moves.values()].join(', ') || '?';
       const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
       const side = (cp: number | null, hp: number | null) =>
         `CP ${cp ?? '?'} at ${hp === null ? '?' : Math.round(hp * 100)}%`;
-      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding; ${side(seen.ownCp, health.own)} against ${side(seen.opponentCp, health.opponent)}, ${ourShields} of our shields left`;
+      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding; ${side(seen.ownCp, health.own)} against ${side(seen.opponentCp, health.opponent)}, ${ourShields} of our shields left; their energy ${estimate ? `${estimate.energy} by ${estimate.fast}` : '?'}`;
 
       if (saying !== said) {
         log(saying);
@@ -290,6 +330,7 @@ export async function run(
     }
 
     player.next(state, clock.now());
+    energy.pause();
     otherSince ??= clock.now();
 
     if (clock.now() - otherSince >= MENU_AFTER_MS && !reading) {

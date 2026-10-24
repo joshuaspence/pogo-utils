@@ -146,8 +146,10 @@ export function hit(data: GameData, move: CombatMove, attacker: Battler, defende
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the
  * fraction of our maximum the bar shows. Hardest of every charged move `chargedOf` allows any of its forms — those its
  * players run, where `meta` ranks its species, and otherwise every one bar Frustration and Return — against whichever
- * of our forms it hurts most. Anything not known — either species or CP, a CP over `cap`, the HP left or a move of
- * theirs — counts as fainting, a shield being the safe side to err on.
+ * of our forms it hurts most. Only those costing no more than `affordable` where it is given, the energy the opponent
+ * is counted as having, unless that leaves none, which says the count is short rather than that nothing was thrown.
+ * Anything not known — either species or CP, a CP over `cap`, the HP left or a move of theirs — counts as fainting, a
+ * shield being the safe side to err on.
  */
 export function wouldFaint(
   data: GameData,
@@ -156,6 +158,7 @@ export function wouldFaint(
   hp: number | null,
   cap: number | null,
   meta?: Meta | null,
+  affordable?: number,
 ): boolean {
   const ours = buildsOf(data, own, cap);
   const theirs = buildsOf(data, opponent, cap);
@@ -167,7 +170,9 @@ export function wouldFaint(
   const moveset = opponent.species === null ? undefined : meta?.movesets.get(opponent.species);
 
   return theirs.some((attacker) => {
-    const moves = chargedOf(attacker.form, moveset).flatMap((name) => data.combat[name] ?? []);
+    const allowed = chargedOf(attacker.form, moveset).flatMap((name) => data.combat[name] ?? []);
+    const afforded = allowed.filter((move) => affordable === undefined || -move.energy <= affordable);
+    const moves = afforded.length > 0 ? afforded : allowed;
 
     return (
       moves.length === 0 ||

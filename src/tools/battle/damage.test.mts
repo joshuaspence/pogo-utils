@@ -103,6 +103,15 @@ test('in a league PvPoke ranks, only the charged moves the opponent’s players 
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Charizard', [])), 'Magmar unranked').toBe(true);
 });
 
+test('only the charged moves the opponent can afford are allowed for, where its energy is counted', () => {
+  // At 50%, Fire Blast's 71 of the 74 left faints; Flamethrower, Scorching Sands and Fire Punch do not.
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, 60), 'short of Fire Blast’s 80').toBe(false);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, 80)).toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, 10), 'too little for anything: the count is short').toBe(
+    true,
+  );
+});
+
 test('anything unknown counts as fainting', () => {
   expect(wouldFaint(DATA, { species: null, cp: 2495 }, MAGMAR, 0.9, ULTRA), 'our species').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: null, cp: 1826 }, 0.9, ULTRA), 'theirs').toBe(true);
