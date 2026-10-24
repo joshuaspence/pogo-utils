@@ -553,6 +553,79 @@ test('baits with the cheaper move while the opponent has shields', async () => {
 });
 
 /**
+ * The opponent sends in another Pokémon with the HUD up throughout: Entei at 28% gives way to Salamence at 43%. A bar of
+ * theirs fuller than before is a newcomer's, HP never coming back, so its name is read again at once rather than the
+ * departed Entei's standing for up to `READ_MS`, its hits counted to Entei's energy.
+ */
+test('reads the opponent again the moment a fuller bar says it was switched', async () => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-crunch-entei'), swipes: { count: 3, to: 'newcomer' } },
+      newcomer: { frame: fixture('battle-crunch-salamence'), swipes: { count: 10, to: 'won' } },
+    },
+    'fight',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  const newcomer = report.fights.filter(({ opponent }) => opponent.hp !== null && Math.round(opponent.hp * 100) === 43);
+
+  expect(new Set(report.fights.map(({ opponent }) => opponent.species))).toEqual(new Set(['Entei', 'Salamence']));
+  expect(newcomer.length).toBeGreaterThan(0);
+  expect(new Set(newcomer.map(({ opponent }) => opponent.species))).toEqual(new Set(['Salamence']));
+});
+
+/**
+ * Glaceon, with all three of the opponent's Poké Balls red, gives way to another species: with one gone grey, Salamence
+ * after it fainted; with all three still red, Sneasel switched in. Entei giving way to Salamence's fuller bar is read
+ * again at once, its name cleared for the newcomer's, and is still told as the one Salamence replaced.
+ */
+test.each([
+  ['battle-latias', 'battle-crunch-salamence', 'opponent: Glaceon fainted; sent in Salamence'],
+  ['battle-latias', 'battle-deoxys', 'opponent: switched to Sneasel'],
+  ['battle-crunch-entei', 'battle-crunch-salamence', 'opponent: Entei fainted; sent in Salamence'],
+])('tells the opponent fainting from its switching out, by its Poké Balls: %s to %s', async (before, after, said) => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture(before), swipes: { count: 10, to: 'after' } },
+      after: { frame: fixture(after), lasts: { ms: 4000, to: 'won' } },
+    },
+    'fight',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  expect(report.events.filter((line) => line.startsWith('opponent: ') && !line.includes('shielded'))).toEqual([said]);
+  expect(report.fights.at(0)?.opponent.left).toBe(3);
+});
+
+/**
  * Latias leads, from the party screen, and faints to Glaceon; the switch prompt's first card sends in Mamoswine, the
  * next of the party. No frame here shows a move label or our species, so the party is all that names either.
  */
@@ -705,7 +778,10 @@ test('takes every shield in GO Battle League until the party screen has given th
   expect(taps.filter((scene) => scene === 'prompt')).toEqual(['prompt']);
 });
 
-/** What is read of each side through a battle: its CP off the HUD, its HP off its bar and how many shields we have. */
+/**
+ * What is read of each side through a battle: its CP off the HUD, its HP off its bar, how many shields we have, and the
+ * opponent's energy counted off ours.
+ */
 test('says each side’s CP and HP, and how many shields we have left', async () => {
   const { phone, clock } = scripted(
     {
@@ -746,6 +822,11 @@ test('says each side’s CP and HP, and how many shields we have left', async ()
   expect(report.events.filter((line) => line.endsWith('threw a charged move'))).toEqual([
     `opponent: ${report.fights.at(-1)?.opponent.species ?? 'the opponent'} threw a charged move`,
   ]);
+
+  // One frame of the fight shown throughout lands no hit, and the drop to 9% comes across the prompt, which pauses it.
+  expect(new Set(report.fights.map(({ energy }) => energy && `${energy.energy} by ${energy.fast}`))).toEqual(
+    new Set(['0 by Wing Attack']),
+  );
 });
 
 test('stops, keeping its last frames, where nothing is recognised', async () => {

@@ -108,6 +108,31 @@ test('in a league PvPoke ranks, only the charged moves the opponent’s players 
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Charizard', [])).faints, 'Magmar unranked').toBe(true);
 });
 
+test('only the charged moves the opponent can afford are allowed for, where its energy is counted', () => {
+  // At 50%, Fire Blast's 71 of the 74 left faints; Flamethrower, Scorching Sands and Fire Punch do not.
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 60).faints, 'short of Fire Blast’s 80').toBe(
+    false,
+  );
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 80).faints).toBe(true);
+  expect(
+    wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 10).faints,
+    'too little for anything: the count is short',
+  ).toBe(true);
+
+  // Both of its moves seen, Fire Blast among them, and 60 energy: only Fire Punch is left to fear.
+  const both = new Set(['Fire Blast', 'Fire Punch']);
+
+  expect(
+    wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, both, 60).faints,
+    'the moves seen, then what it can afford',
+  ).toBe(false);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, both, 80).faints).toBe(true);
+  expect(
+    wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, null, undefined, 60).why,
+    'says the energy narrowed it',
+  ).toMatch(/^Flamethrower would take ~\d+%, with 50% left, the hardest 60 energy affords$/);
+});
+
 test('anything unknown counts as fainting', () => {
   expect(wouldFaint(DATA, { species: null, cp: 2495 }, MAGMAR, 0.9, ULTRA).faints, 'our species').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: null, cp: 1826 }, 0.9, ULTRA).faints, 'theirs').toBe(true);
@@ -208,7 +233,7 @@ test.each<[string, number, ReturnType<typeof staged>, boolean, string]>([
     'Fire Blast would take ~48%, with 60% left',
   ],
 ])('with %s, at %s HP a CP 2495 Charizard would faint: %s', (_, hp, stages, faints, why) => {
-  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, hp, ULTRA, null, new Set(), stages)).toEqual({ faints, why });
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, hp, ULTRA, null, new Set(), undefined, stages)).toEqual({ faints, why });
 });
 
 test('only a stat change that always happens moves a stage, and no further than ±4', () => {

@@ -84,3 +84,15 @@ test.each([
 ])('reads the move %s names, against %j', async (name, sides, move) => {
   expect(await banner(name, sides)).toBe(move);
 });
+
+// Gengar's `SLUDGE BOMB` read short as `SLUDGE B`, which was nearer Sludge than Sludge Bomb among every charged move.
+// Among Gengar's own it is nearer none, and so leaves the label read before it standing.
+test("matches a label among our species' moves only, where it is known", async () => {
+  const image = decodePng(readFileSync(new URL('fixtures/battle-gengar-label-short.png', import.meta.url)));
+  const short = await readBattle(image, DATA);
+  const before = { ...unseen(), own: 'Gengar', moves: new Map([[0.499, 'Sludge Bomb']]) };
+
+  expect(short.own).toBe('Gengar');
+  expect(short.moves).toEqual(new Map());
+  expect(merge(before, short).moves).toEqual(new Map([[0.499, 'Sludge Bomb']]));
+});
