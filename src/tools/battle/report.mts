@@ -10,7 +10,13 @@ export interface Side {
   cp: number | null;
   hp: number | null;
   shields: number;
+
+  /** How many of its party are left able to battle, as its Poké Balls show, or null where they have not been read. */
+  left: number | null;
 }
+
+/** How many Pokémon each side brings to a battle. */
+const PARTY = 3;
 
 /** The battle under way, or the last one played, and what is to be done in it. */
 export interface Fight {
@@ -139,9 +145,10 @@ export function panel(fight: Fight | undefined, width: number): string {
   }
 
   // How strong each side is sits at its column's right, the same width whatever is known, `100% │ ●● │ CP 2495`, and
-  // the name gets what is left of the line; the HP bar has the line under them to itself, set at the right too.
+  // the name gets what is left of the line; the HP bar has the line under them, set at the right too, and the Pokémon
+  // left at its left, as the game draws its Poké Balls.
   const column = columnOf(width);
-  const long = Math.max(0, Math.min(BAR, column));
+  const long = Math.max(0, Math.min(BAR, column - PARTY - 1));
 
   const name = ({ species, cp, hp, shields }: Side) => {
     const percent = hp === null ? '  ?' : `${Math.round(hp * 100)}`.padStart(3);
@@ -150,10 +157,12 @@ export function panel(fight: Fight | undefined, width: number): string {
     return (fit(species ?? '?', column - strength.length - 1) + ' ' + strength).slice(-column);
   };
 
-  const health = ({ hp }: Side) => {
+  const health = ({ hp, left }: Side) => {
     const filled = hp === null ? 0 : Math.round(hp * long);
+    const bar = hp === null ? '?'.repeat(long) : '█'.repeat(filled) + '░'.repeat(long - filled);
+    const balls = left === null ? '?'.repeat(PARTY) : '◓'.repeat(left) + '○'.repeat(PARTY - left);
 
-    return (hp === null ? '?'.repeat(long) : '█'.repeat(filled) + '░'.repeat(long - filled)).padStart(column);
+    return fit(balls + bar.padStart(column - PARTY), column);
   };
 
   return [

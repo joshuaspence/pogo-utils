@@ -589,6 +589,43 @@ test('reads the opponent again the moment a fuller bar says it was switched', as
 });
 
 /**
+ * Glaceon, with all three of the opponent's Poké Balls red, gives way to another species: with one gone grey, Salamence
+ * after it fainted; with all three still red, Sneasel switched in. Entei giving way to Salamence's fuller bar is read
+ * again at once, its name cleared for the newcomer's, and is still told as the one Salamence replaced.
+ */
+test.each([
+  ['battle-latias', 'battle-crunch-salamence', 'opponent: Glaceon fainted; sent in Salamence'],
+  ['battle-latias', 'battle-deoxys', 'opponent: switched to Sneasel'],
+  ['battle-crunch-entei', 'battle-crunch-salamence', 'opponent: Entei fainted; sent in Salamence'],
+])('tells the opponent fainting from its switching out, by its Poké Balls: %s to %s', async (before, after, said) => {
+  const { phone, clock } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture(before), swipes: { count: 10, to: 'after' } },
+      after: { frame: fixture(after), lasts: { ms: 4000, to: 'won' } },
+    },
+    'fight',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  expect(report.events.filter((line) => line.startsWith('opponent: ') && !line.includes('shielded'))).toEqual([said]);
+  expect(report.fights.at(0)?.opponent.left).toBe(3);
+});
+
+/**
  * Latias leads, from the party screen, and faints to Glaceon; the switch prompt's first card sends in Mamoswine, the
  * next of the party. No frame here shows a move label or our species, so the party is all that names either.
  */
