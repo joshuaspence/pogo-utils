@@ -7,7 +7,17 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { type GameData } from '../inventory/game-master.mts';
 import { type Meta } from './meta.mts';
-import { activeOf, bestButton, chargedOf, damage, nextOut, shouldShield, typesOf, worth } from './strategy.mts';
+import {
+  activeOf,
+  bestButton,
+  chargedOf,
+  counterOf,
+  damage,
+  nextOut,
+  shouldShield,
+  typesOf,
+  worth,
+} from './strategy.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -154,6 +164,34 @@ test.each<[(string | null)[], number[], string, string]>([
   [['Tyranitar', 'Kyogre', 'Tyranitar'], [1], 'Moltres', 'first card, nothing to choose between them'],
 ])('after a faint, %o less %o against %s says why it sends in whom it does: %s', (party, fainted, opponent, why) => {
   expect(nextOut(DATA, party, new Set(fainted), opponent)?.why).toBe(why);
+});
+
+test.each<[(string | null)[], number, number[], string | null, number | undefined, string]>([
+  [['Tyranitar', 'Kyogre', 'Giratina'], 0, [], 'Salamence', 1, 'Kyogre is safe, and Blizzard beats Salamence'],
+  [['Tyranitar', 'Giratina', 'Kyogre'], 0, [], 'Salamence', 2, 'whichever card it is on'],
+  [['Kyogre', 'Tyranitar', 'Kyogre'], 1, [], 'Salamence', 0, 'the first of two equals, the one out passed over'],
+  [['Tyranitar', 'Kyogre', 'Giratina'], 0, [1], 'Salamence', undefined, 'the counter fainted'],
+  [['Tyranitar', 'Giratina', null], 0, [], 'Salamence', undefined, 'Outrage beats Giratina; an unread card is none'],
+  [['Kyogre', 'Tyranitar', 'Giratina'], 0, [], 'Salamence', undefined, 'Kyogre is not threatened by Salamence'],
+  [['Latias', 'Kyogre'], 0, [], 'Glaceon', undefined, 'Kyogre is safe from Glaceon, but nothing of its beats it'],
+  [
+    ['Latias', 'Mamoswine'],
+    0,
+    [],
+    'Sneasel',
+    undefined,
+    'Stone Edge beats a Sneasel, but Close Combat beats Mamoswine',
+  ],
+  [['Tyranitar', 'Kyogre'], 0, [], null, undefined, 'theirs not read'],
+  [[null, 'Kyogre'], 0, [], 'Salamence', undefined, 'ours not read'],
+])('with %o, slot %s out, less %o, against %s switches to slot %s: %s', (party, out, fainted, opponent, slot) => {
+  expect(counterOf(DATA, party, out, party[out] ?? null, new Set(fainted), opponent)?.slot).toBe(slot);
+});
+
+test('a counter says why it was switched to', () => {
+  expect(counterOf(DATA, ['Tyranitar', 'Kyogre'], 0, 'Tyranitar', new Set(), 'Salamence')?.why).toBe(
+    "Tyranitar is hit super effectively; Blizzard is, and nothing of Salamence's is",
+  );
 });
 
 test('no button is best while one of a pair has no move read under it', () => {

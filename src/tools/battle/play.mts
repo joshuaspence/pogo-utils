@@ -1,8 +1,8 @@
 /**
  * What to do about each frame of a battle, given which state `recognise` read it as. Swipe for fast moves, throw the
  * charged move the caller names the moment it is ready — or, where it names none, whichever is ready first — take a
- * shield offered unless the caller says not to, and send in the card it names, or the first. Which move is worth
- * throwing, which shield worth taking and who to send in is `strategy.mts`'s to say.
+ * shield offered unless the caller says not to, send in the card it names, or the first, and switch to the bench card
+ * it names. Which move is worth throwing, which shield worth taking and who to send in is `strategy.mts`'s to say.
  *
  * Pure, so that every rule here is tested without a phone: `next` takes the state and the time and answers an action,
  * which the caller performs. Positions are fractions of the screen, as everywhere else the phone is driven.
@@ -19,7 +19,7 @@ export type Point = readonly [x: number, y: number];
 
 export type Action =
   | { kind: 'swipe'; from: Point; to: Point; ms: number }
-  | { kind: 'tap'; at: Point; what: 'charged' | 'shield' | 'switch' }
+  | { kind: 'tap'; at: Point; what: 'charged' | 'shield' | 'switch' | 'bench' }
   | { kind: 'wait' };
 
 /**
@@ -37,6 +37,22 @@ export const TAPS = {
 
 export const SWITCH_CARDS: readonly Point[] = [TAPS.switch, [0.67, -0.2744]];
 
+/**
+ * The bench's cards down the right edge mid-battle, top first: those not out and not fainted, in party order, a lone
+ * one at the top as in `battle-one-shield`. Centred 0.055 widths above each card's HP strip, which runs at y 0.6335 and
+ * 0.7276 on the Pixel 4 XL's fixtures and 0.6265 and 0.7157 on the Pixel 8 Pro's: pinned at the middle of the screen,
+ * `layout.mts`'s anchor from the two coming to 0.500 for both, and so 0.2818 and 0.4805 widths below it on either. A
+ * tap on one switches it in at once, with nothing to confirm; on the switch timer, which darkens both cards, it does
+ * nothing.
+ */
+export const BENCH = [
+  [0.903, 0.227],
+  [0.903, 0.426],
+] as const satisfies readonly Point[];
+
+/** Where the bench is pinned down the screen. */
+export const BENCH_ANCHOR = 0.5;
+
 /** What the caller has decided about a frame, which `next` acts on. */
 export interface Choices {
   /** Where the frame's lit charged-move buttons are, as `readyButtons` finds them. */
@@ -53,6 +69,9 @@ export interface Choices {
 
   /** Which of the switch prompt's cards to send in. */
   card?: Point;
+
+  /** A bench card to switch in mid-fight, tapped in place of the fight's swipe, but never through the minigame. */
+  bench?: Point;
 
   /**
    * The swipes through the minigame's bubbles on this frame, as `bubbleSwipes` finds them, the first swiped. None found
@@ -149,7 +168,7 @@ export class Player {
   next(
     state: State,
     now: number,
-    { ready = [], best, shield = true, card = this.#taps.switch, bubbles }: Choices = {},
+    { ready = [], best, shield = true, card = this.#taps.switch, bench, bubbles }: Choices = {},
   ): Action {
     this.#streak = state === this.#state ? this.#streak + 1 : 1;
     this.#state = state;
@@ -177,6 +196,10 @@ export class Player {
     if (state === 'battle' || (state === 'charged' && throwable.length === 0)) {
       if (this.#tapped?.state === 'charged' && now - this.#tapped.at < HOLD_MS) {
         return { kind: 'wait' };
+      }
+
+      if (bench && !this.#minigame) {
+        return { kind: 'tap', at: bench, what: 'bench' };
       }
 
       const [through] = this.#minigame ? (bubbles ?? []) : [];

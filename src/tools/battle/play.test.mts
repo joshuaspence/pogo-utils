@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { BOTTOM, place } from './layout.mts';
-import { Player, TAPS, type Action, type Point } from './play.mts';
+import { BENCH, BENCH_ANCHOR, Player, TAPS, type Action, type Point } from './play.mts';
 import { BUTTON_XS, readyButtons, recognise, type State } from './recognise.mts';
 import { decodeFrames, streamSize } from './stream.mts';
 
@@ -166,6 +166,17 @@ test('sends in the card it is told to', () => {
   const actions = Array.from({ length: 5 }, (_, i) => player.next('switch', i * 33, { card }));
 
   expect(taps(actions)).toEqual([{ kind: 'tap', at: card, what: 'switch' }]);
+});
+
+test('taps the bench card it is told to in place of a swipe, but not through the minigame', () => {
+  const player = new Player(SIZE);
+  const bench = place(BENCH[0], BENCH_ANCHOR, SIZE);
+
+  expect(player.next('battle', 0, { bench })).toEqual({ kind: 'tap', at: bench, what: 'bench' });
+  player.next('charged', 33, { ready: [CENTRE], bench });
+  expect(player.next('charged', 66, { ready: [CENTRE], bench })).toMatchObject({ what: 'charged' });
+  expect(player.next('battle', 99, { bench }), 'the hold after a throw').toEqual({ kind: 'wait' });
+  expect(player.next('battle', 1000, { bench }), 'the minigame').toMatchObject({ kind: 'swipe' });
 });
 
 test('leaves a declined shield prompt to run out, and does not swipe at it', () => {

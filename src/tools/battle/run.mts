@@ -20,12 +20,12 @@ import {
 } from './menus.mts';
 import { readParty, type Icon } from './party.mts';
 import { BOTTOM, place } from './layout.mts';
-import { Player, SWITCH_CARDS, type Point } from './play.mts';
+import { BENCH, BENCH_ANCHOR, Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
 import { readHealth, Steady } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
 import { opponentShields, ownShields, pokemonLeft, readyButtons, recognise, type State } from './recognise.mts';
-import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
+import { activeOf, bestButton, counterOf, nextOut, typesOf } from './strategy.mts';
 import { afterThrow, NO_STAGES, wouldFaint, type Stages, type Verdict } from './damage.mts';
 import { Energy, type Matchup } from './energy.mts';
 import { type Meta } from './meta.mts';
@@ -95,6 +95,13 @@ const NEWCOMER = 0.1;
 
 /** How many frames the shield prompt must show for to be counted as the opponent's throw, as `Player` settles on it. */
 const THROWN = 3;
+
+/**
+ * How long after a bench card's tap our HUD is read again to see whether the switch took, in milliseconds. Recorded on
+ * the Pixel 4 XL, the bench showed the switch by 135.5s and the HUD, hidden behind a banner meanwhile, came back naming
+ * the newcomer at 136.3s; a read before then could still find the Pokémon tapped away from.
+ */
+const SWITCHED_MS = 2_000;
 
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
@@ -227,6 +234,13 @@ export async function run(
   let caught: { slot: number; told: boolean } | undefined;
   let theirShields = 2;
   let ourShields = 2;
+
+  // Whether the opponent's switch just read is still to be answered, and the counter of ours chosen for it, tapped on
+  // the first frame `Player` lets a bench card be. Once tapped, the switch is checked: our HUD's CP unchanged after
+  // `SWITCHED_MS` is the switch timer having refused the tap, which leaves the one tapped away from out.
+  let answer = false;
+  let counter: { slot: number; why: string; at: Point } | undefined;
+  let switching: { from: number; to: string; cp: number | null; at: number; stages: Stages } | undefined;
 
   // How many Pokémon each side has left as the HUD's Poké Balls last showed it, never more than the last count, a faint
   // being for good; null until read. `leftAtName` is the opponent's count when its name was first read, which a lower
@@ -406,6 +420,9 @@ export async function run(
         caught = undefined;
         theirShields = 2;
         ourShields = 2;
+        answer = false;
+        counter = undefined;
+        switching = undefined;
         left = { own: null, opponent: null };
         leftAtName = null;
         departed = null;
@@ -446,13 +463,15 @@ export async function run(
         left = counted;
       }
 
-      // The Pokémon sent in next has moves of its own, perhaps a name, its own CP and HP, and no stages moved: the
-      // switch prompt comes up only on a faint, the run never switching of its own accord.
+      // The Pokémon sent in next has moves of its own, perhaps a name, its own CP and HP, and no stages moved. A switch of
+      // ours under way is overtaken by the faint, whatever the HUD shows next being the card sent in.
       if (state === 'switch') {
         seen = { ...seen, own: null, ownCp: null, moves: new Map() };
         steady.forget('own');
         stages = { ...stages, own: NO_STAGES };
         readAt = -Infinity;
+        counter = undefined;
+        switching = undefined;
       }
 
       // Read at the shield prompt as well as through the fight: the prompt hides the HUD, but not the bars.
@@ -499,10 +518,22 @@ export async function run(
 
             log(gone ? `${before} fainted; sent in ${seen.opponent}` : `switched to ${seen.opponent}`, 'opponent');
             stages = { ...stages, their: NO_STAGES };
+            answer = !gone;
+            counter = undefined;
           }
 
           leftAtName = left.opponent;
           departed = null;
+        }
+
+        if (switching && seen.ownCp !== null && clock.now() - switching.at >= SWITCHED_MS) {
+          if (seen.ownCp === switching.cp) {
+            sent = switching.from;
+            stages = { ...stages, own: switching.stages };
+            log(`${switching.to} not sent in: the switch timer is running`, 'own');
+          }
+
+          switching = undefined;
         }
       }
 
@@ -630,6 +661,17 @@ export async function run(
         caught = undefined;
       }
 
+      // The opponent's switch answered once, on the first frame the bench is drawn for: by a counter of ours where one is
+      // benched, the bench's cards being the slots not fainted bar the one out, in party order.
+      if (answer && slot !== undefined && (state === 'battle' || state === 'charged') && !player.minigame) {
+        answer = false;
+        const chosen = counterOf(data, party, slot, own, fainted, seen.opponent, meta);
+        const measured =
+          chosen && BENCH[[...party.keys()].filter((i) => i !== slot && !fainted.has(i)).indexOf(chosen.slot)];
+
+        counter = chosen && measured && { ...chosen, at: place(measured, BENCH_ANCHOR, frame) };
+      }
+
       const ready = state === 'charged' ? readyButtons(frame) : [];
       const card = prompt?.card;
       const bubbles = player.minigame && bubbleColour ? bubbleSwipes(frame, bubbleColour) : undefined;
@@ -638,6 +680,7 @@ export async function run(
         best,
         shield,
         ...(card && { card }),
+        ...(counter && { bench: counter.at }),
         ...(bubbles && { bubbles }),
       });
 
@@ -661,6 +704,18 @@ export async function run(
           }
 
           offered = { why: verdict.why, taken: true };
+        } else if (action.what === 'bench' && counter && slot !== undefined) {
+          // Taken to have gone in until the HUD says otherwise, the newcomer read afresh as after a faint.
+          const to = party[counter.slot] ?? '?';
+
+          log(`switching to ${to} against ${seen.opponent ?? 'the opponent'}`, 'own', counter.why);
+          switching = { from: slot, to, cp: seen.ownCp, at: clock.now(), stages: stages.own };
+          sent = counter.slot;
+          counter = undefined;
+          seen = { ...seen, own: null, ownCp: null, moves: new Map() };
+          steady.forget('own');
+          stages = { ...stages, own: NO_STAGES };
+          readAt = clock.now() - READ_MS + SWITCHED_MS;
         } else {
           log(`tap ${action.what}`, 'own');
         }

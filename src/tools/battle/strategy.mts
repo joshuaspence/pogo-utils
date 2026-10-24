@@ -161,29 +161,17 @@ export function nextOut(
   opponent: string | null,
   meta?: Meta | null,
 ): { slot: number; why: string } | undefined {
-  const types = typesOf(data, opponent);
-  const scored = party.flatMap((species, slot) => {
-    if (fainted.has(slot)) {
-      return [];
-    }
-
-    const safe = species !== null && !shouldShield(data, species, opponent, meta);
-    const own = typesOf(data, species);
-    const moves = species === null ? [] : [...chargedMoves(data, species)].filter((m) => !SHADOW_AND_PURIFIED.has(m));
-    let hardest = 0;
-    let move: string | undefined;
-
-    for (const name of moves) {
-      const hit = damage(data, name, own, types);
-
-      if (hit > hardest) {
-        hardest = hit;
-        move = name;
-      }
-    }
-
-    return [{ slot, safe, hardest, move }];
-  });
+  const scored = party.flatMap((species, slot) =>
+    fainted.has(slot)
+      ? []
+      : [
+          {
+            slot,
+            safe: species !== null && !shouldShield(data, species, opponent, meta),
+            ...hardest(data, species, opponent),
+          },
+        ],
+  );
 
   scored.sort((a, b) => Number(b.safe) - Number(a.safe) || b.hardest - a.hardest || a.slot - b.slot);
 
@@ -204,6 +192,80 @@ export function nextOut(
         : 'first card, nothing to choose between them';
 
   return { slot: best.slot, why };
+}
+
+/**
+ * The hardest hit any charged move a species can hold lands on `opponent`, bar Frustration and Return, as `nextOut`
+ * ranks by; nothing for a species not read.
+ */
+function hardest(
+  data: GameData,
+  species: string | null,
+  opponent: string | null,
+): { hardest: number; move: string | undefined } {
+  const own = typesOf(data, species);
+  const types = typesOf(data, opponent);
+  const moves = species === null ? [] : [...chargedMoves(data, species)].filter((m) => !SHADOW_AND_PURIFIED.has(m));
+  let best = { hardest: 0, move: undefined as string | undefined };
+
+  for (const move of moves) {
+    const hit = damage(data, move, own, types);
+
+    if (hit > best.hardest) {
+      best = { hardest: hit, move };
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Which slot to switch to, of the bench, once the opponent has switched in a Pokémon that threatens ours: only where one
+ * benched counters it outright, safe from every charged move it is allowed for and holding one that hits it super
+ * effectively, against whichever typing its forms have that takes it worst. The hardest-hitting of those, and between
+ * equals the first card. Undefined where ours is not threatened, as by `shouldShield`'s rule, or where either species
+ * is not known: a switch spends the switch timer, so it is made only where it is clearly better.
+ *
+ * Super effective out of every move its species can hold, as `nextOut` judges, which of them it has being shown only
+ * once it is out.
+ */
+export function counterOf(
+  data: GameData,
+  party: readonly (string | null)[],
+  out: number,
+  own: string | null,
+  fainted: ReadonlySet<number>,
+  opponent: string | null,
+  meta?: Meta | null,
+): { slot: number; why: string } | undefined {
+  if (own === null || opponent === null || !shouldShield(data, own, opponent, meta)) {
+    return undefined;
+  }
+
+  const types = typesOf(data, opponent);
+  const counters = party.flatMap((species, slot) => {
+    if (species === null || slot === out || fainted.has(slot) || shouldShield(data, species, opponent, meta)) {
+      return [];
+    }
+
+    const moves = [...chargedMoves(data, species)].filter((m) => !SHADOW_AND_PURIFIED.has(m));
+    const beats = moves.find((name) => {
+      const type = data.combat[name]?.type;
+
+      return type !== undefined && types.every((typing) => effectiveness(data, type, typing) > 1);
+    });
+
+    return beats === undefined ? [] : [{ slot, beats, ...hardest(data, species, opponent) }];
+  });
+
+  const [best] = counters.sort((a, b) => b.hardest - a.hardest || a.slot - b.slot);
+
+  return (
+    best && {
+      slot: best.slot,
+      why: `${own} is hit super effectively; ${best.beats} is, and nothing of ${opponent}'s is`,
+    }
+  );
 }
 
 /**

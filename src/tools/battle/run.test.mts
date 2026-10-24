@@ -702,6 +702,83 @@ test('reads a switched-in opponent’s CP afresh rather than keeping the one bef
 });
 
 /**
+ * The opponent switches Glaceon out for Golem, its three Poké Balls still red, whose Earthquake threatens the Pokémon we
+ * have out. Latias, second of the party and so the bench's top card, is safe from either Golem's moves, and its Aura
+ * Sphere hits both super effectively: it is switched in at once. Taken where the HUD's CP has changed by the next read,
+ * and refused where it has not, the switch timer still running, which leaves the one tapped away from out.
+ */
+test.each([
+  ['taken', 'battle-crunch-entei', []],
+  ['refused', 'battle-gengar-label-short', ['own: Latias not sent in: the switch timer is running']],
+])('switches to a counter the moment the opponent switches: %s', async (_, after, told) => {
+  const bench: Point = [0.903, 0.608];
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      party: { frame: fixture('menu-party-full'), tap: { at: [0.5, 0.87], to: 'loading' } },
+      loading: { frame: fixture('other-vs-fade'), lasts: { ms: 4000, to: 'glaceon' } },
+      glaceon: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'golem' } },
+      golem: {
+        frame: fixture('battle-gengar-label-short'),
+        tap: { at: bench, to: 'after' },
+        lasts: { ms: 6000, to: 'won' },
+      },
+      after: { frame: fixture(after), lasts: { ms: 6000, to: 'won' } },
+    },
+    'party',
+  );
+  const report = recorder();
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  const switching = report.events.filter((line) => line.startsWith('own: switching') || line.includes('not sent in'));
+
+  expect(taps.filter((scene) => scene === 'golem')).toEqual(['golem']);
+  expect(switching).toEqual([
+    "own: switching to Latias against Golem: Gengar is hit super effectively; Aura Sphere is, and nothing of Golem's is",
+    ...told,
+  ]);
+});
+
+/** Glaceon gives way to Sneasel, which no card of ours counters, a Hisuian one's Close Combat beating Mamoswine. */
+test('stays in when nothing benched counters the opponent switched in', async () => {
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      loading: { frame: fixture('other-vs-fade'), lasts: { ms: 4000, to: 'glaceon' } },
+      glaceon: { frame: fixture('battle-latias'), swipes: { count: 10, to: 'sneasel' } },
+      sneasel: { frame: fixture('battle-deoxys'), lasts: { ms: 6000, to: 'won' } },
+    },
+    'party',
+  );
+
+  await run(
+    phone,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+  );
+
+  expect(taps.filter((scene) => scene === 'sneasel')).toEqual([]);
+});
+
+/**
  * Latias leads, from the party screen, and faints to Glaceon; the switch prompt's first card sends in Mamoswine, the
  * next of the party. No frame here shows a move label or our species, so the party is all that names either.
  */

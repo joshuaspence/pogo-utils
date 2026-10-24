@@ -93,8 +93,8 @@ for text and done every few seconds.
 3. **Read text every 3s,** or at once after a switch: names, CPs and our move labels. After a shield prompt, the banner
    is looked for for 8s, beside the battle rather than holding it up.
 4. **Update the opponent's energy count** from our bar ([below](#the-opponents-energy)).
-5. **Decide:** whether a shield would be taken, which button to throw, and which card to send in after a faint. That is
-   `strategy.mts`, `damage.mts` and `energy.mts`.
+5. **Decide:** whether a shield would be taken, which button to throw, which card to send in after a faint, and whether
+   to switch when the opponent does. That is `strategy.mts`, `damage.mts` and `energy.mts`.
 6. **Act:** hand the state and the decisions to `Player`, then perform its swipe, tap or wait.
 7. **Off the battle:** once a screen has read `other` for 1.5s, take a screenshot and read it as a menu, again beside
    the battle. If nothing at all has been recognised for 20s, stop with `Lost`, keeping the last frames for
@@ -230,6 +230,20 @@ Of the Pokémon left, it prefers one that none of the opponent's allowed moves c
 among all of them if none is safe, it picks the one whose hardest move hits the opponent hardest, and between equals,
 the first card ([`strategy.mts`](strategy.mts)'s `nextOut`). The reason is logged, such as
 `the only one safe from Glaceon's moves`. A card whose species wasn't read goes in only when nothing named is left.
+
+### When the opponent switches
+
+An opponent that switches out (rather than faints) has spent its switch timer, so it can't answer a switch of ours
+straight away. If the newcomer's allowed moves can hit ours super effectively, it switches at once to a benched Pokémon
+that counters it outright: safe from every one of those moves, and holding a charged move that is super effective
+against every typing the newcomer's forms have ([`strategy.mts`](strategy.mts)'s `counterOf`). Of several, the one that
+hits hardest; with none, it stays in. Like `nextOut`, it judges our benched Pokémon by every move their species can
+learn, since their actual moves only show once they're out. Unread species never switch.
+
+The bench's cards run down the right edge, in party order, without the one out or any that fainted. A tap switches at
+once, with nothing to confirm, and does nothing while our own switch timer runs. Rather than model the timer, the run
+reads our HUD again 2s after the tap: a CP unchanged means the tap was refused, logged as
+`Latias not sent in: the switch timer is running`, and the Pokémon tapped away from is taken to still be out.
 
 ### Knowing who is out
 
