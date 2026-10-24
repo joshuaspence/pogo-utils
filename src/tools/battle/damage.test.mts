@@ -137,10 +137,24 @@ test('anything unknown counts as fainting', () => {
   expect(wouldFaint(DATA, { species: null, cp: 2495 }, MAGMAR, 0.9, ULTRA).faints, 'our species').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: null, cp: 1826 }, 0.9, ULTRA).faints, 'theirs').toBe(true);
   expect(wouldFaint(DATA, { species: 'Charizard', cp: null }, MAGMAR, 0.9, ULTRA).faints, 'our CP').toBe(true);
-  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: null }, 0.9, ULTRA).faints, 'theirs').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: null }, 0.9, null).faints, 'theirs, no cap').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: 2826 }, 0.9, ULTRA).faints, 'over the cap').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, null, ULTRA).faints, 'the HP left').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: 'Not A Pokémon', cp: 1826 }, 0.9, ULTRA).faints).toBe(true);
+});
+
+test('their CP unread is taken as the cap, and says so', () => {
+  const unread = { species: 'Magmar', cp: null };
+  const atCap = wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: ULTRA }, 0.9, ULTRA);
+
+  expect(wouldFaint(DATA, CHARIZARD, unread, 0.9, ULTRA)).toEqual({
+    faints: atCap.faints,
+    why: `${atCap.why} (their CP unread, taken as the 2500 cap)`,
+  });
+  expect(atCap.faints, 'a hit it survives keeps the shield').toBe(false);
+  expect(wouldFaint(DATA, { species: 'Charizard', cp: null }, MAGMAR, 0.9, ULTRA).why, 'ours is not').toBe(
+    'our CP unread',
+  );
 });
 
 test('says which hit it judged by, and how much of us it takes against what is left', () => {
@@ -155,7 +169,7 @@ test('names what it did not know, where that is why it shields', () => {
   const why = (own: Side, opponent: Side, hp: number | null = 0.9) => wouldFaint(DATA, own, opponent, hp, ULTRA).why;
 
   expect(why({ species: null, cp: 2495 }, MAGMAR)).toBe('our species unread');
-  expect(why(CHARIZARD, { species: 'Magmar', cp: null })).toBe('their CP unread');
+  expect(wouldFaint(DATA, CHARIZARD, { species: 'Magmar', cp: null }, 0.9, null).why).toBe('their CP unread');
   expect(why(CHARIZARD, { species: 'Magmar', cp: 2826 })).toBe('their CP 2826 is over the 2500 cap, so misread');
   expect(why(CHARIZARD, MAGMAR, null)).toBe('our HP unread');
   expect(why(CHARIZARD, { species: 'Not A Pokémon', cp: 1826 })).toBe('no Not A Pokémon at CP 1826');
