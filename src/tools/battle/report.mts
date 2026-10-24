@@ -24,6 +24,9 @@ export interface Fight {
   throwing: string | undefined;
   bait: boolean;
   shield: boolean;
+
+  /** The opponent's energy as counted off our bar, and the fast move it is counted by, where it can be counted. */
+  energy?: { energy: number; fast: string };
 }
 
 export interface Status {
@@ -50,11 +53,15 @@ export interface Reporter {
 }
 
 /** The status's battle as one line, the one `--verbose` has always written. */
-export function describe({ own, opponent, moves, throwing, bait, shield }: Fight): string {
+export function describe({ own, opponent, moves, throwing, bait, shield, energy }: Fight): string {
   const side = ({ cp, hp }: Side) => `CP ${cp ?? '?'} at ${hp === null ? '?' : Math.round(hp * 100)}%`;
+  const counted = energy ? `; their energy ${energyOf(energy)}` : '';
 
-  return `${own.species ?? '?'} against ${opponent.species ?? '?'} (${opponent.shields} shields): ${moves.join(', ') || '?'}, ${bait ? 'baiting with' : 'throwing'} ${throwing ?? 'the first ready'}, ${shield ? '' : 'not '}shielding; ${side(own)} against ${side(opponent)}, ${own.shields} of our shields left`;
+  return `${own.species ?? '?'} against ${opponent.species ?? '?'} (${opponent.shields} shields): ${moves.join(', ') || '?'}, ${bait ? 'baiting with' : 'throwing'} ${throwing ?? 'the first ready'}, ${shield ? '' : 'not '}shielding; ${side(own)} against ${side(opponent)}, ${own.shields} of our shields left${counted}`;
 }
+
+/** The opponent's energy as counted, `40 by Counter`. */
+const energyOf = ({ energy, fast }: NonNullable<Fight['energy']>) => `${energy} by ${fast}`;
 
 /** Each event as a line, and the battle's line again each time it changes. */
 export function plain(write: (line: string) => void): Reporter {
@@ -152,7 +159,7 @@ export function panel(fight: Fight | undefined, width: number): string {
   return [
     beside(name(fight.own), name(fight.opponent), width),
     beside(health(fight.own), health(fight.opponent), width),
-    beside(fight.moves.join(', ') || '?', '', width),
+    beside(fight.moves.join(', ') || '?', fight.energy ? `energy ${energyOf(fight.energy)}` : '', width),
     beside(`${fight.bait ? 'baiting with' : 'throwing'} ${fight.throwing ?? 'the first ready'}`, '', width),
     beside(fight.shield ? 'shielding' : 'not shielding', '', width),
   ].join('\n');

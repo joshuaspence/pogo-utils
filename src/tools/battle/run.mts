@@ -17,6 +17,7 @@ import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts
 import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint, type Verdict } from './damage.mts';
+import { Energy, type Matchup } from './energy.mts';
 import { type Meta } from './meta.mts';
 import { type Fight, type Reporter } from './report.mts';
 
@@ -75,6 +76,15 @@ const READ_MS = 3_000;
  */
 const BANNER_MS = 8_000;
 const BANNER_EVERY_MS = 300;
+
+/**
+ * How much fuller than before the opponent's bar must read to be a newcomer's, as a fraction of it: ten times the pixel
+ * the bar is read to, so a misread does not pass for one.
+ */
+const NEWCOMER = 0.1;
+
+/** How many frames the shield prompt must show for to be counted as the opponent's throw, as `Player` settles on it. */
+const THROWN = 3;
 
 /** Frames kept for a run that gets lost, about the last three seconds of it at one frame in ten. */
 const KEPT_FRAMES = 10;
@@ -162,6 +172,13 @@ export async function run(
   // the last one's until a newcomer's bar is drawn, which the camera does on most frames.
   let health: Health = { own: null, opponent: null };
 
+  // The opponent's energy, counted off the hits on our bar, and the matchup as last read and how many frames the shield
+  // prompt has shown for: a prompt gone is their charged move thrown, once it held as long as `Player` waits to answer
+  // one, a prompt sliding past matching for a frame or two on its own.
+  let energy = new Energy(data, meta);
+  let matchup: Matchup | undefined;
+  let prompted = 0;
+
   // The colour of the bubbles the minigame now showing draws, that of the move last thrown, where its type is known.
   let bubbleColour: Colour | undefined;
   let seen: Sighting = unseen();
@@ -221,6 +238,12 @@ export async function run(
 
     last = state;
 
+    if (state !== 'shield' && prompted >= THROWN && matchup) {
+      energy.threw(matchup, theirMoves.get(matchup.opponent.species ?? ''));
+    }
+
+    prompted = state === 'shield' ? prompted + 1 : 0;
+
     if (offered && state !== 'shield') {
       if (!offered.taken) {
         log('kept shield', 'own', offered.why);
@@ -243,15 +266,18 @@ export async function run(
       bannerAt = clock.now();
       bannerReading = true;
 
-      // Kept in the battle's own record, which a read finishing after the next battle has begun leaves alone.
+      // Kept in the battle's own record, which a read finishing after the next battle has begun leaves alone. The move
+      // named settles what the throw cost the opponent, which until now was counted as its cheapest.
       const { opponent } = seen;
       const moves = theirMoves;
+      const counting = energy;
 
       void readBanner(frame, data, seen)
         .then((move) => {
           if (move) {
             const known = moves.get(opponent) ?? new Set();
             moves.set(opponent, known.add(move));
+            counting.named(opponent, move);
             bannerUntil = -Infinity;
             log(`${opponent} has ${[...known].join(' and ')}`, 'opponent');
           }
@@ -273,6 +299,7 @@ export async function run(
         theirShields = 2;
         ourShields = 2;
         health = { own: null, opponent: null };
+        energy = new Energy(data, meta);
         theirMoves = new Map();
         bannerUntil = -Infinity;
       }
@@ -298,10 +325,21 @@ export async function run(
       }
 
       // Read at the shield prompt as well as through the fight: the prompt hides the HUD, but not the bars.
-      if (state !== 'switch' && !player.minigame) {
-        const read = readHealth(frame);
+      const bars = state !== 'switch' && !player.minigame ? readHealth(frame) : undefined;
 
-        health = { own: read.own ?? health.own, opponent: read.opponent ?? health.opponent };
+      // A bar of theirs fuller than the last is a newcomer's, HP never coming back, sent in with the HUD up throughout:
+      // what was read of the one before is not its, and is read again at once rather than standing for up to `READ_MS`,
+      // the newcomer's hits counted to the energy of the one it replaced.
+      const opponentBar = bars?.opponent ?? null;
+
+      if (opponentBar !== null && health.opponent !== null && opponentBar - health.opponent >= NEWCOMER) {
+        seen = { ...seen, opponent: null, opponentCp: null };
+        readAt = -Infinity;
+        energy.pause();
+      }
+
+      if (bars) {
+        health = { own: bars.own ?? health.own, opponent: bars.opponent ?? health.opponent };
       }
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
@@ -319,9 +357,30 @@ export async function run(
       const own = seen.own ?? (slot === undefined ? null : (party[slot] ?? null));
       const bait = theirShields > 0;
       const best = bestButton(data, seen.moves, typesOf(data, own), typesOf(data, seen.opponent), bait);
+      const facing: Matchup = {
+        own: { species: own, cp: seen.ownCp },
+        opponent: { species: seen.opponent, cp: seen.opponentCp },
+        cap: cap ?? null,
+      };
+
+      matchup = facing;
+
+      // Only the fight's own frames count hits: the shield prompt, the minigame and a switch pause it. A frame of the
+      // fight with our bar not found does neither, the drop across it still the fight's.
+      const bar = bars?.own ?? null;
+
+      if ((state !== 'battle' && state !== 'charged') || player.minigame) {
+        energy.pause();
+      } else if (bar !== null) {
+        energy.read(clock.now(), bar, facing);
+      }
+
+      // What the opponent can afford: the energy counted, and a fast move's more for a hit the count missed.
+      const estimate = energy.estimate(facing);
 
       // Taken only where the opponent's hardest charged move would faint us: a hit we survive is eaten, the shield kept
-      // for one we would not. A league whose cap went unread takes every shield, as anything else unknown does.
+      // for one we would not. Hardest of those it can afford, where its energy is counted. A league whose cap went
+      // unread takes every shield, as anything else unknown does.
       const verdict: Verdict =
         cap === undefined
           ? { faints: true, why: "the league's cap unread" }
@@ -333,6 +392,7 @@ export async function run(
               cap,
               meta,
               theirMoves.get(seen.opponent ?? ''),
+              estimate ? estimate.energy + estimate.gain : undefined,
             );
       const shield = ourShields > 0 && verdict.faints;
 
@@ -347,6 +407,7 @@ export async function run(
         throwing: (best !== undefined && seen.moves.get(best)) || undefined,
         bait,
         shield,
+        ...(estimate && { energy: { energy: estimate.energy, fast: estimate.fast } }),
       };
       battling = true;
       known = clock.now();
@@ -428,6 +489,7 @@ export async function run(
     }
 
     player.next(state, clock.now());
+    energy.pause();
 
     if (otherSince === undefined) {
       otherSince = clock.now();

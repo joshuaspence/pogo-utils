@@ -143,7 +143,7 @@ export function hit(data: GameData, move: CombatMove, attacker: Battler, defende
 }
 
 /** How many charged moves a Pokémon holds at most: its own and one unlocked with a second. */
-const MOVES_HELD = 2;
+export const MOVES_HELD = 2;
 
 /** Whether a hit would faint us, and why that is the answer: the hardest hit and how much it takes, or what is unknown. */
 export interface Verdict {
@@ -178,6 +178,9 @@ const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
  * `seen` is the charged moves this opponent has been seen to use, which outweighs what its players run. Both of them
  * seen, they are all it has, whatever its form. One seen narrows nothing: the other could be any allowed it, the
  * hardest among them.
+ *
+ * Of those, only the ones costing no more than `affordable` where it is given, the energy the opponent is counted as
+ * having, unless that leaves none, which says the count is short rather than that nothing was thrown.
  */
 export function wouldFaint(
   data: GameData,
@@ -187,6 +190,7 @@ export function wouldFaint(
   cap: number | null,
   meta?: Meta | null,
   seen: ReadonlySet<string> = new Set(),
+  affordable?: number,
 ): Verdict {
   const ours = buildsOf(data, own, cap);
   const theirs = buildsOf(data, opponent, cap);
@@ -208,10 +212,15 @@ export function wouldFaint(
   // The hardest hit of all, as a share of our maximum HP: past `FAINTS` of what is left on any of our forms is past it
   // on the form it hurts most.
   let hardest = { name: '', share: 0 };
+  let narrowed = false;
 
   for (const attacker of theirs) {
     const names = seen.size >= MOVES_HELD ? [...seen] : chargedOf(attacker.form, moveset);
-    const moves = names.flatMap((name) => (data.combat[name] ? [{ name, move: data.combat[name] }] : []));
+    const allowed = names.flatMap((name) => (data.combat[name] ? [{ name, move: data.combat[name] }] : []));
+    const afforded = allowed.filter(({ move }) => affordable === undefined || -move.energy <= affordable);
+    const moves = afforded.length > 0 ? afforded : allowed;
+
+    narrowed ||= moves.length < allowed.length;
 
     if (moves.length === 0) {
       return { faints: true, why: `no charged move known for ${attacker.form.species}` };
@@ -230,6 +239,6 @@ export function wouldFaint(
 
   return {
     faints: hardest.share >= FAINTS * hp,
-    why: `${hardest.name} would take ~${percent(hardest.share)}, with ${percent(hp)} left`,
+    why: `${hardest.name} would take ~${percent(hardest.share)}, with ${percent(hp)} left${narrowed ? `, the hardest ${affordable ?? 0} energy affords` : ''}`,
   };
 }

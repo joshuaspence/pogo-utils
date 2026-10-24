@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { live, panel, plain, rule, summary, type Fight, type Status } from './report.mts';
+import { describe, live, panel, plain, rule, summary, type Fight, type Status } from './report.mts';
 
 const FIGHT: Fight = {
   own: { species: 'Charizard', cp: 2495, hp: 0.74, shields: 1 },
@@ -46,6 +46,14 @@ test('marks what has not been read, each thing still in its place', () => {
     'baiting with the first ready           │',
     'not shielding                          │',
   ]);
+});
+
+test('tells the opponent’s energy where it is counted, under its bar and at the end of the line', () => {
+  const counted = { ...FIGHT, energy: { energy: 40, fast: 'Karate Chop' } };
+
+  expect(panel(counted, 80).split('\n')[2]).toBe('Blast Burn, Dragon Claw                │ energy 40 by Karate Chop');
+  expect(describe(counted)).toMatch(/, 1 of our shields left; their energy 40 by Karate Chop$/);
+  expect(describe(FIGHT)).toMatch(/, 1 of our shields left$/);
 });
 
 test('keeps every line of the panel before a battle', () => {
