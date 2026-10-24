@@ -50,6 +50,13 @@ const MENU_AFTER_MS = 1_500;
 /** How long a menu's tap is given to animate into the next screen before that is screenshot. */
 const MENU_SETTLE_MS = 1_500;
 
+/**
+ * How many reads in a row GO Battle League's card has to show BATTLE greyed out before the run stops for its reward.
+ * One was taken on a Pixel 8 Pro as the Battle tab slid in, 1.5s after the main menu's tap, its BATTLE not yet green:
+ * the run stopped with a set there to play. A read a settle later finds it lit, where a reward is waiting it does not.
+ */
+const NO_BATTLE_READS = 2;
+
 /** How long the Battle tab's scroll takes, in milliseconds: long enough to be a drag rather than a tap. */
 const SCROLL_MS = 400;
 
@@ -111,6 +118,7 @@ export async function run(
   let battling = false;
   let known = clock.now();
   let otherSince: number | undefined;
+  let noBattle = 0;
 
   // The menu read under way, if any: settled once its screenshot is taken and read, or failed.
   let reading: Reading | undefined;
@@ -322,6 +330,11 @@ export async function run(
       // reward encounter's, which is left for the player rather than tapped.
       const menu = read.screen === 'map' && mode.mode === 'gbl' && battles > 0 ? { screen: 'unknown' as const } : read;
 
+      // Greyed out read after read, not once among others.
+      if (menu.screen !== 'no-battle') {
+        noBattle = 0;
+      }
+
       if (menu.screen === 'party') {
         party = readParty(screenshot, icons);
         cap = mode.mode === 'training' ? CAPS[mode.league] : menu.cap;
@@ -340,7 +353,7 @@ export async function run(
         await phone.swipe(...menu.swipe, SCROLL_MS);
       } else if (menu.screen === 'matchmaking') {
         known = clock.now();
-      } else if (menu.screen === 'no-battle') {
+      } else if (menu.screen === 'no-battle' && ++noBattle >= NO_BATTLE_READS) {
         log('no-battle: a reward to collect');
         return battles;
       } else if ('tap' in menu) {

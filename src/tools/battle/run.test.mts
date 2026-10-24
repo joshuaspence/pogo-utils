@@ -291,6 +291,17 @@ test('stops at the end of a GO Battle League set, leaving its reward to be colle
   expect(taps).toEqual(['party', 'charged', 'result']);
 });
 
+// The Battle tab sliding in, its BATTLE caught not yet green by the first read: the second finds it lit, and plays.
+test('plays on where GO Battle League shows BATTLE greyed for one read only', async () => {
+  const { phone, clock, taps } = scripted(
+    { ...league(), opening: { frame: fixture('menu-gbl-collect'), lasts: { ms: 3000, to: 'tab' } } },
+    'opening',
+  );
+
+  expect(await run(phone, { mode: GBL, data: DATA, icons: ICONS, colours: COLOURS, count: 1 }, clock)).toBe(1);
+  expect(taps[0]).toBe('tab');
+});
+
 /**
  * Zeraora leads and faints to Glaceon. Of Latias and Gyarados, Glaceon hits Latias super effectively and not Gyarados,
  * so Gyarados goes in, off the prompt's second card. The first tap does not land, and the retap a second later goes to
