@@ -77,10 +77,11 @@ const across = (line: Line, { left, factor }: { left: number; factor: number }, 
   (left + centre(line)[0] / factor) / image.width;
 
 /**
- * What the battle's text says on `image`. `species` is ours where it is known from before, off an earlier frame's HUD
- * or, nicknamed, off the party, which the labels are matched among, as the name on this frame is: Gengar's `SLUDGE
- * BOMB` read short as `SLUDGE B` was nearer Sludge, which Gengar cannot hold, than Sludge Bomb, and the move thrown
- * flipped between them read to read. Unknown, every charged move is a label it could be.
+ * What the battle's text says on `image`. `species` is ours where an earlier frame's HUD named it, which the labels are
+ * matched among, as the name on this frame is: Gengar's `SLUDGE BOMB` read short as `SLUDGE B` was nearer Sludge, which
+ * Gengar cannot hold, than Sludge Bomb, and the move thrown flipped between them read to read. Unnamed — nicknamed, the
+ * species no more than the party's guess, which the labels are what correct — every charged move is a label it could
+ * be.
  */
 export async function readBattle(
   image: Image,
