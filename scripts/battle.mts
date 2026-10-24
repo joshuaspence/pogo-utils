@@ -193,7 +193,7 @@ if (command === 'run') {
   await device.check();
   useEngine(tesseractCli);
 
-  // Which move does the most damage, out of the game master `pnpm inventory` downloads and caches for a week.
+  // Which move is worth the most, out of the game master `pnpm inventory` downloads and caches for a week.
   const data = await loadGameData(CACHE);
   const icons = await silhouettes(data);
   const colours = await bubbleColours(data);

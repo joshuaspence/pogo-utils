@@ -30002,7 +30002,7 @@
     [51, 0.8453]
   ],
   "combat": {
-    "Wrap": { "type": "Normal", "power": 70, "energy": -45, "turns": 1 },
+    "Wrap": { "type": "Normal", "power": 70, "energy": -45, "turns": 1, "buffs": { "chance": 1, "theirDefense": -1 } },
     "Hyper Beam": { "type": "Normal", "power": 150, "energy": -80, "turns": 1 },
     "Dark Pulse": { "type": "Dark", "power": 80, "energy": -50, "turns": 1 },
     "Sludge": { "type": "Poison", "power": 70, "energy": -40, "turns": 1 },
@@ -30027,27 +30027,75 @@
     "Drill Run": { "type": "Ground", "power": 70, "energy": -40, "turns": 1 },
     "Petal Blizzard": { "type": "Grass", "power": 110, "energy": -65, "turns": 1 },
     "Mega Drain": { "type": "Grass", "power": 25, "energy": -55, "turns": 1 },
-    "Bug Buzz": { "type": "Bug", "power": 100, "energy": -60, "turns": 1 },
-    "Poison Fang": { "type": "Poison", "power": 45, "energy": -40, "turns": 1 },
-    "Night Slash": { "type": "Dark", "power": 50, "energy": -35, "turns": 1 },
-    "Bubble Beam": { "type": "Water", "power": 25, "energy": -40, "turns": 1 },
+    "Bug Buzz": {
+      "type": "Bug",
+      "power": 100,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirDefense": -1 }
+    },
+    "Poison Fang": {
+      "type": "Poison",
+      "power": 45,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
+    "Night Slash": {
+      "type": "Dark",
+      "power": 50,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 1 }
+    },
+    "Bubble Beam": {
+      "type": "Water",
+      "power": 25,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
     "Submission": { "type": "Fighting", "power": 60, "energy": -50, "turns": 1 },
     "Low Sweep": { "type": "Fighting", "power": 40, "energy": -40, "turns": 1 },
     "Aqua Jet": { "type": "Water", "power": 70, "energy": -40, "turns": 1 },
     "Aqua Tail": { "type": "Water", "power": 55, "energy": -35, "turns": 1 },
     "Seed Bomb": { "type": "Grass", "power": 55, "energy": -40, "turns": 1 },
     "Psyshock": { "type": "Psychic", "power": 70, "energy": -40, "turns": 1 },
-    "Ancient Power": { "type": "Rock", "power": 60, "energy": -45, "turns": 1 },
-    "Rock Tomb": { "type": "Rock", "power": 75, "energy": -50, "turns": 1 },
+    "Ancient Power": {
+      "type": "Rock",
+      "power": 60,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "ownAttack": 1, "ownDefense": 1 }
+    },
+    "Rock Tomb": {
+      "type": "Rock",
+      "power": 75,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
     "Rock Slide": { "type": "Rock", "power": 75, "energy": -45, "turns": 1 },
     "Power Gem": { "type": "Rock", "power": 85, "energy": -50, "turns": 1 },
     "Shadow Sneak": { "type": "Ghost", "power": 75, "energy": -50, "turns": 1 },
     "Shadow Punch": { "type": "Ghost", "power": 55, "energy": -35, "turns": 1 },
-    "Ominous Wind": { "type": "Ghost", "power": 45, "energy": -45, "turns": 1 },
+    "Ominous Wind": {
+      "type": "Ghost",
+      "power": 45,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "ownAttack": 1, "ownDefense": 1 }
+    },
     "Shadow Ball": { "type": "Ghost", "power": 100, "energy": -50, "turns": 1 },
     "Magnet Bomb": { "type": "Steel", "power": 70, "energy": -45, "turns": 1 },
     "Iron Head": { "type": "Steel", "power": 70, "energy": -50, "turns": 1 },
-    "Parabolic Charge": { "type": "Electric", "power": 70, "energy": -50, "turns": 1 },
+    "Parabolic Charge": {
+      "type": "Electric",
+      "power": 70,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": 1 }
+    },
     "Thunder Punch": { "type": "Electric", "power": 60, "energy": -40, "turns": 1 },
     "Thunder": { "type": "Electric", "power": 100, "energy": -60, "turns": 1 },
     "Thunderbolt": { "type": "Electric", "power": 90, "energy": -55, "turns": 1 },
@@ -30057,35 +30105,83 @@
     "Disarming Voice": { "type": "Fairy", "power": 70, "energy": -45, "turns": 1 },
     "Draining Kiss": { "type": "Fairy", "power": 60, "energy": -55, "turns": 1 },
     "Dazzling Gleam": { "type": "Fairy", "power": 90, "energy": -55, "turns": 1 },
-    "Moonblast": { "type": "Fairy", "power": 110, "energy": -60, "turns": 1 },
+    "Moonblast": {
+      "type": "Fairy",
+      "power": 110,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "theirAttack": -1 }
+    },
     "Play Rough": { "type": "Fairy", "power": 90, "energy": -60, "turns": 1 },
-    "Cross Poison": { "type": "Poison", "power": 50, "energy": -35, "turns": 1 },
+    "Cross Poison": {
+      "type": "Poison",
+      "power": 50,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 2 }
+    },
     "Sludge Bomb": { "type": "Poison", "power": 80, "energy": -50, "turns": 1 },
     "Sludge Wave": { "type": "Poison", "power": 110, "energy": -65, "turns": 1 },
     "Gunk Shot": { "type": "Poison", "power": 130, "energy": -75, "turns": 1 },
     "Bone Club": { "type": "Ground", "power": 55, "energy": -35, "turns": 1 },
-    "Bulldoze": { "type": "Ground", "power": 45, "energy": -45, "turns": 1 },
+    "Bulldoze": {
+      "type": "Ground",
+      "power": 45,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirDefense": -1 }
+    },
     "Mud Bomb": { "type": "Ground", "power": 65, "energy": -45, "turns": 1 },
-    "Signal Beam": { "type": "Bug", "power": 75, "energy": -55, "turns": 1 },
+    "Signal Beam": {
+      "type": "Bug",
+      "power": 75,
+      "energy": -55,
+      "turns": 1,
+      "buffs": { "chance": 0.2, "theirAttack": -1, "theirDefense": -1 }
+    },
     "X-Scissor": { "type": "Bug", "power": 65, "energy": -40, "turns": 1 },
-    "Flame Charge": { "type": "Fire", "power": 65, "energy": -50, "turns": 1 },
+    "Flame Charge": {
+      "type": "Fire",
+      "power": 65,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": 1 }
+    },
     "Flame Burst": { "type": "Fire", "power": 70, "energy": -55, "turns": 1 },
     "Fire Blast": { "type": "Fire", "power": 140, "energy": -80, "turns": 1 },
     "Brine": { "type": "Water", "power": 60, "energy": -50, "turns": 1 },
     "Water Pulse": { "type": "Water", "power": 80, "energy": -50, "turns": 1 },
-    "Scald": { "type": "Water", "power": 85, "energy": -50, "turns": 1 },
+    "Scald": { "type": "Water", "power": 85, "energy": -50, "turns": 1, "buffs": { "chance": 0.3, "theirAttack": -1 } },
     "Hydro Pump": { "type": "Water", "power": 130, "energy": -75, "turns": 1 },
-    "Psychic": { "type": "Psychic", "power": 75, "energy": -55, "turns": 1 },
+    "Psychic": {
+      "type": "Psychic",
+      "power": 75,
+      "energy": -55,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "theirDefense": -1 }
+    },
     "Psystrike": { "type": "Psychic", "power": 90, "energy": -45, "turns": 1 },
-    "Icy Wind": { "type": "Ice", "power": 60, "energy": -45, "turns": 1 },
+    "Icy Wind": { "type": "Ice", "power": 60, "energy": -45, "turns": 1, "buffs": { "chance": 1, "theirAttack": -1 } },
     "Giga Drain": { "type": "Grass", "power": 50, "energy": -80, "turns": 1 },
     "Fire Punch": { "type": "Fire", "power": 60, "energy": -40, "turns": 1 },
     "Solar Beam": { "type": "Grass", "power": 150, "energy": -80, "turns": 1 },
     "Leaf Blade": { "type": "Grass", "power": 70, "energy": -35, "turns": 1 },
     "Power Whip": { "type": "Grass", "power": 90, "energy": -50, "turns": 1 },
-    "Air Cutter": { "type": "Flying", "power": 45, "energy": -35, "turns": 1 },
+    "Air Cutter": {
+      "type": "Flying",
+      "power": 45,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "ownAttack": 1 }
+    },
     "Hurricane": { "type": "Flying", "power": 110, "energy": -60, "turns": 1 },
-    "Brick Break": { "type": "Fighting", "power": 50, "energy": -40, "turns": 1 },
+    "Brick Break": {
+      "type": "Fighting",
+      "power": 50,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
     "Swift": { "type": "Normal", "power": 55, "energy": -35, "turns": 1 },
     "Horn Attack": { "type": "Normal", "power": 40, "energy": -35, "turns": 1 },
     "Stomp": { "type": "Normal", "power": 55, "energy": -40, "turns": 1 },
@@ -30137,24 +30233,60 @@
     "Transform": { "type": "Normal", "power": 0, "energy": 0, "turns": 3 },
     "Counter": { "type": "Fighting", "power": 8, "energy": 6, "turns": 2 },
     "Powder Snow": { "type": "Ice", "power": 6, "energy": 8, "turns": 2 },
-    "Close Combat": { "type": "Fighting", "power": 100, "energy": -45, "turns": 1 },
+    "Close Combat": {
+      "type": "Fighting",
+      "power": 100,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -2 }
+    },
     "Dynamic Punch": { "type": "Fighting", "power": 90, "energy": -45, "turns": 1 },
     "Focus Blast": { "type": "Fighting", "power": 150, "energy": -75, "turns": 1 },
     "Aurora Beam": { "type": "Ice", "power": 80, "energy": -60, "turns": 1 },
     "Charge Beam": { "type": "Electric", "power": 5, "energy": 11, "turns": 3 },
     "Volt Switch": { "type": "Electric", "power": 14, "energy": 16, "turns": 4 },
-    "Wild Charge": { "type": "Electric", "power": 100, "energy": -45, "turns": 1 },
-    "Zap Cannon": { "type": "Electric", "power": 150, "energy": -80, "turns": 1 },
+    "Wild Charge": {
+      "type": "Electric",
+      "power": 100,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -2 }
+    },
+    "Zap Cannon": {
+      "type": "Electric",
+      "power": 150,
+      "energy": -80,
+      "turns": 1,
+      "buffs": { "chance": 0.33, "theirAttack": -1 }
+    },
     "Dragon Tail": { "type": "Dragon", "power": 9, "energy": 12, "turns": 3 },
     "Avalanche": { "type": "Ice", "power": 90, "energy": -45, "turns": 1 },
     "Air Slash": { "type": "Flying", "power": 9, "energy": 9, "turns": 3 },
-    "Brave Bird": { "type": "Flying", "power": 130, "energy": -55, "turns": 1 },
+    "Brave Bird": {
+      "type": "Flying",
+      "power": 130,
+      "energy": -55,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -3 }
+    },
     "Sky Attack": { "type": "Flying", "power": 75, "energy": -50, "turns": 1 },
-    "Sand Tomb": { "type": "Ground", "power": 40, "energy": -40, "turns": 1 },
+    "Sand Tomb": {
+      "type": "Ground",
+      "power": 40,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
     "Rock Blast": { "type": "Rock", "power": 50, "energy": -40, "turns": 1 },
     "Infestation": { "type": "Bug", "power": 6, "energy": 12, "turns": 3 },
     "Struggle Bug": { "type": "Bug", "power": 9, "energy": 8, "turns": 3 },
-    "Silver Wind": { "type": "Bug", "power": 75, "energy": -45, "turns": 1 },
+    "Silver Wind": {
+      "type": "Bug",
+      "power": 75,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "ownAttack": 1, "ownDefense": 1 }
+    },
     "Astonish": { "type": "Ghost", "power": 12, "energy": 10, "turns": 3 },
     "Hex": { "type": "Ghost", "power": 7, "energy": 13, "turns": 3 },
     "Night Shade": { "type": "Ghost", "power": 70, "energy": -45, "turns": 1 },
@@ -30162,25 +30294,49 @@
     "Gyro Ball": { "type": "Steel", "power": 80, "energy": -50, "turns": 1 },
     "Heavy Slam": { "type": "Steel", "power": 70, "energy": -50, "turns": 1 },
     "Fire Spin": { "type": "Fire", "power": 11, "energy": 10, "turns": 3 },
-    "Overheat": { "type": "Fire", "power": 130, "energy": -55, "turns": 1 },
+    "Overheat": { "type": "Fire", "power": 130, "energy": -55, "turns": 1, "buffs": { "chance": 1, "ownAttack": -2 } },
     "Bullet Seed": { "type": "Grass", "power": 5, "energy": 13, "turns": 3 },
     "Grass Knot": { "type": "Grass", "power": 90, "energy": -50, "turns": 1 },
-    "Energy Ball": { "type": "Grass", "power": 80, "energy": -45, "turns": 1 },
+    "Energy Ball": {
+      "type": "Grass",
+      "power": 80,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "theirDefense": -1 }
+    },
     "Extrasensory": { "type": "Psychic", "power": 8, "energy": 10, "turns": 3 },
     "Future Sight": { "type": "Psychic", "power": 110, "energy": -65, "turns": 1 },
     "Mirror Coat": { "type": "Psychic", "power": 60, "energy": -55, "turns": 1 },
     "Outrage": { "type": "Dragon", "power": 110, "energy": -60, "turns": 1 },
     "Snarl": { "type": "Dark", "power": 5, "energy": 13, "turns": 3 },
-    "Crunch": { "type": "Dark", "power": 70, "energy": -45, "turns": 1 },
+    "Crunch": {
+      "type": "Dark",
+      "power": 70,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.2, "theirDefense": -1 }
+    },
     "Foul Play": { "type": "Dark", "power": 65, "energy": -40, "turns": 1 },
     "Hidden Power": { "type": "Normal", "power": 9, "energy": 8, "turns": 3 },
     "Take Down": { "type": "Normal", "power": 5, "energy": 8, "turns": 3 },
     "Waterfall": { "type": "Water", "power": 11, "energy": 10, "turns": 3 },
     "Surf": { "type": "Water", "power": 75, "energy": -45, "turns": 1 },
-    "Draco Meteor": { "type": "Dragon", "power": 150, "energy": -65, "turns": 1 },
+    "Draco Meteor": {
+      "type": "Dragon",
+      "power": 150,
+      "energy": -65,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": -2 }
+    },
     "Doom Desire": { "type": "Steel", "power": 80, "energy": -40, "turns": 1 },
     "Yawn": { "type": "Normal", "power": 0, "energy": 12, "turns": 4 },
-    "Psycho Boost": { "type": "Psychic", "power": 70, "energy": -35, "turns": 1 },
+    "Psycho Boost": {
+      "type": "Psychic",
+      "power": 70,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": -2 }
+    },
     "Origin Pulse": { "type": "Water", "power": 130, "energy": -60, "turns": 1 },
     "Precipice Blades": { "type": "Ground", "power": 130, "energy": -60, "turns": 1 },
     "Present": { "type": "Normal", "power": 3, "energy": 12, "turns": 3 },
@@ -30191,22 +30347,100 @@
     "Hydro Cannon": { "type": "Water", "power": 80, "energy": -40, "turns": 1 },
     "Last Resort": { "type": "Normal", "power": 90, "energy": -55, "turns": 1 },
     "Meteor Mash": { "type": "Steel", "power": 100, "energy": -45, "turns": 1 },
-    "Skull Bash": { "type": "Normal", "power": 130, "energy": -75, "turns": 1 },
-    "Acid Spray": { "type": "Poison", "power": 20, "energy": -45, "turns": 1 },
-    "Earth Power": { "type": "Ground", "power": 90, "energy": -50, "turns": 1 },
-    "Crabhammer": { "type": "Water", "power": 85, "energy": -50, "turns": 1 },
-    "Lunge": { "type": "Bug", "power": 60, "energy": -45, "turns": 1 },
-    "Octazooka": { "type": "Water", "power": 50, "energy": -50, "turns": 1 },
-    "Mirror Shot": { "type": "Steel", "power": 35, "energy": -35, "turns": 1 },
-    "Superpower": { "type": "Fighting", "power": 85, "energy": -40, "turns": 1 },
-    "Fell Stinger": { "type": "Bug", "power": 20, "energy": -35, "turns": 1 },
-    "Leaf Tornado": { "type": "Grass", "power": 45, "energy": -40, "turns": 1 },
-    "Drain Punch": { "type": "Fighting", "power": 40, "energy": -40, "turns": 1 },
-    "Shadow Bone": { "type": "Ghost", "power": 80, "energy": -45, "turns": 1 },
-    "Muddy Water": { "type": "Water", "power": 35, "energy": -35, "turns": 1 },
+    "Skull Bash": {
+      "type": "Normal",
+      "power": 130,
+      "energy": -75,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": 1 }
+    },
+    "Acid Spray": {
+      "type": "Poison",
+      "power": 20,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -2 }
+    },
+    "Earth Power": {
+      "type": "Ground",
+      "power": 90,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "theirDefense": -1 }
+    },
+    "Crabhammer": {
+      "type": "Water",
+      "power": 85,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 2 }
+    },
+    "Lunge": { "type": "Bug", "power": 60, "energy": -45, "turns": 1, "buffs": { "chance": 1, "theirAttack": -1 } },
+    "Octazooka": {
+      "type": "Water",
+      "power": 50,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -2 }
+    },
+    "Mirror Shot": {
+      "type": "Steel",
+      "power": 35,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirAttack": -1 }
+    },
+    "Superpower": {
+      "type": "Fighting",
+      "power": 85,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": -1, "ownDefense": -1 }
+    },
+    "Fell Stinger": { "type": "Bug", "power": 20, "energy": -35, "turns": 1, "buffs": { "chance": 1, "ownAttack": 1 } },
+    "Leaf Tornado": {
+      "type": "Grass",
+      "power": 45,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -2 }
+    },
+    "Drain Punch": {
+      "type": "Fighting",
+      "power": 40,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": 1 }
+    },
+    "Shadow Bone": {
+      "type": "Ghost",
+      "power": 80,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.2, "theirDefense": -1 }
+    },
+    "Muddy Water": {
+      "type": "Water",
+      "power": 35,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirAttack": -1 }
+    },
     "Blaze Kick": { "type": "Fire", "power": 60, "energy": -40, "turns": 1 },
-    "Razor Shell": { "type": "Water", "power": 35, "energy": -35, "turns": 1 },
-    "Power-Up Punch": { "type": "Fighting", "power": 20, "energy": -35, "turns": 1 },
+    "Razor Shell": {
+      "type": "Water",
+      "power": 35,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirDefense": -1 }
+    },
+    "Power-Up Punch": {
+      "type": "Fighting",
+      "power": 20,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": 1 }
+    },
     "Charm": { "type": "Fairy", "power": 12, "energy": 8, "turns": 3 },
     "Giga Impact": { "type": "Normal", "power": 150, "energy": -80, "turns": 1 },
     "Frustration": { "type": "Normal", "power": 10, "energy": -70, "turns": 1 },
@@ -30220,98 +30454,356 @@
     "Aura Sphere": { "type": "Fighting", "power": 80, "energy": -40, "turns": 1 },
     "Payback": { "type": "Dark", "power": 110, "energy": -60, "turns": 1 },
     "Rock Wrecker": { "type": "Rock", "power": 110, "energy": -50, "turns": 1 },
-    "Aeroblast": { "type": "Flying", "power": 170, "energy": -75, "turns": 1 },
+    "Aeroblast": {
+      "type": "Flying",
+      "power": 170,
+      "energy": -75,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 2 }
+    },
     "Techno Blast": { "type": "Normal", "power": 120, "energy": -55, "turns": 1 },
     "Fly": { "type": "Flying", "power": 80, "energy": -45, "turns": 1 },
-    "V-create": { "type": "Fire", "power": 95, "energy": -40, "turns": 1 },
-    "Leaf Storm": { "type": "Grass", "power": 130, "energy": -55, "turns": 1 },
-    "Tri Attack": { "type": "Normal", "power": 65, "energy": -50, "turns": 1 },
+    "V-create": { "type": "Fire", "power": 95, "energy": -40, "turns": 1, "buffs": { "chance": 1, "ownDefense": -3 } },
+    "Leaf Storm": {
+      "type": "Grass",
+      "power": 130,
+      "energy": -55,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": -2 }
+    },
+    "Tri Attack": {
+      "type": "Normal",
+      "power": 65,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -1, "theirDefense": -1 }
+    },
     "Gust": { "type": "Flying", "power": 16, "energy": 14, "turns": 4 },
     "Incinerate": { "type": "Fire", "power": 20, "energy": 20, "turns": 5 },
-    "Feather Dance": { "type": "Flying", "power": 35, "energy": -50, "turns": 1 },
+    "Feather Dance": {
+      "type": "Flying",
+      "power": 35,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -2 }
+    },
     "Fairy Wind": { "type": "Fairy", "power": 4, "energy": 9, "turns": 2 },
-    "Psychic Fangs": { "type": "Psychic", "power": 40, "energy": -35, "turns": 1 },
+    "Psychic Fangs": {
+      "type": "Psychic",
+      "power": 40,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
     "Double Kick": { "type": "Fighting", "power": 8, "energy": 12, "turns": 3 },
     "Magical Leaf": { "type": "Grass", "power": 10, "energy": 10, "turns": 3 },
-    "Sacred Fire": { "type": "Fire", "power": 130, "energy": -65, "turns": 1 },
+    "Sacred Fire": {
+      "type": "Fire",
+      "power": 130,
+      "energy": -65,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -1 }
+    },
     "Icicle Spear": { "type": "Ice", "power": 70, "energy": -40, "turns": 1 },
-    "Aeroblast+": { "type": "Flying", "power": 170, "energy": -75, "turns": 1 },
-    "Aeroblast++": { "type": "Flying", "power": 170, "energy": -75, "turns": 1 },
-    "Sacred Fire+": { "type": "Fire", "power": 130, "energy": -65, "turns": 1 },
-    "Sacred Fire++": { "type": "Fire", "power": 130, "energy": -65, "turns": 1 },
+    "Aeroblast+": {
+      "type": "Flying",
+      "power": 170,
+      "energy": -75,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 2 }
+    },
+    "Aeroblast++": {
+      "type": "Flying",
+      "power": 170,
+      "energy": -75,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 2 }
+    },
+    "Sacred Fire+": {
+      "type": "Fire",
+      "power": 130,
+      "energy": -65,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -1 }
+    },
+    "Sacred Fire++": {
+      "type": "Fire",
+      "power": 130,
+      "energy": -65,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -1 }
+    },
     "Acrobatics": { "type": "Flying", "power": 110, "energy": -55, "turns": 1 },
-    "Luster Purge": { "type": "Psychic", "power": 120, "energy": -60, "turns": 1 },
-    "Mist Ball": { "type": "Psychic", "power": 120, "energy": -60, "turns": 1 },
+    "Luster Purge": {
+      "type": "Psychic",
+      "power": 120,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirDefense": -1 }
+    },
+    "Mist Ball": {
+      "type": "Psychic",
+      "power": 120,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 0.5, "theirAttack": -1 }
+    },
     "Brutal Swing": { "type": "Dark", "power": 55, "energy": -35, "turns": 1 },
     "Rollout": { "type": "Rock", "power": 7, "energy": 13, "turns": 3 },
-    "Seed Flare": { "type": "Grass", "power": 130, "energy": -75, "turns": 1 },
-    "Obstruct": { "type": "Dark", "power": 15, "energy": -40, "turns": 1 },
+    "Seed Flare": {
+      "type": "Grass",
+      "power": 130,
+      "energy": -75,
+      "turns": 1,
+      "buffs": { "chance": 0.4, "theirDefense": -2 }
+    },
+    "Obstruct": {
+      "type": "Dark",
+      "power": 15,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": 1, "theirDefense": -1 }
+    },
     "Shadow Force": { "type": "Ghost", "power": 120, "energy": -90, "turns": 1 },
-    "Meteor Beam": { "type": "Rock", "power": 120, "energy": -60, "turns": 1 },
+    "Meteor Beam": {
+      "type": "Rock",
+      "power": 120,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": 1 }
+    },
     "Water Shuriken": { "type": "Water", "power": 6, "energy": 14, "turns": 3 },
     "Fusion Bolt": { "type": "Electric", "power": 90, "energy": -45, "turns": 1 },
     "Fusion Flare": { "type": "Fire", "power": 90, "energy": -45, "turns": 1 },
     "Poltergeist": { "type": "Ghost", "power": 150, "energy": -75, "turns": 1 },
     "High Horsepower": { "type": "Ground", "power": 100, "energy": -60, "turns": 1 },
-    "Glaciate": { "type": "Ice", "power": 60, "energy": -40, "turns": 1 },
-    "Breaking Swipe": { "type": "Dragon", "power": 50, "energy": -50, "turns": 1 },
+    "Glaciate": { "type": "Ice", "power": 60, "energy": -40, "turns": 1, "buffs": { "chance": 1, "theirAttack": -1 } },
+    "Breaking Swipe": {
+      "type": "Dragon",
+      "power": 50,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
     "Boomburst": { "type": "Normal", "power": 150, "energy": -70, "turns": 1 },
     "Double Iron Bash": { "type": "Steel", "power": 55, "energy": -35, "turns": 1 },
-    "Mystical Fire": { "type": "Fire", "power": 60, "energy": -45, "turns": 1 },
-    "Liquidation": { "type": "Water", "power": 70, "energy": -45, "turns": 1 },
-    "Dragon Ascent": { "type": "Flying", "power": 110, "energy": -45, "turns": 1 },
+    "Mystical Fire": {
+      "type": "Fire",
+      "power": 60,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
+    "Liquidation": {
+      "type": "Water",
+      "power": 70,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirDefense": -1 }
+    },
+    "Dragon Ascent": {
+      "type": "Flying",
+      "power": 110,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -1 }
+    },
     "Leafage": { "type": "Grass", "power": 6, "energy": 8, "turns": 2 },
     "Magma Storm": { "type": "Fire", "power": 65, "energy": -40, "turns": 1 },
     "Geomancy": { "type": "Fairy", "power": 8, "energy": 13, "turns": 3 },
     "Spacial Rend": { "type": "Dragon", "power": 95, "energy": -55, "turns": 1 },
-    "Oblivion Wing": { "type": "Flying", "power": 85, "energy": -50, "turns": 1 },
-    "Nature’s Madness": { "type": "Fairy", "power": 80, "energy": -50, "turns": 1 },
-    "Triple Axel": { "type": "Ice", "power": 60, "energy": -45, "turns": 1 },
-    "Trailblaze": { "type": "Grass", "power": 65, "energy": -45, "turns": 1 },
-    "Scorching Sands": { "type": "Ground", "power": 80, "energy": -50, "turns": 1 },
+    "Oblivion Wing": {
+      "type": "Flying",
+      "power": 85,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": 1 }
+    },
+    "Nature’s Madness": {
+      "type": "Fairy",
+      "power": 80,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
+    "Triple Axel": { "type": "Ice", "power": 60, "energy": -45, "turns": 1, "buffs": { "chance": 1, "ownAttack": 1 } },
+    "Trailblaze": { "type": "Grass", "power": 65, "energy": -45, "turns": 1, "buffs": { "chance": 1, "ownAttack": 1 } },
+    "Scorching Sands": {
+      "type": "Ground",
+      "power": 80,
+      "energy": -50,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "theirAttack": -1 }
+    },
     "Roar of Time": { "type": "Dragon", "power": 150, "energy": -65, "turns": 1 },
-    "Bleakwind Storm": { "type": "Flying", "power": 60, "energy": -45, "turns": 1 },
-    "Sandsear Storm": { "type": "Ground", "power": 60, "energy": -45, "turns": 1 },
-    "Wildbolt Storm": { "type": "Electric", "power": 60, "energy": -45, "turns": 1 },
-    "Spirit Shackle": { "type": "Ghost", "power": 50, "energy": -40, "turns": 1 },
-    "Volt Tackle": { "type": "Electric", "power": 90, "energy": -40, "turns": 1 },
+    "Bleakwind Storm": {
+      "type": "Flying",
+      "power": 60,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
+    "Sandsear Storm": {
+      "type": "Ground",
+      "power": 60,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
+    "Wildbolt Storm": {
+      "type": "Electric",
+      "power": 60,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
+    "Spirit Shackle": {
+      "type": "Ghost",
+      "power": 50,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 0.33, "theirDefense": -1 }
+    },
+    "Volt Tackle": {
+      "type": "Electric",
+      "power": 90,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -1 }
+    },
     "Darkest Lariat": { "type": "Dark", "power": 120, "energy": -60, "turns": 1 },
     "Psywave": { "type": "Psychic", "power": 3, "energy": 4, "turns": 1 },
     "Metal Sound": { "type": "Steel", "power": 5, "energy": 8, "turns": 2 },
     "Sand Attack": { "type": "Ground", "power": 2, "energy": 4, "turns": 1 },
     "Sunsteel Strike": { "type": "Steel", "power": 135, "energy": -65, "turns": 1 },
     "Moongeist Beam": { "type": "Ghost", "power": 135, "energy": -65, "turns": 1 },
-    "Aura Wheel": { "type": "Electric", "power": 100, "energy": -45, "turns": 1 },
-    "High Jump Kick": { "type": "Fighting", "power": 110, "energy": -55, "turns": 1 },
+    "Aura Wheel": {
+      "type": "Electric",
+      "power": 100,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": 1 }
+    },
+    "High Jump Kick": {
+      "type": "Fighting",
+      "power": 110,
+      "energy": -55,
+      "turns": 1,
+      "buffs": { "chance": 0.1, "ownDefense": -4 }
+    },
     "Force Palm": { "type": "Fighting", "power": 13, "energy": 10, "turns": 3 },
     "Sparkling Aria": { "type": "Water", "power": 80, "energy": -45, "turns": 1 },
-    "Rage Fist": { "type": "Ghost", "power": 50, "energy": -35, "turns": 1 },
-    "Flower Trick": { "type": "Grass", "power": 30, "energy": -35, "turns": 1 },
-    "Freeze Shock": { "type": "Ice", "power": 120, "energy": -60, "turns": 1 },
-    "Ice Burn": { "type": "Ice", "power": 120, "energy": -60, "turns": 1 },
-    "Torch Song": { "type": "Fire", "power": 70, "energy": -45, "turns": 1 },
+    "Rage Fist": { "type": "Ghost", "power": 50, "energy": -35, "turns": 1, "buffs": { "chance": 1, "ownAttack": 1 } },
+    "Flower Trick": {
+      "type": "Grass",
+      "power": 30,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownAttack": 1 }
+    },
+    "Freeze Shock": {
+      "type": "Ice",
+      "power": 120,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirAttack": -1 }
+    },
+    "Ice Burn": {
+      "type": "Ice",
+      "power": 120,
+      "energy": -60,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirDefense": -1 }
+    },
+    "Torch Song": { "type": "Fire", "power": 70, "energy": -45, "turns": 1, "buffs": { "chance": 1, "ownAttack": 1 } },
     "Behemoth Blade": { "type": "Steel", "power": 100, "energy": -55, "turns": 1 },
     "Behemoth Bash": { "type": "Steel", "power": 80, "energy": -45, "turns": 1 },
-    "Upper Hand": { "type": "Fighting", "power": 70, "energy": -40, "turns": 1 },
-    "Thunder Cage": { "type": "Electric", "power": 60, "energy": -40, "turns": 1 },
+    "Upper Hand": {
+      "type": "Fighting",
+      "power": 70,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 0.3, "theirDefense": -1 }
+    },
+    "Thunder Cage": {
+      "type": "Electric",
+      "power": 60,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
     "Dynamax Cannon": { "type": "Dragon", "power": 80, "energy": -45, "turns": 1 },
-    "Clanging Scales": { "type": "Dragon", "power": 120, "energy": -45, "turns": 1 },
+    "Clanging Scales": {
+      "type": "Dragon",
+      "power": 120,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -1 }
+    },
     "Crush Grip": { "type": "Normal", "power": 110, "energy": -50, "turns": 1 },
     "Dragon Energy": { "type": "Dragon", "power": 90, "energy": -45, "turns": 1 },
-    "Aqua Step": { "type": "Water", "power": 55, "energy": -40, "turns": 1 },
-    "Chilling Water": { "type": "Water", "power": 60, "energy": -45, "turns": 1 },
+    "Aqua Step": { "type": "Water", "power": 55, "energy": -40, "turns": 1, "buffs": { "chance": 1, "ownAttack": 1 } },
+    "Chilling Water": {
+      "type": "Water",
+      "power": 60,
+      "energy": -45,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
     "Secret Sword": { "type": "Fighting", "power": 70, "energy": -35, "turns": 1 },
-    "Beak Blast": { "type": "Flying", "power": 110, "energy": -55, "turns": 1 },
-    "Mind Blown": { "type": "Fire", "power": 90, "energy": -35, "turns": 1 },
-    "Drum Beating": { "type": "Grass", "power": 60, "energy": -35, "turns": 1 },
+    "Beak Blast": {
+      "type": "Flying",
+      "power": 110,
+      "energy": -55,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
+    "Mind Blown": {
+      "type": "Fire",
+      "power": 90,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -4 }
+    },
+    "Drum Beating": {
+      "type": "Grass",
+      "power": 60,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -1 }
+    },
     "Pyroball": { "type": "Fire", "power": 75, "energy": -40, "turns": 1 },
     "Gigaton Hammer": { "type": "Steel", "power": 130, "energy": -60, "turns": 1 },
     "Plasma Fists": { "type": "Electric", "power": 60, "energy": -35, "turns": 1 },
-    "Glaive Rush": { "type": "Dragon", "power": 90, "energy": -40, "turns": 1 },
-    "Snipe Shot": { "type": "Water", "power": 65, "energy": -35, "turns": 1 },
+    "Glaive Rush": {
+      "type": "Dragon",
+      "power": 90,
+      "energy": -40,
+      "turns": 1,
+      "buffs": { "chance": 1, "ownDefense": -1 }
+    },
+    "Snipe Shot": {
+      "type": "Water",
+      "power": 65,
+      "energy": -35,
+      "turns": 1,
+      "buffs": { "chance": 0.125, "ownAttack": 2 }
+    },
     "Dive": { "type": "Water", "power": 50, "energy": -40, "turns": 1 },
-    "Gulp Missile Gulping": { "type": "Normal", "power": 0, "energy": 0, "turns": 1 },
-    "Gulp Missile Gorging": { "type": "Normal", "power": 0, "energy": 0, "turns": 1 }
+    "Gulp Missile Gulping": {
+      "type": "Normal",
+      "power": 0,
+      "energy": 0,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirDefense": -1 }
+    },
+    "Gulp Missile Gorging": {
+      "type": "Normal",
+      "power": 0,
+      "energy": 0,
+      "turns": 1,
+      "buffs": { "chance": 1, "theirAttack": -2 }
+    }
   },
   "effectiveness": {
     "Bug": {
