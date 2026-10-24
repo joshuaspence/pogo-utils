@@ -3,12 +3,14 @@
  * `strategy.mts` never needs, its comparisons being between one Pokémon's own moves, where every stat cancels.
  *
  * The HUD shows each side's species and CP and nothing else that damage depends on: not the IVs, not the level and
- * not which charged moves the opponent has. So the moves are the worst its forms can hold, and the IVs are the ones a
- * player would have picked for a league — the rank-1 spread, whose attack × defense × HP is the highest the CP allows.
+ * not which charged moves the opponent has. So the moves are the worst its forms can hold, or in a league PvPoke ranks
+ * the worst its players run, and the IVs are the ones a player would have picked for a league — the rank-1 spread,
+ * whose attack × defense × HP is the highest the CP allows.
  */
 
 import { cpOf, type CombatMove, type Form, type GameData, type IVs } from '../inventory/game-master.mts';
-import { effectiveness, SHADOW_AND_PURIFIED, STAB } from './strategy.mts';
+import { type Meta } from './meta.mts';
+import { chargedOf, effectiveness, STAB } from './strategy.mts';
 
 /**
  * What a charged move's damage is multiplied by in a trainer battle and not in a raid: the game master's
@@ -145,12 +147,14 @@ const MOVES_HELD = 2;
 
 /**
  * Whether the opponent's hardest charged move would take at least `FAINTS` of the HP we have left, `hp` being the
- * fraction of our maximum the bar shows. Hardest of every charged move any of its forms can hold, bar Frustration and
- * Return as `nextOut` has it, against whichever of our forms it hurts most. Anything not known — either species or CP,
- * a CP over `cap`, the HP left or a move of theirs — counts as fainting, a shield being the safe side to err on.
+ * fraction of our maximum the bar shows. Hardest of every charged move `chargedOf` allows any of its forms — those its
+ * players run, where `meta` ranks its species, and otherwise every one bar Frustration and Return — against whichever
+ * of our forms it hurts most. Anything not known — either species or CP, a CP over `cap`, the HP left or a move of
+ * theirs — counts as fainting, a shield being the safe side to err on.
  *
- * `seen` is the charged moves this opponent has been seen to use. Both of them seen, they are all it has, whatever its
- * form. One seen narrows nothing: the other could be any it can hold, the hardest among them.
+ * `seen` is the charged moves this opponent has been seen to use, which outweighs what its players run. Both of them
+ * seen, they are all it has, whatever its form. One seen narrows nothing: the other could be any allowed it, the
+ * hardest among them.
  */
 export function wouldFaint(
   data: GameData,
@@ -158,6 +162,7 @@ export function wouldFaint(
   opponent: Side,
   hp: number | null,
   cap: number | null,
+  meta?: Meta | null,
   seen: ReadonlySet<string> = new Set(),
 ): boolean {
   const ours = buildsOf(data, own, cap);
@@ -167,9 +172,10 @@ export function wouldFaint(
     return true;
   }
 
+  const moveset = opponent.species === null ? undefined : meta?.movesets.get(opponent.species);
+
   return theirs.some((attacker) => {
-    const charged = attacker.form.moves.filter((move) => !move.fast && !SHADOW_AND_PURIFIED.has(move.name));
-    const names = seen.size >= MOVES_HELD ? [...seen] : charged.map((move) => move.name);
+    const names = seen.size >= MOVES_HELD ? [...seen] : chargedOf(attacker.form, moveset);
     const moves = names.flatMap((name) => data.combat[name] ?? []);
 
     return (

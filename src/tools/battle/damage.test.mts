@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { cpOf, multiplierOf, type Form, type GameData } from '../inventory/game-master.mts';
 import { buildsOf, hit, rankOne, wouldFaint } from './damage.mts';
+import { type Meta } from './meta.mts';
 
 const DATA = JSON.parse(
   readFileSync(new URL('../inventory/fixtures/game-master.json', import.meta.url), 'utf8'),
@@ -86,6 +87,22 @@ test('Frustration and Return are left out, which only a shadow or a purified Mag
   expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA)).toBe(false);
 });
 
+/** A meta in which `species` is run with `chargedMoves` alone. */
+const metaOf = (species: string, chargedMoves: string[]): Meta => ({
+  cup: 'all',
+  cap: 2500,
+  movesets: new Map([[species, { fast: '', fastMoves: [], chargedMoves }]]),
+});
+
+test('in a league PvPoke ranks, only the charged moves the opponent’s players run are allowed for', () => {
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Magmar', ['Fire Punch'])), 'not Fire Blast').toBe(
+    false,
+  );
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.2, ULTRA, metaOf('Magmar', ['Fire Punch'])), 'Fire Punch').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.6, ULTRA, metaOf('Magmar', ['Return'])), 'Return, run').toBe(true);
+  expect(wouldFaint(DATA, CHARIZARD, MAGMAR, 0.5, ULTRA, metaOf('Charizard', [])), 'Magmar unranked').toBe(true);
+});
+
 test('anything unknown counts as fainting', () => {
   expect(wouldFaint(DATA, { species: null, cp: 2495 }, MAGMAR, 0.9, ULTRA), 'our species').toBe(true);
   expect(wouldFaint(DATA, CHARIZARD, { species: null, cp: 1826 }, 0.9, ULTRA), 'theirs').toBe(true);
@@ -110,5 +127,5 @@ test.each<[string[], boolean]>([
   const own = { species: 'Dialga', cp: 2289 };
   const opponent = { species: 'Tyranitar', cp: 2256 };
 
-  expect(wouldFaint(DATA, own, opponent, 0.58, 2500, new Set(seen))).toBe(faints);
+  expect(wouldFaint(DATA, own, opponent, 0.58, 2500, null, new Set(seen))).toBe(faints);
 });

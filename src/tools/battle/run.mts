@@ -17,6 +17,7 @@ import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts
 import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint } from './damage.mts';
+import { type Meta } from './meta.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -93,6 +94,12 @@ export interface Options {
 
   /** The colour each type's minigame bubbles are drawn in, by type name, as `typeColour` reads the type's icon. */
   colours: Readonly<Record<string, Colour>>;
+
+  /**
+   * What GO Battle League's players run in the league being played, which narrows the opponent's charged moves to
+   * theirs for shielding and for who goes in. Absent, as in Training, every move its species can hold is allowed for.
+   */
+  meta?: Meta | null;
   count?: number;
 }
 
@@ -104,7 +111,7 @@ export interface Options {
  */
 export async function run(
   phone: Phone,
-  { mode, data, icons, colours, count = Infinity }: Options,
+  { mode, data, icons, colours, meta, count = Infinity }: Options,
   clock: Clock,
   log: (line: string) => void = () => {},
 ): Promise<number> {
@@ -256,6 +263,7 @@ export async function run(
             { species: seen.opponent, cp: seen.opponentCp },
             health.own,
             cap,
+            meta,
             theirMoves.get(seen.opponent ?? ''),
           ));
       const moves = [...seen.moves.values()].join(', ') || '?';
@@ -280,7 +288,7 @@ export async function run(
       // The switch prompt's cards are the slots not fainted bar the one out, in party order.
       if (state === 'switch' && !prompt) {
         const out = new Set([...fainted, ...(slot === undefined ? [] : [slot])]);
-        const next = nextOut(data, party, out, seen.opponent);
+        const next = nextOut(data, party, out, seen.opponent, meta);
         const measured =
           next === undefined ? undefined : SWITCH_CARDS[[...party.keys()].filter((i) => !out.has(i)).indexOf(next)];
         const card = measured && place(measured, BOTTOM, frame);
