@@ -180,6 +180,15 @@ button whose move wasn't read isn't weighed, and a faint feared only for somethi
 count says a fainting move can come now. It is logged as
 `threw Ancient Power: Iron Head would faint us, 56 energy affords it; not holding for Flamethrower`.
 
+**Finishing.** Ahead of both, a ready move that would finish the opponent once its shields are gone is thrown at once,
+whatever the move held for, the cheapest of two that would ([`damage.mts`](damage.mts)'s `finisher`). It wins over a
+throw for fear of fainting, since the opponent gone can't land the hit we feared, where the move worth the most might
+leave it standing. Its damage is judged as for shielding [below](#when-to-shield), with our attack and their defense
+stages, at the least it would take of any form either side could be. It must take nine tenths of that at least 2 points
+more than the opponent's bar shows, for the builds being guesses and the bar wandering a point or two frame to frame.
+Anything unknown leaves the move held for, the opponent's CP unread included. The throw is logged with the reason, such
+as `threw Hydro Cannon: would finish Giratina at 12%`.
+
 ### When to shield
 
 The shield prompt never names the move coming. It takes a shield only if the hardest move the opponent could be throwing
