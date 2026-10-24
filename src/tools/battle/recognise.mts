@@ -90,10 +90,10 @@ const near = (colour: Colour, target: Colour, within: number) =>
  * Sky, and the grey countdown that sits on it during a prompt, never has less blue than green.
  *
  * The panels' colours are each channel's median along a strip rather than its mean, because the strips clip the tops of
- * each side's Poké Balls, and the right one the opponent's shields. A mean takes their colour in: three red balls drew
- * the left strip to 249/245/243 over bright white cloud, redder than blue by 6, which read a charged move's minigame
- * there as no battle at all. Its median is the panel's own 251/254/252. What is saturated or darker than a panel can be
- * is no more than 8% of a strip on any committed frame, so the median never sees it, however many balls are left.
+ * each side's Poké Balls, and the right one the opponent's shields. A mean takes their colour in — three red balls drew
+ * the left strip to 249/245/243 over bright white cloud, where its median is the panel's own 251/254/252 — and the
+ * limits above are of a panel, not of a panel and whatever is drawn on it. What is saturated or darker than a panel can
+ * be is no more than 8% of a strip on any committed frame, so the median never sees it, however many balls are left.
  */
 const HUD: readonly Box[] = [
   [0.03, 0.085, 0.2, 0.095],
