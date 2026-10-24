@@ -815,6 +815,51 @@ test.each([
   expect(report.events.filter((line) => line.includes(' shield'))).toEqual([said]);
 });
 
+/**
+ * The same prompt at 86%, every other frame of it reading as 9%, as Dialga's bar flickered between 64% and 2% live: a
+ * misread snapping back is no hit, so the shield is kept for one that would faint us.
+ */
+test('keeps the shield through a prompt whose bar flickers low', async () => {
+  const high = fixture('shield-charizard-high');
+  const low = fixture('shield-low');
+  const { phone, clock, taps } = scripted(
+    {
+      ...battleAndBack(),
+      fight: { frame: fixture('battle-charizard-magmar'), swipes: { count: 10, to: 'prompt' } },
+      prompt: { frame: high, tap: { at: [0.5, 0.82], to: 'won' }, lasts: { ms: 3000, to: 'won' } },
+    },
+    'fight',
+  );
+  let frames = 0;
+  const flickering: Phone = {
+    ...phone,
+    frame: () => {
+      const frame = phone.frame();
+
+      return frame === high && frames++ % 2 === 1 ? low : frame;
+    },
+  };
+  const report = recorder();
+
+  await run(
+    flickering,
+    {
+      mode: { mode: 'training', leader: 'blanche', league: 'ultra' },
+      data: DATA,
+      icons: ICONS,
+      colours: COLOURS,
+      count: 1,
+    },
+    clock,
+    report,
+  );
+
+  expect(taps.filter((scene) => scene === 'prompt')).toEqual([]);
+  expect(report.events.filter((line) => line.includes(' shield'))).toEqual([
+    'own: kept shield: Fire Blast would take ~48%, with 86% left',
+  ]);
+});
+
 // Charizard against Quaquaval: the banner after the prompt names Quaquaval's move, which is kept for the battle.
 test('learns the move the banner after a shield prompt names', async () => {
   const { phone, clock } = scripted(

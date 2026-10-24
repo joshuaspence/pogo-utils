@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { decodePng } from '../inventory/png.mts';
-import { readHealth } from './health.mts';
+import { readHealth, Steady } from './health.mts';
 
 const read = (name: string) => readHealth(decodePng(readFileSync(new URL(`fixtures/${name}.png`, import.meta.url))));
 
@@ -53,4 +53,76 @@ test('a bar whose left end is hidden goes unread rather than read short', () => 
 
   expect(health.own).toBeNull();
   expect(within(health.opponent, 0.99)).toBe(true);
+});
+
+/** The HP `Steady` decides on after each of `readings`, each `[own, opponent]`. */
+function steadied(readings: readonly [number | null, number | null][]): [number | null, number | null][] {
+  const steady = new Steady();
+
+  return readings.map(([own, opponent]) => {
+    steady.read({ own, opponent });
+
+    return [steady.health.own, steady.health.opponent];
+  });
+}
+
+test('a jump read once, between steady readings, never moves the HP decided on', () => {
+  // As read live: Entei at 14% for a frame among 98–100%, and Dialga's and Charizard's bars flickering low.
+  expect(
+    steadied([
+      [0.99, 0.8],
+      [0.14, 0.04],
+      [0.98, 0.8],
+      [0.02, 0.04],
+      [0.97, 0.8],
+    ]),
+  ).toEqual([
+    [0.99, 0.8],
+    [0.99, 0.8],
+    [0.98, 0.8],
+    [0.98, 0.8],
+    [0.97, 0.8],
+  ]);
+});
+
+test('a jump read again stands, as a charged move’s hit and a newcomer’s bar do', () => {
+  expect(
+    steadied([
+      [0.87, 0.02],
+      [0.09, 0.86],
+      [0.09, 0.85],
+      [0.08, 0.84],
+    ]),
+  ).toEqual([
+    [0.87, 0.02],
+    [0.87, 0.02],
+    [0.09, 0.85],
+    [0.08, 0.84],
+  ]);
+});
+
+test('a bar not drawn keeps both the HP decided on and the jump awaiting a second reading', () => {
+  expect(
+    steadied([
+      [0.87, null],
+      [0.09, null],
+      [null, null],
+      [0.1, 0.5],
+    ]),
+  ).toEqual([
+    [0.87, null],
+    [0.87, null],
+    [0.87, null],
+    [0.1, 0.5],
+  ]);
+});
+
+test('a side forgotten takes its next reading as it comes', () => {
+  const steady = new Steady();
+
+  steady.read({ own: 0.2, opponent: 0.5 });
+  steady.forget('own');
+  steady.read({ own: 1, opponent: 0.5 });
+
+  expect(steady.health).toEqual({ own: 1, opponent: 0.5 });
 });
