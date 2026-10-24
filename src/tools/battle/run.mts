@@ -14,10 +14,11 @@ import { Player, SWITCH_CARDS, type Point } from './play.mts';
 import { bubbleSwipes, type Colour } from './minigame.mts';
 import { readHealth, type Health } from './health.mts';
 import { merge, readBanner, readBattle, unseen, type Sighting } from './read.mts';
-import { opponentShields, ownShields, readyButtons, recognise } from './recognise.mts';
+import { opponentShields, ownShields, readyButtons, recognise, type State } from './recognise.mts';
 import { activeOf, bestButton, nextOut, typesOf } from './strategy.mts';
 import { wouldFaint } from './damage.mts';
 import { type Meta } from './meta.mts';
+import { type Fight, type Reporter } from './report.mts';
 
 export interface Phone {
   /** The latest frame of the stream, or `undefined` before the first. */
@@ -120,8 +121,9 @@ export async function run(
   phone: Phone,
   { mode, data, icons, colours, meta, count = Infinity }: Options,
   clock: Clock,
-  log: (line: string) => void = () => {},
+  report: Reporter = { event: () => {}, status: () => {} },
 ): Promise<number> {
+  const log = (line: string, side?: 'own' | 'opponent') => report.event(line, side);
   let player: Player | undefined;
   let battles = 0;
   let battling = false;
@@ -163,7 +165,22 @@ export async function run(
   let bannerUntil = -Infinity;
   let bannerAt = -Infinity;
   let bannerReading = false;
-  let said = '';
+
+  // The state of the frame before, which the shield prompt's showing is told from: the opponent's charged move.
+  let last: State = 'other';
+
+  // What the screen was last recognised as, and the battle as last read, for `report.status`.
+  let screen = 'other';
+  let fight: Fight | undefined;
+  const status = () =>
+    report.status({
+      battles,
+      count,
+      screen,
+      lostIn: LOST_MS - (clock.now() - known),
+      lostAfter: LOST_MS,
+      fight,
+    });
 
   while (battles < count) {
     const frame = phone.frame();
@@ -182,6 +199,13 @@ export async function run(
     }
 
     const state = recognise(frame);
+    const theirName = () => seen.opponent ?? 'the opponent';
+
+    if (state === 'shield' && last !== 'shield') {
+      log(`${theirName()} threw a charged move`, 'opponent');
+    }
+
+    last = state;
 
     // The move just thrown at us, named once it lands, whether or not the shield was taken: the banner is drawn over the
     // battle and over the frames that read as neither, so it is looked for on both.
@@ -207,7 +231,7 @@ export async function run(
             const known = moves.get(opponent) ?? new Set();
             moves.set(opponent, known.add(move));
             bannerUntil = -Infinity;
-            log(`${opponent} has ${[...known].join(' and ')}`);
+            log(`${opponent} has ${[...known].join(' and ')}`, 'opponent');
           }
         })
         .catch((error: unknown) => log(`banner not read: ${error instanceof Error ? error.message : String(error)}`))
@@ -232,7 +256,13 @@ export async function run(
       // Never more than the last count, a shield once spent staying spent: a banner over the HUD reads as one of theirs
       // held, and leaves ours unread.
       if (state === 'battle' || state === 'charged') {
-        theirShields = Math.min(theirShields, opponentShields(frame));
+        const held = Math.min(theirShields, opponentShields(frame));
+
+        if (held < theirShields) {
+          log(`${theirName()} shielded`, 'opponent');
+        }
+
+        theirShields = held;
         ourShields = Math.min(ourShields, ownShields(frame) ?? ourShields);
       }
 
@@ -252,7 +282,12 @@ export async function run(
 
       if ((state === 'battle' || state === 'charged') && !player.minigame && clock.now() - readAt >= READ_MS) {
         readAt = clock.now();
+        const before = seen.opponent;
         seen = merge(seen, await readBattle(frame, data));
+
+        if (before !== null && seen.opponent !== before) {
+          log(`sent in ${seen.opponent}`, 'opponent');
+        }
       }
 
       // A nickname in the HUD leaves the species to the party: whichever slot is out.
@@ -275,19 +310,18 @@ export async function run(
             meta,
             theirMoves.get(seen.opponent ?? ''),
           ));
-      const moves = [...seen.moves.values()].join(', ') || '?';
-      const throwing = (best !== undefined && seen.moves.get(best)) || 'the first ready';
-      const side = (cp: number | null, hp: number | null) =>
-        `CP ${cp ?? '?'} at ${hp === null ? '?' : Math.round(hp * 100)}%`;
-      const saying = `${own ?? '?'} against ${seen.opponent ?? '?'} (${theirShields} shields): ${moves}, ${bait ? 'baiting with' : 'throwing'} ${throwing}, ${shield ? '' : 'not '}shielding; ${side(seen.ownCp, health.own)} against ${side(seen.opponentCp, health.opponent)}, ${ourShields} of our shields left`;
-
-      if (saying !== said) {
-        log(saying);
-        said = saying;
-      }
-
+      fight = {
+        own: { species: own, cp: seen.ownCp, hp: health.own, shields: ourShields },
+        opponent: { species: seen.opponent, cp: seen.opponentCp, hp: health.opponent, shields: theirShields },
+        moves: [...seen.moves.values()],
+        throwing: (best !== undefined && seen.moves.get(best)) || undefined,
+        bait,
+        shield,
+      };
       battling = true;
       known = clock.now();
+      screen = state;
+      status();
       prompt = state === 'switch' ? prompt : undefined;
       otherSince = undefined;
 
@@ -319,7 +353,12 @@ export async function run(
       if (action.kind === 'swipe') {
         await phone.swipe(action.from, action.to, action.ms);
       } else if (action.kind === 'tap') {
-        log(`tap ${action.what}`);
+        log(
+          action.what === 'charged'
+            ? `threw ${seen.moves.get(action.at[0]) ?? 'a charged move'}`
+            : `tap ${action.what}`,
+          'own',
+        );
         await phone.tap(action.at);
 
         if (action.what === 'charged') {
@@ -337,7 +376,7 @@ export async function run(
 
           if (prompt.next !== undefined) {
             sent = prompt.next;
-            log(`sending in ${party[prompt.next] ?? '?'}`);
+            log(`sending in ${party[prompt.next] ?? '?'}`, 'own');
           }
         }
       } else {
@@ -348,7 +387,11 @@ export async function run(
     }
 
     player.next(state, clock.now());
-    otherSince ??= clock.now();
+
+    if (otherSince === undefined) {
+      otherSince = clock.now();
+      screen = 'other';
+    }
 
     if (clock.now() - otherSince >= MENU_AFTER_MS && !reading) {
       const started: Reading = {};
@@ -379,6 +422,7 @@ export async function run(
       // GO Battle League never comes back to the map of itself once a battle has been played: a Poké Ball there is the
       // reward encounter's, which is left for the player rather than tapped.
       let menu: Menu = read.screen === 'map' && mode.mode === 'gbl' && battles > 0 ? { screen: 'unknown' } : read;
+      screen = menu.screen;
 
       // Greyed out read after read, not once among others.
       if (menu.screen !== 'no-battle') {
@@ -451,6 +495,7 @@ export async function run(
       throw new Lost(kept);
     }
 
+    status();
     await clock.sleep(50);
   }
 
