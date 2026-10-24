@@ -8,8 +8,9 @@
  * Colour wherever it settles the question, being far cheaper than OCR and, on the game's own lettering, far surer: the
  * leaders' portraits, the two green buttons, the teal one at the foot of the screen and the map's Poké Ball. OCR for
  * the rest, which are told by words in plain capitals: the league's three lines, the main menu's labels and the Battle
- * tab's header. Positions are fractions of a Pixel 4 XL's screen, placed on another shape by their anchors as
- * `layout.mts` places them, and colours were measured on recorded frames of each screen and on full-size screenshots.
+ * tab's header. Positions are fractions of the screen; those that go through `layout.mts` are down as widths from their
+ * anchors, which places them on any shape. Colours were measured on recorded frames of each screen and on full-size
+ * screenshots.
  */
 
 import { fold, ocr, type Line } from '../inventory/ocr.mts';
@@ -55,8 +56,8 @@ const LEADER_X: Record<Leader, number> = { blanche: 0.26, candela: 0.5, spark: 0
 const BLANCHE_BLUE = [190, 235, 247];
 const CANDELA_PINK = [230, 160, 166];
 
-/** How far below the backdrop's first row the portraits are tapped, near their centres. */
-const PORTRAIT_BELOW = 0.02;
+/** How far below the backdrop's first row the portraits are tapped, near their centres, in widths. */
+const PORTRAIT_BELOW = 0.0422;
 
 /** Where on the screen the training card is looked for, as fractions of its height. */
 const PORTRAIT_SEARCH = { from: 0.15, to: 0.95, step: 0.004 };
@@ -67,8 +68,8 @@ const PORTRAIT_SEARCH = { from: 0.15, to: 0.95, step: 0.004 };
  * 172/216/155 across recorded frames and full-size screenshots, so it is told by its shape — green well above red and
  * blue, blue in a narrow band — rather than held to one colour, which a screenshot of the party button missed by 28.
  */
-const BATTLE: Point = [0.5, 0.733];
-const USE_PARTY: Point = [0.5, 0.87];
+const BATTLE: Point = [0.5, 0.4919];
+const USE_PARTY: Point = [0.5, -0.0633];
 
 /**
  * Where the two buttons are pinned. BATTLE was measured at 0.507 of the height, which is the middle to well within a
@@ -112,13 +113,13 @@ function panel(image: Image, y: number): boolean {
  * Its teal is translucent, and only its red follows what is behind it: 27/132/146 over the result's forest and Blanche's
  * mountains, 64/131/146 over Spark's lit city. So green and blue are held to the teal, and red only kept low.
  */
-const FOOT: Point = [0.5, 0.935];
+const FOOT: Point = [0.5, -0.1372];
 
 /**
- * How far above `FOOT` a tap is clear of the ✗, which floats over whatever the Battle tab has scrolled beneath it: a
- * Training card one scroll from its foot on a taller screen than the Pixel 4 XL's put Candela's portrait under it.
+ * How far above `FOOT` a tap is clear of the ✗, in widths, which floats over whatever the Battle tab has scrolled
+ * beneath it: a Training card one scroll from its foot on a Pixel 8 Pro put Candela's portrait under it.
  */
-const CLEAR_OF_FOOT = 0.04;
+const CLEAR_OF_FOOT = 0.0844;
 
 function teal(image: Image): boolean {
   const [r, g, b] = rgb(image, FOOT[0] * image.width, down(FOOT[1], BOTTOM, image) * image.height);
@@ -130,18 +131,18 @@ function teal(image: Image): boolean {
  * The map's Poké Ball, which opens the main menu: its red top and white bottom either side of the grey centre, measured
  * at 235/76/78 and 255/56/69 above and 253–255 all three below on two maps. Nothing else is drawn red there.
  */
-const BALL: Point = [0.5, 0.932];
+const BALL: Point = [0.5, -0.1436];
 
 function pokeBall(image: Image): boolean {
   const [x, y] = place(BALL, BOTTOM, image);
-  const [r, g, b] = rgb(image, x * image.width, (y - tall(0.02, image)) * image.height);
-  const below = rgb(image, x * image.width, (y + tall(0.023, image)) * image.height);
+  const [r, g, b] = rgb(image, x * image.width, (y - tall(0.0422, image)) * image.height);
+  const below = rgb(image, x * image.width, (y + tall(0.0486, image)) * image.height);
 
   return r >= 200 && g <= 110 && b <= 110 && below.every((c) => c >= 240);
 }
 
-/** How far below its label the main menu's BATTLE is tapped, at the centre of its circle. */
-const LABEL_ABOVE = 0.06;
+/** How far below its label the main menu's BATTLE is tapped, at the centre of its circle, in widths. */
+const LABEL_ABOVE = 0.1267;
 
 /**
  * The Battle tab's scroll, up its middle: from GO Battle League, where it opens, towards the Training card at its foot.
@@ -153,11 +154,11 @@ const SCROLL: readonly [Point, Point] = [
 ];
 
 /**
- * The Battle tab's header, BATTLE and PARTY, in the band at the top of the screen. Either word will do, OCR having read
- * only BATTLE off a Pixel 8 Pro's, the unselected PARTY being grey on the teal; nothing else draws BATTLE that high, the
- * main menu's being halfway down and the leader's BATTLE three quarters.
+ * The Battle tab's header, BATTLE and PARTY, in the band at the top of the screen, as widths down from it. Either word
+ * will do, OCR having read only BATTLE off a Pixel 8 Pro's, the unselected PARTY being grey on the teal; nothing else
+ * draws BATTLE that high, the main menu's being halfway down and the leader's BATTLE three quarters.
  */
-const HEADER = 0.1;
+const HEADER = 0.2111;
 
 /**
  * The main menu's other labels, any two of which beside BATTLE make it the main menu: OCR has missed ITEMS where
@@ -347,7 +348,7 @@ const SCROLL_UP: readonly [Point, Point] = [SCROLL[1], SCROLL[0]];
  * GO Battle League's NEXT BATTLE on its result, the buttons' green over the artwork, above the ✓ and pinned with it to
  * the screen's foot: 131/204/149 at 0.854 of a Pixel 4 XL's height.
  */
-const NEXT_BATTLE: Point = [0.5, 0.854];
+const NEXT_BATTLE: Point = [0.5, -0.3082];
 
 /**
  * The Battle tab's cards below GO Battle League's, the tab's header having gone unread off one scrolled down to them.

@@ -276,3 +276,74 @@ test('gives the terminal back when done, writing the last screen into it a line 
 
   expect(written().split('\x1b[?25h\x1b[?1049l')).toHaveLength(2);
 });
+
+/** Pictures in a terminal with cells 10×21, each drawn as `[picture N rows]`, and a phone frame at `streamSize`. */
+function phone() {
+  const drawn: number[] = [];
+  const image = { width: 360, height: 802, data: new Uint8Array() };
+  const pictures = {
+    cell: { width: 10, height: 21 },
+    picture: (_image: unknown, rows: number) => {
+      drawn.push(rows);
+
+      return `[picture ${rows} rows]`;
+    },
+    close: vi.fn(),
+  };
+
+  return { pictures, image, drawn };
+}
+
+/** What a redraw put in front of each line, and the lines without it. */
+const indented = (lines: string[], by: number) => lines.map((line) => line.replace(`\x1b[${by}G`, ''));
+
+test('draws the phone down the left edge, the table beside it at the width it leaves, each frame once', () => {
+  const { stream, written, shown } = terminal(130, 24);
+  const { pictures, image, drawn } = phone();
+  let frame: typeof image | undefined = image;
+  const report = live(stream, { pictures, frame: () => frame });
+
+  report.status(STATUS);
+
+  // 24 rows of 21 pixels is 504 tall, so 226 across: 23 columns, and one between it and the table.
+  expect(shown()[0]?.startsWith('[picture 24 rows]\x1b[25G')).toBe(true);
+  expect(shown().every((line) => line.includes('\x1b[25G'))).toBe(true);
+  expect(indented(shown(), 25).slice(2, 4)).toEqual([rule(106, '┬'), panel(FIGHT, 106).split('\n')[0]]);
+
+  vi.advanceTimersByTime(100);
+  report.status({ ...STATUS, screen: 'charged' });
+
+  expect(drawn).toEqual([24]);
+  expect(shown()[0]?.startsWith('\x1b[25G')).toBe(true);
+
+  frame = { ...image };
+  report.status(STATUS);
+  vi.advanceTimersByTime(100);
+
+  expect(drawn).toEqual([24, 24]);
+
+  report.done();
+
+  expect(written()).toContain('\x1b_Ga=d,d=I,i=1,q=2;\x1b\\\x1b[?25h\x1b[?1049l');
+  expect(written().split('\x1b[?1049l')[1]?.split('\n')[2]).toBe(rule(130, '┬'));
+  expect(pictures.close).toHaveBeenCalled();
+});
+
+test('leaves the phone out where the table would be narrower than 80 beside it, or there is no frame yet', () => {
+  const { stream, shown } = terminal(103, 24);
+  const { pictures, drawn } = phone();
+  const report = live(stream, { pictures, frame: () => undefined });
+
+  report.status(STATUS);
+
+  expect(shown()[2]).toBe(rule(103, '┬'));
+
+  const narrow = terminal(103, 24);
+  const fits = phone();
+
+  live(narrow.stream, { pictures: fits.pictures, frame: () => fits.image }).status(STATUS);
+
+  expect(drawn).toEqual([]);
+  expect(fits.drawn).toEqual([]);
+  expect(narrow.shown()[2]).toBe(rule(103, '┬'));
+});
