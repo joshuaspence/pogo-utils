@@ -605,6 +605,9 @@ round — the result's ✓, the leader, BATTLE, the league, then USE THIS PARTY 
 the screen awake while it runs and puts the setting back after. Where nothing on screen has been recognised for 20
 seconds it stops rather than tap at a screen it does not know, and `--keep-frames DIR` saves the last few frames it saw.
 
+How it is put together, and the strategy it plays by in full, is in
+[`src/tools/battle/README.md`](src/tools/battle/README.md).
+
 A screenshot takes 0.8–1.9 seconds over `adb` against a turn of half a second, so a battle is watched as video instead:
 `screenrecord` on the phone sends H.264 at 30 frames a second and `ffmpeg` decodes it, which needs `ffmpeg` on `PATH`
 beside `adb`, and Tesseract for the league screen and the names and moves. The first run also downloads the game's form
